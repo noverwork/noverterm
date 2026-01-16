@@ -5,7 +5,59 @@ description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+# Lint configuration
+[lints.rust]
+unsafe_code = "allow"
+unused = { level = "warn", priority = -1 }
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+
+# Allow certain pedantic lints that are too noisy
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+use_self = "allow"
+must_use_candidate = "allow"
+too_many_lines = "allow"
+
+# Allow casts - common in terminal/low-level code
+needless_pass_by_value = "allow"
+cast_lossless = "allow"
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+
+# Allow float comparisons for terminal coordinates
+float_cmp = "allow"
+suboptimal_flops = "allow"
+
+# Allow common patterns
+unnecessary_wraps = "allow"
+map_unwrap_or = "allow"
+or_fun_call = "allow"
+option_map_unit_fn = "allow"
+option_if_let_else = "allow"
+manual_map = "allow"
+
+# Allow in new contexts
+new_without_default = "allow"
+if_not_else = "allow"
+uninlined_format_args = "allow"
+trivially_copy_pass_by_ref = "allow"
+items_after_statements = "allow"
+unnecessary_lazy_evaluations = "allow"
+missing_const_for_fn = "allow"
+doc_markdown = "allow"
+unnecessary_debug_formatting = "allow"
+significant_drop_tightening = "allow"
+
+# Allow ptr casts
+ptr_cast_constness = "allow"
+ref_as_ptr = "allow"
 
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
@@ -23,3 +75,16 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Terminal / PTY
+pty-process = "0.4"
+libc = "0.2"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# SSH
+ssh2 = "0.9"
+
+# Error handling
+thiserror = "2"
