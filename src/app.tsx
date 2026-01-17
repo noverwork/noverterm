@@ -1,18 +1,35 @@
-import { useState } from 'react';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { TopBar } from '@/components/layout/TopBar';
-import { RightPanel } from '@/components/layout/RightPanel';
-import { SessionDialog } from '@/components/sessions/SessionDialog';
-import { SessionCard } from '@/components/sessions/SessionCard';
-import { KeyList } from '@/components/keys/KeyList';
-import { PortForwardList } from '@/components/portforward/PortForwardList';
-import { TerminalCanvas } from '@/components/TerminalCanvas';
-import { useSessionStore } from '@/lib/stores';
+import { useState, useEffect } from 'react';
+import { Sidebar } from '@/components/layout/sidebar';
+import { TopBar } from '@/components/layout/top-bar';
+import { RightPanel } from '@/components/layout/right-panel';
+import { SessionDialog } from '@/components/sessions/session-dialog';
+import { SessionCard } from '@/components/sessions/session-card';
+import { KeyList } from '@/components/keys/key-list';
+import { PortForwardList } from '@/components/portforward/port-forward-list';
+import { TerminalCanvas } from '@/components/terminal-canvas';
+import { useSessionStore, useKeyStore } from '@/lib/stores';
 import { Toaster } from '@/components/ui/sonner';
 
 function App() {
-  const { currentView, sessions, activeSessionId, connectSession, disconnectSession } =
+  const { currentView, sessions, activeSessionId, connectSession, disconnectSession, init: initSessions } =
     useSessionStore();
+  const { init: initKeys } = useKeyStore();
+
+  // Initialize stores from database on app start
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        await Promise.all([
+          initSessions(),
+          initKeys(),
+        ]);
+      } catch (error) {
+        console.error('Failed to initialize app:', error);
+      }
+    };
+
+    initializeApp();
+  }, [initSessions, initKeys]);
 
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<(typeof sessions)[0] | undefined>();

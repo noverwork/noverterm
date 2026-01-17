@@ -38,6 +38,9 @@ interface SessionDialogProps {
 
 export function SessionDialog({ open, onOpenChange, editingSession }: SessionDialogProps) {
   const { addSession, updateSession, groups } = useSessionStore();
+
+  // Find group ID by name
+  const selectedGroupId = groups.find((g) => g.name === group)?.id;
   const { keys } = useKeyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -63,13 +66,12 @@ export function SessionDialog({ open, onOpenChange, editingSession }: SessionDia
         username,
         authMethod,
         keyId: authMethod === 'key' ? keyId : undefined,
-        group: group || undefined,
       };
 
       if (editingSession) {
-        updateSession(editingSession.id, sessionData);
+        await updateSession(editingSession.id, sessionData);
       } else {
-        await addSession(sessionData);
+        await addSession(sessionData, selectedGroupId);
       }
       onOpenChange(false);
       // Reset form

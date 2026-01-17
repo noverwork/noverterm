@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
+import { invoke } from '@tauri-apps/api/core';
 import {
   Dialog,
   DialogContent,
@@ -104,11 +105,22 @@ export function KeyDialog({ trigger }: KeyDialogProps) {
   const onImportSubmit = async (values: ImportKeyFormValues) => {
     setIsSubmitting(true);
     try {
-      await importKeyAction({
-        name: values.name,
+      // Get fingerprint from public key
+      const fingerprint = await invoke<string>('get_key_fingerprint', {
         publicKey: values.publicKey,
-        privateKeyPath: values.privateKeyPath,
       });
+
+      // For imported keys, we'll assume no passphrase for now
+      // The actual passphrase check would happen when using the key
+      await importKeyAction(
+        {
+          name: values.name,
+          publicKey: values.publicKey,
+          privateKeyPath: values.privateKeyPath,
+        },
+        fingerprint,
+        false // hasPassphrase - will be detected on actual use
+      );
       toast.success('SSH key imported successfully');
       setOpen(false);
       importForm.reset();

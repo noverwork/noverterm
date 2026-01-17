@@ -1,6 +1,6 @@
 import { useKeyStore } from '@/lib/stores';
-import { KeyCard } from './KeyCard';
-import { KeyDialog } from './KeyDialog';
+import { KeyCard } from './key-card';
+import { KeyDialog } from './key-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { EmptyState } from '@/components/ui/empty-state';
 
