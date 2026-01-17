@@ -1,5 +1,113 @@
 // ============================================================================
-// SSH Session Types
+// Database Types
+// ============================================================================
+
+export interface DbSession {
+  id: string;
+  name: string;
+  group_id?: string;
+  host: string;
+  port: number;
+  username: string;
+  auth_method: 'password' | 'key' | 'agent';
+  key_id?: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface DbGroup {
+  id: string;
+  name: string;
+  color?: string;
+}
+
+export interface DbSshKey {
+  id: string;
+  name: string;
+  type: 'rsa' | 'ed25519' | 'ecdsa';
+  public_key: string;
+  private_key_path?: string;
+  fingerprint: string;
+  has_passphrase: boolean;
+  created_at: number;
+}
+
+export interface DbPortForward {
+  id: string;
+  session_id: string;
+  name: string;
+  type: 'local' | 'remote' | 'dynamic';
+  local_host: string;
+  local_port: number;
+  remote_host?: string;
+  remote_port?: number;
+}
+
+// Database Input Types
+export interface CreateGroupInput {
+  name: string;
+  color?: string;
+}
+
+export interface UpdateGroupInput {
+  name?: string;
+  color?: string;
+}
+
+export interface CreateSessionInputDb {
+  name: string;
+  group_id?: string;
+  host: string;
+  port: number;
+  username: string;
+  auth_method: 'password' | 'key' | 'agent';
+  key_id?: string;
+}
+
+export interface UpdateSessionInputDb {
+  name?: string;
+  group_id?: string;
+  host?: string;
+  port?: number;
+  username?: string;
+  auth_method?: 'password' | 'key' | 'agent';
+  key_id?: string;
+}
+
+export interface CreateKeyInputDb {
+  name: string;
+  type: 'rsa' | 'ed25519' | 'ecdsa';
+  public_key: string;
+  private_key_path?: string;
+  fingerprint: string;
+  has_passphrase: boolean;
+}
+
+export interface UpdateKeyInputDb {
+  name?: string;
+}
+
+export interface CreatePortForwardInputDb {
+  session_id: string;
+  name: string;
+  type: 'local' | 'remote' | 'dynamic';
+  local_host: string;
+  local_port: number;
+  remote_host?: string;
+  remote_port?: number;
+}
+
+export interface UpdatePortForwardInputDb {
+  name?: string;
+  type?: 'local' | 'remote' | 'dynamic';
+  local_host?: string;
+  local_port?: number;
+  remote_host?: string;
+  remote_port?: number;
+}
+
+// ============================================================================
+// SSH Session Types (UI)
 // ============================================================================
 
 export type SessionStatus = 'Disconnected' | 'Connecting' | 'Connected' | 'Error';
