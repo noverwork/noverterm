@@ -17,6 +17,7 @@
   /* Colors - Dark Theme */
   --color-background: oklch(0.15 0.02 250); /* Deep slate */
   --color-foreground: oklch(0.98 0.01 250); /* Light slate */
+  --color-surface: oklch(0.18 0.02 250);
 
   --color-card: oklch(0.15 0.02 250);
   --color-card-foreground: oklch(0.98 0.01 250);
@@ -43,6 +44,14 @@
   --color-input: oklch(0.25 0.02 250);
   --color-ring: oklch(0.6 0.2 250);
 
+  /* Status Colors */
+  --color-success: oklch(0.6 0.15 145); /* Green */
+  --color-success-foreground: oklch(0.98 0 0);
+  --color-warning: oklch(0.7 0.15 65); /* Orange */
+  --color-warning-foreground: oklch(0.15 0.02 250);
+  --color-info: oklch(0.6 0.2 250); /* Blue */
+  --color-info-foreground: oklch(0.98 0 0);
+
   /* Chart Colors */
   --color-chart-1: oklch(0.6 0.15 145); /* Green */
   --color-chart-2: oklch(0.6 0.2 25); /* Red */
@@ -64,6 +73,40 @@ body {
     'calt' 1;
 }
 
+/* Utility Classes for Status */
+.bg-success {
+  background-color: var(--color-success);
+}
+.bg-success\/20 {
+  background-color: oklch(0.6 0.15 145 / 0.2);
+}
+.bg-warning {
+  background-color: var(--color-warning);
+}
+.bg-warning\/20 {
+  background-color: oklch(0.7 0.15 65 / 0.2);
+}
+.text-success {
+  color: var(--color-success);
+}
+.text-success-foreground {
+  color: var(--color-success-foreground);
+}
+.text-warning {
+  color: var(--color-warning);
+}
+.text-warning-foreground {
+  color: var(--color-warning-foreground);
+}
+.text-info {
+  color: var(--color-info);
+}
+
+/* Surface */
+.bg-surface {
+  background-color: var(--color-surface);
+}
+
 /* Custom Scrollbar for Terminal */
 .terminal-scroll::-webkit-scrollbar {
   width: 8px;
@@ -71,7 +114,7 @@ body {
 }
 
 .terminal-scroll::-webkit-scrollbar-track {
-  background-color: oklch(0.15 0.02 250);
+  background-color: var(--color-background);
 }
 
 .terminal-scroll::-webkit-scrollbar-thumb {
@@ -81,4 +124,19 @@ body {
 
 .terminal-scroll::-webkit-scrollbar-thumb:hover {
   background-color: oklch(0.4 0.02 250);
+}
+
+/* Sonner Toast Styles */
+[data-sonner-toast] {
+  background: var(--color-card);
+  border-color: var(--color-border);
+  color: var(--color-foreground);
+}
+
+[data-sonner-toast][data-type='success'] {
+  border-color: var(--color-success);
+}
+
+[data-sonner-toast][data-type='error'] {
+  border-color: var(--color-destructive);
 }
