@@ -1,12 +1,10 @@
+mod config;
 mod db;
 mod models;
 mod schema;
 
-use crate::db::{init_pool, run_migrations, Pool};
-use crate::models::{NewSetting, Setting};
-use crate::schema::settings::dsl::settings;
-use diesel::prelude::*;
-use diesel::upsert::excluded;
+use crate::config::SettingsManager;
+use crate::db::{init_pool, run_migrations};
 use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
@@ -15,29 +13,24 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
-fn get_setting(key: String, pool: State<'_, Pool>) -> Result<Option<Setting>, String> {
-    let mut connection = pool.get().map_err(|error| error.to_string())?;
-
-    settings
-        .filter(schema::settings::key.eq(&key))
-        .select(Setting::as_select())
-        .first::<Setting>(&mut connection)
-        .optional()
-        .map_err(|error| error.to_string())
+fn get_setting(key: String, settings: State<'_, SettingsManager>) -> Option<String> {
+    settings.get(&key)
 }
 
 #[tauri::command]
-fn set_setting(key: String, value: String, pool: State<'_, Pool>) -> Result<(), String> {
-    let mut connection = pool.get().map_err(|error| error.to_string())?;
+fn set_setting(
+    key: String,
+    value: String,
+    settings: State<'_, SettingsManager>,
+) -> Result<(), String> {
+    settings.set(key, value)
+}
 
-    diesel::insert_into(settings)
-        .values(&NewSetting { key, value })
-        .on_conflict(schema::settings::key)
-        .do_update()
-        .set(schema::settings::value.eq(excluded(schema::settings::value)))
-        .execute(&mut connection)
-        .map(|_| ())
-        .map_err(|error| error.to_string())
+#[tauri::command]
+fn get_all_settings(
+    settings: State<'_, SettingsManager>,
+) -> std::collections::HashMap<String, String> {
+    settings.all()
 }
 
 fn resolve_db_path(app: &AppHandle) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
@@ -52,17 +45,28 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| -> Result<(), Box<dyn std::error::Error>> {
-            let app_handle = app.handle().clone();
-            let db_path = resolve_db_path(&app_handle)?;
-            let db_path = db_path.to_string_lossy().into_owned();
-            let pool = init_pool(&db_path);
+            let app_data_dir = app.path().app_data_dir()?;
+            std::fs::create_dir_all(&app_data_dir)?;
 
+            let settings_path = app_data_dir.join("settings.json");
+            let settings = SettingsManager::new(settings_path);
+            app.manage(settings);
+
+            let db_path = resolve_db_path(app.handle())?
+                .to_string_lossy()
+                .into_owned();
+            let pool = init_pool(&db_path);
             run_migrations(&pool);
-            app_handle.manage(pool);
+            app.manage(pool);
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet, get_setting, set_setting])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            get_setting,
+            set_setting,
+            get_all_settings
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
