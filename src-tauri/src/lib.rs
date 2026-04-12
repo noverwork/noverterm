@@ -3,9 +3,11 @@ mod models;
 mod schema;
 
 use crate::db::{init_pool, run_migrations, Pool};
-use crate::models::User;
+use crate::models::{NewSetting, Setting, User};
+use crate::schema::settings::dsl::settings;
 use crate::schema::users::dsl::users;
 use diesel::prelude::*;
+use diesel::upsert::excluded;
 use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
@@ -18,7 +20,34 @@ fn get_users(pool: State<'_, Pool>) -> Result<Vec<User>, String> {
     let mut connection = pool.get().map_err(|error| error.to_string())?;
 
     users
+        .select(User::as_select())
         .load::<User>(&mut connection)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn get_setting(key: String, pool: State<'_, Pool>) -> Result<Option<Setting>, String> {
+    let mut connection = pool.get().map_err(|error| error.to_string())?;
+
+    settings
+        .filter(schema::settings::key.eq(&key))
+        .select(Setting::as_select())
+        .first::<Setting>(&mut connection)
+        .optional()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn set_setting(key: String, value: String, pool: State<'_, Pool>) -> Result<(), String> {
+    let mut connection = pool.get().map_err(|error| error.to_string())?;
+
+    diesel::insert_into(settings)
+        .values(&NewSetting { key, value })
+        .on_conflict(schema::settings::key)
+        .do_update()
+        .set(schema::settings::value.eq(excluded(schema::settings::value)))
+        .execute(&mut connection)
+        .map(|_| ())
         .map_err(|error| error.to_string())
 }
 
@@ -44,7 +73,12 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet, get_users])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            get_users,
+            get_setting,
+            set_setting
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

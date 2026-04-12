@@ -1,9 +1,12 @@
 use crate::schema::users;
 use chrono::NaiveDateTime;
-use diesel::{Insertable, Queryable};
+use diesel::sqlite::Sqlite;
+use diesel::{Insertable, Queryable, Selectable};
 use serde::{Deserialize, Serialize};
 
-#[derive(Queryable, Serialize, Deserialize)]
+#[derive(Queryable, Selectable, Serialize, Deserialize)]
+#[diesel(table_name = users)]
+#[diesel(check_for_backend(Sqlite))]
 pub struct User {
     pub id: i32,
     pub name: String,
