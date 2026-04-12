@@ -3,9 +3,8 @@ mod models;
 mod schema;
 
 use crate::db::{init_pool, run_migrations, Pool};
-use crate::models::{NewSetting, Setting, User};
+use crate::models::{NewSetting, Setting};
 use crate::schema::settings::dsl::settings;
-use crate::schema::users::dsl::users;
 use diesel::prelude::*;
 use diesel::upsert::excluded;
 use tauri::{AppHandle, Manager, State};
@@ -13,16 +12,6 @@ use tauri::{AppHandle, Manager, State};
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
-#[tauri::command]
-fn get_users(pool: State<'_, Pool>) -> Result<Vec<User>, String> {
-    let mut connection = pool.get().map_err(|error| error.to_string())?;
-
-    users
-        .select(User::as_select())
-        .load::<User>(&mut connection)
-        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -73,12 +62,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            greet,
-            get_users,
-            get_setting,
-            set_setting
-        ])
+        .invoke_handler(tauri::generate_handler![greet, get_setting, set_setting])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
