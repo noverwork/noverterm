@@ -4,7 +4,7 @@ use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 
 pub type Pool = R2d2Pool<ConnectionManager<SqliteConnection>>;
 
-pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
 pub fn init_pool(db_path: &str) -> Pool {
     let manager = ConnectionManager::<SqliteConnection>::new(db_path);

@@ -1,9 +1,10 @@
 [package]
-name = "novercpa"
+name = "desktop"
 version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
+default-run = "desktop"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,8 +12,12 @@ edition = "2021"
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "novercpa_lib"
+name = "desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "export-types"
+path = "src/export_types.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -20,9 +25,13 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+tauri-specta = { version = "=2.0.0-rc.20", features = ["derive", "typescript"] }
+specta = { version = "=2.0.0-rc.20", features = ["derive"] }
+specta-typescript = "=0.0.7"
 diesel = { version = "2.3", features = ["sqlite", "r2d2", "chrono"] }
 diesel_migrations = "2.3"
 libsqlite3-sys = { version = "0.35", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+shared = { path = "../shared" }

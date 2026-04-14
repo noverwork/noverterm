@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
+    "dev:tauri": "cargo tauri dev",
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "export-types": "cargo run --bin export-types --manifest-path packages/desktop/Cargo.toml",
     "tauri": "tauri",
-    "lint": "eslint . && cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings"
+    "lint": "eslint . && cargo clippy --workspace -- -D warnings"
   },
   "license": "MIT",
   "dependencies": {

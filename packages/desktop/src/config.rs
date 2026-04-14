@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use shared::Setting;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -30,20 +31,38 @@ impl SettingsManager {
         }
     }
 
-    pub fn get(&self, key: &str) -> Option<String> {
-        self.settings.lock().unwrap().values.get(key).cloned()
+    pub fn get(&self, key: &str) -> Option<Setting> {
+        self.settings
+            .lock()
+            .unwrap()
+            .values
+            .get(key)
+            .cloned()
+            .map(|value| Setting {
+                key: key.to_string(),
+                value,
+            })
     }
 
-    pub fn set(&self, key: String, value: String) -> Result<(), String> {
+    pub fn set(&self, setting: Setting) -> Result<(), String> {
         {
             let mut settings = self.settings.lock().unwrap();
-            settings.values.insert(key, value);
+            settings.values.insert(setting.key, setting.value);
         }
         self.save()
     }
 
-    pub fn all(&self) -> HashMap<String, String> {
-        self.settings.lock().unwrap().values.clone()
+    pub fn all(&self) -> Vec<Setting> {
+        self.settings
+            .lock()
+            .unwrap()
+            .values
+            .iter()
+            .map(|(key, value)| Setting {
+                key: key.clone(),
+                value: value.clone(),
+            })
+            .collect()
     }
 
     fn save(&self) -> Result<(), String> {
