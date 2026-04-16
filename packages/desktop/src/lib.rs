@@ -1,9 +1,12 @@
 mod config;
+mod ssh;
 
 use crate::config::SettingsManager;
+use crate::ssh::{AuthMethod, SshSessionManager};
 use shared::Setting;
 use specta_typescript::Typescript;
-use tauri::{Manager, State};
+use std::path::PathBuf;
+use tauri::{AppHandle, Manager, State};
 use tauri_specta::{collect_commands, Builder};
 use tracing_subscriber::EnvFilter;
 
@@ -31,12 +34,77 @@ fn get_all_settings(settings: State<'_, SettingsManager>) -> Vec<Setting> {
     settings.all()
 }
 
+#[derive(serde::Deserialize, specta::Type)]
+#[serde(tag = "type")]
+enum AuthMethodInput {
+    #[serde(rename = "password")]
+    Password { password: String },
+    #[serde(rename = "key")]
+    Key { key_path: String },
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn ssh_connect(
+    app: AppHandle,
+    host: String,
+    port: u16,
+    user: String,
+    auth: AuthMethodInput,
+    cols: u32,
+    rows: u32,
+    ssh_manager: State<'_, SshSessionManager>,
+) -> Result<String, String> {
+    let auth_method = match auth {
+        AuthMethodInput::Password { password } => AuthMethod::Password(password),
+        AuthMethodInput::Key { key_path } => AuthMethod::KeyFile(PathBuf::from(key_path)),
+    };
+
+    ssh_manager
+        .connect(app, host, port, user, auth_method, cols, rows)
+        .await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn ssh_write(
+    session_id: String,
+    data: String,
+    ssh_manager: State<'_, SshSessionManager>,
+) -> Result<(), String> {
+    ssh_manager.write(&session_id, data.into_bytes()).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn ssh_resize(
+    session_id: String,
+    cols: u32,
+    rows: u32,
+    ssh_manager: State<'_, SshSessionManager>,
+) -> Result<(), String> {
+    ssh_manager.resize(&session_id, cols, rows).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn ssh_disconnect(
+    session_id: String,
+    ssh_manager: State<'_, SshSessionManager>,
+) -> Result<(), String> {
+    ssh_manager.disconnect(&session_id).await
+}
+
 fn command_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
         greet,
         get_setting,
         set_setting,
-        get_all_settings
+        get_all_settings,
+        ssh_connect,
+        ssh_write,
+        ssh_resize,
+        ssh_disconnect
     ])
 }
 
@@ -82,6 +150,9 @@ pub fn run() {
             let settings_path = app_data_dir.join("settings.json");
             let settings = SettingsManager::new(settings_path);
             app.manage(settings);
+
+            let ssh_manager = SshSessionManager::new();
+            app.manage(ssh_manager);
 
             Ok(())
         })

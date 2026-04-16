@@ -117,5 +117,55 @@
 
   body {
     @apply bg-background text-foreground;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+}
+
+@layer components {
+  .terminal-container {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .terminal-container .xterm {
+    padding: 8px;
+    height: 100%;
+  }
+
+  .terminal-container .xterm-viewport {
+    overflow-y: auto;
+  }
+
+  .terminal-container .xterm-screen {
+    height: 100%;
+  }
+
+  .sidebar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sidebar-border) transparent;
+  }
+
+  .sidebar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .sidebar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .sidebar::-webkit-scrollbar-thumb {
+    background: var(--sidebar-border);
+    border-radius: 2px;
+  }
+
+  .terminal-tabs {
+    scrollbar-width: none;
+  }
+
+  .terminal-tabs::-webkit-scrollbar {
+    display: none;
   }
 }
