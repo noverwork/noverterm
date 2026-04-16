@@ -1,10 +1,9 @@
 mod config;
 
 use crate::config::SettingsManager;
-use orm::{init_pool, run_migrations};
 use shared::Setting;
 use specta_typescript::Typescript;
-use tauri::{AppHandle, Manager, State};
+use tauri::{Manager, State};
 use tauri_specta::{collect_commands, Builder};
 use tracing_subscriber::EnvFilter;
 
@@ -64,13 +63,6 @@ pub fn export_types() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn resolve_db_path(app: &AppHandle) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
-    let app_data_dir = app.path().app_data_dir()?;
-    std::fs::create_dir_all(&app_data_dir)?;
-
-    Ok(app_data_dir.join("novercpa.db"))
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
@@ -90,13 +82,6 @@ pub fn run() {
             let settings_path = app_data_dir.join("settings.json");
             let settings = SettingsManager::new(settings_path);
             app.manage(settings);
-
-            let db_path = resolve_db_path(app.handle())?
-                .to_string_lossy()
-                .into_owned();
-            let pool = init_pool(&db_path);
-            run_migrations(&pool);
-            app.manage(pool);
 
             Ok(())
         })

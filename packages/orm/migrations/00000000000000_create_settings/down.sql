@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS settings;
+DROP TABLE settings;

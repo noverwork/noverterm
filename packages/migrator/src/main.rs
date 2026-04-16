@@ -1,19 +1,21 @@
-use diesel::prelude::*;
-use diesel::sqlite::SqliteConnection;
-use diesel_migrations::MigrationHarness;
-use orm::MIGRATIONS;
+use diesel::pg::PgConnection;
+use diesel::Connection;
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("../orm/migrations");
 
 use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-fn default_db_path() -> PathBuf {
-    PathBuf::from("novercpa.db")
+fn default_db_url() -> String {
+    env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/app".to_string())
 }
 
-fn run_migrations(db_path: &str) {
-    let mut conn = SqliteConnection::establish(db_path)
-        .unwrap_or_else(|e| panic!("failed to connect to database at {db_path}: {e}"));
+fn run_migrations(db_url: &str) {
+    let mut conn = PgConnection::establish(db_url)
+        .unwrap_or_else(|e| panic!("failed to connect to database: {e}"));
 
     let applied = conn
         .run_pending_migrations(MIGRATIONS)
@@ -29,9 +31,9 @@ fn run_migrations(db_path: &str) {
     }
 }
 
-fn revert_migration(db_path: &str) {
-    let mut conn = SqliteConnection::establish(db_path)
-        .unwrap_or_else(|e| panic!("failed to connect to database at {db_path}: {e}"));
+fn revert_migration(db_url: &str) {
+    let mut conn = PgConnection::establish(db_url)
+        .unwrap_or_else(|e| panic!("failed to connect to database: {e}"));
 
     let result = conn.revert_last_migration(MIGRATIONS);
     match result {
@@ -75,13 +77,13 @@ fn print_usage() {
     println!("  create <name>    Create a new migration");
     println!();
     println!("Options:");
-    println!("  --db <path>      Database path (default: novercpa.db)");
+    println!("  --db <url>       DATABASE_URL (default: from env or postgres://localhost)");
 }
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let mut db_path = default_db_path().to_string_lossy().to_string();
+    let mut db_url = default_db_url();
     let mut command: Option<&str> = None;
     let mut command_args: Vec<&str> = Vec::new();
 
@@ -91,9 +93,9 @@ fn main() {
             "--db" => {
                 i += 1;
                 if i < args.len() {
-                    db_path = args[i].clone();
+                    db_url = args[i].clone();
                 } else {
-                    eprintln!("Error: --db requires a path argument");
+                    eprintln!("Error: --db requires a URL argument");
                     std::process::exit(1);
                 }
             }
@@ -123,8 +125,8 @@ fn main() {
     };
 
     match cmd {
-        "up" => run_migrations(&db_path),
-        "down" => revert_migration(&db_path),
+        "up" => run_migrations(&db_url),
+        "down" => revert_migration(&db_url),
         "create" => {
             let name = command_args
                 .first()

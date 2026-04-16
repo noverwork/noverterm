@@ -276,6 +276,7 @@ name = "backend"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "diesel",
  "shared",
  "tokio",
  "tracing",
@@ -812,7 +813,6 @@ dependencies = [
 name = "desktop"
 version = "0.1.0"
 dependencies = [
- "orm",
  "serde",
  "serde_json",
  "shared",
@@ -2622,7 +2622,6 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "diesel",
- "diesel_migrations",
  "serde",
  "tracing",
 ]
