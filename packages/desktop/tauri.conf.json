@@ -1,24 +1,24 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "novercpa",
+  "productName": "noverterm",
   "version": "0.1.0",
-  "identifier": "com.noverwork.novercpa",
+  "identifier": "com.noverwork.noverterm",
   "build": {
     "beforeDevCommand": {
-      "cwd": "../ui",
+      "cwd": "ui",
       "script": "npm run dev"
     },
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": {
-      "cwd": "../ui",
+      "cwd": "ui",
       "script": "npm run build"
     },
-    "frontendDist": "../ui/dist"
+    "frontendDist": "ui/dist"
   },
   "app": {
     "windows": [
       {
-        "title": "novercpa",
+        "title": "noverterm",
         "width": 800,
         "height": 600
       }

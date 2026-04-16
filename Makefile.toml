@@ -50,15 +50,15 @@ args = ["build", "-p", "backend", "--release"]
 description = "Start Tauri desktop app"
 category = "Development"
 cwd = "packages/desktop"
-command = "cargo"
-args = ["tauri", "dev"]
+command = "npx"
+args = ["@tauri-apps/cli", "dev"]
 
 [tasks.desktop-build]
 description = "Build Tauri desktop app"
 category = "Build"
 cwd = "packages/desktop"
-command = "cargo"
-args = ["tauri", "build"]
+command = "npx"
+args = ["@tauri-apps/cli", "build"]
 
 [tasks.desktop-export-types]
 description = "Export TypeScript bindings from Tauri"
@@ -159,7 +159,7 @@ category = "Quality"
 command = "cargo"
 args = ["clippy", "--workspace", "--fix", "--allow-dirty"]
 
-[tasks.format]
+[tasks.fmt]
 description = "Format frontend + Rust"
 category = "Quality"
 run_task = { name = ["format-frontend", "format-rust"] }
@@ -173,9 +173,9 @@ args = ["prettier", "--write", "src/**/*"]
 [tasks.format-rust]
 category = "Quality"
 command = "cargo"
-args = ["fmt", "--workspace"]
+args = ["fmt"]
 
-[tasks.format-check]
+[tasks.fmt-check]
 description = "Check formatting"
 category = "Quality"
 run_task = { name = ["format-frontend-check", "format-rust-check"] }
@@ -189,12 +189,12 @@ args = ["prettier", "--check", "src/**/*"]
 [tasks.format-rust-check]
 category = "Quality"
 command = "cargo"
-args = ["fmt", "--workspace", "--", "--check"]
+args = ["fmt", "--", "--check"]
 
 [tasks.ci]
 description = "Run full CI pipeline"
 category = "CI"
-run_task = { name = ["format-check", "lint", "typecheck", "backend-build", "frontend-build"] }
+run_task = { name = ["fmt-check", "lint", "typecheck", "backend-build", "frontend-build"] }
 
 [tasks.frontend-build]
 description = "Build frontend for production"

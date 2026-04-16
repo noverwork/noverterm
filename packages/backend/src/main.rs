@@ -18,9 +18,7 @@ async fn main() {
     let pool = db::init_pool();
     tracing::info!("Database pool initialized");
 
-    let app = Router::new()
-        .route("/", get(healthcheck))
-        .with_state(pool);
+    let app = Router::new().route("/", get(healthcheck)).with_state(pool);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
