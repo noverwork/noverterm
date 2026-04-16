@@ -1,14 +1,12 @@
 mod config;
-mod db;
-mod models;
-mod schema;
 
 use crate::config::SettingsManager;
-use crate::db::{init_pool, run_migrations};
+use orm::{init_pool, run_migrations};
 use shared::Setting;
 use specta_typescript::Typescript;
 use tauri::{AppHandle, Manager, State};
 use tauri_specta::{collect_commands, Builder};
+use tracing_subscriber::EnvFilter;
 
 #[tauri::command]
 #[specta::specta]
@@ -75,6 +73,12 @@ fn resolve_db_path(app: &AppHandle) -> Result<std::path::PathBuf, Box<dyn std::e
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .init();
+
     let specta_builder = command_builder();
 
     tauri::Builder::default()

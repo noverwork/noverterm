@@ -1,0 +1,13 @@
+[package]
+name = "migrator"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "migrator"
+path = "src/main.rs"
+
+[dependencies]
+diesel = { version = "2.3", features = ["postgres"] }
+diesel_migrations = "2.3"
+orm = { path = "../orm" }
