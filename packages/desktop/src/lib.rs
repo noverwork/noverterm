@@ -43,7 +43,7 @@ fn command_builder() -> Builder<tauri::Wry> {
 pub fn export_types() -> Result<(), Box<dyn std::error::Error>> {
     let builder = command_builder();
     let bindings_path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../src/bindings.ts");
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../ui/src/bindings.ts");
 
     builder.export(Typescript::default(), &bindings_path)?;
 

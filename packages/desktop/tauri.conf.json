@@ -4,10 +4,16 @@
   "version": "0.1.0",
   "identifier": "com.noverwork.novercpa",
   "build": {
-    "beforeDevCommand": "npm run frontend:dev",
+    "beforeDevCommand": {
+      "cwd": "../ui",
+      "script": "npm run dev"
+    },
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run frontend:build",
-    "frontendDist": "../../dist"
+    "beforeBuildCommand": {
+      "cwd": "../ui",
+      "script": "npm run build"
+    },
+    "frontendDist": "../ui/dist"
   },
   "app": {
     "windows": [
