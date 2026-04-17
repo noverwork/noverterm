@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
+export type SessionType = "ssh" | "local";
 export type SessionStatus = "connecting" | "connected" | "disconnected" | "error";
 
 export interface Session {
@@ -10,6 +11,7 @@ export interface Session {
   port: number;
   username: string;
   status: SessionStatus;
+  type: SessionType;
   createdAt: Date;
   error?: string;
 }
@@ -29,6 +31,11 @@ let state: SessionState = $state({
 });
 
 let eventUnlisten: UnlistenFn | null = null;
+let localEventUnlisten: UnlistenFn | null = null;
+
+function commitSessions() {
+  state.sessions = new Map(state.sessions);
+}
 
 export function createSessionStore() {
   async function init() {
@@ -38,6 +45,11 @@ export function createSessionStore() {
       "ssh_output",
       (event: { payload: { session_id: string; output: string; closed: boolean } }) => {
         const { session_id, closed } = event.payload;
+        console.info("[ssh_output]", {
+          sessionId: session_id,
+          closed,
+          outputLength: event.payload.output.length,
+        });
         const session = state.sessions.get(session_id);
         if (session) {
           if (closed) {
@@ -45,6 +57,28 @@ export function createSessionStore() {
           } else if (session.status === "connecting") {
             session.status = "connected";
           }
+          commitSessions();
+        }
+      }
+    );
+
+    localEventUnlisten = await listen(
+      "local_output",
+      (event: { payload: { session_id: string; output: string; closed: boolean } }) => {
+        const { session_id, closed } = event.payload;
+        console.info("[local_output]", {
+          sessionId: session_id,
+          closed,
+          outputLength: event.payload.output.length,
+        });
+        const session = state.sessions.get(session_id);
+        if (session) {
+          if (closed) {
+            session.status = "disconnected";
+          } else if (session.status === "connecting") {
+            session.status = "connected";
+          }
+          commitSessions();
         }
       }
     );
@@ -52,17 +86,20 @@ export function createSessionStore() {
 
   function addSession(session: Session) {
     state.sessions.set(session.id, session);
+    commitSessions();
   }
 
   function updateSession(id: string, updates: Partial<Session>) {
     const session = state.sessions.get(id);
     if (session) {
       Object.assign(session, updates);
+      commitSessions();
     }
   }
 
   function removeSession(id: string) {
     state.sessions.delete(id);
+    commitSessions();
     if (state.activeSessionId === id) {
       state.activeSessionId = state.sessions.size > 0
         ? Array.from(state.sessions.keys())[0]
@@ -104,11 +141,21 @@ export function createSessionStore() {
       host,
       port,
       username,
+      type: "ssh",
       status: "connecting",
       createdAt: new Date(),
     };
     addSession(session);
     state.activeSessionId = tempId;
+    console.info("[ssh_connect:start]", {
+      tempId,
+      host,
+      port,
+      username,
+      authType,
+      cols,
+      rows,
+    });
 
     try {
       const sessionId: string = await invoke("ssh_connect", {
@@ -119,6 +166,7 @@ export function createSessionStore() {
         cols,
         rows,
       });
+      console.info("[ssh_connect:success]", { tempId, sessionId, host, port, username });
 
       const sess = state.sessions.get(tempId);
       if (sess) {
@@ -129,6 +177,7 @@ export function createSessionStore() {
           status: "connected",
           error: undefined,
         });
+        commitSessions();
       }
 
       if (state.activeSessionId === tempId) {
@@ -137,18 +186,88 @@ export function createSessionStore() {
 
       return sessionId;
     } catch (e) {
+      console.error("[ssh_connect:error]", {
+        tempId,
+        host,
+        port,
+        username,
+        error: e instanceof Error ? e.message : String(e),
+      });
       const sess = state.sessions.get(tempId);
       if (sess) {
         sess.status = "error";
         sess.error = e instanceof Error ? e.message : String(e);
+        commitSessions();
+      }
+      throw e;
+    }
+  }
+
+  async function connectLocal(
+    name: string = "Local Terminal",
+    cols: number = 80,
+    rows: number = 24
+  ): Promise<string> {
+    const tempId = crypto.randomUUID();
+
+    const session: Session = {
+      id: tempId,
+      name,
+      host: "localhost",
+      port: 0,
+      username: "",
+      type: "local",
+      status: "connecting",
+      createdAt: new Date(),
+    };
+    addSession(session);
+    state.activeSessionId = tempId;
+    console.info("[local_connect:start]", { tempId, cols, rows });
+
+    try {
+      const sessionId: string = await invoke("local_connect", { cols, rows });
+      console.info("[local_connect:success]", { tempId, sessionId });
+
+      const sess = state.sessions.get(tempId);
+      if (sess) {
+        state.sessions.delete(tempId);
+        state.sessions.set(sessionId, {
+          ...sess,
+          id: sessionId,
+          status: "connected",
+          error: undefined,
+        });
+        commitSessions();
+      }
+
+      if (state.activeSessionId === tempId) {
+        state.activeSessionId = sessionId;
+      }
+
+      return sessionId;
+    } catch (e) {
+      console.error("[local_connect:error]", {
+        tempId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      const sess = state.sessions.get(tempId);
+      if (sess) {
+        sess.status = "error";
+        sess.error = e instanceof Error ? e.message : String(e);
+        commitSessions();
       }
       throw e;
     }
   }
 
   async function disconnectSession(sessionId: string) {
+    const session = state.sessions.get(sessionId);
     try {
-      await invoke("ssh_disconnect", { sessionId });
+      if (session?.type === "local") {
+        await invoke("local_disconnect", { sessionId });
+      } else {
+        await invoke("ssh_disconnect", { sessionId });
+      }
     } catch {
       void 0;
     }
@@ -156,17 +275,31 @@ export function createSessionStore() {
   }
 
   async function writeSession(sessionId: string, data: string) {
-    await invoke("ssh_write", { sessionId, data });
+    const session = state.sessions.get(sessionId);
+    if (session?.type === "local") {
+      await invoke("local_write", { sessionId, data });
+    } else {
+      await invoke("ssh_write", { sessionId, data });
+    }
   }
 
   async function resizeSession(sessionId: string, cols: number, rows: number) {
-    await invoke("ssh_resize", { sessionId, cols, rows });
+    const session = state.sessions.get(sessionId);
+    if (session?.type === "local") {
+      await invoke("local_resize", { sessionId, cols, rows });
+    } else {
+      await invoke("ssh_resize", { sessionId, cols, rows });
+    }
   }
 
   function cleanup() {
     if (eventUnlisten) {
       eventUnlisten();
       eventUnlisten = null;
+    }
+    if (localEventUnlisten) {
+      localEventUnlisten();
+      localEventUnlisten = null;
     }
   }
 
@@ -185,6 +318,7 @@ export function createSessionStore() {
     getActiveSession,
     getSessions,
     connectToHost,
+    connectLocal,
     disconnectSession,
     writeSession,
     resizeSession,
