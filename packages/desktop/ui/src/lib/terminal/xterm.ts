@@ -5,8 +5,11 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import type { TerminalConfig } from "$lib/config.js";
 
+import type { SessionType } from "$lib/stores/session.svelte.js";
+
 interface TerminalOptions {
   sessionId: string;
+  sessionType: SessionType;
   config: TerminalConfig;
   onOutput?: (data: string) => void;
   onClose?: () => void;
@@ -76,13 +79,17 @@ function getTheme(theme: TerminalConfig["theme"]) {
 }
 
 export function createTerminal(options: TerminalOptions): TerminalController {
-  const { sessionId } = options;
+  const { sessionId, sessionType } = options;
   let currentConfig = options.config;
   let terminal: Terminal | null = null;
   let fitAddon: FitAddon | null = null;
   let outputUnlisten: UnlistenFn | null = null;
   let disposed = false;
   let selectionCallback: (() => void) | null = null;
+
+  const writeCmd = sessionType === "local" ? "local_write" : "ssh_write";
+  const resizeCmd = sessionType === "local" ? "local_resize" : "ssh_resize";
+  const outputEvent = sessionType === "local" ? "local_output" : "ssh_output";
 
   function init(container: HTMLElement) {
     if (terminal || disposed) return;
@@ -113,7 +120,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     terminal.onData((data) => {
       console.info("[xterm:input]", { sessionId, bytes: data.length });
       options.onOutput?.(data);
-      invoke("ssh_write", { sessionId, data }).catch(() => void 0);
+      invoke(writeCmd, { sessionId, data }).catch(() => void 0);
     });
 
     terminal.onSelectionChange(() => {
@@ -122,11 +129,11 @@ export function createTerminal(options: TerminalOptions): TerminalController {
 
     terminal.onResize(({ cols, rows }) => {
       console.info("[xterm:resize]", { sessionId, cols, rows });
-      invoke("ssh_resize", { sessionId, cols, rows }).catch(() => void 0);
+      invoke(resizeCmd, { sessionId, cols, rows }).catch(() => void 0);
     });
 
     listen(
-      "ssh_output",
+      outputEvent,
       (event: { payload: { session_id: string; output: string; closed: boolean } }) => {
         if (event.payload.session_id === sessionId && terminal) {
           console.info("[xterm:output]", {

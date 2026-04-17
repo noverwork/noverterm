@@ -2,9 +2,11 @@
   import { onMount, onDestroy } from "svelte";
   import { createTerminal } from "./xterm.js";
   import type { TerminalConfig } from "$lib/config.js";
+  import type { SessionType } from "$lib/stores/session.svelte.js";
 
   let {
     sessionId,
+    sessionType = "ssh",
     config,
     onOutput,
     onClose,
@@ -12,6 +14,7 @@
     controller = $bindable(null),
   }: {
     sessionId: string;
+    sessionType?: SessionType;
     config: TerminalConfig;
     onOutput?: (data: string) => void;
     onClose?: () => void;
@@ -30,7 +33,7 @@
   onMount(() => {
     if (!container) return;
 
-    term = createTerminal({ sessionId, config, onOutput, onClose });
+    term = createTerminal({ sessionId, sessionType, config, onOutput, onClose });
     term.init(container);
 
     if (controller !== undefined) {

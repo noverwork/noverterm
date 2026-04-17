@@ -5,7 +5,6 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex;
 use tracing::{info, warn};
@@ -50,21 +49,24 @@ impl SshSessionManager {
         rows: u32,
     ) -> Result<String, String> {
         let session_id = Uuid::new_v4().to_string();
-        info!(session_id, host, port, user, "Connecting to SSH server");
+        info!(session_id, host, port, user, "Starting SSH connection flow");
 
         let config = client::Config {
-            inactivity_timeout: Some(Duration::from_secs(0)),
+            inactivity_timeout: None,
             ..<_>::default()
         };
         let config = Arc::new(config);
         let handler = ClientHandler;
 
+        info!(session_id, host, port, "Opening TCP/SSH transport");
         let mut session = client::connect(config, (host.clone(), port), handler)
             .await
             .map_err(|e| format!("Failed to connect: {}", e))?;
+        info!(session_id, "TCP/SSH transport established");
 
         match auth {
             AuthMethod::Password(password) => {
+                info!(session_id, user, "Authenticating with password");
                 let auth_res = session
                     .authenticate_password(user.clone(), password)
                     .await
@@ -72,8 +74,10 @@ impl SshSessionManager {
                 if !auth_res.success() {
                     return Err("Password authentication rejected".to_string());
                 }
+                info!(session_id, user, "Password authentication succeeded");
             }
             AuthMethod::KeyFile(key_path) => {
+                info!(session_id, user, key_path = %key_path.display(), "Authenticating with key file");
                 let key = load_key_pair(&key_path)?;
                 let hash_alg = session
                     .best_supported_rsa_hash()
@@ -90,23 +94,30 @@ impl SshSessionManager {
                 if !auth_res.success() {
                     return Err("Key authentication rejected".to_string());
                 }
+                info!(session_id, user, "Key authentication succeeded");
             }
         }
 
+        info!(session_id, "Opening SSH session channel");
         let channel = session
             .channel_open_session()
             .await
             .map_err(|e| format!("Failed to open channel: {}", e))?;
+        info!(session_id, "SSH session channel opened");
 
+        info!(session_id, cols, rows, "Requesting PTY");
         channel
             .request_pty(true, "xterm-256color", cols, rows, 0, 0, &[])
             .await
             .map_err(|e| format!("Failed to request PTY: {}", e))?;
+        info!(session_id, "PTY request accepted");
 
+        info!(session_id, "Requesting interactive shell");
         channel
-            .exec(true, "exec $SHELL || exec bash")
+            .request_shell(true)
             .await
-            .map_err(|e| format!("Failed to exec shell: {}", e))?;
+            .map_err(|e| format!("Failed to start shell: {}", e))?;
+        info!(session_id, "Interactive shell started");
 
         let (channel_read, channel_write) = channel.split();
 
@@ -116,6 +127,7 @@ impl SshSessionManager {
         tokio::spawn(async move {
             read_loop(channel_read, sid, app, sessions).await;
         });
+        info!(session_id, "Spawned SSH read loop");
 
         self.sessions.lock().await.insert(
             session_id.clone(),
@@ -141,6 +153,8 @@ impl SshSessionManager {
             .await
             .map_err(|e| format!("Failed to write: {}", e))?;
 
+        info!(session_id, bytes = data.len(), "Sent SSH input to remote channel");
+
         Ok(())
     }
 
@@ -155,6 +169,8 @@ impl SshSessionManager {
             .window_change(cols, rows, 0, 0)
             .await
             .map_err(|e| format!("Failed to resize: {}", e))?;
+
+        info!(session_id, cols, rows, "Sent terminal resize to remote channel");
 
         Ok(())
     }
@@ -183,6 +199,7 @@ async fn read_loop(
         match channel_read.wait().await {
             Some(msg) => match msg {
                 ChannelMsg::Data { ref data } => {
+                    info!(session_id, bytes = data.len(), "Received SSH output chunk");
                     let output = String::from_utf8_lossy(data).to_string();
                     let event = SshOutputEvent {
                         session_id: session_id.clone(),
@@ -217,6 +234,12 @@ async fn read_loop(
                 }
                 ChannelMsg::ExitStatus { exit_status } => {
                     info!(session_id, "Exit status: {}", exit_status);
+                }
+                ChannelMsg::Success => {
+                    info!(session_id, "Received SSH channel success message");
+                }
+                ChannelMsg::Failure => {
+                    warn!(session_id, "Received SSH channel failure message");
                 }
                 _ => {}
             },
