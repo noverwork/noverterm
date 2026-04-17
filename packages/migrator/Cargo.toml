@@ -1,13 +1,19 @@
 [package]
 name = "migrator"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+publish = false
+
+[lib]
+path = "src/lib.rs"
 
 [[bin]]
 name = "migrator"
 path = "src/main.rs"
 
 [dependencies]
-diesel = { version = "2.3", features = ["postgres"] }
-diesel_migrations = "2.3"
+diesel = { version = "2.3", features = ["postgres", "serde_json", "chrono"] }
 orm = { path = "../orm" }
+
+[build-dependencies]
+pathdiff = "0.2"
