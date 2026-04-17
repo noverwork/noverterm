@@ -21,6 +21,8 @@
   let authType = $state<"password" | "key">("password");
   let password = $state("");
   let keyPath = $state("");
+  let submitted = $state(false);
+  let touched = $state<Record<string, boolean>>({});
 
   $effect(() => {
     name = connection?.name ?? "";
@@ -30,6 +32,8 @@
     authType = connection?.authType ?? "password";
     password = connection?.password ?? "";
     keyPath = connection?.keyPath ?? "";
+    submitted = false;
+    touched = {};
   });
 
   const errors = $derived.by(() => {
@@ -45,7 +49,16 @@
 
   const isValid = $derived(Object.keys(errors).length === 0);
 
+  function markTouched(field: string) {
+    touched[field] = true;
+  }
+
+  function showError(field: string) {
+    return (submitted || touched[field]) && errors[field];
+  }
+
   function handleSubmit() {
+    submitted = true;
     if (!isValid) return;
     onSave({
       ...(connection?.id ? { id: connection.id } : {}),
@@ -83,39 +96,39 @@
     }}>
       <div class="space-y-2">
         <label for="conn-name" class="text-sm font-medium">Name</label>
-        <Input id="conn-name" bind:value={name} placeholder="My Server" class={errors.name ? 'border-destructive' : ''} />
-        {#if errors.name}
-          <p class="text-xs text-destructive">{errors.name}</p>
+        <Input id="conn-name" bind:value={name} onblur={() => markTouched("name")} placeholder="My Server" class={showError('name') ? 'border-destructive' : ''} />
+        {#if showError("name")}
+          <p class="text-xs text-destructive">{showError("name")}</p>
         {/if}
       </div>
 
       <div class="grid grid-cols-3 gap-3">
         <div class="col-span-2 space-y-2">
           <label for="conn-host" class="text-sm font-medium">Host</label>
-          <Input id="conn-host" bind:value={host} placeholder="192.168.1.1" class={errors.host ? 'border-destructive' : ''} />
-          {#if errors.host}
-            <p class="text-xs text-destructive">{errors.host}</p>
+          <Input id="conn-host" bind:value={host} onblur={() => markTouched("host")} placeholder="192.168.1.1" class={showError('host') ? 'border-destructive' : ''} />
+          {#if showError("host")}
+            <p class="text-xs text-destructive">{showError("host")}</p>
           {/if}
         </div>
         <div class="space-y-2">
           <label for="conn-port" class="text-sm font-medium">Port</label>
-          <Input id="conn-port" type="number" bind:value={port} class={errors.port ? 'border-destructive' : ''} />
-          {#if errors.port}
-            <p class="text-xs text-destructive">{errors.port}</p>
+          <Input id="conn-port" type="number" bind:value={port} onblur={() => markTouched("port")} class={showError('port') ? 'border-destructive' : ''} />
+          {#if showError("port")}
+            <p class="text-xs text-destructive">{showError("port")}</p>
           {/if}
         </div>
       </div>
 
       <div class="space-y-2">
         <label for="conn-username" class="text-sm font-medium">Username</label>
-        <Input id="conn-username" bind:value={username} placeholder="root" class={errors.username ? 'border-destructive' : ''} />
-        {#if errors.username}
-          <p class="text-xs text-destructive">{errors.username}</p>
+        <Input id="conn-username" bind:value={username} onblur={() => markTouched("username")} placeholder="root" class={showError('username') ? 'border-destructive' : ''} />
+        {#if showError("username")}
+          <p class="text-xs text-destructive">{showError("username")}</p>
         {/if}
       </div>
 
       <div class="space-y-2">
-        <label class="text-sm font-medium">Authentication</label>
+        <p class="text-sm font-medium">Authentication</p>
         <div class="flex gap-2">
           <Button
             type="button"
@@ -145,11 +158,12 @@
             id="conn-password"
             type="password"
             bind:value={password}
+            onblur={() => markTouched("password")}
             placeholder="Enter password"
-            class={errors.password ? 'border-destructive' : ''}
+            class={showError('password') ? 'border-destructive' : ''}
           />
-          {#if errors.password}
-            <p class="text-xs text-destructive">{errors.password}</p>
+          {#if showError("password")}
+            <p class="text-xs text-destructive">{showError("password")}</p>
           {/if}
         </div>
       {:else}
@@ -158,11 +172,12 @@
           <Input
             id="conn-keypath"
             bind:value={keyPath}
+            onblur={() => markTouched("keyPath")}
             placeholder="~/.ssh/id_ed25519"
-            class={errors.keyPath ? 'border-destructive' : ''}
+            class={showError('keyPath') ? 'border-destructive' : ''}
           />
-          {#if errors.keyPath}
-            <p class="text-xs text-destructive">{errors.keyPath}</p>
+          {#if showError("keyPath")}
+            <p class="text-xs text-destructive">{showError("keyPath")}</p>
           {/if}
         </div>
       {/if}
@@ -171,7 +186,7 @@
         <Button type="button" variant="outline" class="flex-1" onclick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" class="flex-1" disabled={!isValid}>
+        <Button type="submit" class="flex-1">
           {connection ? "Save Changes" : "Connect"}
         </Button>
       </div>

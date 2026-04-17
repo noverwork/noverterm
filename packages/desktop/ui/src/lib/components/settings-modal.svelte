@@ -121,7 +121,7 @@
 
       <div class="p-4 space-y-5">
         <div class="space-y-2">
-          <label class="text-sm font-medium">Theme</label>
+          <p class="text-sm font-medium">Theme</p>
           <div class="flex gap-2">
             <Button
               type="button"

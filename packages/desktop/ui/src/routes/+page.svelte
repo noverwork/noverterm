@@ -52,6 +52,8 @@
   let qcPassword = $state("");
   let qcKeyPath = $state("");
   let qcConnecting = $state(false);
+  let qcSubmitted = $state(false);
+  let qcTouched = $state<Record<string, boolean>>({});
 
   const qcErrors = $derived.by(() => {
     const errs: Record<string, string> = {};
@@ -65,11 +67,20 @@
 
   const qcIsValid = $derived(Object.keys(qcErrors).length === 0);
 
+  function markQcTouched(field: string) {
+    qcTouched[field] = true;
+  }
+
+  function showQcError(field: string) {
+    return (qcSubmitted || qcTouched[field]) && qcErrors[field];
+  }
+
   const sortedConnections = $derived(
     [...connections].sort((a, b) => a.name.localeCompare(b.name))
   );
 
   async function handleQuickConnect() {
+    qcSubmitted = true;
     if (!qcIsValid || qcConnecting) return;
     qcConnecting = true;
     try {
@@ -89,6 +100,8 @@
       qcUsername = "";
       qcPassword = "";
       qcKeyPath = "";
+      qcSubmitted = false;
+      qcTouched = {};
     } catch {
       // Error is handled by the session store (status becomes "error")
     } finally {
@@ -305,11 +318,12 @@
                   <Input
                     id="qc-host"
                     bind:value={qcHost}
+                    onblur={() => markQcTouched("host")}
                     placeholder="Host (e.g. 192.168.1.1)"
-                    class={qcErrors.host ? 'border-destructive' : ''}
+                    class={showQcError('host') ? 'border-destructive' : ''}
                   />
-                  {#if qcErrors.host}
-                    <p class="text-xs text-destructive">{qcErrors.host}</p>
+                  {#if showQcError("host")}
+                    <p class="text-xs text-destructive">{showQcError("host")}</p>
                   {/if}
                 </div>
                 <div class="space-y-1">
@@ -317,11 +331,12 @@
                     id="qc-port"
                     type="number"
                     bind:value={qcPort}
+                    onblur={() => markQcTouched("port")}
                     placeholder="22"
-                    class={qcErrors.port ? 'border-destructive' : ''}
+                    class={showQcError('port') ? 'border-destructive' : ''}
                   />
-                  {#if qcErrors.port}
-                    <p class="text-xs text-destructive">{qcErrors.port}</p>
+                  {#if showQcError("port")}
+                    <p class="text-xs text-destructive">{showQcError("port")}</p>
                   {/if}
                 </div>
               </div>
@@ -330,11 +345,12 @@
                 <Input
                   id="qc-username"
                   bind:value={qcUsername}
+                  onblur={() => markQcTouched("username")}
                   placeholder="Username"
-                  class={qcErrors.username ? 'border-destructive' : ''}
+                  class={showQcError('username') ? 'border-destructive' : ''}
                 />
-                {#if qcErrors.username}
-                  <p class="text-xs text-destructive">{qcErrors.username}</p>
+                {#if showQcError("username")}
+                  <p class="text-xs text-destructive">{showQcError("username")}</p>
                 {/if}
               </div>
 
@@ -367,11 +383,12 @@
                     id="qc-password"
                     type="password"
                     bind:value={qcPassword}
+                    onblur={() => markQcTouched("password")}
                     placeholder="Password"
-                    class={qcErrors.password ? 'border-destructive' : ''}
+                    class={showQcError('password') ? 'border-destructive' : ''}
                   />
-                  {#if qcErrors.password}
-                    <p class="text-xs text-destructive">{qcErrors.password}</p>
+                  {#if showQcError("password")}
+                    <p class="text-xs text-destructive">{showQcError("password")}</p>
                   {/if}
                 </div>
               {:else}
@@ -379,11 +396,12 @@
                   <Input
                     id="qc-keypath"
                     bind:value={qcKeyPath}
+                    onblur={() => markQcTouched("keyPath")}
                     placeholder="~/.ssh/id_ed25519"
-                    class={qcErrors.keyPath ? 'border-destructive' : ''}
+                    class={showQcError('keyPath') ? 'border-destructive' : ''}
                   />
-                  {#if qcErrors.keyPath}
-                    <p class="text-xs text-destructive">{qcErrors.keyPath}</p>
+                  {#if showQcError("keyPath")}
+                    <p class="text-xs text-destructive">{showQcError("keyPath")}</p>
                   {/if}
                 </div>
               {/if}
@@ -391,7 +409,7 @@
               <Button
                 type="submit"
                 class="w-full gap-2"
-                disabled={!qcIsValid || qcConnecting}
+                disabled={qcConnecting}
               >
                 {#if qcConnecting}
                   <Loader2 class="size-4 animate-spin" />
