@@ -8,12 +8,14 @@
     config,
     onOutput,
     onClose,
+    onSelectionChange,
     controller = $bindable(null),
   }: {
     sessionId: string;
     config: TerminalConfig;
     onOutput?: (data: string) => void;
     onClose?: () => void;
+    onSelectionChange?: () => void;
     controller?: ReturnType<typeof createTerminal> | null;
   } = $props();
 
@@ -33,6 +35,10 @@
 
     if (controller !== undefined) {
       controller = term;
+    }
+
+    if (onSelectionChange) {
+      term.onSelectionChange(onSelectionChange);
     }
 
     resizeObserver = new ResizeObserver(() => {

@@ -40,6 +40,7 @@
   let showSettings = $state(false);
 
   // Terminal controller for toolbar actions
+  let termContainer = $state<HTMLDivElement | null>(null);
   let termController = $state<any>(null);
   let hasSelection = $state(false);
   let isFullscreen = $state(false);
@@ -201,8 +202,9 @@
   }
 
   function handleToolbarFullscreen() {
+    if (!termContainer) return;
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.();
+      termContainer.requestFullscreen?.();
       isFullscreen = true;
     } else {
       document.exitFullscreen?.();
@@ -211,7 +213,7 @@
   }
 
   function handleSelectionChange() {
-    hasSelection = !!termController?.terminal?.getSelection?.();
+    hasSelection = !!termController?.terminal?.getSelection();
   }
 
   // Global keyboard shortcuts
@@ -523,12 +525,13 @@
           onFullscreen={handleToolbarFullscreen}
           onSettings={() => (showSettings = true)}
         />
-        <div class="flex-1 min-h-0">
+        <div bind:this={termContainer} class="flex-1 min-h-0">
           {#key activeSession.id}
             <TerminalView
               sessionId={activeSession.id}
               config={terminalConfig}
               bind:controller={termController}
+              onSelectionChange={handleSelectionChange}
               onClose={() => store.updateSession(activeSession.id, { status: "disconnected" })}
             />
           {/key}

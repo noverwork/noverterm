@@ -1,6 +1,6 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { WebglAddon } from "@xterm/addon-webgl";
+import "@xterm/xterm/css/xterm.css";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import type { TerminalConfig } from "$lib/config.js";
@@ -21,6 +21,7 @@ export interface TerminalController {
   focus(): void;
   fit(): void;
   updateConfig(config: TerminalConfig): void;
+  onSelectionChange(callback: () => void): void;
   dispose(): void;
 }
 
@@ -81,9 +82,12 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   let fitAddon: FitAddon | null = null;
   let outputUnlisten: UnlistenFn | null = null;
   let disposed = false;
+  let selectionCallback: (() => void) | null = null;
 
   function init(container: HTMLElement) {
     if (terminal || disposed) return;
+
+    console.info("[xterm:init]", { sessionId, hasContainer: Boolean(container) });
 
     terminal = new Terminal({
       theme: getTheme(currentConfig.theme),
@@ -98,22 +102,26 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
 
-    try {
-      const webglAddon = new WebglAddon();
-      terminal.loadAddon(webglAddon);
-    } catch {
-      void 0;
-    }
-
     terminal.open(container);
     fitAddon.fit();
+    console.info("[xterm:opened]", {
+      sessionId,
+      cols: terminal.cols,
+      rows: terminal.rows,
+    });
 
     terminal.onData((data) => {
+      console.info("[xterm:input]", { sessionId, bytes: data.length });
       options.onOutput?.(data);
       invoke("ssh_write", { sessionId, data }).catch(() => void 0);
     });
 
+    terminal.onSelectionChange(() => {
+      selectionCallback?.();
+    });
+
     terminal.onResize(({ cols, rows }) => {
+      console.info("[xterm:resize]", { sessionId, cols, rows });
       invoke("ssh_resize", { sessionId, cols, rows }).catch(() => void 0);
     });
 
@@ -121,6 +129,11 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       "ssh_output",
       (event: { payload: { session_id: string; output: string; closed: boolean } }) => {
         if (event.payload.session_id === sessionId && terminal) {
+          console.info("[xterm:output]", {
+            sessionId,
+            closed: event.payload.closed,
+            bytes: event.payload.output.length,
+          });
           if (event.payload.closed) {
             options.onClose?.();
           } else {
@@ -153,6 +166,10 @@ export function createTerminal(options: TerminalOptions): TerminalController {
 
   function focus() {
     terminal?.focus();
+  }
+
+  function onSelectionChange(callback: () => void) {
+    selectionCallback = callback;
   }
 
   function updateConfig(config: TerminalConfig) {
@@ -190,6 +207,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     focus,
     fit,
     updateConfig,
+    onSelectionChange,
     dispose,
   } satisfies TerminalController;
 }
