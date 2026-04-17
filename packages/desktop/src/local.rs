@@ -45,7 +45,11 @@ impl LocalSessionManager {
             })
             .map_err(|e| format!("Failed to open PTY: {}", e))?;
 
-        let mut cmd = CommandBuilder::new_default_prog();
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
+        let mut cmd = CommandBuilder::new(&shell);
+        cmd.arg("-l");
+        cmd.cwd(&home);
         cmd.env("TERM", "xterm-256color");
 
         let child = pair

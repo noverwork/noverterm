@@ -86,10 +86,24 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   let outputUnlisten: UnlistenFn | null = null;
   let disposed = false;
   let selectionCallback: (() => void) | null = null;
+  let initialSizeSynced = false;
 
   const writeCmd = sessionType === "local" ? "local_write" : "ssh_write";
   const resizeCmd = sessionType === "local" ? "local_resize" : "ssh_resize";
   const outputEvent = sessionType === "local" ? "local_output" : "ssh_output";
+
+  function syncInitialSize() {
+    if (!terminal || !fitAddon || initialSizeSynced || disposed) return;
+
+    fitAddon.fit();
+    initialSizeSynced = true;
+    console.info("[xterm:initial-size]", {
+      sessionId,
+      cols: terminal.cols,
+      rows: terminal.rows,
+    });
+    invoke(resizeCmd, { sessionId, cols: terminal.cols, rows: terminal.rows }).catch(() => void 0);
+  }
 
   function init(container: HTMLElement) {
     if (terminal || disposed) return;
@@ -109,12 +123,21 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
 
+    terminal.onResize(({ cols, rows }) => {
+      console.info("[xterm:resize]", { sessionId, cols, rows });
+      invoke(resizeCmd, { sessionId, cols, rows }).catch(() => void 0);
+    });
+
     terminal.open(container);
-    fitAddon.fit();
-    console.info("[xterm:opened]", {
-      sessionId,
-      cols: terminal.cols,
-      rows: terminal.rows,
+    requestAnimationFrame(() => {
+      syncInitialSize();
+      if (!terminal) return;
+      console.info("[xterm:opened]", {
+        sessionId,
+        cols: terminal.cols,
+        rows: terminal.rows,
+      });
+      terminal.focus();
     });
 
     terminal.onData((data) => {
@@ -125,11 +148,6 @@ export function createTerminal(options: TerminalOptions): TerminalController {
 
     terminal.onSelectionChange(() => {
       selectionCallback?.();
-    });
-
-    terminal.onResize(({ cols, rows }) => {
-      console.info("[xterm:resize]", { sessionId, cols, rows });
-      invoke(resizeCmd, { sessionId, cols, rows }).catch(() => void 0);
     });
 
     listen(
@@ -152,7 +170,6 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       outputUnlisten = unlisten;
     }).catch(() => void 0);
 
-    terminal.focus();
   }
 
   function fit() {
