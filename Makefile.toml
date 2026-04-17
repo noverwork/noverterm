@@ -1,17 +1,407 @@
+# cargo-make configuration for truley-claw
+# Install: cargo install cargo-make
+# Usage: cargo make <task>
+
 [config]
-default_to_workspace = false
+min_version = "0.37.0"
 
-[tasks.dev]
-description = "Start backend + Tauri desktop concurrently"
-run_task = { name = ["backend-dev", "tauri-dev"], parallel = true }
+# --- Default Task ---
+[tasks.default]
+description = "Show available tasks"
+run_task = { name = "list-tasks" }
 
-[tasks.backend-dev]
-description = "Start Rust backend"
+[tasks.list-tasks]
+description = "List all available tasks"
+script = '''
+#!/usr/bin/env bash
+echo "Available tasks:"
+echo "  cargo make build          - Build the project"
+echo "  cargo make test           - Run tests"
+echo "  cargo make lint           - Run clippy (deny warnings)"
+echo "  cargo make fmt            - Format code"
+echo "  cargo make check          - Type check"
+echo "  cargo make ci             - Full CI pipeline"
+echo "  cargo make clean          - Clean build artifacts"
+echo "  cargo make dev            - Start backend + Tauri dev"
+echo "  cargo make backend:dev    - Start backend only"
+echo "  cargo make tauri:dev      - Start Tauri desktop app"
+echo "  cargo make tauri:build    - Build Tauri desktop app"
+echo "  cargo make db:status      - Check migration status"
+echo "  cargo make db:generate    - Generate new migration (diesel --diff-schema)"
+echo "  cargo make db:drift-check - Check schema drift without creating migration"
+echo "  cargo make db:migrate     - Apply pending migrations"
+echo "  cargo make db:up          - Apply all migrations"
+echo "  cargo make db:down        - Rollback one migration"
+echo "  cargo make db:reset       - Rollback all migrations"
+echo "  cargo make db:fresh       - Reset database and apply all migrations"
+echo "  cargo make ms:start       - Start MS service"
+echo "  cargo make ms:stop        - Stop MS service"
+echo "  cargo make ms:restart     - Restart MS service"
+echo "  cargo make ms:reset       - Reset MS service (delete data)"
+'''
+
+# --- Build ---
+[tasks.build]
+description = "Build the project"
+workspace = false
+command = "cargo"
+args = ["build"]
+
+[tasks.build-release]
+description = "Build in release mode"
+workspace = false
+command = "cargo"
+args = ["build", "--release"]
+
+# --- Test ---
+[tasks.test]
+description = "Run tests"
+workspace = false
+command = "cargo"
+args = ["test"]
+
+[tasks.test-all]
+description = "Run all workspace tests with all features"
+workspace = false
+command = "cargo"
+args = ["test", "--workspace", "--all-features"]
+
+[tasks.test-lib]
+description = "Run library tests only"
+workspace = false
+command = "cargo"
+args = ["test", "--lib"]
+
+# --- Lint & Format ---
+[tasks.lint]
+description = "Run clippy with strict settings"
+workspace = false
+command = "cargo"
+args = ["clippy", "--workspace", "--all-targets", "--all-features", "--", "-D", "warnings"]
+
+[tasks.fmt]
+description = "Format code with rustfmt"
+workspace = false
+command = "cargo"
+args = ["fmt"]
+
+[tasks.fmt-check]
+description = "Check code formatting"
+workspace = false
+command = "cargo"
+args = ["fmt", "--check"]
+
+[tasks.check]
+description = "Type check without building"
+workspace = false
+command = "cargo"
+args = ["check"]
+
+# --- CI Pipeline ---
+[tasks.ci]
+description = "Full CI pipeline: lint, format check, and test"
+run_task = { name = ["lint", "fmt-check", "test-all"] }
+
+# --- Run ---
+[tasks."backend:dev"]
+description = "Start backend server"
+workspace = false
 command = "cargo"
 args = ["run", "-p", "backend"]
 
-[tasks.tauri-dev]
-description = "Start Tauri desktop app"
+[tasks."tauri:dev"]
+description = "Start Tauri desktop app in dev mode"
+workspace = false
+dependencies = ["frontend:install"]
 cwd = "packages/desktop"
 command = "npx"
 args = ["@tauri-apps/cli", "dev"]
+
+[tasks."tauri:build"]
+description = "Build Tauri desktop app for production"
+workspace = false
+dependencies = ["frontend:install"]
+cwd = "packages/desktop"
+command = "npx"
+args = ["@tauri-apps/cli", "build"]
+
+[tasks."frontend:install"]
+description = "Install frontend npm dependencies"
+workspace = false
+cwd = "packages/desktop/ui"
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+if [ ! -d "node_modules" ] || [ ! -f "node_modules/.package-lock.json" ]; then
+  echo "Installing frontend dependencies..."
+  npm install
+else
+  echo "Frontend dependencies already installed."
+fi
+'''
+
+[tasks.dev]
+description = "Start backend + Tauri dev (parallel)"
+workspace = false
+run_task = { name = ["backend:dev", "tauri:dev"], parallel = true }
+
+# --- Clean ---
+[tasks.clean]
+description = "Clean build artifacts"
+command = "cargo"
+args = ["clean"]
+
+# --- Database Migrations ---
+[tasks."db:ensure-diesel"]
+description = "Ensure diesel_cli with postgres feature is installed"
+workspace = false
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+needs_install=false
+
+if ! command -v diesel &>/dev/null; then
+  needs_install=true
+else
+  # Check if diesel was built with postgres feature by probing with a fake postgres URL
+  # If built without postgres, it panics with "requires the postgres feature"
+  output="$(DATABASE_URL="postgres://x:x@127.0.0.1:1/x" diesel migration list 2>&1 || true)"
+  if echo "$output" | grep -q "requires the .postgres. feature"; then
+    needs_install=true
+  fi
+fi
+
+if [ "$needs_install" = true ]; then
+  echo "Installing diesel_cli with postgres feature..."
+  cargo install diesel_cli --no-default-features --features postgres
+  echo "diesel_cli installed."
+else
+  echo "diesel_cli with postgres feature is ready."
+fi
+'''
+
+[tasks."db:status"]
+description = "Check migration status"
+workspace = false
+dependencies = ["db:ensure-diesel"]
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+cd packages/migrator
+
+# Support both .env file and direct environment variables (for Docker/K8s)
+if [ -f .env ]; then
+  set -a
+  source .env
+  set +a
+fi
+
+: "${DATABASE_URL:?DATABASE_URL must be set as environment variable}"
+
+diesel migration list
+'''
+
+[tasks."db:generate"]
+description = "Generate new migration from schema diff"
+workspace = false
+dependencies = ["db:ensure-diesel"]
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+cd packages/migrator
+
+# Support both .env file and direct environment variables (for Docker/K8s)
+if [ -f .env ]; then
+  set -a
+  source .env
+  set +a
+fi
+
+: "${DATABASE_URL:?DATABASE_URL must be set as environment variable}"
+
+diesel migration generate --diff-schema "$@"
+'''
+
+[tasks."db:drift-check"]
+description = "Fail if DB/schema drift exists"
+workspace = false
+dependencies = ["db:ensure-diesel"]
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+cd packages/migrator
+
+# Support both .env file and direct environment variables (for Docker/K8s)
+if [ -f .env ]; then
+  set -a
+  source .env
+  set +a
+fi
+
+: "${DATABASE_URL:?DATABASE_URL must be set as environment variable}"
+
+diesel migration generate --diff-schema __drift_check__ >/dev/null
+
+generated_dir=""
+for d in migrations/*__drift_check__; do
+  if [ -d "$d" ]; then
+    generated_dir="$d"
+  fi
+done
+
+if [ -z "$generated_dir" ]; then
+  echo "Unable to locate generated drift-check migration directory"
+  exit 1
+fi
+
+has_sql=0
+for f in "$generated_dir"/up.sql "$generated_dir"/down.sql; do
+  if [ -f "$f" ]; then
+    meaningful_sql="$(sed '/^\s*--/d;/^\s*$/d' "$f")"
+    if [ -n "$meaningful_sql" ]; then
+      has_sql=1
+    fi
+  fi
+done
+
+rm -rf "$generated_dir"
+
+if [ "$has_sql" -eq 1 ]; then
+  echo "Schema drift detected between database and orm/src/schema.rs"
+  exit 1
+fi
+
+echo "No schema drift detected"
+'''
+
+[tasks."db:up"]
+description = "Apply all pending migrations"
+workspace = false
+dependencies = ["db:ensure-diesel"]
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+cd packages/migrator
+
+# Support both .env file and direct environment variables (for Docker/K8s)
+if [ -f .env ]; then
+  set -a
+  source .env
+  set +a
+fi
+
+: "${DATABASE_URL:?DATABASE_URL must be set as environment variable}"
+
+# Skip database setup in production/K8s - just run migrations
+diesel migration run
+'''
+
+[tasks."db:down"]
+description = "Rollback last migration"
+workspace = false
+dependencies = ["db:ensure-diesel"]
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+cd packages/migrator
+
+# Support both .env file and direct environment variables (for Docker/K8s)
+if [ -f .env ]; then
+  set -a
+  source .env
+  set +a
+fi
+
+: "${DATABASE_URL:?DATABASE_URL must be set as environment variable}"
+
+diesel migration revert
+'''
+
+[tasks."db:migrate"]
+description = "Apply all pending migrations (alias for db:up)"
+workspace = false
+run_task = { name = "db:up" }
+
+[tasks."db:reset"]
+description = "Rollback all migrations"
+workspace = false
+dependencies = ["db:ensure-diesel"]
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+cd packages/migrator
+
+# Support both .env file and direct environment variables (for Docker/K8s)
+if [ -f .env ]; then
+  set -a
+  source .env
+  set +a
+fi
+
+: "${DATABASE_URL:?DATABASE_URL must be set as environment variable}"
+
+diesel migration revert --all
+'''
+
+[tasks."db:fresh"]
+description = "Reset database and apply all migrations"
+workspace = false
+dependencies = ["db:ensure-diesel"]
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+cd packages/migrator
+
+if [ -f .env ]; then
+  set -a
+  source .env
+  set +a
+fi
+
+if [ -z "${DATABASE_URL:-}" ]; then
+  echo "ERROR: DATABASE_URL is not set."
+  echo "  - Create packages/migrator/.env with DATABASE_URL=postgres://..."
+  echo "  - Or export DATABASE_URL=postgres://... before running this command."
+  exit 1
+fi
+
+TARGET_DB="$(python3 -c 'from urllib.parse import urlparse; import os; print((urlparse(os.environ["DATABASE_URL"]).path or "/").lstrip("/") or "claw")')"
+MAINTENANCE_URL="$(python3 -c 'from urllib.parse import urlparse, urlunparse; import os; u=urlparse(os.environ["DATABASE_URL"]); print(urlunparse((u.scheme,u.netloc,"/claw",u.params,u.query,u.fragment)))')"
+SAFE_DB="${TARGET_DB//\'/\'\'}"
+
+psql "$MAINTENANCE_URL" -v ON_ERROR_STOP=1 -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$SAFE_DB' AND pid <> pg_backend_pid();" >/dev/null || true
+
+diesel database reset
+'''
+
+# --- Custom Scripts ---
+[tasks."ms:start"]
+description = "Start MS service"
+workspace = false
+script = '''
+#!/usr/bin/env bash
+./scripts/start-ms.sh
+'''
+
+[tasks."ms:stop"]
+description = "Stop MS service"
+workspace = false
+script = '''
+#!/usr/bin/env bash
+./scripts/stop-ms.sh
+'''
+
+[tasks."ms:restart"]
+description = "Restart MS service"
+workspace = false
+run_task = { name = ["ms:stop", "ms:start"] }
+
+[tasks."ms:reset"]
+description = "Reset MS service (stop with delete + start)"
+workspace = false
+script = '''
+#!/usr/bin/env bash
+./scripts/stop-ms.sh --delete
+./scripts/start-ms.sh
+'''
