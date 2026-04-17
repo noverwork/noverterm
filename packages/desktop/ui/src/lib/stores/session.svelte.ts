@@ -14,6 +14,10 @@ export interface Session {
   error?: string;
 }
 
+type SshConnectAuthPayload =
+  | { type: "password"; password: string }
+  | { type: "key"; key_path: string };
+
 interface SessionState {
   sessions: Map<string, Session>;
   activeSessionId: string | null;
@@ -90,6 +94,10 @@ export function createSessionStore() {
     rows: number = 24
   ): Promise<string> {
     const tempId = crypto.randomUUID();
+    const auth: SshConnectAuthPayload = authType === "password"
+      ? { type: "password", password: credential }
+      : { type: "key", key_path: credential };
+
     const session: Session = {
       id: tempId,
       name,
@@ -107,8 +115,7 @@ export function createSessionStore() {
         host,
         port,
         user: username,
-        authType,
-        credential,
+        auth,
         cols,
         rows,
       });
@@ -116,7 +123,12 @@ export function createSessionStore() {
       const sess = state.sessions.get(tempId);
       if (sess) {
         state.sessions.delete(tempId);
-        state.sessions.set(sessionId, { ...sess, id: sessionId });
+        state.sessions.set(sessionId, {
+          ...sess,
+          id: sessionId,
+          status: "connected",
+          error: undefined,
+        });
       }
 
       if (state.activeSessionId === tempId) {

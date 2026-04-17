@@ -1,63 +1,48 @@
 <script lang="ts">
-  import type { TerminalConfig } from "$lib/config.js";
+  import { onMount, onDestroy } from "svelte";
   import { createTerminal } from "./xterm.js";
-  import { onDestroy, untrack } from "svelte";
-
-  type TerminalController = ReturnType<typeof createTerminal>;
-
-  type Props = {
-    sessionId: string;
-    config: TerminalConfig;
-    controller?: TerminalController | null;
-    onOutput?: (data: string) => void;
-    onClose?: () => void;
-  };
+  import type { TerminalConfig } from "$lib/config.js";
 
   let {
     sessionId,
     config,
-    controller = $bindable<TerminalController | null>(null),
     onOutput,
     onClose,
-  }: Props = $props();
+    controller = $bindable(null),
+  }: {
+    sessionId: string;
+    config: TerminalConfig;
+    onOutput?: (data: string) => void;
+    onClose?: () => void;
+    controller?: ReturnType<typeof createTerminal> | null;
+  } = $props();
 
   let container = $state<HTMLDivElement | null>(null);
-  let term = $state<TerminalController | null>(null);
+  let term: ReturnType<typeof createTerminal> | null = null;
+  let resizeObserver: ResizeObserver | null = null;
 
   $effect(() => {
     term?.updateConfig(config);
   });
 
-  $effect(() => {
+  onMount(() => {
     if (!container) return;
 
-    const currentTerm = createTerminal({
-      sessionId,
-      config: untrack(() => config),
-      onOutput,
-      onClose,
-    });
+    term = createTerminal({ sessionId, config, onOutput, onClose });
+    term.init(container);
 
-    currentTerm.init(container);
-    term = currentTerm;
-    controller = currentTerm;
+    if (controller !== undefined) {
+      controller = term;
+    }
 
-    const observer = new ResizeObserver(() => {
-      currentTerm.fit();
+    resizeObserver = new ResizeObserver(() => {
+      term?.fit();
     });
-    observer.observe(container);
+    resizeObserver.observe(container);
 
     return () => {
-      observer.disconnect();
-      currentTerm.dispose();
-
-      if (term === currentTerm) {
-        term = null;
-      }
-
-      if (controller === currentTerm) {
-        controller = null;
-      }
+      resizeObserver?.disconnect();
+      term?.dispose();
     };
   });
 
