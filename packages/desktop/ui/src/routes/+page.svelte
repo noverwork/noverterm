@@ -38,10 +38,6 @@
   // Settings modal
   let showSettings = $state(false);
 
-  // Terminal controller for toolbar actions
-  let termContainer = $state<HTMLDivElement | null>(null);
-  let termController = $state<any>(null);
-
   // Quick connect form state
   let qcHost = $state("");
   let qcPort = $state(22);
@@ -112,6 +108,10 @@
     Array.from(store.sessions.values()).filter(
       (s) => s.status !== "disconnected"
     ) as Session[]
+  );
+
+  const mountedTerminalSessions = $derived(
+    activeSessions.filter((s) => s.status === "connected") as Session[]
   );
 
   onMount(async () => {
@@ -458,16 +458,18 @@
           </Button>
         </div>
       {:else}
-        <div bind:this={termContainer} class="flex-1 min-h-0 overflow-hidden">
-          {#key activeSession.id}
-            <TerminalView
-              sessionId={activeSession.id}
-              sessionType={activeSession.type}
-              config={terminalConfig}
-              bind:controller={termController}
-              onClose={() => store.updateSession(activeSession.id, { status: "disconnected" })}
-            />
-          {/key}
+        <div class="relative flex-1 min-h-0 overflow-hidden">
+          {#each mountedTerminalSessions as session (session.id)}
+            <div class:hidden={session.id !== activeSession.id} class="absolute inset-0 min-h-0 overflow-hidden">
+              <TerminalView
+                sessionId={session.id}
+                sessionType={session.type}
+                active={session.id === activeSession.id}
+                config={terminalConfig}
+                onClose={() => store.updateSession(session.id, { status: "disconnected" })}
+              />
+            </div>
+          {/each}
         </div>
       {/if}
     </div>

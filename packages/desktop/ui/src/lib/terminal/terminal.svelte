@@ -7,6 +7,7 @@
   let {
     sessionId,
     sessionType = "ssh",
+    active = false,
     config,
     onOutput,
     onClose,
@@ -15,6 +16,7 @@
   }: {
     sessionId: string;
     sessionType?: SessionType;
+    active?: boolean;
     config: TerminalConfig;
     onOutput?: (data: string) => void;
     onClose?: () => void;
@@ -28,6 +30,15 @@
 
   $effect(() => {
     term?.updateConfig(config);
+  });
+
+  $effect(() => {
+    if (!active || !term) return;
+
+    requestAnimationFrame(() => {
+      term?.fit();
+      term?.focus();
+    });
   });
 
   onMount(() => {
