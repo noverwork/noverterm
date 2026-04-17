@@ -7,7 +7,6 @@
   import TerminalTabs from "$lib/components/terminal-tabs.svelte";
   import ConnectionForm from "$lib/components/connection-form.svelte";
   import TerminalView from "$lib/terminal/terminal.svelte";
-  import TerminalToolbar from "$lib/components/terminal-toolbar.svelte";
   import SettingsModal from "$lib/components/settings-modal.svelte";
   import { createSessionStore, type Session } from "$lib/stores/session.svelte.js";
   import {
@@ -42,8 +41,6 @@
   // Terminal controller for toolbar actions
   let termContainer = $state<HTMLDivElement | null>(null);
   let termController = $state<any>(null);
-  let hasSelection = $state(false);
-  let isFullscreen = $state(false);
 
   // Quick connect form state
   let qcHost = $state("");
@@ -131,6 +128,14 @@
     } else {
       document.documentElement.classList.remove("dark");
     }
+
+    if (store.sessions.size === 0) {
+      try {
+        await store.connectLocal("Local Terminal");
+      } catch {
+        void 0;
+      }
+    }
   });
 
   onDestroy(() => {
@@ -184,36 +189,6 @@
     terminalConfig = config;
     saveConfig({ terminal: config, connections, lastActiveSessionId: store.activeSessionId ?? undefined });
     showSettings = false;
-  }
-
-  function handleToolbarCopy() {
-    const text = termController?.copySelection?.();
-    if (text) navigator.clipboard.writeText(text);
-  }
-
-  function handleToolbarPaste() {
-    navigator.clipboard.readText().then((text) => {
-      termController?.paste?.(text);
-    });
-  }
-
-  function handleToolbarClear() {
-    termController?.clear?.();
-  }
-
-  function handleToolbarFullscreen() {
-    if (!termContainer) return;
-    if (!document.fullscreenElement) {
-      termContainer.requestFullscreen?.();
-      isFullscreen = true;
-    } else {
-      document.exitFullscreen?.();
-      isFullscreen = false;
-    }
-  }
-
-  function handleSelectionChange() {
-    hasSelection = !!termController?.terminal?.getSelection();
   }
 
   // Global keyboard shortcuts
@@ -273,23 +248,23 @@
       showConnectionForm = true;
     }}
     onDelete={handleDeleteConnection}
+    onLocalTerminal={() => store.connectLocal?.("Local Terminal")}
   />
 
   <div class="flex flex-col flex-1 min-w-0">
-    {#if activeSessions.length > 0}
-      <TerminalTabs
-        sessions={activeSessions}
-        activeSessionId={store.activeSessionId}
-        onActivate={(id) => store.setActiveSession(id)}
-        onClose={handleSessionClose}
-        onNew={() => {
-          editingConnection = null;
-          showConnectionForm = true;
-        }}
-      />
-    {/if}
+    <TerminalTabs
+      sessions={activeSessions}
+      activeSessionId={store.activeSessionId}
+      onActivate={(id) => store.setActiveSession(id)}
+      onClose={handleSessionClose}
+      onNew={() => {
+        editingConnection = null;
+        showConnectionForm = true;
+      }}
+      onNewLocal={() => store.connectLocal("Local Terminal")}
+    />
 
-    <div class="flex-1 min-h-0 relative flex flex-col">
+    <div class="relative flex flex-1 min-h-0 flex-col overflow-hidden">
       {#if !activeSession}
         <div class="flex flex-col h-full overflow-y-auto">
           <!-- Header -->
@@ -516,22 +491,13 @@
           </Button>
         </div>
       {:else}
-        <TerminalToolbar
-          hasSelection={hasSelection}
-          isFullscreen={isFullscreen}
-          onCopy={handleToolbarCopy}
-          onPaste={handleToolbarPaste}
-          onClear={handleToolbarClear}
-          onFullscreen={handleToolbarFullscreen}
-          onSettings={() => (showSettings = true)}
-        />
-        <div bind:this={termContainer} class="flex-1 min-h-0">
+        <div bind:this={termContainer} class="flex-1 min-h-0 overflow-hidden">
           {#key activeSession.id}
             <TerminalView
               sessionId={activeSession.id}
+              sessionType={activeSession.type}
               config={terminalConfig}
               bind:controller={termController}
-              onSelectionChange={handleSelectionChange}
               onClose={() => store.updateSession(activeSession.id, { status: "disconnected" })}
             />
           {/key}

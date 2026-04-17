@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { X, Plus } from "@lucide/svelte";
+  import { X, Plus, Terminal } from "@lucide/svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import type { Session, SessionStatus } from "$lib/stores/session.svelte.js";
 
@@ -9,12 +9,14 @@
     onActivate,
     onClose,
     onNew,
+    onNewLocal,
   }: {
     sessions: Session[];
     activeSessionId: string | null;
     onActivate: (id: string) => void;
     onClose: (id: string) => void;
     onNew: () => void;
+    onNewLocal: () => void;
   } = $props();
 
   function statusIcon(status: SessionStatus): string {
@@ -44,7 +46,7 @@
   }
 </script>
 
-<div class="terminal-tabs flex items-center bg-card border-b border-border overflow-x-auto">
+<div class="terminal-tabs relative z-20 shrink-0 flex h-11 items-center gap-1 bg-card border-b border-border overflow-x-auto px-1">
   {#each sessions as session (session.id)}
     <button
       class="tab flex items-center gap-2 px-4 py-2 text-sm border-r border-border min-w-0 max-w-48 transition-colors group {session.id === activeSessionId ? 'bg-background text-foreground border-b-2 border-b-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}"
@@ -69,8 +71,19 @@
   <Button
     variant="ghost"
     size="icon-sm"
-    class="shrink-0 ml-1"
+    class="shrink-0"
+    onclick={onNewLocal}
+    title="New Local Terminal"
+  >
+    <Terminal class="size-4" />
+  </Button>
+
+  <Button
+    variant="ghost"
+    size="icon-sm"
+    class="shrink-0"
     onclick={onNew}
+    title="New SSH Connection"
   >
     <Plus class="size-4" />
   </Button>

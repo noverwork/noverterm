@@ -125,14 +125,18 @@
 
 @layer components {
   .terminal-container {
+    position: relative;
     height: 100%;
     width: 100%;
     overflow: hidden;
+    z-index: 0;
   }
 
   .terminal-container .xterm {
     padding: 8px;
     height: 100%;
+    position: relative;
+    z-index: 0;
   }
 
   .terminal-container .xterm-viewport {
@@ -163,6 +167,8 @@
 
   .terminal-tabs {
     scrollbar-width: none;
+    position: relative;
+    z-index: 20;
   }
 
   .terminal-tabs::-webkit-scrollbar {

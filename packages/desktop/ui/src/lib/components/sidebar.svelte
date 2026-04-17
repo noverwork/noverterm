@@ -15,6 +15,7 @@
     onAdd,
     onEdit,
     onDelete,
+    onLocalTerminal,
   }: {
     connections: ConnectionConfig[];
     sessions: Map<string, { id: string; name: string; status: SessionStatus }>;
@@ -25,6 +26,7 @@
     onAdd: () => void;
     onEdit: (conn: ConnectionConfig) => void;
     onDelete: (conn: ConnectionConfig) => void;
+    onLocalTerminal?: () => void;
   } = $props();
 
   let searchQuery = $state("");
@@ -97,6 +99,12 @@
         <Plus class="size-3.5" />
         Add Connection
       </Button>
+      {#if onLocalTerminal}
+        <Button onclick={onLocalTerminal} variant="outline" size="sm" class="w-full gap-2">
+          <Terminal class="size-3.5" />
+          Local Terminal
+        </Button>
+      {/if}
     </div>
 
     <div class="flex-1 overflow-y-auto px-2 pb-2">
