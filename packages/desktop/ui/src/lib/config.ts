@@ -15,7 +15,6 @@ export interface ConnectionConfig {
   host: string;
   port: number;
   username: string;
-  authType: "password" | "key";
   password?: string;
   keyPath?: string;
 }

@@ -18,7 +18,6 @@
   let host = $state("");
   let port = $state(22);
   let username = $state("");
-  let authType = $state<"password" | "key">("password");
   let password = $state("");
   let keyPath = $state("");
   let submitted = $state(false);
@@ -29,7 +28,6 @@
     host = connection?.host ?? "";
     port = connection?.port ?? 22;
     username = connection?.username ?? "";
-    authType = connection?.authType ?? "password";
     password = connection?.password ?? "";
     keyPath = connection?.keyPath ?? "";
     submitted = false;
@@ -42,8 +40,7 @@
     if (!host.trim()) errs.host = "Host is required";
     if (port < 1 || port > 65535) errs.port = "Port must be 1-65535";
     if (!username.trim()) errs.username = "Username is required";
-    if (authType === "password" && !password) errs.password = "Password is required";
-    if (authType === "key" && !keyPath.trim()) errs.keyPath = "Key path is required";
+    if (!password && !keyPath.trim()) errs.auth = "Password or SSH key is required";
     return errs;
   });
 
@@ -66,8 +63,8 @@
       host: host.trim(),
       port,
       username: username.trim(),
-      authType,
-      ...(authType === "password" ? { password } : { keyPath: keyPath.trim() }),
+      ...(password ? { password } : {}),
+      ...(keyPath.trim() ? { keyPath: keyPath.trim() } : {}),
     });
   }
 </script>
@@ -128,59 +125,29 @@
       </div>
 
       <div class="space-y-2">
-        <p class="text-sm font-medium">Authentication</p>
-        <div class="flex gap-2">
-          <Button
-            type="button"
-            variant={authType === "password" ? "default" : "outline"}
-            size="sm"
-            class="flex-1"
-            onclick={() => (authType = "password")}
-          >
-            Password
-          </Button>
-          <Button
-            type="button"
-            variant={authType === "key" ? "default" : "outline"}
-            size="sm"
-            class="flex-1"
-            onclick={() => (authType = "key")}
-          >
-            SSH Key
-          </Button>
-        </div>
+        <label for="conn-password" class="text-sm font-medium">Password <span class="text-muted-foreground font-normal">(optional if key provided)</span></label>
+        <Input
+          id="conn-password"
+          type="password"
+          bind:value={password}
+          onblur={() => markTouched("password")}
+          placeholder="Enter password"
+        />
       </div>
 
-      {#if authType === "password"}
-        <div class="space-y-2">
-          <label for="conn-password" class="text-sm font-medium">Password</label>
-          <Input
-            id="conn-password"
-            type="password"
-            bind:value={password}
-            onblur={() => markTouched("password")}
-            placeholder="Enter password"
-            class={showError('password') ? 'border-destructive' : ''}
-          />
-          {#if showError("password")}
-            <p class="text-xs text-destructive">{showError("password")}</p>
-          {/if}
-        </div>
-      {:else}
-        <div class="space-y-2">
-          <label for="conn-keypath" class="text-sm font-medium">Key Path</label>
-          <Input
-            id="conn-keypath"
-            bind:value={keyPath}
-            onblur={() => markTouched("keyPath")}
-            placeholder="~/.ssh/id_ed25519"
-            class={showError('keyPath') ? 'border-destructive' : ''}
-          />
-          {#if showError("keyPath")}
-            <p class="text-xs text-destructive">{showError("keyPath")}</p>
-          {/if}
-        </div>
-      {/if}
+      <div class="space-y-2">
+        <label for="conn-keypath" class="text-sm font-medium">SSH Key Path <span class="text-muted-foreground font-normal">(optional if password provided)</span></label>
+        <Input
+          id="conn-keypath"
+          bind:value={keyPath}
+          onblur={() => markTouched("keyPath")}
+          placeholder="~/.ssh/id_ed25519"
+          class={showError('auth') ? 'border-destructive' : ''}
+        />
+        {#if showError("auth")}
+          <p class="text-xs text-destructive">{showError("auth")}</p>
+        {/if}
+      </div>
 
       <div class="flex gap-2 pt-2">
         <Button type="button" variant="outline" class="flex-1" onclick={onCancel}>

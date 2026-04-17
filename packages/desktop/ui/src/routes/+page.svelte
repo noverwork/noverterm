@@ -46,7 +46,6 @@
   let qcHost = $state("");
   let qcPort = $state(22);
   let qcUsername = $state("");
-  let qcAuthType = $state<"password" | "key">("password");
   let qcPassword = $state("");
   let qcKeyPath = $state("");
   let qcConnecting = $state(false);
@@ -58,8 +57,7 @@
     if (!qcHost.trim()) errs.host = "Host is required";
     if (qcPort < 1 || qcPort > 65535) errs.port = "Port must be 1-65535";
     if (!qcUsername.trim()) errs.username = "Username is required";
-    if (qcAuthType === "password" && !qcPassword) errs.password = "Password is required";
-    if (qcAuthType === "key" && !qcKeyPath.trim()) errs.keyPath = "Key path is required";
+    if (!qcPassword && !qcKeyPath.trim()) errs.auth = "Password or SSH key is required";
     return errs;
   });
 
@@ -82,13 +80,12 @@
     if (!qcIsValid || qcConnecting) return;
     qcConnecting = true;
     try {
-      const credential = qcAuthType === "password" ? qcPassword : qcKeyPath;
       await store.connectToHost(
         qcHost.trim(),
         qcPort,
         qcUsername.trim(),
-        qcAuthType,
-        credential,
+        qcPassword || undefined,
+        qcKeyPath.trim() || undefined,
         `${qcUsername.trim()}@${qcHost.trim()}:${qcPort}`,
         80,
         24
@@ -151,13 +148,12 @@
       return;
     }
 
-    const credential = conn.authType === "password" ? conn.password! : conn.keyPath!;
     await store.connectToHost(
       conn.host,
       conn.port,
       conn.username,
-      conn.authType,
-      credential,
+      conn.password,
+      conn.keyPath,
       `${conn.username}@${conn.host}:${conn.port}`,
       80,
       24
@@ -332,56 +328,27 @@
               </div>
 
               <div class="space-y-1">
-                <div class="flex gap-2">
-                  <Button
-                    type="button"
-                    variant={qcAuthType === "password" ? "default" : "outline"}
-                    size="sm"
-                    class="flex-1"
-                    onclick={() => (qcAuthType = "password")}
-                  >
-                    Password
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={qcAuthType === "key" ? "default" : "outline"}
-                    size="sm"
-                    class="flex-1"
-                    onclick={() => (qcAuthType = "key")}
-                  >
-                    SSH Key
-                  </Button>
-                </div>
+                <Input
+                  id="qc-password"
+                  type="password"
+                  bind:value={qcPassword}
+                  onblur={() => markQcTouched("password")}
+                  placeholder="Password (optional if key provided)"
+                />
               </div>
 
-              {#if qcAuthType === "password"}
-                <div class="space-y-1">
-                  <Input
-                    id="qc-password"
-                    type="password"
-                    bind:value={qcPassword}
-                    onblur={() => markQcTouched("password")}
-                    placeholder="Password"
-                    class={showQcError('password') ? 'border-destructive' : ''}
-                  />
-                  {#if showQcError("password")}
-                    <p class="text-xs text-destructive">{showQcError("password")}</p>
-                  {/if}
-                </div>
-              {:else}
-                <div class="space-y-1">
-                  <Input
-                    id="qc-keypath"
-                    bind:value={qcKeyPath}
-                    onblur={() => markQcTouched("keyPath")}
-                    placeholder="~/.ssh/id_ed25519"
-                    class={showQcError('keyPath') ? 'border-destructive' : ''}
-                  />
-                  {#if showQcError("keyPath")}
-                    <p class="text-xs text-destructive">{showQcError("keyPath")}</p>
-                  {/if}
-                </div>
-              {/if}
+              <div class="space-y-1">
+                <Input
+                  id="qc-keypath"
+                  bind:value={qcKeyPath}
+                  onblur={() => markQcTouched("keyPath")}
+                  placeholder="SSH Key Path (optional if password provided)"
+                  class={showQcError('auth') ? 'border-destructive' : ''}
+                />
+                {#if showQcError("auth")}
+                  <p class="text-xs text-destructive">{showQcError("auth")}</p>
+                {/if}
+              </div>
 
               <Button
                 type="submit"

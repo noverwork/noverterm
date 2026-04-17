@@ -96,6 +96,35 @@ impl SshSessionManager {
                 }
                 info!(session_id, user, "Key authentication succeeded");
             }
+            AuthMethod::KeyAndPassword { key_path, password } => {
+                info!(session_id, user, key_path = %key_path.display(), "Authenticating with key + password");
+                let key = load_key_pair(&key_path)?;
+                let hash_alg = session
+                    .best_supported_rsa_hash()
+                    .await
+                    .map_err(|e| format!("Failed to get supported RSA hash: {}", e))?
+                    .flatten();
+                let auth_res = session
+                    .authenticate_publickey(
+                        user.clone(),
+                        russh::keys::PrivateKeyWithHashAlg::new(Arc::new(key), hash_alg),
+                    )
+                    .await
+                    .map_err(|e| format!("Key authentication failed: {}", e))?;
+                if auth_res.success() {
+                    info!(session_id, user, "Key authentication succeeded");
+                } else {
+                    info!(session_id, user, "Key auth partial, trying password");
+                    let auth_res2 = session
+                        .authenticate_password(user.clone(), password)
+                        .await
+                        .map_err(|e| format!("Password authentication failed: {}", e))?;
+                    if !auth_res2.success() {
+                        return Err("Key + password authentication rejected".to_string());
+                    }
+                    info!(session_id, user, "Key + password authentication succeeded");
+                }
+            }
         }
 
         info!(session_id, "Opening SSH session channel");
@@ -261,6 +290,7 @@ async fn read_loop(
 pub enum AuthMethod {
     Password(String),
     KeyFile(PathBuf),
+    KeyAndPassword { key_path: PathBuf, password: String },
 }
 
 fn load_key_pair(path: &PathBuf) -> Result<russh::keys::PrivateKey, String> {

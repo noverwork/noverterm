@@ -37,12 +37,9 @@ fn get_all_settings(settings: State<'_, SettingsManager>) -> Vec<Setting> {
 }
 
 #[derive(serde::Deserialize, specta::Type)]
-#[serde(tag = "type")]
-enum AuthMethodInput {
-    #[serde(rename = "password")]
-    Password { password: String },
-    #[serde(rename = "key")]
-    Key { key_path: String },
+struct AuthMethodInput {
+    password: Option<String>,
+    key_path: Option<String>,
 }
 
 #[tauri::command]
@@ -57,9 +54,14 @@ async fn ssh_connect(
     rows: u32,
     ssh_manager: State<'_, SshSessionManager>,
 ) -> Result<String, String> {
-    let auth_method = match auth {
-        AuthMethodInput::Password { password } => AuthMethod::Password(password),
-        AuthMethodInput::Key { key_path } => AuthMethod::KeyFile(PathBuf::from(key_path)),
+    let auth_method = match (auth.password, auth.key_path) {
+        (Some(password), Some(key_path)) => AuthMethod::KeyAndPassword {
+            key_path: PathBuf::from(key_path),
+            password,
+        },
+        (None, Some(key_path)) => AuthMethod::KeyFile(PathBuf::from(key_path)),
+        (Some(password), None) => AuthMethod::Password(password),
+        (None, None) => return Err("At least one of password or key_path is required".to_string()),
     };
 
     ssh_manager
