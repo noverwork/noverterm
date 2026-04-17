@@ -25,8 +25,5 @@ export default defineConfig(async () => ({
           port: 1421,
         }
       : undefined,
-    watch: {
-      ignored: ["**/packages/**"],
-    },
   },
 }));
