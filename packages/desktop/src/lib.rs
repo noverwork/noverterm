@@ -1,7 +1,9 @@
 mod config;
+mod local;
 mod ssh;
 
 use crate::config::SettingsManager;
+use crate::local::LocalSessionManager;
 use crate::ssh::{AuthMethod, SshSessionManager};
 use shared::Setting;
 use specta_typescript::Typescript;
@@ -95,6 +97,47 @@ async fn ssh_disconnect(
     ssh_manager.disconnect(&session_id).await
 }
 
+#[tauri::command]
+#[specta::specta]
+async fn local_connect(
+    app: AppHandle,
+    cols: u32,
+    rows: u32,
+    local_manager: State<'_, LocalSessionManager>,
+) -> Result<String, String> {
+    local_manager.connect(app, cols, rows).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn local_write(
+    session_id: String,
+    data: String,
+    local_manager: State<'_, LocalSessionManager>,
+) -> Result<(), String> {
+    local_manager.write(&session_id, data.into_bytes()).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn local_resize(
+    session_id: String,
+    cols: u32,
+    rows: u32,
+    local_manager: State<'_, LocalSessionManager>,
+) -> Result<(), String> {
+    local_manager.resize(&session_id, cols, rows).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn local_disconnect(
+    session_id: String,
+    local_manager: State<'_, LocalSessionManager>,
+) -> Result<(), String> {
+    local_manager.disconnect(&session_id).await
+}
+
 fn command_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
         greet,
@@ -104,7 +147,11 @@ fn command_builder() -> Builder<tauri::Wry> {
         ssh_connect,
         ssh_write,
         ssh_resize,
-        ssh_disconnect
+        ssh_disconnect,
+        local_connect,
+        local_write,
+        local_resize,
+        local_disconnect
     ])
 }
 
@@ -153,6 +200,9 @@ pub fn run() {
 
             let ssh_manager = SshSessionManager::new();
             app.manage(ssh_manager);
+
+            let local_manager = LocalSessionManager::new();
+            app.manage(local_manager);
 
             Ok(())
         })
