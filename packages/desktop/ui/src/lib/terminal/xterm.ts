@@ -3,7 +3,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import type { TerminalConfig } from "$lib/config.js";
+import type { TerminalConfig } from "$lib/stores/bootstrap.svelte.js";
 
 import type { SessionType } from "$lib/stores/session.svelte.js";
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { createTerminal } from "./xterm.js";
-  import type { TerminalConfig } from "$lib/config.js";
+  import type { TerminalConfig } from "$lib/stores/bootstrap.svelte.js";
   import type { SessionType } from "$lib/stores/session.svelte.js";
 
   let {

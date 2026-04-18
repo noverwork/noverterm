@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { AlertCircle, Loader2, LogOut, Settings } from "@lucide/svelte";
+  import { AlertCircle, Command, Loader2, LogOut, Settings } from "@lucide/svelte";
+  
+  import AuthShell from "$lib/components/auth-shell.svelte";
 
   import ConnectionForm from "$lib/components/connection-form.svelte";
-  import LoginForm from "$lib/components/login-form.svelte";
   import SettingsModal from "$lib/components/settings-modal.svelte";
   import Sidebar from "$lib/components/sidebar.svelte";
   import TerminalTabs from "$lib/components/terminal-tabs.svelte";
@@ -257,20 +258,19 @@
     </div>
   </div>
 {:else if bootstrapStore.isUnauthenticated}
-  <LoginForm onLogin={handleLogin} isLoading={bootstrapStore.isLoading} error={bootstrapStore.error} />
+  <AuthShell onLogin={handleLogin} isLoading={bootstrapStore.isLoading} error={bootstrapStore.error} />
 {:else if bootstrapStore.isError}
-  <div class="flex min-h-screen flex-col items-center justify-center bg-background px-4">
-    <div class="flex flex-col items-center text-center max-w-md">
-      <AlertCircle class="size-12 text-destructive mb-4" />
-      <h1 class="text-xl font-semibold mb-2">Connection Failed</h1>
-      <p class="text-sm text-muted-foreground mb-6">
+  <div class="auth-shell flex min-h-screen items-center justify-center px-4 py-8">
+    <div class="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-slate-950/78 p-6 text-center shadow-2xl backdrop-blur-2xl sm:p-8">
+      <div class="mx-auto flex size-16 items-center justify-center rounded-[1.5rem] bg-destructive/10 text-destructive">
+        <AlertCircle class="size-8" />
+      </div>
+      <h1 class="mt-5 text-2xl font-semibold text-white">Backend connection unavailable</h1>
+      <p class="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-300">
         {bootstrapStore.error ?? "Unable to connect to the backend. Remote features are unavailable."}
       </p>
-      <div class="flex gap-3">
-        <Button onclick={() => sessionStore.connectLocal("Local Terminal")} class="gap-2">
-          Open Local Terminal
-        </Button>
-        <Button variant="outline" onclick={() => bootstrapStore.init()} class="gap-2">
+      <div class="mt-8 flex flex-wrap justify-center gap-3">
+        <Button variant="outline" onclick={() => bootstrapStore.init()} class="gap-2 border-white/10 bg-white/4 text-white hover:bg-white/8">
           Retry
         </Button>
       </div>
@@ -302,6 +302,10 @@
           onNewLocal={() => sessionStore.connectLocal("Local Terminal")}
         />
         <div class="flex items-center gap-2 shrink-0">
+          <div class="hidden items-center gap-2 rounded-full border border-border/70 bg-muted/50 px-3 py-1 text-xs text-muted-foreground md:flex">
+            <Command class="size-3.5 text-primary" />
+            Noverterm workspace
+          </div>
           <span class="text-xs text-muted-foreground">{bootstrapStore.authStatus?.username ?? ""}</span>
           <Button variant="ghost" size="icon-xs" onclick={() => (showSettings = true)}>
             <Settings class="size-3.5" />
@@ -321,6 +325,7 @@
             onSelectConnection={handleSelectConnection}
             onQuickConnect={handleQuickConnect}
             onLocalTerminal={() => sessionStore.connectLocal("Local Terminal")}
+            onOpenConnectionManager={openNewConnectionForm}
             {quickConnectState}
           />
         {:else if activeSession.status === "connecting"}
