@@ -79,6 +79,11 @@
     }
   }
 
+  async function handleSignup(username: string, email: string, password: string) {
+    // TODO: wire up backend sign-up flow
+    console.log("Sign up requested:", { username, email, password });
+  }
+
   async function handleLogout() {
     await bootstrapStore.logout();
   }
@@ -233,7 +238,7 @@
     </div>
   </div>
 {:else if bootstrapStore.isUnauthenticated}
-  <AuthShell onLogin={handleLogin} isLoading={bootstrapStore.isLoading} error={bootstrapStore.error} />
+  <AuthShell onLogin={handleLogin} onSignup={handleSignup} isLoading={bootstrapStore.isLoading} error={bootstrapStore.error} />
 {:else if bootstrapStore.isError}
   <div class="auth-shell flex min-h-screen items-center justify-center px-4 py-8">
     <div class="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-slate-950/78 p-6 text-center shadow-2xl backdrop-blur-2xl sm:p-8">
