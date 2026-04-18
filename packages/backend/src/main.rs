@@ -1,4 +1,7 @@
 #[tokio::main]
 async fn main() {
-    backend::run().await;
+    if let Err(error) = backend::run().await {
+        eprintln!("{error}");
+        std::process::exit(1);
+    }
 }

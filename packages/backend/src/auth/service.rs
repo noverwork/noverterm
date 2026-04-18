@@ -77,12 +77,12 @@ impl AuthConfig {
     }
 
     pub fn from_env() -> Self {
-        let username =
-            std::env::var("NOVERTERM_AUTH_USERNAME").unwrap_or_else(|_| "admin".to_string());
-        let password =
-            std::env::var("NOVERTERM_AUTH_PASSWORD").unwrap_or_else(|_| "admin".to_string());
-        let secret = std::env::var("NOVERTERM_AUTH_SECRET")
-            .unwrap_or_else(|_| "development-only-noverterm-auth-secret".to_string());
+        let username = crate::bootstrap::env_value("NOVERTERM_AUTH_USERNAME")
+            .unwrap_or_else(|| "admin".to_string());
+        let password = crate::bootstrap::env_value("NOVERTERM_AUTH_PASSWORD")
+            .unwrap_or_else(|| "admin".to_string());
+        let secret = crate::bootstrap::env_value("NOVERTERM_AUTH_SECRET")
+            .unwrap_or_else(|| "development-only-noverterm-auth-secret".to_string());
 
         Self::new([(username, password)], secret)
     }
