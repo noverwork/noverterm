@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { X, Plus, Terminal } from "@lucide/svelte";
+  import { LaptopMinimal, Plus, X } from "@lucide/svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import type { Session, SessionStatus } from "$lib/stores/session.svelte.js";
 
@@ -19,82 +19,52 @@
     onNewLocal: () => void;
   } = $props();
 
-  function statusIcon(status: SessionStatus): string {
+  function sessionTone(status: SessionStatus) {
     switch (status) {
       case "connected":
-        return "●";
+        return "bg-emerald-400";
       case "connecting":
-        return "◌";
+        return "bg-amber-400 animate-pulse";
       case "error":
-        return "✕";
+        return "bg-red-400";
       default:
-        return "○";
-    }
-  }
-
-  function statusClass(status: SessionStatus): string {
-    switch (status) {
-      case "connected":
-        return "text-green-500";
-      case "connecting":
-        return "text-yellow-500 animate-pulse";
-      case "error":
-        return "text-red-500";
-      default:
-        return "text-muted-foreground";
+        return "bg-slate-500";
     }
   }
 </script>
 
-<div class="terminal-tabs relative z-20 shrink-0 flex h-11 items-center gap-1 bg-card border-b border-border overflow-x-auto px-1">
-  {#each sessions as session (session.id)}
-    <button
-      class="tab flex items-center gap-2 px-4 py-2 text-sm border-r border-border min-w-0 max-w-48 transition-colors group {session.id === activeSessionId ? 'bg-background text-foreground border-b-2 border-b-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}"
-      onclick={() => onActivate(session.id)}
-    >
-      <span class="text-xs {statusClass(session.status)}">{statusIcon(session.status)}</span>
-      <span class="truncate">{session.name}</span>
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        class="close-btn shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 hover:text-destructive cursor-pointer"
-        onclick={(e) => {
-          e.stopPropagation();
-          onClose(session.id);
-        }}
+<div class="terminal-tabs relative z-20 flex h-14 shrink-0 items-center gap-2 border-b border-border/70 bg-background/90 px-2 backdrop-blur-sm">
+  <div class="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1 pt-1">
+    {#each sessions as session (session.id)}
+      <button
+        class={session.id === activeSessionId
+          ? "group flex min-w-0 max-w-56 cursor-pointer items-center gap-3 rounded-2xl border border-primary/25 bg-primary/10 px-3 py-2 text-left text-foreground shadow-sm"
+          : "group flex min-w-0 max-w-56 cursor-pointer items-center gap-3 rounded-2xl border border-transparent bg-transparent px-3 py-2 text-left text-muted-foreground transition-colors hover:border-border/70 hover:bg-muted/60 hover:text-foreground"}
+        onclick={() => onActivate(session.id)}
       >
-        <X class="size-3" />
-      </Button>
-    </button>
-  {/each}
+        <span class="size-2.5 shrink-0 rounded-full {sessionTone(session.status)}"></span>
+        <span class="truncate text-sm font-medium">{session.name}</span>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          class="size-6 shrink-0 rounded-full text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-destructive"
+          onclick={(event) => {
+            event.stopPropagation();
+            onClose(session.id);
+          }}
+        >
+          <X class="size-3" />
+        </Button>
+      </button>
+    {/each}
+  </div>
 
-  <Button
-    variant="ghost"
-    size="icon-sm"
-    class="shrink-0"
-    onclick={onNewLocal}
-    title="New Local Terminal"
-  >
-    <Terminal class="size-4" />
-  </Button>
-
-  <Button
-    variant="ghost"
-    size="icon-sm"
-    class="shrink-0"
-    onclick={onNew}
-    title="New SSH Connection"
-  >
-    <Plus class="size-4" />
-  </Button>
+  <div class="flex shrink-0 items-center gap-1">
+    <Button variant="ghost" size="icon-sm" class="rounded-xl" onclick={onNewLocal} title="New local terminal">
+      <LaptopMinimal class="size-4" />
+    </Button>
+    <Button variant="ghost" size="icon-sm" class="rounded-xl" onclick={onNew} title="New SSH connection">
+      <Plus class="size-4" />
+    </Button>
+  </div>
 </div>
-
-<style>
-  .tab {
-    position: relative;
-  }
-  .tab:hover .close-btn,
-  .tab:focus-within .close-btn {
-    opacity: 1;
-  }
-</style>

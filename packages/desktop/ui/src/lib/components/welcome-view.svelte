@@ -1,9 +1,19 @@
 <script lang="ts">
-  import { Terminal, Loader2, AlertCircle, Zap, Keyboard } from "@lucide/svelte";
+  import {
+    ArrowRight,
+    Keyboard,
+    Loader2,
+    Plus,
+    Server,
+    Terminal,
+    Zap,
+  } from "@lucide/svelte";
+
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
-  import type { Session, SessionStatus } from "$lib/stores/session.svelte.js";
+  import type { SessionStatus } from "$lib/stores/session.svelte.js";
   import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
+  import { findConnectionSession } from "$lib/view-models/auth-and-sessions.js";
 
   let {
     connections,
@@ -12,28 +22,36 @@
     onSelectConnection,
     onQuickConnect,
     onLocalTerminal,
+    onOpenConnectionManager,
     quickConnectState,
   }: {
     connections: ConnectionConfig[];
-    sessions: Map<string, { id: string; name: string; status: SessionStatus }>;
+    sessions: Map<string, { id: string; name: string; status: SessionStatus; connectionId?: string | null }>;
     activeSessionId: string | null;
-      onSelectConnection: (conn: ConnectionConfig) => void;
-      onQuickConnect: (host: string, port: number, username: string, password: string, privateKey: string) => void;
-      onLocalTerminal: () => void;
-      quickConnectState: {
-        host: string;
-        port: number;
-        username: string;
-        password: string;
-        privateKey: string;
-        connecting: boolean;
-        submitted: boolean;
-        touched: Record<string, boolean>;
-      };
+    onSelectConnection: (conn: ConnectionConfig) => void;
+    onQuickConnect: (host: string, port: number, username: string, password: string, privateKey: string) => void;
+    onLocalTerminal: () => void;
+    onOpenConnectionManager: () => void;
+    quickConnectState: {
+      host: string;
+      port: number;
+      username: string;
+      password: string;
+      privateKey: string;
+      connecting: boolean;
+      submitted: boolean;
+      touched: Record<string, boolean>;
+    };
   } = $props();
 
-  const sortedConnections = $derived(
-    [...connections].sort((a, b) => a.name.localeCompare(b.name))
+  const sortedConnections = $derived([...connections].sort((a, b) => a.name.localeCompare(b.name)));
+  const connectedConnections = $derived(
+    sortedConnections.filter((conn) =>
+      findConnectionSession(sessions.values(), conn)?.status === "connected",
+    ),
+  );
+  const suggestedConnections = $derived(
+    sortedConnections.filter((conn) => !connectedConnections.some((connected) => connected.id === conn.id)).slice(0, 4),
   );
 
   const qcErrors = $derived.by(() => {
@@ -45,8 +63,6 @@
     return errs;
   });
 
-  const qcIsValid = $derived(Object.keys(qcErrors).length === 0);
-
   function markQcTouched(field: string) {
     quickConnectState.touched[field] = true;
   }
@@ -55,197 +71,237 @@
     return (quickConnectState.submitted || quickConnectState.touched[field]) && qcErrors[field];
   }
 
-  function handleQuickConnectSubmit(e: Event) {
-    e.preventDefault();
+  function handleQuickConnectSubmit(event: Event) {
+    event.preventDefault();
     quickConnectState.submitted = true;
-    if (!qcIsValid || quickConnectState.connecting) return;
+    if (Object.keys(qcErrors).length > 0 || quickConnectState.connecting) return;
+
     onQuickConnect(
       quickConnectState.host.trim(),
       quickConnectState.port,
       quickConnectState.username.trim(),
       quickConnectState.password,
-      quickConnectState.privateKey.trim()
+      quickConnectState.privateKey.trim(),
     );
   }
 
-  function connectionStatus(conn: ConnectionConfig): string {
-    const session = Array.from(sessions.values()).find(
-      (s) => s.name === `${conn.username}@${conn.host}:${conn.port}`
-    );
-    if (!session) return "bg-muted-foreground/50";
-    if (session.status === "connected") return "bg-green-500";
-    if (session.status === "connecting") return "bg-yellow-500 animate-pulse";
-    if (session.status === "error") return "bg-red-500";
-    return "bg-muted-foreground/50";
+  function connectionMeta(conn: ConnectionConfig) {
+    const session = findConnectionSession(sessions.values(), conn);
+    return {
+      isActive: session?.id === activeSessionId,
+      label: session?.status === "connected" ? "Live" : conn.authMode === "publickey_password" ? "Key + password" : conn.authMode === "publickey" ? "SSH key" : "Password",
+    };
   }
 </script>
 
-<div class="flex flex-col h-full overflow-y-auto">
-  <!-- Header -->
-  <div class="flex flex-col items-center justify-center pt-12 pb-6 text-center">
-    <div class="relative mb-4">
-      <div class="absolute inset-0 blur-3xl bg-primary/20 rounded-full"></div>
-      <Terminal class="relative size-12 text-primary" />
-    </div>
-    <h1 class="text-2xl font-bold tracking-tight">Noverterm</h1>
-    <p class="text-sm text-muted-foreground mt-1">SSH Terminal</p>
-  </div>
-
-  <!-- Quick Connect -->
-  <div class="mx-auto w-full max-w-lg px-6 pb-6">
-    <div class="flex items-center gap-2 mb-3">
-      <Zap class="size-4 text-primary" />
-      <h2 class="text-sm font-semibold">Quick Connect</h2>
-    </div>
-    <form class="space-y-3" onsubmit={handleQuickConnectSubmit}>
-      <div class="grid grid-cols-3 gap-2">
-        <div class="col-span-2 space-y-1">
-          <Input
-            id="qc-host"
-            value={quickConnectState.host}
-            oninput={(e) => quickConnectState.host = (e.target as HTMLInputElement).value}
-            onblur={() => markQcTouched("host")}
-            placeholder="Host (e.g. 192.168.1.1)"
-            class={showQcError('host') ? 'border-destructive' : ''}
-          />
-          {#if showQcError("host")}
-            <p class="text-xs text-destructive">{showQcError("host")}</p>
-          {/if}
+<div class="workspace-surface flex h-full flex-col overflow-y-auto text-white">
+  <div class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-5 py-6 lg:px-8">
+    <div class="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <div class="panel-glass rounded-[1.75rem] p-6 lg:p-8">
+        <div class="hero-chip w-fit">
+          <Terminal class="size-3.5" />
+          Command center
         </div>
-        <div class="space-y-1">
-          <Input
-            id="qc-port"
-            type="number"
-            value={quickConnectState.port}
-            oninput={(e) => quickConnectState.port = parseInt((e.target as HTMLInputElement).value) || 22}
-            onblur={() => markQcTouched("port")}
-            placeholder="22"
-            class={showQcError('port') ? 'border-destructive' : ''}
-          />
-          {#if showQcError("port")}
-            <p class="text-xs text-destructive">{showQcError("port")}</p>
-          {/if}
+
+        <div class="mt-5 max-w-2xl space-y-4">
+          <h1 class="text-3xl font-semibold tracking-tight text-white lg:text-4xl">
+            Launch remote or local sessions without leaving your workspace.
+          </h1>
+          <p class="text-sm leading-7 text-slate-300 lg:text-base">
+            Start from a saved host, open a local terminal, or spin up a one-off connection. Noverterm
+            keeps credentials managed while your desktop runtime handles the actual terminal session.
+          </p>
         </div>
-      </div>
 
-      <div class="space-y-1">
-        <Input
-          id="qc-username"
-          value={quickConnectState.username}
-          oninput={(e) => quickConnectState.username = (e.target as HTMLInputElement).value}
-          onblur={() => markQcTouched("username")}
-          placeholder="Username"
-          class={showQcError('username') ? 'border-destructive' : ''}
-        />
-        {#if showQcError("username")}
-          <p class="text-xs text-destructive">{showQcError("username")}</p>
-        {/if}
-      </div>
-
-      <div class="space-y-1">
-        <Input
-            id="qc-password"
-            type="password"
-            value={quickConnectState.password}
-            oninput={(e) => quickConnectState.password = (e.target as HTMLInputElement).value}
-            onblur={() => markQcTouched("password")}
-            placeholder="Password (optional if private key is provided)"
-          />
-      </div>
-
-      <div class="space-y-1">
-        <Input
-          id="qc-private-key"
-          value={quickConnectState.privateKey}
-          oninput={(e) => quickConnectState.privateKey = (e.target as HTMLInputElement).value}
-          onblur={() => markQcTouched("privateKey")}
-          placeholder="Paste SSH private key (optional if password provided)"
-          class={showQcError('auth') ? 'border-destructive' : ''}
-        />
-        {#if showQcError("auth")}
-          <p class="text-xs text-destructive">{showQcError("auth")}</p>
-        {/if}
-      </div>
-
-      <Button
-        type="submit"
-        class="w-full gap-2"
-        disabled={quickConnectState.connecting}
-      >
-        {#if quickConnectState.connecting}
-          <Loader2 class="size-4 animate-spin" />
-          Connecting...
-        {:else}
-          <Zap class="size-4" />
-          Quick Connect
-        {/if}
-      </Button>
-    </form>
-  </div>
-
-  <!-- Saved Connections -->
-  <div class="mx-auto w-full max-w-lg px-6 pb-6">
-    <div class="flex items-center gap-2 mb-3">
-      <Terminal class="size-4 text-muted-foreground" />
-      <h2 class="text-sm font-semibold">Saved Connections</h2>
-    </div>
-    {#if sortedConnections.length > 0}
-      <div class="space-y-1">
-        {#each sortedConnections as conn (conn.id)}
-          <button
-            class="w-full text-left px-3 py-2 rounded-lg transition-colors hover:bg-accent/50 cursor-pointer flex items-center gap-3 group"
-            onclick={() => onSelectConnection(conn)}
-          >
-            <div class="flex flex-col min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <span class="text-sm font-medium truncate">{conn.name}</span>
-                <div class="size-2 rounded-full shrink-0 {connectionStatus(conn)}"></div>
+        <div class="mt-6 grid gap-4 md:grid-cols-3">
+          <button class="metric-card cursor-pointer text-left transition-colors hover:bg-white/8" onclick={() => suggestedConnections[0] && onSelectConnection(suggestedConnections[0])}>
+            <div class="flex items-center justify-between">
+              <div class="flex size-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+                <Server class="size-5" />
               </div>
-              <span class="text-xs text-muted-foreground truncate">
-                {conn.username}@{conn.host}:{conn.port}
-              </span>
+              <ArrowRight class="size-4 text-slate-500" />
             </div>
+            <h2 class="mt-5 text-base font-semibold text-white">Open a saved host</h2>
+            <p class="mt-2 text-sm leading-6 text-slate-400">Jump back into your most common SSH connections with a single click.</p>
           </button>
-        {/each}
-      </div>
-    {:else}
-      <p class="text-sm text-muted-foreground">
-        No saved connections. Add hosts from the backend or use Quick Connect above.
-      </p>
-    {/if}
-  </div>
 
-  <!-- Local Terminal -->
-  <div class="mx-auto w-full max-w-lg px-6 pb-6">
-    <Button variant="outline" class="w-full gap-2" onclick={onLocalTerminal}>
-      <Terminal class="size-4" />
-      Open Local Terminal
-    </Button>
-  </div>
+          <button class="metric-card cursor-pointer text-left transition-colors hover:bg-white/8" onclick={onOpenConnectionManager}>
+            <div class="flex items-center justify-between">
+              <div class="flex size-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+                <Plus class="size-5" />
+              </div>
+              <ArrowRight class="size-4 text-slate-500" />
+            </div>
+            <h2 class="mt-5 text-base font-semibold text-white">Create a connection</h2>
+            <p class="mt-2 text-sm leading-6 text-slate-400">Add a new host with password, SSH key, or hybrid auth and keep it ready for later.</p>
+          </button>
 
-  <!-- Keyboard Shortcuts -->
-  <div class="mx-auto w-full max-w-lg px-6 pb-8 mt-auto">
-    <div class="rounded-lg border border-border bg-card/50 p-3">
-      <div class="flex items-center gap-2 mb-2">
-        <Keyboard class="size-3.5 text-muted-foreground" />
-        <span class="text-xs font-medium text-muted-foreground">Keyboard Shortcuts</span>
+          <button class="metric-card cursor-pointer text-left transition-colors hover:bg-white/8" onclick={onLocalTerminal}>
+            <div class="flex items-center justify-between">
+              <div class="flex size-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+                <Terminal class="size-5" />
+              </div>
+              <ArrowRight class="size-4 text-slate-500" />
+            </div>
+            <h2 class="mt-5 text-base font-semibold text-white">Open local terminal</h2>
+            <p class="mt-2 text-sm leading-6 text-slate-400">Use the same workspace for local debugging, scripts, and quick command checks.</p>
+          </button>
+        </div>
       </div>
-      <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+
+      <div class="panel-glass rounded-[1.75rem] p-6">
         <div class="flex items-center gap-2">
-          <kbd class="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">⌘/Ctrl+T</kbd>
-          <span>New Connection</span>
+          <Zap class="size-4 text-primary" />
+          <p class="section-title text-slate-400">Quick connect</p>
         </div>
-        <div class="flex items-center gap-2">
-          <kbd class="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">⌘/Ctrl+W</kbd>
-          <span>Close Tab</span>
+
+        <form class="mt-4 space-y-4" onsubmit={handleQuickConnectSubmit}>
+          <div class="grid gap-3 sm:grid-cols-[1.8fr_0.8fr]">
+            <div class="space-y-2">
+              <label for="qc-host" class="text-sm font-medium text-slate-100">Host</label>
+              <Input id="qc-host" value={quickConnectState.host} oninput={(e) => quickConnectState.host = (e.target as HTMLInputElement).value} onblur={() => markQcTouched("host")} placeholder="prod.example.com" class={showQcError("host") ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} />
+              {#if showQcError("host")}
+                <p class="text-xs text-destructive" role="alert">{showQcError("host")}</p>
+              {/if}
+            </div>
+            <div class="space-y-2">
+              <label for="qc-port" class="text-sm font-medium text-slate-100">Port</label>
+              <Input id="qc-port" type="number" value={quickConnectState.port} oninput={(e) => quickConnectState.port = parseInt((e.target as HTMLInputElement).value) || 22} onblur={() => markQcTouched("port")} placeholder="22" class={showQcError("port") ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} />
+              {#if showQcError("port")}
+                <p class="text-xs text-destructive" role="alert">{showQcError("port")}</p>
+              {/if}
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <label for="qc-username" class="text-sm font-medium text-slate-100">Username</label>
+            <Input id="qc-username" value={quickConnectState.username} oninput={(e) => quickConnectState.username = (e.target as HTMLInputElement).value} onblur={() => markQcTouched("username")} placeholder="deploy" class={showQcError("username") ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} />
+            {#if showQcError("username")}
+              <p class="text-xs text-destructive" role="alert">{showQcError("username")}</p>
+            {/if}
+          </div>
+
+          <div class="grid gap-3">
+            <div class="space-y-2">
+              <label for="qc-password" class="text-sm font-medium text-slate-100">Password</label>
+              <Input id="qc-password" type="password" value={quickConnectState.password} oninput={(e) => quickConnectState.password = (e.target as HTMLInputElement).value} onblur={() => markQcTouched("password")} placeholder="Optional when using a private key" class="border-white/10 bg-white/5 text-white placeholder:text-slate-500" />
+            </div>
+            <div class="space-y-2">
+              <label for="qc-private-key" class="text-sm font-medium text-slate-100">Private key</label>
+              <textarea
+                id="qc-private-key"
+                rows="4"
+                value={quickConnectState.privateKey}
+                oninput={(e) => quickConnectState.privateKey = (e.target as HTMLTextAreaElement).value}
+                onblur={() => markQcTouched("privateKey")}
+                placeholder="Paste a private key for one-off access"
+                class={showQcError("auth") ? "flex w-full rounded-xl border border-destructive bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" : "flex w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"}
+              ></textarea>
+              {#if showQcError("auth")}
+                <p class="text-xs text-destructive" role="alert">{showQcError("auth")}</p>
+              {/if}
+            </div>
+          </div>
+
+          <Button type="submit" class="w-full gap-2" disabled={quickConnectState.connecting}>
+            {#if quickConnectState.connecting}
+              <Loader2 class="size-4 animate-spin" />
+              Establishing session…
+            {:else}
+              <Zap class="size-4" />
+              Connect now
+            {/if}
+          </Button>
+        </form>
+      </div>
+    </div>
+
+    <div class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <div class="panel-glass rounded-[1.75rem] p-6">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="section-title text-slate-400">Saved hosts</p>
+            <h2 class="mt-2 text-xl font-semibold text-white">Recommended next actions</h2>
+          </div>
+          <Button variant="outline" class="border-white/10 bg-white/4 text-white hover:bg-white/8" onclick={onOpenConnectionManager}>
+            Manage connections
+          </Button>
         </div>
-        <div class="flex items-center gap-2">
-          <kbd class="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">⌘/Ctrl+,</kbd>
-          <span>Settings</span>
+
+        <div class="mt-5 grid gap-3">
+          {#if connectedConnections.length > 0}
+            <div class="space-y-3">
+              <p class="section-title text-emerald-300/80">Connected now</p>
+              {#each connectedConnections.slice(0, 3) as conn (conn.id)}
+                {@const meta = connectionMeta(conn)}
+                <button class="flex w-full cursor-pointer items-center justify-between rounded-2xl border border-emerald-400/15 bg-emerald-400/8 px-4 py-3 text-left transition-colors hover:bg-emerald-400/10" onclick={() => onSelectConnection(conn)}>
+                  <div>
+                    <p class="font-medium text-white">{conn.name}</p>
+                    <p class="mt-1 text-sm text-slate-300">{conn.username}@{conn.host}:{conn.port}</p>
+                  </div>
+                  <div class="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2.5 py-1 text-xs font-medium text-emerald-100">{meta.isActive ? "Active" : "Live"}</div>
+                </button>
+              {/each}
+            </div>
+          {/if}
+
+          <div class="space-y-3">
+            <p class="section-title text-slate-400">Saved connections</p>
+            {#if suggestedConnections.length > 0}
+              {#each suggestedConnections as conn (conn.id)}
+                {@const meta = connectionMeta(conn)}
+                <button class="flex w-full cursor-pointer items-center justify-between rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3 text-left transition-colors hover:bg-white/[0.07]" onclick={() => onSelectConnection(conn)}>
+                  <div>
+                    <p class="font-medium text-white">{conn.name}</p>
+                    <p class="mt-1 text-sm text-slate-400">{conn.username}@{conn.host}:{conn.port}</p>
+                  </div>
+                  <div class="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-300">{meta.label}</div>
+                </button>
+              {/each}
+            {:else}
+              <div class="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-slate-400">
+                You don’t have any saved SSH hosts yet. Create a connection to make this workspace feel
+                like a real command center.
+              </div>
+            {/if}
+          </div>
         </div>
-        <div class="flex items-center gap-2">
-          <kbd class="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">⌘/Ctrl+1-9</kbd>
-          <span>Switch to Tab N</span>
+      </div>
+
+      <div class="space-y-6">
+        <div class="panel-glass rounded-[1.75rem] p-6">
+          <div class="flex items-center gap-2">
+            <Keyboard class="size-4 text-primary" />
+            <p class="section-title text-slate-400">Speed up your flow</p>
+          </div>
+          <div class="mt-4 grid gap-3">
+            <div class="metric-card flex items-center justify-between">
+              <span class="text-sm text-slate-300">Open connection manager</span>
+              <kbd class="rounded-lg border border-white/10 bg-white/6 px-2 py-1 text-xs text-slate-200">⌘/Ctrl + T</kbd>
+            </div>
+            <div class="metric-card flex items-center justify-between">
+              <span class="text-sm text-slate-300">Close active tab</span>
+              <kbd class="rounded-lg border border-white/10 bg-white/6 px-2 py-1 text-xs text-slate-200">⌘/Ctrl + W</kbd>
+            </div>
+            <div class="metric-card flex items-center justify-between">
+              <span class="text-sm text-slate-300">Open settings</span>
+              <kbd class="rounded-lg border border-white/10 bg-white/6 px-2 py-1 text-xs text-slate-200">⌘/Ctrl + ,</kbd>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-glass rounded-[1.75rem] p-6">
+          <p class="section-title text-slate-400">Workspace posture</p>
+          <div class="mt-4 grid gap-3 sm:grid-cols-2">
+            <div class="metric-card">
+              <p class="text-3xl font-semibold text-white">{connections.length}</p>
+              <p class="mt-2 text-sm text-slate-400">Saved connections available</p>
+            </div>
+            <div class="metric-card">
+              <p class="text-3xl font-semibold text-white">{Array.from(sessions.values()).filter((session) => session.status === "connected").length}</p>
+              <p class="mt-2 text-sm text-slate-400">Live sessions in this workspace</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
