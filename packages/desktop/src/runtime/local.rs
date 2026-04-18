@@ -1,4 +1,4 @@
-use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
+use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -26,12 +26,7 @@ impl LocalSessionManager {
         Self::default()
     }
 
-    pub async fn connect(
-        &self,
-        app: AppHandle,
-        cols: u32,
-        rows: u32,
-    ) -> Result<String, String> {
+    pub async fn connect(&self, app: AppHandle, cols: u32, rows: u32) -> Result<String, String> {
         let session_id = Uuid::new_v4().to_string();
         info!(session_id, "Starting local terminal session");
 
@@ -57,10 +52,14 @@ impl LocalSessionManager {
             .spawn_command(cmd)
             .map_err(|e| format!("Failed to spawn shell: {}", e))?;
 
-        let writer = pair.master.take_writer()
+        let writer = pair
+            .master
+            .take_writer()
             .map_err(|e| format!("Failed to get PTY writer: {}", e))?;
 
-        let mut reader = pair.master.try_clone_reader()
+        let mut reader = pair
+            .master
+            .try_clone_reader()
             .map_err(|e| format!("Failed to clone PTY reader: {}", e))?;
 
         let killer: Arc<Mutex<Box<dyn portable_pty::ChildKiller + Send + Sync>>> =
@@ -76,30 +75,39 @@ impl LocalSessionManager {
                 match reader.read(&mut buf) {
                     Ok(0) => {
                         info!(session_id = %sid, "PTY reader EOF");
-                        let _ = app_clone.emit("local_output", LocalOutputEvent {
-                            session_id: sid.clone(),
-                            output: String::new(),
-                            closed: true,
-                        });
+                        let _ = app_clone.emit(
+                            "local_output",
+                            LocalOutputEvent {
+                                session_id: sid.clone(),
+                                output: String::new(),
+                                closed: true,
+                            },
+                        );
                         break;
                     }
                     Ok(n) => {
                         let output = String::from_utf8_lossy(&buf[..n]).to_string();
-                        if let Err(e) = app_clone.emit("local_output", LocalOutputEvent {
-                            session_id: sid.clone(),
-                            output,
-                            closed: false,
-                        }) {
+                        if let Err(e) = app_clone.emit(
+                            "local_output",
+                            LocalOutputEvent {
+                                session_id: sid.clone(),
+                                output,
+                                closed: false,
+                            },
+                        ) {
                             warn!(session_id = %sid, "Failed to emit local_output: {}", e);
                         }
                     }
                     Err(e) => {
                         warn!(session_id = %sid, "PTY read error: {}", e);
-                        let _ = app_clone.emit("local_output", LocalOutputEvent {
-                            session_id: sid.clone(),
-                            output: String::new(),
-                            closed: true,
-                        });
+                        let _ = app_clone.emit(
+                            "local_output",
+                            LocalOutputEvent {
+                                session_id: sid.clone(),
+                                output: String::new(),
+                                closed: true,
+                            },
+                        );
                         break;
                     }
                 }
@@ -176,4 +184,14 @@ pub struct LocalOutputEvent {
     pub session_id: String,
     pub output: String,
     pub closed: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LocalSessionManager;
+
+    #[test]
+    fn local_session_manager_is_constructible() {
+        let _ = LocalSessionManager::new();
+    }
 }

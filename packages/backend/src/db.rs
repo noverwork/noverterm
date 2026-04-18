@@ -1,14 +1,13 @@
-use diesel::pg::PgConnection;
-use diesel::r2d2::{self, ConnectionManager};
-use std::env;
+pub use crate::bootstrap::db::{init_pool, DbPool};
 
-pub type DbPool = r2d2::Pool<ConnectionManager<PgConnection>>;
+#[cfg(test)]
+mod tests {
+    use super::DbPool;
 
-pub fn init_pool() -> DbPool {
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set in environment");
+    #[test]
+    fn db_pool_type_is_exposed_from_top_level_boundary() {
+        let type_name = std::any::type_name::<DbPool>();
 
-    let manager = ConnectionManager::<PgConnection>::new(&database_url);
-    r2d2::Pool::builder()
-        .build(manager)
-        .expect("failed to create postgres connection pool")
+        assert!(type_name.contains("r2d2::Pool"));
+    }
 }

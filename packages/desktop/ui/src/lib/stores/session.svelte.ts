@@ -1,8 +1,19 @@
-import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+
+import { commands as tauriCommands } from "$lib/bindings.js";
+import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
 
 export type SessionType = "ssh" | "local";
 export type SessionStatus = "connecting" | "connected" | "disconnected" | "error";
+
+export interface DirectConnectionInput {
+  host: string;
+  port: number;
+  username: string;
+  password?: string;
+  privateKey?: string;
+  passphrase?: string;
+}
 
 export interface Session {
   id: string;
@@ -13,13 +24,9 @@ export interface Session {
   status: SessionStatus;
   type: SessionType;
   createdAt: Date;
+  connectionId?: string | null;
   error?: string;
 }
-
-type SshConnectAuthPayload = {
-  password?: string;
-  key_path?: string;
-};
 
 interface SessionState {
   sessions: Map<string, Session>;
@@ -38,6 +45,22 @@ function commitSessions() {
   state.sessions = new Map(state.sessions);
 }
 
+function sessionName(host: string, port: number, username: string) {
+  return `${username}@${host}:${port}`;
+}
+
+function connectResponseError(response: { status: string; prompt?: { host: string; fingerprint: string }; mismatch?: { host: string; expected_fingerprint: string; presented_fingerprint: string } }) {
+  if (response.status === "trust_required" && response.prompt) {
+    return `Host trust confirmation required for ${response.prompt.host} (${response.prompt.fingerprint})`;
+  }
+
+  if (response.status === "trust_mismatch" && response.mismatch) {
+    return `Host trust mismatch for ${response.mismatch.host}: expected ${response.mismatch.expected_fingerprint}, got ${response.mismatch.presented_fingerprint}`;
+  }
+
+  return "SSH connection failed";
+}
+
 export function createSessionStore() {
   async function init() {
     if (eventUnlisten) return;
@@ -46,11 +69,6 @@ export function createSessionStore() {
       "ssh_output",
       (event: { payload: { session_id: string; output: string; closed: boolean } }) => {
         const { session_id, closed } = event.payload;
-        console.info("[ssh_output]", {
-          sessionId: session_id,
-          closed,
-          outputLength: event.payload.output.length,
-        });
         const session = state.sessions.get(session_id);
         if (session) {
           if (closed) {
@@ -60,18 +78,13 @@ export function createSessionStore() {
           }
           commitSessions();
         }
-      }
+      },
     );
 
     localEventUnlisten = await listen(
       "local_output",
       (event: { payload: { session_id: string; output: string; closed: boolean } }) => {
         const { session_id, closed } = event.payload;
-        console.info("[local_output]", {
-          sessionId: session_id,
-          closed,
-          outputLength: event.payload.output.length,
-        });
         const session = state.sessions.get(session_id);
         if (session) {
           if (closed) {
@@ -81,12 +94,13 @@ export function createSessionStore() {
           }
           commitSessions();
         }
-      }
+      },
     );
   }
 
   function addSession(session: Session) {
     state.sessions.set(session.id, session);
+    state.activeSessionId = session.id;
     commitSessions();
   }
 
@@ -102,9 +116,7 @@ export function createSessionStore() {
     state.sessions.delete(id);
     commitSessions();
     if (state.activeSessionId === id) {
-      state.activeSessionId = state.sessions.size > 0
-        ? Array.from(state.sessions.keys())[0]
-        : null;
+      state.activeSessionId = state.sessions.size > 0 ? Array.from(state.sessions.keys())[0] : null;
     }
   }
 
@@ -121,99 +133,122 @@ export function createSessionStore() {
     return Array.from(state.sessions.values());
   }
 
-  async function connectToHost(
-    host: string,
-    port: number,
-    username: string,
-    password: string | undefined,
-    keyPath: string | undefined,
-    name: string,
+  async function connectSavedConnection(
+    connection: ConnectionConfig,
     cols: number = 80,
-    rows: number = 24
+    rows: number = 24,
   ): Promise<string> {
     const tempId = crypto.randomUUID();
-    const auth: SshConnectAuthPayload = {
-      ...(password ? { password } : {}),
-      ...(keyPath ? { key_path: keyPath } : {}),
-    };
-
-    const session: Session = {
+    addSession({
       id: tempId,
-      name,
-      host,
-      port,
-      username,
+      name: connection.name,
+      host: connection.host,
+      port: connection.port,
+      username: connection.username,
       type: "ssh",
       status: "connecting",
       createdAt: new Date(),
-    };
-    addSession(session);
-    state.activeSessionId = tempId;
-    console.info("[ssh_connect:start]", {
-      tempId,
-      host,
-      port,
-      username,
-      hasPassword: !!password,
-      hasKey: !!keyPath,
-      cols,
-      rows,
+      connectionId: connection.id,
     });
 
-    try {
-      const sessionId: string = await invoke("ssh_connect", {
-        host,
-        port,
-        user: username,
-        auth,
-        cols,
-        rows,
-      });
-      console.info("[ssh_connect:success]", { tempId, sessionId, host, port, username });
-
-      const sess = state.sessions.get(tempId);
-      if (sess) {
-        state.sessions.delete(tempId);
-        state.sessions.set(sessionId, {
-          ...sess,
-          id: sessionId,
-          status: "connected",
-          error: undefined,
-        });
-        commitSessions();
-      }
-
-      if (state.activeSessionId === tempId) {
-        state.activeSessionId = sessionId;
-      }
-
-      return sessionId;
-    } catch (e) {
-      console.error("[ssh_connect:error]", {
-        tempId,
-        host,
-        port,
-        username,
-        error: e instanceof Error ? e.message : String(e),
-      });
-      const sess = state.sessions.get(tempId);
-      if (sess) {
-        sess.status = "error";
-        sess.error = e instanceof Error ? e.message : String(e);
-        commitSessions();
-      }
-      throw e;
+    const result = await tauriCommands.sshConnect(connection.id, cols, rows);
+    if (result.status === "error") {
+      updateSession(tempId, { status: "error", error: result.error });
+      throw new Error(result.error);
     }
+
+    if (result.data.status !== "connected") {
+      const error = connectResponseError(result.data);
+      updateSession(tempId, { status: "error", error });
+      throw new Error(error);
+    }
+
+    const sessionId = result.data.session_id;
+    const session = state.sessions.get(tempId);
+    if (!session) {
+      return sessionId;
+    }
+
+    state.sessions.delete(tempId);
+    state.sessions.set(sessionId, {
+      ...session,
+      id: sessionId,
+      status: "connected",
+      error: undefined,
+    });
+    state.activeSessionId = sessionId;
+    commitSessions();
+    return sessionId;
+  }
+
+  async function connectDirect(
+    input: DirectConnectionInput,
+    cols: number = 80,
+    rows: number = 24,
+  ): Promise<string> {
+    const tempId = crypto.randomUUID();
+    addSession({
+      id: tempId,
+      name: sessionName(input.host, input.port, input.username),
+      host: input.host,
+      port: input.port,
+      username: input.username,
+      type: "ssh",
+      status: "connecting",
+      createdAt: new Date(),
+      connectionId: null,
+    });
+
+    const result = await tauriCommands.sshConnectDirect(
+      {
+        host: input.host,
+        port: input.port,
+        username: input.username,
+        password: input.password?.trim() || null,
+        private_key: input.privateKey?.trim() || null,
+        passphrase: input.passphrase?.trim() || null,
+      },
+      cols,
+      rows,
+    );
+
+    if (result.status === "error") {
+      updateSession(tempId, { status: "error", error: result.error });
+      throw new Error(result.error);
+    }
+
+    if (result.data.status !== "connected") {
+      const error = connectResponseError(result.data);
+      updateSession(tempId, { status: "error", error });
+      throw new Error(error);
+    }
+
+    const sessionId = result.data.session_id;
+    const session = state.sessions.get(tempId);
+    if (!session) {
+      return sessionId;
+    }
+
+    state.sessions.delete(tempId);
+    state.sessions.set(sessionId, {
+      ...session,
+      id: sessionId,
+      status: "connected",
+      error: undefined,
+    });
+    state.activeSessionId = sessionId;
+    commitSessions();
+    return sessionId;
   }
 
   async function connectLocal(
     name: string = "Local Terminal",
     cols: number = 80,
-    rows: number = 24
+    rows: number = 24,
   ): Promise<string> {
     const tempId = crypto.randomUUID();
 
-    const session: Session = {
+    addSession({
       id: tempId,
       name,
       host: "localhost",
@@ -222,57 +257,43 @@ export function createSessionStore() {
       type: "local",
       status: "connecting",
       createdAt: new Date(),
-    };
-    addSession(session);
-    state.activeSessionId = tempId;
-    console.info("[local_connect:start]", { tempId, cols, rows });
+      connectionId: null,
+    });
 
-    try {
-      const sessionId: string = await invoke("local_connect", { cols, rows });
-      console.info("[local_connect:success]", { tempId, sessionId });
-
-      const sess = state.sessions.get(tempId);
-      if (sess) {
-        state.sessions.delete(tempId);
-        state.sessions.set(sessionId, {
-          ...sess,
-          id: sessionId,
-          status: "connected",
-          error: undefined,
-        });
-        commitSessions();
-      }
-
-      if (state.activeSessionId === tempId) {
-        state.activeSessionId = sessionId;
-      }
-
-      return sessionId;
-    } catch (e) {
-      console.error("[local_connect:error]", {
-        tempId,
-        error: e instanceof Error ? e.message : String(e),
-      });
-      const sess = state.sessions.get(tempId);
-      if (sess) {
-        sess.status = "error";
-        sess.error = e instanceof Error ? e.message : String(e);
-        commitSessions();
-      }
-      throw e;
+    const result = await tauriCommands.localConnect(cols, rows);
+    if (result.status === "error") {
+      updateSession(tempId, { status: "error", error: result.error });
+      throw new Error(result.error);
     }
+
+    const sessionId = result.data;
+    const session = state.sessions.get(tempId);
+    if (!session) {
+      return sessionId;
+    }
+
+    state.sessions.delete(tempId);
+    state.sessions.set(sessionId, {
+      ...session,
+      id: sessionId,
+      status: "connected",
+      error: undefined,
+    });
+    state.activeSessionId = sessionId;
+    commitSessions();
+    return sessionId;
   }
 
   async function disconnectSession(sessionId: string) {
     const session = state.sessions.get(sessionId);
     try {
       if (session?.type === "local") {
-        await invoke("local_disconnect", { sessionId });
+        await tauriCommands.localDisconnect(sessionId);
       } else {
-        await invoke("ssh_disconnect", { sessionId });
+        await tauriCommands.sshDisconnect(sessionId);
       }
     } catch {
-      void 0;
+      // Ignore teardown failures and drop the local session state.
     }
     removeSession(sessionId);
   }
@@ -280,19 +301,27 @@ export function createSessionStore() {
   async function writeSession(sessionId: string, data: string) {
     const session = state.sessions.get(sessionId);
     if (session?.type === "local") {
-      await invoke("local_write", { sessionId, data });
+      await tauriCommands.localWrite(sessionId, data);
     } else {
-      await invoke("ssh_write", { sessionId, data });
+      await tauriCommands.sshWrite(sessionId, data);
     }
   }
 
   async function resizeSession(sessionId: string, cols: number, rows: number) {
     const session = state.sessions.get(sessionId);
     if (session?.type === "local") {
-      await invoke("local_resize", { sessionId, cols, rows });
+      await tauriCommands.localResize(sessionId, cols, rows);
     } else {
-      await invoke("ssh_resize", { sessionId, cols, rows });
+      await tauriCommands.sshResize(sessionId, cols, rows);
     }
+  }
+
+  function disconnectConnectionSessions(connectionId: string) {
+    const sessionIds = Array.from(state.sessions.values())
+      .filter((session) => session.connectionId === connectionId)
+      .map((session) => session.id);
+
+    void Promise.all(sessionIds.map((sessionId) => disconnectSession(sessionId)));
   }
 
   function cleanup() {
@@ -320,9 +349,11 @@ export function createSessionStore() {
     setActiveSession,
     getActiveSession,
     getSessions,
-    connectToHost,
+    connectSavedConnection,
+    connectDirect,
     connectLocal,
     disconnectSession,
+    disconnectConnectionSessions,
     writeSession,
     resizeSession,
     cleanup,

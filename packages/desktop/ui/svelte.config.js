@@ -4,6 +4,10 @@
 // See: https://v2.tauri.app/start/frontend/sveltekit/ for more info
 import adapter from "@sveltejs/adapter-static";
 import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -25,6 +29,7 @@ const config = {
       "$lib/hooks/*": "./src/lib/hooks/*",
       "$lib/components/ui": "./src/lib/components/ui",
       "$lib/components/ui/*": "./src/lib/components/ui/*",
+      $bindings: path.resolve(__dirname, "../../../ui/src/bindings.ts"),
     },
   },
 };

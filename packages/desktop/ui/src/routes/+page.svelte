@@ -1,495 +1,375 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
-  import { Terminal, Loader2, AlertCircle, Zap, Keyboard } from "@lucide/svelte";
-  import { Button } from "$lib/components/ui/button/index.js";
-  import { Input } from "$lib/components/ui/input/index.js";
+  import { onDestroy, onMount } from "svelte";
+  import { AlertCircle, Loader2, LogOut, Settings } from "@lucide/svelte";
+
+  import ConnectionForm from "$lib/components/connection-form.svelte";
+  import LoginForm from "$lib/components/login-form.svelte";
+  import SettingsModal from "$lib/components/settings-modal.svelte";
   import Sidebar from "$lib/components/sidebar.svelte";
   import TerminalTabs from "$lib/components/terminal-tabs.svelte";
-  import ConnectionForm from "$lib/components/connection-form.svelte";
-  import TerminalView from "$lib/terminal/terminal.svelte";
-  import SettingsModal from "$lib/components/settings-modal.svelte";
+  import WelcomeView from "$lib/components/welcome-view.svelte";
+  import { Button } from "$lib/components/ui/button/index.js";
+  import type {
+    ConnectionConfig,
+    SaveConnectionInput,
+    TerminalConfig,
+  } from "$lib/stores/bootstrap.svelte.js";
+  import { createBootstrapStore } from "$lib/stores/bootstrap.svelte.js";
   import { createSessionStore, type Session } from "$lib/stores/session.svelte.js";
-  import {
-    loadConfig,
-    saveConnections,
-    saveConfig,
-    addConnection,
-    updateConnection,
-    deleteConnection,
-    type ConnectionConfig,
-    type TerminalConfig,
-  } from "$lib/config.js";
+  import TerminalView from "$lib/terminal/terminal.svelte";
 
-  const store = createSessionStore();
+  const bootstrapStore = createBootstrapStore();
+  const sessionStore = createSessionStore();
 
   let sidebarCollapsed = $state(false);
+  let showSettings = $state(false);
   let showConnectionForm = $state(false);
   let editingConnection = $state<ConnectionConfig | null>(null);
-  let connections = $state<ConnectionConfig[]>([]);
-  let terminalConfig = $state<TerminalConfig>({
-    theme: "dark",
-    fontSize: 14,
-    fontFamily: "JetBrains Mono, Fira Code, monospace",
-    cursorStyle: "block",
-    cursorBlink: true,
-    scrollback: 5000,
-  });
+  let connectionFormError = $state<string | null>(null);
+  let connectionSaving = $state(false);
 
-  // Settings modal
-  let showSettings = $state(false);
-
-  // Quick connect form state
   let qcHost = $state("");
   let qcPort = $state(22);
   let qcUsername = $state("");
   let qcPassword = $state("");
-  let qcKeyPath = $state("");
+  let qcPrivateKey = $state("");
   let qcConnecting = $state(false);
   let qcSubmitted = $state(false);
   let qcTouched = $state<Record<string, boolean>>({});
 
-  const qcErrors = $derived.by(() => {
-    const errs: Record<string, string> = {};
-    if (!qcHost.trim()) errs.host = "Host is required";
-    if (qcPort < 1 || qcPort > 65535) errs.port = "Port must be 1-65535";
-    if (!qcUsername.trim()) errs.username = "Username is required";
-    if (!qcPassword && !qcKeyPath.trim()) errs.auth = "Password or SSH key is required";
-    return errs;
-  });
-
-  const qcIsValid = $derived(Object.keys(qcErrors).length === 0);
-
-  function markQcTouched(field: string) {
-    qcTouched[field] = true;
-  }
-
-  function showQcError(field: string) {
-    return (qcSubmitted || qcTouched[field]) && qcErrors[field];
-  }
-
-  const sortedConnections = $derived(
-    [...connections].sort((a, b) => a.name.localeCompare(b.name))
+  const activeSession = $derived(
+    sessionStore.activeSessionId ? sessionStore.sessions.get(sessionStore.activeSessionId) : undefined,
   );
 
-  async function handleQuickConnect() {
-    qcSubmitted = true;
-    if (!qcIsValid || qcConnecting) return;
+  const activeSessions = $derived(
+    Array.from(sessionStore.sessions.values()).filter(
+      (session) => session.status !== "disconnected",
+    ) as Session[],
+  );
+
+  const mountedTerminalSessions = $derived(
+    activeSessions.filter((session) => session.status === "connected") as Session[],
+  );
+
+  const terminalConfig = $derived(bootstrapStore.getTerminalConfig());
+  const connections = $derived(bootstrapStore.getConnections());
+
+  const quickConnectState = $derived({
+    host: qcHost,
+    port: qcPort,
+    username: qcUsername,
+    password: qcPassword,
+    privateKey: qcPrivateKey,
+    connecting: qcConnecting,
+    submitted: qcSubmitted,
+    touched: qcTouched,
+  });
+
+  async function openInitialLocalTerminal() {
+    if (sessionStore.sessions.size > 0) return;
+    try {
+      await sessionStore.connectLocal("Local Terminal");
+    } catch {
+      // Ignore initial local-terminal failures and keep the app usable.
+    }
+  }
+
+  onMount(async () => {
+    await sessionStore.init();
+    await bootstrapStore.init();
+
+    if (bootstrapStore.isAuthenticated) {
+      bootstrapStore.applyTheme(bootstrapStore.getTerminalConfig().theme);
+      await openInitialLocalTerminal();
+    }
+  });
+
+  onDestroy(() => {
+    sessionStore.cleanup();
+  });
+
+  async function handleLogin(username: string, password: string) {
+    await bootstrapStore.login(username, password);
+    if (bootstrapStore.isAuthenticated) {
+      bootstrapStore.applyTheme(bootstrapStore.getTerminalConfig().theme);
+      await openInitialLocalTerminal();
+    }
+  }
+
+  async function handleLogout() {
+    await bootstrapStore.logout();
+  }
+
+  async function handleSelectConnection(connection: ConnectionConfig) {
+    const existing = Array.from(sessionStore.sessions.values()).find(
+      (session) => session.connectionId === connection.id && session.status !== "disconnected",
+    );
+    if (existing) {
+      sessionStore.setActiveSession(existing.id);
+      return;
+    }
+
+    await sessionStore.connectSavedConnection(connection, 80, 24);
+  }
+
+  async function handleQuickConnect(
+    host: string,
+    port: number,
+    username: string,
+    password: string,
+    privateKey: string,
+  ) {
     qcConnecting = true;
     try {
-      await store.connectToHost(
-        qcHost.trim(),
-        qcPort,
-        qcUsername.trim(),
-        qcPassword || undefined,
-        qcKeyPath.trim() || undefined,
-        `${qcUsername.trim()}@${qcHost.trim()}:${qcPort}`,
+      await sessionStore.connectDirect(
+        {
+          host,
+          port,
+          username,
+          password: password || undefined,
+          privateKey: privateKey || undefined,
+        },
         80,
-        24
+        24,
       );
       qcHost = "";
       qcPort = 22;
       qcUsername = "";
       qcPassword = "";
-      qcKeyPath = "";
+      qcPrivateKey = "";
       qcSubmitted = false;
       qcTouched = {};
-    } catch {
-      // Error is handled by the session store (status becomes "error")
     } finally {
       qcConnecting = false;
     }
   }
 
-  const activeSession = $derived(
-    store.activeSessionId ? store.sessions.get(store.activeSessionId) : undefined
-  );
-
-  const activeSessions = $derived(
-    Array.from(store.sessions.values()).filter(
-      (s) => s.status !== "disconnected"
-    ) as Session[]
-  );
-
-  const mountedTerminalSessions = $derived(
-    activeSessions.filter((s) => s.status === "connected") as Session[]
-  );
-
-  onMount(async () => {
-    await store.init();
-    const config = await loadConfig();
-    terminalConfig = config.terminal;
-    connections = config.connections;
-    // Apply theme from config
-    if (terminalConfig.theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-
-    if (store.sessions.size === 0) {
-      try {
-        await store.connectLocal("Local Terminal");
-      } catch {
-        void 0;
-      }
-    }
-  });
-
-  onDestroy(() => {
-    store.cleanup();
-  });
-
-  async function handleSelectConnection(conn: ConnectionConfig) {
-    const existing = Array.from(store.sessions.values()).find(
-      (s) => s.name === `${conn.username}@${conn.host}:${conn.port}` && s.status === "connected"
-    );
-    if (existing) {
-      store.setActiveSession(existing.id);
-      return;
-    }
-
-    await store.connectToHost(
-      conn.host,
-      conn.port,
-      conn.username,
-      conn.password,
-      conn.keyPath,
-      `${conn.username}@${conn.host}:${conn.port}`,
-      80,
-      24
-    );
+  function openNewConnectionForm() {
+    editingConnection = null;
+    connectionFormError = null;
+    showConnectionForm = true;
   }
 
-  async function handleSaveConnection(data: Omit<ConnectionConfig, "id"> & { id?: string }) {
-    if (data.id) {
-      await updateConnection(data as ConnectionConfig);
-    } else {
-      const newConn = await addConnection(data);
-      connections = [...connections, newConn];
-    }
-    connections = (await loadConfig()).connections;
+  function openEditConnectionForm(connection: ConnectionConfig) {
+    editingConnection = connection;
+    connectionFormError = null;
+    showConnectionForm = true;
+  }
+
+  function closeConnectionForm() {
     showConnectionForm = false;
     editingConnection = null;
+    connectionFormError = null;
+    connectionSaving = false;
   }
 
-  async function handleDeleteConnection(conn: ConnectionConfig) {
-    await deleteConnection(conn.id);
-    connections = (await loadConfig()).connections;
+  async function handleSaveConnection(connection: SaveConnectionInput) {
+    connectionSaving = true;
+    connectionFormError = null;
+
+    try {
+      await bootstrapStore.saveConnection(connection);
+      closeConnectionForm();
+    } catch (error) {
+      connectionFormError = error instanceof Error ? error.message : String(error);
+    } finally {
+      connectionSaving = false;
+    }
+  }
+
+  async function handleDeleteConnection(connection: ConnectionConfig) {
+    const confirmed = window.confirm(`Delete saved connection \"${connection.name}\"?`);
+    if (!confirmed) return;
+
+    await bootstrapStore.deleteConnection(connection);
+    sessionStore.disconnectConnectionSessions(connection.id);
   }
 
   function handleSessionClose(id: string) {
-    store.disconnectSession(id);
+    void sessionStore.disconnectSession(id);
   }
 
-  function handleSettingsSave(config: TerminalConfig) {
-    terminalConfig = config;
-    saveConfig({ terminal: config, connections, lastActiveSessionId: store.activeSessionId ?? undefined });
+  async function handleSettingsSave(config: TerminalConfig) {
+    await bootstrapStore.saveTerminalConfig(config);
     showSettings = false;
   }
 
-  // Global keyboard shortcuts
-  function handleGlobalKeydown(e: KeyboardEvent) {
-    const mod = e.metaKey || e.ctrlKey;
-    const target = e.target as HTMLElement;
-    const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable;
+  function retryActiveConnection() {
+    if (!activeSession) return;
 
-    if (mod && e.key === ",") {
-      e.preventDefault();
+    if (activeSession.connectionId) {
+      const connection = connections.find((candidate) => candidate.id === activeSession.connectionId);
+      if (connection) {
+        void handleSelectConnection(connection);
+      }
+      return;
+    }
+
+    openNewConnectionForm();
+  }
+
+  function handleGlobalKeydown(event: KeyboardEvent) {
+    const mod = event.metaKey || event.ctrlKey;
+    const target = event.target as HTMLElement;
+    const isInput =
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.tagName === "SELECT" ||
+      target.isContentEditable;
+
+    if (mod && event.key === ",") {
+      event.preventDefault();
       showSettings = true;
       return;
     }
 
-    if (mod && e.key === "t") {
-      e.preventDefault();
-      editingConnection = null;
-      showConnectionForm = true;
+    if (mod && (event.key === "t" || event.key === "T") && !isInput) {
+      event.preventDefault();
+      openNewConnectionForm();
       return;
     }
 
-    if (mod && e.key === "w") {
-      e.preventDefault();
-      if (store.activeSessionId) {
-        handleSessionClose(store.activeSessionId);
+    if (mod && (event.key === "w" || event.key === "W") && !isInput) {
+      event.preventDefault();
+      if (sessionStore.activeSessionId) {
+        handleSessionClose(sessionStore.activeSessionId);
       }
       return;
     }
 
-    if (mod && e.key >= "1" && e.key <= "9" && !isInput) {
-      e.preventDefault();
-      const idx = parseInt(e.key) - 1;
-      if (idx < activeSessions.length) {
-        store.setActiveSession(activeSessions[idx].id);
+    if (mod && event.key >= "1" && event.key <= "9" && !isInput) {
+      event.preventDefault();
+      const index = Number.parseInt(event.key, 10) - 1;
+      if (index < activeSessions.length) {
+        sessionStore.setActiveSession(activeSessions[index].id);
       }
-      return;
     }
   }
 </script>
 
 <svelte:window onkeydown={handleGlobalKeydown} />
 
-<div class="flex h-screen w-screen overflow-hidden bg-background">
-  <Sidebar
-    {connections}
-    sessions={store.sessions}
-    activeSessionId={store.activeSessionId}
-    collapsed={sidebarCollapsed}
-    onToggle={() => (sidebarCollapsed = !sidebarCollapsed)}
-    onSelect={handleSelectConnection}
-    onAdd={() => {
-      editingConnection = null;
-      showConnectionForm = true;
-    }}
-    onEdit={(conn) => {
-      editingConnection = conn;
-      showConnectionForm = true;
-    }}
-    onDelete={handleDeleteConnection}
-    onLocalTerminal={() => store.connectLocal?.("Local Terminal")}
-  />
-
-  <div class="flex flex-col flex-1 min-w-0">
-    <TerminalTabs
-      sessions={activeSessions}
-      activeSessionId={store.activeSessionId}
-      onActivate={(id) => store.setActiveSession(id)}
-      onClose={handleSessionClose}
-      onNew={() => {
-        editingConnection = null;
-        showConnectionForm = true;
-      }}
-      onNewLocal={() => store.connectLocal("Local Terminal")}
-    />
-
-    <div class="relative flex flex-1 min-h-0 flex-col overflow-hidden">
-      {#if !activeSession}
-        <div class="flex flex-col h-full overflow-y-auto">
-          <!-- Header -->
-          <div class="flex flex-col items-center justify-center pt-12 pb-6 text-center">
-            <div class="relative mb-4">
-              <div class="absolute inset-0 blur-3xl bg-primary/20 rounded-full"></div>
-              <Terminal class="relative size-12 text-primary" />
-            </div>
-            <h1 class="text-2xl font-bold tracking-tight">Noverterm</h1>
-            <p class="text-sm text-muted-foreground mt-1">SSH Terminal</p>
-          </div>
-
-          <!-- Quick Connect -->
-          <div class="mx-auto w-full max-w-lg px-6 pb-6">
-            <div class="flex items-center gap-2 mb-3">
-              <Zap class="size-4 text-primary" />
-              <h2 class="text-sm font-semibold">Quick Connect</h2>
-            </div>
-            <form
-              class="space-y-3"
-              onsubmit={(e) => {
-                e.preventDefault();
-                handleQuickConnect();
-              }}
-            >
-              <div class="grid grid-cols-3 gap-2">
-                <div class="col-span-2 space-y-1">
-                  <Input
-                    id="qc-host"
-                    bind:value={qcHost}
-                    onblur={() => markQcTouched("host")}
-                    placeholder="Host (e.g. 192.168.1.1)"
-                    class={showQcError('host') ? 'border-destructive' : ''}
-                  />
-                  {#if showQcError("host")}
-                    <p class="text-xs text-destructive">{showQcError("host")}</p>
-                  {/if}
-                </div>
-                <div class="space-y-1">
-                  <Input
-                    id="qc-port"
-                    type="number"
-                    bind:value={qcPort}
-                    onblur={() => markQcTouched("port")}
-                    placeholder="22"
-                    class={showQcError('port') ? 'border-destructive' : ''}
-                  />
-                  {#if showQcError("port")}
-                    <p class="text-xs text-destructive">{showQcError("port")}</p>
-                  {/if}
-                </div>
-              </div>
-
-              <div class="space-y-1">
-                <Input
-                  id="qc-username"
-                  bind:value={qcUsername}
-                  onblur={() => markQcTouched("username")}
-                  placeholder="Username"
-                  class={showQcError('username') ? 'border-destructive' : ''}
-                />
-                {#if showQcError("username")}
-                  <p class="text-xs text-destructive">{showQcError("username")}</p>
-                {/if}
-              </div>
-
-              <div class="space-y-1">
-                <Input
-                  id="qc-password"
-                  type="password"
-                  bind:value={qcPassword}
-                  onblur={() => markQcTouched("password")}
-                  placeholder="Password (optional if key provided)"
-                />
-              </div>
-
-              <div class="space-y-1">
-                <Input
-                  id="qc-keypath"
-                  bind:value={qcKeyPath}
-                  onblur={() => markQcTouched("keyPath")}
-                  placeholder="SSH Key Path (optional if password provided)"
-                  class={showQcError('auth') ? 'border-destructive' : ''}
-                />
-                {#if showQcError("auth")}
-                  <p class="text-xs text-destructive">{showQcError("auth")}</p>
-                {/if}
-              </div>
-
-              <Button
-                type="submit"
-                class="w-full gap-2"
-                disabled={qcConnecting}
-              >
-                {#if qcConnecting}
-                  <Loader2 class="size-4 animate-spin" />
-                  Connecting...
-                {:else}
-                  <Zap class="size-4" />
-                  Quick Connect
-                {/if}
-              </Button>
-            </form>
-          </div>
-
-          <!-- Saved Connections -->
-          <div class="mx-auto w-full max-w-lg px-6 pb-6">
-            <div class="flex items-center gap-2 mb-3">
-              <Terminal class="size-4 text-muted-foreground" />
-              <h2 class="text-sm font-semibold">Saved Connections</h2>
-            </div>
-            {#if sortedConnections.length > 0}
-              <div class="space-y-1">
-                {#each sortedConnections as conn (conn.id)}
-                  <button
-                    class="w-full text-left px-3 py-2 rounded-lg transition-colors hover:bg-accent/50 cursor-pointer flex items-center gap-3 group"
-                    onclick={() => handleSelectConnection(conn)}
-                  >
-                    <div class="flex flex-col min-w-0 flex-1">
-                      <div class="flex items-center gap-2">
-                        <span class="text-sm font-medium truncate">{conn.name}</span>
-                        <div class="size-2 rounded-full shrink-0 {(() => {
-                          const session = Array.from(store.sessions.values()).find(
-                            (s) => s.name === `${conn.username}@${conn.host}:${conn.port}`
-                          );
-                          if (!session) return 'bg-muted-foreground/50';
-                          if (session.status === 'connected') return 'bg-green-500';
-                          if (session.status === 'connecting') return 'bg-yellow-500 animate-pulse';
-                          if (session.status === 'error') return 'bg-red-500';
-                          return 'bg-muted-foreground/50';
-                        })()}"></div>
-                      </div>
-                      <span class="text-xs text-muted-foreground truncate">
-                        {conn.username}@{conn.host}:{conn.port}
-                      </span>
-                    </div>
-                  </button>
-                {/each}
-              </div>
-            {:else}
-              <p class="text-sm text-muted-foreground">
-                No saved connections. Add one from the sidebar or use Quick Connect above.
-              </p>
-            {/if}
-          </div>
-
-          <!-- Keyboard Shortcuts -->
-          <div class="mx-auto w-full max-w-lg px-6 pb-8 mt-auto">
-            <div class="rounded-lg border border-border bg-card/50 p-3">
-              <div class="flex items-center gap-2 mb-2">
-                <Keyboard class="size-3.5 text-muted-foreground" />
-                <span class="text-xs font-medium text-muted-foreground">Keyboard Shortcuts</span>
-              </div>
-              <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-                <div class="flex items-center gap-2">
-                  <kbd class="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">⌘/Ctrl+T</kbd>
-                  <span>New Connection</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <kbd class="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">⌘/Ctrl+W</kbd>
-                  <span>Close Tab</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <kbd class="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">⌘/Ctrl+,</kbd>
-                  <span>Settings</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <kbd class="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">⌘/Ctrl+1-9</kbd>
-                  <span>Switch to Tab N</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      {:else if activeSession.status === "connecting"}
-        <div class="flex flex-col items-center justify-center h-full">
-          <Loader2 class="size-8 animate-spin text-primary mb-4" />
-          <p class="text-muted-foreground">Connecting to {activeSession.name}...</p>
-        </div>
-      {:else if activeSession.status === "error"}
-        <div class="flex flex-col items-center justify-center h-full text-center p-8">
-          <AlertCircle class="size-12 text-destructive mb-4" />
-          <h2 class="text-xl font-semibold mb-2">Connection Failed</h2>
-          <p class="text-muted-foreground mb-4 max-w-md">{activeSession.error ?? "Unknown error"}</p>
-          <Button
-            onclick={() => {
-              const conn = connections.find(
-                (c) => `${c.username}@${c.host}:${c.port}` === activeSession.name
-              );
-              if (conn) handleSelectConnection(conn);
-            }}
-            class="gap-2"
-          >
-            Retry
-          </Button>
-        </div>
-      {:else}
-        <div class="relative flex-1 min-h-0 overflow-hidden">
-          {#each mountedTerminalSessions as session (session.id)}
-            <div class:hidden={session.id !== activeSession.id} class="absolute inset-0 min-h-0 overflow-hidden">
-              <TerminalView
-                sessionId={session.id}
-                sessionType={session.type}
-                active={session.id === activeSession.id}
-                config={terminalConfig}
-                onClose={() => store.updateSession(session.id, { status: "disconnected" })}
-              />
-            </div>
-          {/each}
-        </div>
-      {/if}
+{#if bootstrapStore.isLoading}
+  <div class="flex min-h-screen items-center justify-center bg-background">
+    <div class="flex flex-col items-center gap-4">
+      <Loader2 class="size-8 animate-spin text-primary" />
+      <p class="text-sm text-muted-foreground">Restoring session...</p>
     </div>
   </div>
-
-  {#if showConnectionForm}
-    <ConnectionForm
-      connection={editingConnection}
-      onSave={handleSaveConnection}
-      onCancel={() => {
-        showConnectionForm = false;
-        editingConnection = null;
-      }}
+{:else if bootstrapStore.isUnauthenticated}
+  <LoginForm onLogin={handleLogin} isLoading={bootstrapStore.isLoading} error={bootstrapStore.error} />
+{:else if bootstrapStore.isError}
+  <div class="flex min-h-screen flex-col items-center justify-center bg-background px-4">
+    <div class="flex flex-col items-center text-center max-w-md">
+      <AlertCircle class="size-12 text-destructive mb-4" />
+      <h1 class="text-xl font-semibold mb-2">Connection Failed</h1>
+      <p class="text-sm text-muted-foreground mb-6">
+        {bootstrapStore.error ?? "Unable to connect to the backend. Remote features are unavailable."}
+      </p>
+      <div class="flex gap-3">
+        <Button onclick={() => sessionStore.connectLocal("Local Terminal")} class="gap-2">
+          Open Local Terminal
+        </Button>
+        <Button variant="outline" onclick={() => bootstrapStore.init()} class="gap-2">
+          Retry
+        </Button>
+      </div>
+    </div>
+  </div>
+{:else}
+  <div class="flex h-screen w-screen overflow-hidden bg-background">
+    <Sidebar
+      {connections}
+      sessions={sessionStore.sessions}
+      activeSessionId={sessionStore.activeSessionId}
+      collapsed={sidebarCollapsed}
+      onToggle={() => (sidebarCollapsed = !sidebarCollapsed)}
+      onSelect={handleSelectConnection}
+      onAdd={openNewConnectionForm}
+      onEdit={openEditConnectionForm}
+      onDelete={handleDeleteConnection}
+      onLocalTerminal={() => sessionStore.connectLocal("Local Terminal")}
     />
-  {/if}
 
-  <SettingsModal
-    open={showSettings}
-    config={terminalConfig}
-    onSave={handleSettingsSave}
-    onClose={() => (showSettings = false)}
-  />
-</div>
+    <div class="flex flex-col flex-1 min-w-0">
+      <div class="flex items-center justify-between px-3 py-1.5 border-b border-border bg-background">
+        <TerminalTabs
+          sessions={activeSessions}
+          activeSessionId={sessionStore.activeSessionId}
+          onActivate={(id) => sessionStore.setActiveSession(id)}
+          onClose={handleSessionClose}
+          onNew={openNewConnectionForm}
+          onNewLocal={() => sessionStore.connectLocal("Local Terminal")}
+        />
+        <div class="flex items-center gap-2 shrink-0">
+          <span class="text-xs text-muted-foreground">{bootstrapStore.authStatus?.username ?? ""}</span>
+          <Button variant="ghost" size="icon-xs" onclick={() => (showSettings = true)}>
+            <Settings class="size-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon-xs" onclick={handleLogout}>
+            <LogOut class="size-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      <div class="relative flex flex-1 min-h-0 flex-col overflow-hidden">
+        {#if !activeSession}
+          <WelcomeView
+            {connections}
+            sessions={sessionStore.sessions}
+            activeSessionId={sessionStore.activeSessionId}
+            onSelectConnection={handleSelectConnection}
+            onQuickConnect={handleQuickConnect}
+            onLocalTerminal={() => sessionStore.connectLocal("Local Terminal")}
+            {quickConnectState}
+          />
+        {:else if activeSession.status === "connecting"}
+          <div class="flex flex-col items-center justify-center h-full">
+            <Loader2 class="size-8 animate-spin text-primary mb-4" />
+            <p class="text-muted-foreground">Connecting to {activeSession.name}...</p>
+          </div>
+        {:else if activeSession.status === "error"}
+          <div class="flex flex-col items-center justify-center h-full text-center p-8">
+            <AlertCircle class="size-12 text-destructive mb-4" />
+            <h2 class="text-xl font-semibold mb-2">Connection Failed</h2>
+            <p class="text-muted-foreground mb-4 max-w-md">{activeSession.error ?? "Unknown error"}</p>
+            <Button onclick={retryActiveConnection} class="gap-2">
+              Retry
+            </Button>
+          </div>
+        {:else}
+          <div class="relative flex-1 min-h-0 overflow-hidden">
+            {#each mountedTerminalSessions as session (session.id)}
+              <div class:hidden={session.id !== sessionStore.activeSessionId} class="absolute inset-0 min-h-0 overflow-hidden">
+                <TerminalView
+                  sessionId={session.id}
+                  sessionType={session.type}
+                  active={session.id === sessionStore.activeSessionId}
+                  config={terminalConfig}
+                  onClose={() => sessionStore.updateSession(session.id, { status: "disconnected" })}
+                />
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    <SettingsModal
+      open={showSettings}
+      config={terminalConfig}
+      onSave={handleSettingsSave}
+      onClose={() => (showSettings = false)}
+    />
+
+    {#if showConnectionForm}
+      <ConnectionForm
+        connection={editingConnection}
+        error={connectionFormError}
+        isSaving={connectionSaving}
+        onSave={handleSaveConnection}
+        onCancel={closeConnectionForm}
+      />
+    {/if}
+  </div>
+{/if}

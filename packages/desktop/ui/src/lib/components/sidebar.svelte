@@ -2,7 +2,7 @@
   import { Terminal, Plus, Search, ChevronLeft, ChevronRight, Trash2, Pencil } from "@lucide/svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
-  import type { ConnectionConfig } from "$lib/config.js";
+  import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
   import type { SessionStatus } from "$lib/stores/session.svelte.js";
 
   let {

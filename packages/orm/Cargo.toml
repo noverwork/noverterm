@@ -4,7 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-diesel = { version = "2.3", features = ["postgres"] }
+diesel = { version = "2.3", features = ["postgres", "chrono"] }
 chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 tracing = "0.1"
+
+[dev-dependencies]
+diesel_migrations = "2.3"
+uuid = { version = "1", features = ["v4"] }

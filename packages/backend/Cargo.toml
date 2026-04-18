@@ -10,3 +10,19 @@ shared = { path = "../shared" }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 diesel = { version = "2.3", features = ["postgres", "r2d2"] }
+orm = { path = "../orm" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+tower-http = { version = "0.6", features = ["cors"] }
+aes-gcm = "0.10"
+base64 = "0.22"
+sha2 = "0.10"
+rand = "0.8"
+jsonwebtoken = "9"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+diesel_migrations = "2.3"

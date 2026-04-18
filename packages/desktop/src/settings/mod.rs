@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use tauri::State;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct AppSettings {
@@ -69,5 +70,48 @@ impl SettingsManager {
         let settings = self.settings.lock().unwrap();
         let content = serde_json::to_string_pretty(&*settings).map_err(|e| e.to_string())?;
         fs::write(&self.path, content).map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_setting(key: String, settings: State<'_, SettingsManager>) -> Option<Setting> {
+    settings.get(&key)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_setting(setting: Setting, settings: State<'_, SettingsManager>) -> Result<(), String> {
+    settings.set(setting)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_all_settings(settings: State<'_, SettingsManager>) -> Vec<Setting> {
+    settings.all()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SettingsManager;
+    use shared::Setting;
+    use uuid::Uuid;
+
+    #[test]
+    fn settings_manager_round_trips_values() {
+        let path = std::env::temp_dir().join(format!("settings-manager-{}.json", Uuid::new_v4()));
+        let manager = SettingsManager::new(path.clone());
+
+        manager
+            .set(Setting {
+                key: "theme".to_string(),
+                value: "dark".to_string(),
+            })
+            .expect("setting should save");
+
+        let setting = manager.get("theme").expect("theme setting should exist");
+        assert_eq!(setting.value, "dark");
+
+        let _ = std::fs::remove_file(path);
     }
 }

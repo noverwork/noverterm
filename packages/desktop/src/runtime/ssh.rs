@@ -1,31 +1,68 @@
 use russh::client::{self, Handle, Msg};
-use russh::{ChannelMsg, ChannelReadHalf, ChannelWriteHalf, Disconnect};
+use russh::keys::ssh_key::HashAlg;
 use russh::keys::ssh_key::PublicKey;
+use russh::{ChannelMsg, ChannelReadHalf, ChannelWriteHalf, Disconnect};
 use serde::Serialize;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-pub(crate) struct ClientHandler;
+use crate::trust::{HostTrustMismatch, HostTrustPrompt, SshTrustStore, TrustCheck};
+
+pub(crate) struct ClientHandler {
+    host: String,
+    port: u16,
+    trust_store: SshTrustStore,
+    trust_check: Arc<Mutex<Option<TrustCheck>>>,
+}
+
+impl ClientHandler {
+    fn new(
+        host: String,
+        port: u16,
+        trust_store: SshTrustStore,
+        trust_check: Arc<Mutex<Option<TrustCheck>>>,
+    ) -> Self {
+        Self {
+            host,
+            port,
+            trust_store,
+            trust_check,
+        }
+    }
+}
 
 impl client::Handler for ClientHandler {
     type Error = russh::Error;
 
     fn check_server_key(
         &mut self,
-        _server_public_key: &PublicKey,
+        server_public_key: &PublicKey,
     ) -> impl std::future::Future<Output = Result<bool, Self::Error>> + Send {
-        async { Ok(true) }
+        let host = self.host.clone();
+        let port = self.port;
+        let trust_store = self.trust_store.clone();
+        let trust_check = self.trust_check.clone();
+        let algorithm = server_public_key.algorithm().to_string();
+        let fingerprint = server_public_key.fingerprint(HashAlg::Sha256).to_string();
+
+        async move {
+            let check = trust_store
+                .evaluate(&host, port, &algorithm, &fingerprint)
+                .await;
+            let trusted = matches!(check, TrustCheck::Trusted);
+            *trust_check.lock().await = Some(check);
+            Ok(trusted)
+        }
     }
 }
 
 pub struct SshSession {
-    pub handle: Handle<ClientHandler>,
-    pub channel_write: ChannelWriteHalf<Msg>,
+    pub(crate) handle: Handle<ClientHandler>,
+    pub(crate) channel_write: ChannelWriteHalf<Msg>,
 }
 
 #[derive(Default)]
@@ -41,13 +78,14 @@ impl SshSessionManager {
     pub async fn connect(
         &self,
         app: AppHandle,
+        trust_store: SshTrustStore,
         host: String,
         port: u16,
         user: String,
         auth: AuthMethod,
         cols: u32,
         rows: u32,
-    ) -> Result<String, String> {
+    ) -> Result<SshConnectResponse, String> {
         let session_id = Uuid::new_v4().to_string();
         info!(session_id, host, port, user, "Starting SSH connection flow");
 
@@ -56,12 +94,14 @@ impl SshSessionManager {
             ..<_>::default()
         };
         let config = Arc::new(config);
-        let handler = ClientHandler;
+        let trust_check = Arc::new(Mutex::new(None));
+        let handler = ClientHandler::new(host.clone(), port, trust_store, trust_check.clone());
 
         info!(session_id, host, port, "Opening TCP/SSH transport");
-        let mut session = client::connect(config, (host.clone(), port), handler)
-            .await
-            .map_err(|e| format!("Failed to connect: {}", e))?;
+        let mut session = match client::connect(config, (host.clone(), port), handler).await {
+            Ok(session) => session,
+            Err(error) => return map_connect_error(error, trust_check).await,
+        };
         info!(session_id, "TCP/SSH transport established");
 
         match auth {
@@ -76,9 +116,12 @@ impl SshSessionManager {
                 }
                 info!(session_id, user, "Password authentication succeeded");
             }
-            AuthMethod::KeyFile(key_path) => {
-                info!(session_id, user, key_path = %key_path.display(), "Authenticating with key file");
-                let key = load_key_pair(&key_path)?;
+            AuthMethod::PublicKey {
+                private_key,
+                passphrase,
+            } => {
+                info!(session_id, user, "Authenticating with key material");
+                let key = load_key_pair(&private_key, passphrase.as_deref())?;
                 let hash_alg = session
                     .best_supported_rsa_hash()
                     .await
@@ -96,9 +139,16 @@ impl SshSessionManager {
                 }
                 info!(session_id, user, "Key authentication succeeded");
             }
-            AuthMethod::KeyAndPassword { key_path, password } => {
-                info!(session_id, user, key_path = %key_path.display(), "Authenticating with key + password");
-                let key = load_key_pair(&key_path)?;
+            AuthMethod::PublicKeyAndPassword {
+                private_key,
+                passphrase,
+                password,
+            } => {
+                info!(
+                    session_id,
+                    user, "Authenticating with key + password material"
+                );
+                let key = load_key_pair(&private_key, passphrase.as_deref())?;
                 let hash_alg = session
                     .best_supported_rsa_hash()
                     .await
@@ -167,7 +217,7 @@ impl SshSessionManager {
         );
 
         info!(session_id, "SSH session established");
-        Ok(session_id)
+        Ok(SshConnectResponse::Connected { session_id })
     }
 
     pub async fn write(&self, session_id: &str, data: Vec<u8>) -> Result<(), String> {
@@ -182,7 +232,11 @@ impl SshSessionManager {
             .await
             .map_err(|e| format!("Failed to write: {}", e))?;
 
-        info!(session_id, bytes = data.len(), "Sent SSH input to remote channel");
+        info!(
+            session_id,
+            bytes = data.len(),
+            "Sent SSH input to remote channel"
+        );
 
         Ok(())
     }
@@ -199,7 +253,10 @@ impl SshSessionManager {
             .await
             .map_err(|e| format!("Failed to resize: {}", e))?;
 
-        info!(session_id, cols, rows, "Sent terminal resize to remote channel");
+        info!(
+            session_id,
+            cols, rows, "Sent terminal resize to remote channel"
+        );
 
         Ok(())
     }
@@ -287,16 +344,56 @@ async fn read_loop(
     }
 }
 
+#[derive(Debug)]
 pub enum AuthMethod {
     Password(String),
-    KeyFile(PathBuf),
-    KeyAndPassword { key_path: PathBuf, password: String },
+    PublicKey {
+        private_key: String,
+        passphrase: Option<String>,
+    },
+    PublicKeyAndPassword {
+        private_key: String,
+        passphrase: Option<String>,
+        password: String,
+    },
 }
 
-fn load_key_pair(path: &PathBuf) -> Result<russh::keys::PrivateKey, String> {
-    let key = russh::keys::load_secret_key(path, None)
-        .map_err(|e| format!("Failed to load key file: {}", e))?;
-    Ok(key)
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum SshConnectResponse {
+    Connected { session_id: String },
+    TrustRequired { prompt: HostTrustPrompt },
+    TrustMismatch { mismatch: HostTrustMismatch },
+}
+
+fn load_key_pair(
+    private_key: &str,
+    passphrase: Option<&str>,
+) -> Result<russh::keys::PrivateKey, String> {
+    let key = russh::keys::PrivateKey::from_openssh(private_key)
+        .map_err(|error| format!("Failed to parse SSH key: {error}"))?;
+
+    if key.is_encrypted() {
+        let passphrase = passphrase
+            .ok_or_else(|| "SSH key requires a passphrase, but none was provided".to_string())?;
+        key.decrypt(passphrase)
+            .map_err(|error| format!("Failed to decrypt SSH key: {error}"))
+    } else {
+        Ok(key)
+    }
+}
+
+async fn map_connect_error(
+    error: russh::Error,
+    trust_check: Arc<Mutex<Option<TrustCheck>>>,
+) -> Result<SshConnectResponse, String> {
+    match trust_check.lock().await.clone() {
+        Some(TrustCheck::TrustRequired(prompt)) => Ok(SshConnectResponse::TrustRequired { prompt }),
+        Some(TrustCheck::TrustMismatch(mismatch)) => {
+            Ok(SshConnectResponse::TrustMismatch { mismatch })
+        }
+        Some(TrustCheck::Trusted) | None => Err(format!("Failed to connect: {error}")),
+    }
 }
 
 #[derive(Clone, Serialize)]
@@ -304,4 +401,58 @@ pub struct SshOutputEvent {
     pub session_id: String,
     pub output: String,
     pub closed: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use tokio::sync::Mutex;
+
+    use crate::trust::{HostTrustMismatch, HostTrustPrompt, TrustCheck};
+
+    use super::{map_connect_error, SshConnectResponse, SshSessionManager};
+
+    #[test]
+    fn ssh_session_manager_is_constructible() {
+        let _ = SshSessionManager::new();
+    }
+
+    #[tokio::test]
+    async fn trust_required_connect_error_surfaces_prompt() {
+        let trust_check = Arc::new(Mutex::new(Some(TrustCheck::TrustRequired(
+            HostTrustPrompt {
+                host: "example.com".to_string(),
+                port: 22,
+                algorithm: "ssh-ed25519".to_string(),
+                fingerprint: "SHA256:first".to_string(),
+            },
+        ))));
+
+        let response = map_connect_error(russh::Error::UnknownKey, trust_check)
+            .await
+            .expect("trust prompt should be returned as a response");
+
+        assert!(matches!(response, SshConnectResponse::TrustRequired { .. }));
+    }
+
+    #[tokio::test]
+    async fn trust_mismatch_connect_error_surfaces_blocking_mismatch() {
+        let trust_check = Arc::new(Mutex::new(Some(TrustCheck::TrustMismatch(
+            HostTrustMismatch {
+                host: "example.com".to_string(),
+                port: 22,
+                expected_algorithm: "ssh-ed25519".to_string(),
+                expected_fingerprint: "SHA256:expected".to_string(),
+                presented_algorithm: "ssh-ed25519".to_string(),
+                presented_fingerprint: "SHA256:presented".to_string(),
+            },
+        ))));
+
+        let response = map_connect_error(russh::Error::UnknownKey, trust_check)
+            .await
+            .expect("trust mismatch should be returned as a response");
+
+        assert!(matches!(response, SshConnectResponse::TrustMismatch { .. }));
+    }
 }

@@ -54,14 +54,6 @@
     }
   });
 
-  $effect(() => {
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  });
-
   const errors = $derived.by(() => {
     const errs: Record<string, string> = {};
     if (fontSize < 8 || fontSize > 32) errs.fontSize = "Font size must be 8-32";
