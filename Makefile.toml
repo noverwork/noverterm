@@ -26,6 +26,7 @@ echo "  cargo make dev            - Start backend + Tauri dev"
 echo "  cargo make backend:dev    - Start backend only"
 echo "  cargo make tauri:dev      - Start Tauri desktop app"
 echo "  cargo make tauri:build    - Build Tauri desktop app"
+echo "  cargo make frontend:dev   - Start frontend dev server (Vite)"
 echo "  cargo make db:status      - Check migration status"
 echo "  cargo make db:generate    - Generate new migration (diesel --diff-schema)"
 echo "  cargo make db:drift-check - Check schema drift without creating migration"
@@ -139,6 +140,14 @@ else
   echo "Frontend dependencies already installed."
 fi
 '''
+
+[tasks."frontend:dev"]
+description = "Start frontend Vite dev server"
+workspace = false
+dependencies = ["frontend:install"]
+cwd = "packages/desktop/ui"
+command = "npm"
+args = ["run", "dev"]
 
 [tasks.dev]
 description = "Start backend + Tauri dev (parallel)"

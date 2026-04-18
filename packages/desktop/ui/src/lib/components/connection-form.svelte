@@ -1,11 +1,12 @@
 <script lang="ts">
   import { KeyRound, LockKeyhole, Server, X } from "@lucide/svelte";
+  import { superForm } from "sveltekit-superforms";
+  import { zod4 } from "sveltekit-superforms/adapters";
 
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import type { ConnectionConfig, SaveConnectionInput } from "$lib/stores/bootstrap.svelte.js";
-
-  type AuthMode = "password" | "publickey" | "publickey_password";
+  import { connectionSchema, type ConnectionForm } from "$lib/schemas/index.js";
 
   let {
     connection = null,
@@ -21,69 +22,39 @@
     isSaving?: boolean;
   } = $props();
 
-  let name = $state("");
-  let host = $state("");
-  let port = $state(22);
-  let username = $state("");
-  let password = $state("");
-  let privateKey = $state("");
-  let passphrase = $state("");
-  let authMode = $state<AuthMode>("password");
-  let submitted = $state(false);
-  let touched = $state<Record<string, boolean>>({});
+  const form = superForm<ConnectionForm>(
+    {
+      name: "",
+      host: "",
+      port: 22,
+      username: "",
+      password: "",
+      privateKey: "",
+      passphrase: "",
+      authMode: "password",
+      hasExistingKey: false,
+    },
+    { validators: zod4(connectionSchema) },
+  );
+
+  const { form: formData, errors } = form;
 
   $effect(() => {
-    name = connection?.name ?? "";
-    host = connection?.host ?? "";
-    port = connection?.port ?? 22;
-    username = connection?.username ?? "";
-    password = "";
-    privateKey = "";
-    passphrase = "";
-    authMode = (connection?.authMode as AuthMode | undefined) ?? "password";
-    submitted = false;
-    touched = {};
+    $formData.name = connection?.name ?? "";
+    $formData.host = connection?.host ?? "";
+    $formData.port = connection?.port ?? 22;
+    $formData.username = connection?.username ?? "";
+    $formData.password = "";
+    $formData.privateKey = "";
+    $formData.passphrase = "";
+    $formData.authMode = (connection?.authMode as ConnectionForm["authMode"] | undefined) ?? "password";
+    $formData.hasExistingKey = Boolean(connection?.sshKeyId);
+    form.reset();
   });
 
-  const existingKeyWillBeKept = $derived(Boolean(connection?.sshKeyId) && !privateKey.trim());
+  const existingKeyWillBeKept = $derived($formData.hasExistingKey && !$formData.privateKey.trim());
 
-  const errors = $derived.by(() => {
-    const nextErrors: Record<string, string> = {};
-    const hasPassword = password.trim().length > 0;
-    const hasPrivateKey = privateKey.trim().length > 0 || existingKeyWillBeKept;
-
-    if (!name.trim()) nextErrors.name = "Connection name is required";
-    if (!host.trim()) nextErrors.host = "Host is required";
-    if (port < 1 || port > 65535) nextErrors.port = "Port must be between 1 and 65535";
-    if (!username.trim()) nextErrors.username = "Username is required";
-
-    if (authMode === "password" && !hasPassword) {
-      nextErrors.password = connection?.hasPassword
-        ? "Re-enter the password to keep password authentication"
-        : "Password is required";
-    }
-
-    if (authMode === "publickey" && !hasPrivateKey) {
-      nextErrors.privateKey = "Paste a private key or keep the existing saved key";
-    }
-
-    if (authMode === "publickey_password") {
-      if (!hasPrivateKey) {
-        nextErrors.privateKey = "A private key is required for this auth mode";
-      }
-      if (!hasPassword) {
-        nextErrors.password = connection?.hasPassword
-          ? "Re-enter the password to keep hybrid authentication"
-          : "Password is required for this auth mode";
-      }
-    }
-
-    return nextErrors;
-  });
-
-  const isValid = $derived(Object.keys(errors).length === 0);
-
-  const authOptions: Array<{ mode: AuthMode; title: string; body: string; icon: typeof LockKeyhole }> = [
+  const authOptions: Array<{ mode: ConnectionForm["authMode"]; title: string; body: string; icon: typeof LockKeyhole }> = [
     {
       mode: "password",
       title: "Password",
@@ -104,28 +75,20 @@
     },
   ];
 
-  function markTouched(field: string) {
-    touched[field] = true;
-  }
-
-  function showError(field: string) {
-    return (submitted || touched[field]) && errors[field];
-  }
-
   async function handleSubmit() {
-    submitted = true;
-    if (!isValid || isSaving) return;
+    const result = connectionSchema.safeParse($formData);
+    if (!result.success || isSaving) return;
 
     await onSave({
       ...(connection?.id ? { id: connection.id } : {}),
-      name: name.trim(),
-      host: host.trim(),
-      port,
-      username: username.trim(),
-      ...(password.trim() ? { password: password.trim() } : {}),
-      ...(privateKey.trim() ? { privateKey: privateKey.trim() } : {}),
-      ...(passphrase.trim() ? { passphrase: passphrase.trim() } : {}),
-      existingKeyId: authMode === "password" ? null : connection?.sshKeyId ?? null,
+      name: $formData.name.trim(),
+      host: $formData.host.trim(),
+      port: $formData.port,
+      username: $formData.username.trim(),
+      ...($formData.password.trim() ? { password: $formData.password.trim() } : {}),
+      ...($formData.privateKey.trim() ? { privateKey: $formData.privateKey.trim() } : {}),
+      ...($formData.passphrase.trim() ? { passphrase: $formData.passphrase.trim() } : {}),
+      existingKeyId: $formData.authMode === "password" ? null : connection?.sshKeyId ?? null,
     });
   }
 </script>
@@ -168,33 +131,33 @@
         <div class="grid gap-4 sm:grid-cols-2">
           <div class="space-y-2 sm:col-span-2">
             <label for="conn-name" class="text-sm font-medium text-slate-100">Connection name</label>
-            <Input id="conn-name" bind:value={name} onblur={() => markTouched("name")} placeholder="Production API" class={showError("name") ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} disabled={isSaving} />
-            {#if showError("name")}
-              <p class="text-xs text-destructive" role="alert">{showError("name")}</p>
+            <Input id="conn-name" bind:value={$formData.name} placeholder="Production API" class={$errors.name ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} disabled={isSaving} />
+            {#if $errors.name}
+              <p class="text-xs text-destructive" role="alert">{$errors.name}</p>
             {/if}
           </div>
 
           <div class="space-y-2 sm:col-span-2">
             <label for="conn-host" class="text-sm font-medium text-slate-100">Host</label>
-            <Input id="conn-host" bind:value={host} onblur={() => markTouched("host")} placeholder="prod.example.com" class={showError("host") ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} disabled={isSaving} />
-            {#if showError("host")}
-              <p class="text-xs text-destructive" role="alert">{showError("host")}</p>
+            <Input id="conn-host" bind:value={$formData.host} placeholder="prod.example.com" class={$errors.host ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} disabled={isSaving} />
+            {#if $errors.host}
+              <p class="text-xs text-destructive" role="alert">{$errors.host}</p>
             {/if}
           </div>
 
           <div class="space-y-2">
             <label for="conn-port" class="text-sm font-medium text-slate-100">Port</label>
-            <Input id="conn-port" type="number" bind:value={port} onblur={() => markTouched("port")} class={showError("port") ? "border-destructive bg-white/5 text-white" : "border-white/10 bg-white/5 text-white"} disabled={isSaving} />
-            {#if showError("port")}
-              <p class="text-xs text-destructive" role="alert">{showError("port")}</p>
+            <Input id="conn-port" type="number" bind:value={$formData.port} class={$errors.port ? "border-destructive bg-white/5 text-white" : "border-white/10 bg-white/5 text-white"} disabled={isSaving} />
+            {#if $errors.port}
+              <p class="text-xs text-destructive" role="alert">{$errors.port}</p>
             {/if}
           </div>
 
           <div class="space-y-2">
             <label for="conn-username" class="text-sm font-medium text-slate-100">Username</label>
-            <Input id="conn-username" bind:value={username} onblur={() => markTouched("username")} placeholder="deploy" class={showError("username") ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} disabled={isSaving} />
-            {#if showError("username")}
-              <p class="text-xs text-destructive" role="alert">{showError("username")}</p>
+            <Input id="conn-username" bind:value={$formData.username} placeholder="deploy" class={$errors.username ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} disabled={isSaving} />
+            {#if $errors.username}
+              <p class="text-xs text-destructive" role="alert">{$errors.username}</p>
             {/if}
           </div>
         </div>
@@ -205,10 +168,10 @@
             {#each authOptions as option}
               <button
                 type="button"
-                class={authMode === option.mode
+                class={$formData.authMode === option.mode
                   ? "rounded-2xl border border-primary/40 bg-primary/10 p-4 text-left transition-colors"
                   : "rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-left transition-colors hover:bg-white/[0.06]"}
-                onclick={() => (authMode = option.mode)}
+                onclick={() => ($formData.authMode = option.mode)}
               >
                 <div class="flex size-10 items-center justify-center rounded-2xl bg-white/6 text-primary">
                   <option.icon class="size-5" />
@@ -231,17 +194,17 @@
           </p>
         </div>
 
-        {#if authMode === "password" || authMode === "publickey_password"}
+        {#if $formData.authMode === "password" || $formData.authMode === "publickey_password"}
           <div class="space-y-2">
             <label for="conn-password" class="text-sm font-medium text-slate-100">Password</label>
-            <Input id="conn-password" type="password" bind:value={password} onblur={() => markTouched("password")} placeholder={connection?.hasPassword ? "Re-enter saved password" : "Enter password"} class={showError("password") ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} disabled={isSaving} />
-            {#if showError("password")}
-              <p class="text-xs text-destructive" role="alert">{showError("password")}</p>
+            <Input id="conn-password" type="password" bind:value={$formData.password} placeholder={connection?.hasPassword ? "Re-enter saved password" : "Enter password"} class={$errors.password ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} disabled={isSaving} />
+            {#if $errors.password}
+              <p class="text-xs text-destructive" role="alert">{$errors.password}</p>
             {/if}
           </div>
         {/if}
 
-        {#if authMode === "publickey" || authMode === "publickey_password"}
+        {#if $formData.authMode === "publickey" || $formData.authMode === "publickey_password"}
           <div class="space-y-2">
             <div class="flex items-center justify-between gap-3">
               <label for="conn-private-key" class="text-sm font-medium text-slate-100">Private key</label>
@@ -253,29 +216,28 @@
             </div>
             <textarea
               id="conn-private-key"
-              bind:value={privateKey}
-              onblur={() => markTouched("privateKey")}
+              bind:value={$formData.privateKey}
               placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
               rows="8"
-              class={showError("privateKey") ? "flex w-full rounded-xl border border-destructive bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" : "flex w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"}
+              class={$errors.privateKey ? "flex w-full rounded-xl border border-destructive bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" : "flex w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"}
               disabled={isSaving}
             ></textarea>
-            {#if showError("privateKey")}
-              <p class="text-xs text-destructive" role="alert">{showError("privateKey")}</p>
+            {#if $errors.privateKey}
+              <p class="text-xs text-destructive" role="alert">{$errors.privateKey}</p>
             {/if}
             <p class="text-xs leading-5 text-slate-400">Paste a new key only if you want to add or replace the stored SSH key material.</p>
           </div>
 
           <div class="space-y-2">
             <label for="conn-passphrase" class="text-sm font-medium text-slate-100">Key passphrase</label>
-            <Input id="conn-passphrase" type="password" bind:value={passphrase} placeholder="Optional passphrase for the private key" class="border-white/10 bg-white/5 text-white placeholder:text-slate-500" disabled={isSaving} />
+            <Input id="conn-passphrase" type="password" bind:value={$formData.passphrase} placeholder="Optional passphrase for the private key" class="border-white/10 bg-white/5 text-white placeholder:text-slate-500" disabled={isSaving} />
           </div>
         {/if}
 
         <div class="rounded-2xl border border-white/8 bg-slate-950/45 p-4 text-sm text-slate-300">
-          {#if authMode === "password"}
+          {#if $formData.authMode === "password"}
             Use password auth for environments where SSH key distribution is not available yet.
-          {:else if authMode === "publickey"}
+          {:else if $formData.authMode === "publickey"}
             Key-based auth is recommended when you want stronger, reusable access control.
           {:else}
             Hybrid auth is ideal for bastions or hardened hosts that require both a private key and a password.
@@ -286,7 +248,7 @@
           <Button type="button" variant="outline" class="flex-1 border-white/10 bg-white/4 text-white hover:bg-white/8" onclick={onCancel} disabled={isSaving}>
             Cancel
           </Button>
-          <Button type="submit" class="flex-1" disabled={isSaving || !isValid}>
+          <Button type="submit" class="flex-1" disabled={isSaving}>
             {#if isSaving}
               Saving…
             {:else if connection}

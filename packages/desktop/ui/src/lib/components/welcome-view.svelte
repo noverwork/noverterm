@@ -8,12 +8,15 @@
     Terminal,
     Zap,
   } from "@lucide/svelte";
+  import { superForm } from "sveltekit-superforms";
+  import { zod4 } from "sveltekit-superforms/adapters";
 
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import type { SessionStatus } from "$lib/stores/session.svelte.js";
   import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
   import { findConnectionSession } from "$lib/view-models/auth-and-sessions.js";
+  import { quickConnectSchema, type QuickConnectForm } from "$lib/schemas/index.js";
 
   let {
     connections,
@@ -23,7 +26,7 @@
     onQuickConnect,
     onLocalTerminal,
     onOpenConnectionManager,
-    quickConnectState,
+    connecting = false,
   }: {
     connections: ConnectionConfig[];
     sessions: Map<string, { id: string; name: string; status: SessionStatus; connectionId?: string | null }>;
@@ -32,16 +35,7 @@
     onQuickConnect: (host: string, port: number, username: string, password: string, privateKey: string) => void;
     onLocalTerminal: () => void;
     onOpenConnectionManager: () => void;
-    quickConnectState: {
-      host: string;
-      port: number;
-      username: string;
-      password: string;
-      privateKey: string;
-      connecting: boolean;
-      submitted: boolean;
-      touched: Record<string, boolean>;
-    };
+    connecting?: boolean;
   } = $props();
 
   const sortedConnections = $derived([...connections].sort((a, b) => a.name.localeCompare(b.name)));
@@ -54,35 +48,32 @@
     sortedConnections.filter((conn) => !connectedConnections.some((connected) => connected.id === conn.id)).slice(0, 4),
   );
 
-  const qcErrors = $derived.by(() => {
-    const errs: Record<string, string> = {};
-    if (!quickConnectState.host.trim()) errs.host = "Host is required";
-    if (quickConnectState.port < 1 || quickConnectState.port > 65535) errs.port = "Port must be 1-65535";
-    if (!quickConnectState.username.trim()) errs.username = "Username is required";
-    if (!quickConnectState.password && !quickConnectState.privateKey.trim()) errs.auth = "Password or private key is required";
-    return errs;
-  });
+  const form = superForm<QuickConnectForm>(
+    { host: "", port: 22, username: "", password: "", privateKey: "" },
+    { validators: zod4(quickConnectSchema) },
+  );
 
-  function markQcTouched(field: string) {
-    quickConnectState.touched[field] = true;
-  }
+  const { form: formData, errors } = form;
 
-  function showQcError(field: string) {
-    return (quickConnectState.submitted || quickConnectState.touched[field]) && qcErrors[field];
-  }
-
-  function handleQuickConnectSubmit(event: Event) {
+  async function handleQuickConnectSubmit(event: Event) {
     event.preventDefault();
-    quickConnectState.submitted = true;
-    if (Object.keys(qcErrors).length > 0 || quickConnectState.connecting) return;
+    const result = quickConnectSchema.safeParse($formData);
+    if (!result.success || connecting) return;
 
     onQuickConnect(
-      quickConnectState.host.trim(),
-      quickConnectState.port,
-      quickConnectState.username.trim(),
-      quickConnectState.password,
-      quickConnectState.privateKey.trim(),
+      $formData.host.trim(),
+      $formData.port,
+      $formData.username.trim(),
+      $formData.password,
+      $formData.privateKey.trim(),
     );
+
+    $formData.host = "";
+    $formData.port = 22;
+    $formData.username = "";
+    $formData.password = "";
+    $formData.privateKey = "";
+    form.reset();
   }
 
   function connectionMeta(conn: ConnectionConfig) {
@@ -159,52 +150,50 @@
           <div class="grid gap-3 sm:grid-cols-[1.8fr_0.8fr]">
             <div class="space-y-2">
               <label for="qc-host" class="text-sm font-medium text-slate-100">Host</label>
-              <Input id="qc-host" value={quickConnectState.host} oninput={(e) => quickConnectState.host = (e.target as HTMLInputElement).value} onblur={() => markQcTouched("host")} placeholder="prod.example.com" class={showQcError("host") ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} />
-              {#if showQcError("host")}
-                <p class="text-xs text-destructive" role="alert">{showQcError("host")}</p>
+              <Input id="qc-host" bind:value={$formData.host} placeholder="prod.example.com" class={$errors.host ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} />
+              {#if $errors.host}
+                <p class="text-xs text-destructive" role="alert">{$errors.host}</p>
               {/if}
             </div>
             <div class="space-y-2">
               <label for="qc-port" class="text-sm font-medium text-slate-100">Port</label>
-              <Input id="qc-port" type="number" value={quickConnectState.port} oninput={(e) => quickConnectState.port = parseInt((e.target as HTMLInputElement).value) || 22} onblur={() => markQcTouched("port")} placeholder="22" class={showQcError("port") ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} />
-              {#if showQcError("port")}
-                <p class="text-xs text-destructive" role="alert">{showQcError("port")}</p>
+              <Input id="qc-port" type="number" bind:value={$formData.port} placeholder="22" class={$errors.port ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} />
+              {#if $errors.port}
+                <p class="text-xs text-destructive" role="alert">{$errors.port}</p>
               {/if}
             </div>
           </div>
 
           <div class="space-y-2">
             <label for="qc-username" class="text-sm font-medium text-slate-100">Username</label>
-            <Input id="qc-username" value={quickConnectState.username} oninput={(e) => quickConnectState.username = (e.target as HTMLInputElement).value} onblur={() => markQcTouched("username")} placeholder="deploy" class={showQcError("username") ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} />
-            {#if showQcError("username")}
-              <p class="text-xs text-destructive" role="alert">{showQcError("username")}</p>
+            <Input id="qc-username" bind:value={$formData.username} placeholder="deploy" class={$errors.username ? "border-destructive bg-white/5 text-white placeholder:text-slate-500" : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"} />
+            {#if $errors.username}
+              <p class="text-xs text-destructive" role="alert">{$errors.username}</p>
             {/if}
           </div>
 
           <div class="grid gap-3">
             <div class="space-y-2">
               <label for="qc-password" class="text-sm font-medium text-slate-100">Password</label>
-              <Input id="qc-password" type="password" value={quickConnectState.password} oninput={(e) => quickConnectState.password = (e.target as HTMLInputElement).value} onblur={() => markQcTouched("password")} placeholder="Optional when using a private key" class="border-white/10 bg-white/5 text-white placeholder:text-slate-500" />
+              <Input id="qc-password" type="password" bind:value={$formData.password} placeholder="Optional when using a private key" class="border-white/10 bg-white/5 text-white placeholder:text-slate-500" />
             </div>
             <div class="space-y-2">
               <label for="qc-private-key" class="text-sm font-medium text-slate-100">Private key</label>
               <textarea
                 id="qc-private-key"
                 rows="4"
-                value={quickConnectState.privateKey}
-                oninput={(e) => quickConnectState.privateKey = (e.target as HTMLTextAreaElement).value}
-                onblur={() => markQcTouched("privateKey")}
+                bind:value={$formData.privateKey}
                 placeholder="Paste a private key for one-off access"
-                class={showQcError("auth") ? "flex w-full rounded-xl border border-destructive bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" : "flex w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"}
+                class={$errors.password ? "flex w-full rounded-xl border border-destructive bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" : "flex w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"}
               ></textarea>
-              {#if showQcError("auth")}
-                <p class="text-xs text-destructive" role="alert">{showQcError("auth")}</p>
+              {#if $errors.password && !$formData.password}
+                <p class="text-xs text-destructive" role="alert">{$errors.password}</p>
               {/if}
             </div>
           </div>
 
-          <Button type="submit" class="w-full gap-2" disabled={quickConnectState.connecting}>
-            {#if quickConnectState.connecting}
+          <Button type="submit" class="w-full gap-2" disabled={connecting}>
+            {#if connecting}
               <Loader2 class="size-4 animate-spin" />
               Establishing session…
             {:else}
@@ -260,7 +249,7 @@
               {/each}
             {:else}
               <div class="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-slate-400">
-                You don’t have any saved SSH hosts yet. Create a connection to make this workspace feel
+                You don't have any saved hosts yet. Create a connection to make this workspace feel
                 like a real command center.
               </div>
             {/if}

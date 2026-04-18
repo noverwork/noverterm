@@ -1,9 +1,12 @@
 <script lang="ts">
   import { Moon, MousePointer, ScrollText, Sun, Type, X } from "@lucide/svelte";
+  import { superForm } from "sveltekit-superforms";
+  import { zod4 } from "sveltekit-superforms/adapters";
 
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import type { TerminalConfig } from "$lib/stores/bootstrap.svelte.js";
+  import { settingsSchema, type SettingsForm } from "$lib/schemas/index.js";
 
   let {
     open,
@@ -28,7 +31,7 @@
 
   const CURSOR_STYLES = ["block", "underline", "bar"] as const;
 
-  const DEFAULTS: TerminalConfig = {
+  const DEFAULTS: SettingsForm = {
     theme: "dark",
     fontSize: 14,
     fontFamily: "JetBrains Mono, Fira Code, monospace",
@@ -37,45 +40,46 @@
     scrollback: 5000,
   };
 
-  let theme = $state<TerminalConfig["theme"]>("dark");
-  let fontSize = $state(14);
-  let fontFamily = $state<string>(FONT_FAMILIES[0]);
-  let cursorStyle = $state<TerminalConfig["cursorStyle"]>("block");
-  let cursorBlink = $state(true);
-  let scrollback = $state(5000);
+  const form = superForm<SettingsForm>(
+    { ...DEFAULTS },
+    { validators: zod4(settingsSchema) },
+  );
+
+  const { form: formData, errors } = form;
 
   $effect(() => {
     if (open && config) {
-      theme = config.theme;
-      fontSize = config.fontSize;
-      fontFamily = config.fontFamily;
-      cursorStyle = config.cursorStyle;
-      cursorBlink = config.cursorBlink;
-      scrollback = config.scrollback;
+      $formData.theme = config.theme;
+      $formData.fontSize = config.fontSize;
+      $formData.fontFamily = config.fontFamily;
+      $formData.cursorStyle = config.cursorStyle;
+      $formData.cursorBlink = config.cursorBlink;
+      $formData.scrollback = config.scrollback;
+      form.reset();
     }
   });
 
-  const errors = $derived.by(() => {
-    const errs: Record<string, string> = {};
-    if (fontSize < 8 || fontSize > 32) errs.fontSize = "Font size must stay between 8 and 32";
-    if (scrollback < 100 || scrollback > 50000) errs.scrollback = "Scrollback must stay between 100 and 50000";
-    return errs;
-  });
-
-  const isValid = $derived(Object.keys(errors).length === 0);
-
-  function handleSave() {
-    if (!isValid) return;
-    onSave({ theme, fontSize, fontFamily, cursorStyle, cursorBlink, scrollback });
+  async function handleSave() {
+    const result = settingsSchema.safeParse($formData);
+    if (!result.success) return;
+    onSave({
+      theme: $formData.theme,
+      fontSize: $formData.fontSize,
+      fontFamily: $formData.fontFamily,
+      cursorStyle: $formData.cursorStyle,
+      cursorBlink: $formData.cursorBlink,
+      scrollback: $formData.scrollback,
+    });
   }
 
   function handleReset() {
-    theme = DEFAULTS.theme;
-    fontSize = DEFAULTS.fontSize;
-    fontFamily = DEFAULTS.fontFamily;
-    cursorStyle = DEFAULTS.cursorStyle;
-    cursorBlink = DEFAULTS.cursorBlink;
-    scrollback = DEFAULTS.scrollback;
+    $formData.theme = DEFAULTS.theme;
+    $formData.fontSize = DEFAULTS.fontSize;
+    $formData.fontFamily = DEFAULTS.fontFamily;
+    $formData.cursorStyle = DEFAULTS.cursorStyle;
+    $formData.cursorBlink = DEFAULTS.cursorBlink;
+    $formData.scrollback = DEFAULTS.scrollback;
+    form.reset();
   }
 </script>
 
@@ -109,12 +113,12 @@
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2">
-            <button type="button" class={theme === "dark" ? "rounded-2xl border border-primary/35 bg-primary/10 p-4 text-left" : "rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-left hover:bg-white/[0.06]"} onclick={() => (theme = "dark")}>
+            <button type="button" class={$formData.theme === "dark" ? "rounded-2xl border border-primary/35 bg-primary/10 p-4 text-left" : "rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-left hover:bg-white/[0.06]"} onclick={() => ($formData.theme = "dark")}>
               <Moon class="size-5 text-primary" />
               <p class="mt-4 font-medium text-white">Dark workspace</p>
               <p class="mt-2 text-sm leading-6 text-slate-400">Best for sustained terminal work and low-eye-strain environments.</p>
             </button>
-            <button type="button" class={theme === "light" ? "rounded-2xl border border-primary/35 bg-primary/10 p-4 text-left" : "rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-left hover:bg-white/[0.06]"} onclick={() => (theme = "light")}>
+            <button type="button" class={$formData.theme === "light" ? "rounded-2xl border border-primary/35 bg-primary/10 p-4 text-left" : "rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-left hover:bg-white/[0.06]"} onclick={() => ($formData.theme = "light")}>
               <Sun class="size-5 text-primary" />
               <p class="mt-4 font-medium text-white">Light workspace</p>
               <p class="mt-2 text-sm leading-6 text-slate-400">Useful when you want higher contrast against the desktop and brighter shell output.</p>
@@ -126,7 +130,7 @@
             <div class="relative">
               <select
                 id="settings-fontfamily"
-                bind:value={fontFamily}
+                bind:value={$formData.fontFamily}
                 class="flex h-11 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-sm text-white shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring appearance-none"
               >
                 {#each FONT_FAMILIES as font}
@@ -140,9 +144,9 @@
 
           <div class="space-y-2">
             <label for="settings-fontsize" class="text-sm font-medium text-slate-100">Font size</label>
-            <Input id="settings-fontsize" type="number" min={8} max={32} bind:value={fontSize} class={errors.fontSize ? "border-destructive bg-white/5 text-white" : "border-white/10 bg-white/5 text-white"} />
-            {#if errors.fontSize}
-              <p class="text-xs text-destructive" role="alert">{errors.fontSize}</p>
+            <Input id="settings-fontsize" type="number" min={8} max={32} bind:value={$formData.fontSize} class={$errors.fontSize ? "border-destructive bg-white/5 text-white" : "border-white/10 bg-white/5 text-white"} />
+            {#if $errors.fontSize}
+              <p class="text-xs text-destructive" role="alert">{$errors.fontSize}</p>
             {:else}
               <p class="text-xs text-slate-400">Balance density and readability for how many panes or logs you usually keep open.</p>
             {/if}
@@ -160,7 +164,7 @@
             <div class="relative">
               <select
                 id="settings-cursorstyle"
-                bind:value={cursorStyle}
+                bind:value={$formData.cursorStyle}
                 class="flex h-11 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-sm text-white shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring appearance-none"
               >
                 {#each CURSOR_STYLES as style}
@@ -180,22 +184,22 @@
               </div>
               <button
                 type="button"
-                class={cursorBlink ? "relative inline-flex h-7 w-12 items-center rounded-full bg-primary transition" : "relative inline-flex h-7 w-12 items-center rounded-full bg-white/10 transition"}
-                onclick={() => (cursorBlink = !cursorBlink)}
-                aria-pressed={cursorBlink}
+                class={$formData.cursorBlink ? "relative inline-flex h-7 w-12 items-center rounded-full bg-primary transition" : "relative inline-flex h-7 w-12 items-center rounded-full bg-white/10 transition"}
+                onclick={() => ($formData.cursorBlink = !$formData.cursorBlink)}
+                aria-pressed={$formData.cursorBlink}
                 aria-label="Toggle cursor blink"
                 title="Toggle cursor blink"
               >
-                <span class={cursorBlink ? "inline-block size-5 translate-x-6 rounded-full bg-slate-950 transition" : "inline-block size-5 translate-x-1 rounded-full bg-white transition"}></span>
+                <span class={$formData.cursorBlink ? "inline-block size-5 translate-x-6 rounded-full bg-slate-950 transition" : "inline-block size-5 translate-x-1 rounded-full bg-white transition"}></span>
               </button>
             </div>
           </div>
 
           <div class="space-y-2">
             <label for="settings-scrollback" class="text-sm font-medium text-slate-100">Scrollback buffer</label>
-            <Input id="settings-scrollback" type="number" min={100} max={50000} bind:value={scrollback} class={errors.scrollback ? "border-destructive bg-white/5 text-white" : "border-white/10 bg-white/5 text-white"} />
-            {#if errors.scrollback}
-              <p class="text-xs text-destructive" role="alert">{errors.scrollback}</p>
+            <Input id="settings-scrollback" type="number" min={100} max={50000} bind:value={$formData.scrollback} class={$errors.scrollback ? "border-destructive bg-white/5 text-white" : "border-white/10 bg-white/5 text-white"} />
+            {#if $errors.scrollback}
+              <p class="text-xs text-destructive" role="alert">{$errors.scrollback}</p>
             {:else}
               <p class="text-xs text-slate-400">Higher values preserve more command history, but can add memory overhead during long-running sessions.</p>
             {/if}
@@ -213,7 +217,7 @@
           <ScrollText class="mr-2 size-4" />
           Reset to defaults
         </Button>
-        <Button type="button" class="flex-1" disabled={!isValid} onclick={handleSave}>
+        <Button type="button" class="flex-1" disabled={!!Object.keys($errors).length} onclick={handleSave}>
           Save settings
         </Button>
       </div>

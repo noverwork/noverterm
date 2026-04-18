@@ -29,14 +29,7 @@
   let connectionFormError = $state<string | null>(null);
   let connectionSaving = $state(false);
 
-  let qcHost = $state("");
-  let qcPort = $state(22);
-  let qcUsername = $state("");
-  let qcPassword = $state("");
-  let qcPrivateKey = $state("");
   let qcConnecting = $state(false);
-  let qcSubmitted = $state(false);
-  let qcTouched = $state<Record<string, boolean>>({});
 
   const activeSession = $derived(
     sessionStore.activeSessionId ? sessionStore.sessions.get(sessionStore.activeSessionId) : undefined,
@@ -54,17 +47,6 @@
 
   const terminalConfig = $derived(bootstrapStore.getTerminalConfig());
   const connections = $derived(bootstrapStore.getConnections());
-
-  const quickConnectState = $derived({
-    host: qcHost,
-    port: qcPort,
-    username: qcUsername,
-    password: qcPassword,
-    privateKey: qcPrivateKey,
-    connecting: qcConnecting,
-    submitted: qcSubmitted,
-    touched: qcTouched,
-  });
 
   async function openInitialLocalTerminal() {
     if (sessionStore.sessions.size > 0) return;
@@ -133,13 +115,6 @@
         80,
         24,
       );
-      qcHost = "";
-      qcPort = 22;
-      qcUsername = "";
-      qcPassword = "";
-      qcPrivateKey = "";
-      qcSubmitted = false;
-      qcTouched = {};
     } finally {
       qcConnecting = false;
     }
@@ -291,7 +266,7 @@
       onLocalTerminal={() => sessionStore.connectLocal("Local Terminal")}
     />
 
-    <div class="flex flex-col flex-1 min-w-0">
+    <div class="flex min-h-0 flex-1 min-w-0 flex-col">
       <div class="flex items-center justify-between px-3 py-1.5 border-b border-border bg-background">
         <TerminalTabs
           sessions={activeSessions}
@@ -326,7 +301,7 @@
             onQuickConnect={handleQuickConnect}
             onLocalTerminal={() => sessionStore.connectLocal("Local Terminal")}
             onOpenConnectionManager={openNewConnectionForm}
-            {quickConnectState}
+            connecting={qcConnecting}
           />
         {:else if activeSession.status === "connecting"}
           <div class="flex flex-col items-center justify-center h-full">
