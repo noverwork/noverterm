@@ -1,6 +1,6 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-import { commands as tauriCommands } from "$lib/bindings.js";
+import { commands as tauriCommands } from "../../bindings.js";
 import { backendApi } from "$lib/api/backend-api.js";
 import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
 
