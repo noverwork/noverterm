@@ -4,7 +4,9 @@ use super::backend_client::{
     BackendClient, BackendClientError, BackendConnectMaterial, BackendHostUpsertInput,
     BackendKeyUpsertInput,
 };
-use super::token_store::{KeyringTokenStore, SecureTokenStore, StoredAuthTokens};
+use std::path::PathBuf;
+
+use super::token_store::{JsonTokenStore, SecureTokenStore, StoredAuthTokens};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, PartialEq, Eq)]
 pub struct AuthBootstrapStatus {
@@ -12,7 +14,7 @@ pub struct AuthBootstrapStatus {
     pub bootstrap_message: String,
 }
 
-pub type DesktopAuthManager = AuthManager<KeyringTokenStore>;
+pub type DesktopAuthManager = AuthManager<JsonTokenStore>;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct BootstrapMetadata {
@@ -410,12 +412,9 @@ impl<S: SecureTokenStore> AuthManager<S> {
     }
 }
 
-impl AuthManager<KeyringTokenStore> {
-    pub fn from_backend_url(base_url: String) -> Self {
-        Self::new(
-            BackendClient::new(base_url),
-            KeyringTokenStore::new("com.noverwork.noverterm", "control-plane-auth"),
-        )
+impl AuthManager<JsonTokenStore> {
+    pub fn from_backend_url(base_url: String, store_path: PathBuf) -> Self {
+        Self::new(BackendClient::new(base_url), JsonTokenStore::new(store_path))
     }
 }
 

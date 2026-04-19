@@ -4,7 +4,6 @@ mod token_store;
 
 use tauri::State;
 
-pub(crate) use backend_client::BackendConnectAuthMaterial;
 pub use session::{
     AuthBootstrapStatus, BootstrapMetadata, DesktopAuthManager, SaveConnectionInput,
 };
@@ -29,6 +28,7 @@ pub async fn auth_login(
 pub async fn auth_logout(auth_manager: State<'_, DesktopAuthManager>) -> Result<(), String> {
     auth_manager.logout().await
 }
+
 
 #[cfg(test)]
 mod tests;

@@ -1,21 +1,11 @@
-import { commands as tauriCommands } from "$lib/bindings.js";
 import type {
   AuthBootstrapStatus,
   BootstrapMetadata,
   Setting,
   SshHostRecord,
   SshKeyRecord,
-} from "$lib/bindings.js";
-
-export interface BootstrapCommands {
-  bootstrapRestore: typeof tauriCommands.bootstrapRestore;
-  bootstrapLoadMetadata: typeof tauriCommands.bootstrapLoadMetadata;
-  bootstrapSaveConnection: typeof tauriCommands.bootstrapSaveConnection;
-  bootstrapDeleteConnection: typeof tauriCommands.bootstrapDeleteConnection;
-  bootstrapSaveSetting: typeof tauriCommands.bootstrapSaveSetting;
-  authLogin: typeof tauriCommands.authLogin;
-  authLogout: typeof tauriCommands.authLogout;
-}
+} from "$lib/api/backend-api.js";
+import { backendApi, type BootstrapApi } from "$lib/api/backend-api.js";
 
 export type BootstrapPhase = "loading" | "authenticated" | "unauthenticated" | "error";
 
@@ -122,18 +112,14 @@ function applyTheme(theme: "dark" | "light") {
   }
 }
 
-export function createBootstrapStore(cmds: BootstrapCommands = tauriCommands) {
+export function createBootstrapStore(api: BootstrapApi = backendApi) {
   async function refreshMetadata() {
-    const result = await cmds.bootstrapLoadMetadata();
-    if (result.status === "error") {
-      throw new Error(result.error);
-    }
-
-    state.metadata = result.data;
+    const metadata = await api.loadBootstrapMetadata();
+    state.metadata = metadata;
     state.phase = "authenticated";
     state.error = null;
     commit();
-    return result.data;
+    return metadata;
   }
 
   async function init() {
@@ -141,26 +127,18 @@ export function createBootstrapStore(cmds: BootstrapCommands = tauriCommands) {
     state.error = null;
     commit();
 
-    const result = await cmds.bootstrapRestore();
-
-    if (result.status === "error") {
-      state.phase = "error";
-      state.error = result.error;
-      commit();
-      return;
-    }
-
-    if (result.data === null) {
-      state.phase = "unauthenticated";
-      state.authStatus = null;
-      state.metadata = null;
-      commit();
-      return;
-    }
-
-    state.authStatus = result.data;
-
     try {
+      const authStatus = await api.restore();
+
+      if (authStatus === null) {
+        state.phase = "unauthenticated";
+        state.authStatus = null;
+        state.metadata = null;
+        commit();
+        return;
+      }
+
+      state.authStatus = authStatus;
       await refreshMetadata();
     } catch (error) {
       state.phase = "error";
@@ -174,28 +152,19 @@ export function createBootstrapStore(cmds: BootstrapCommands = tauriCommands) {
     state.error = null;
     commit();
 
-    const result = await cmds.authLogin({ username, password });
-
-    if (result.status === "error") {
-      state.phase = "unauthenticated";
-      state.error = result.error;
-      commit();
-      return;
-    }
-
-    state.authStatus = result.data;
-
     try {
+      state.authStatus = await api.login(username, password);
       await refreshMetadata();
     } catch (error) {
-      state.phase = "error";
+      state.phase = "unauthenticated";
+      state.authStatus = null;
       state.error = error instanceof Error ? error.message : String(error);
       commit();
     }
   }
 
   async function logout() {
-    await cmds.authLogout();
+    await api.logout();
     state.phase = "unauthenticated";
     state.authStatus = null;
     state.metadata = null;
@@ -204,45 +173,21 @@ export function createBootstrapStore(cmds: BootstrapCommands = tauriCommands) {
   }
 
   async function saveConnection(connection: SaveConnectionInput) {
-    const result = await cmds.bootstrapSaveConnection({
-      id: connection.id ?? null,
-      name: connection.name,
-      host: connection.host,
-      port: connection.port,
-      username: connection.username,
-      password: connection.password?.trim() || null,
-      private_key: connection.privateKey?.trim() || null,
-      passphrase: connection.passphrase?.trim() || null,
-      existing_key_id: connection.existingKeyId ?? null,
-    });
-
-    if (result.status === "error") {
-      throw new Error(result.error);
-    }
-
+    const savedConnection = await api.saveConnection(connection);
     await refreshMetadata();
-    return result.data;
+    return savedConnection;
   }
 
   async function deleteConnection(connection: ConnectionConfig) {
-    const result = await cmds.bootstrapDeleteConnection(connection.id, connection.sshKeyId);
-
-    if (result.status === "error") {
-      throw new Error(result.error);
-    }
-
+    await api.deleteConnection(connection);
     await refreshMetadata();
   }
 
   async function saveTerminalConfig(config: TerminalConfig) {
-    const result = await cmds.bootstrapSaveSetting({
+    await api.saveSetting({
       key: "noverterm-config",
       value: JSON.stringify({ terminal: config }),
     });
-
-    if (result.status === "error") {
-      throw new Error(result.error);
-    }
 
     applyTheme(config.theme);
     await refreshMetadata();

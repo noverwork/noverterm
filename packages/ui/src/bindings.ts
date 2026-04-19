@@ -8,84 +8,6 @@ export const commands = {
 async greet(name: string) : Promise<string> {
     return await TAURI_INVOKE("greet", { name });
 },
-async authLogin(login: LoginInput) : Promise<Result<AuthBootstrapStatus, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("auth_login", { login }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-async authLogout() : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("auth_logout") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-async bootstrapRestore() : Promise<Result<AuthBootstrapStatus | null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("bootstrap_restore") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-async bootstrapLoadMetadata() : Promise<Result<BootstrapMetadata, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("bootstrap_load_metadata") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-async bootstrapSaveConnection(connection: SaveConnectionInput) : Promise<Result<SshHostRecord, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("bootstrap_save_connection", { connection }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-async bootstrapDeleteConnection(id: string, sshKeyId: string | null) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("bootstrap_delete_connection", { id, sshKeyId }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-async bootstrapSaveSetting(setting: Setting) : Promise<Result<Setting, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("bootstrap_save_setting", { setting }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-async getSetting(key: string) : Promise<Setting | null> {
-    return await TAURI_INVOKE("get_setting", { key });
-},
-async setSetting(setting: Setting) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("set_setting", { setting }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-async getAllSettings() : Promise<Setting[]> {
-    return await TAURI_INVOKE("get_all_settings");
-},
-async sshConnect(hostId: string, cols: number, rows: number) : Promise<Result<SshConnectResponse, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("ssh_connect", { hostId, cols, rows }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
 async sshConnectDirect(input: DirectSshConnectInput, cols: number, rows: number) : Promise<Result<SshConnectResponse, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ssh_connect_direct", { input, cols, rows }) };
@@ -170,18 +92,11 @@ async localDisconnect(sessionId: string) : Promise<Result<null, string>> {
 
 /** user-defined types **/
 
-export type AuthBootstrapStatus = { username: string; bootstrap_message: string }
-export type BootstrapMetadata = { settings: Setting[]; hosts: SshHostRecord[]; keys: SshKeyRecord[] }
 export type DirectSshConnectInput = { host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null }
 export type HostTrustConfirmation = { host: string; port: number; algorithm: string; fingerprint: string }
 export type HostTrustMismatch = { host: string; port: number; expected_algorithm: string; expected_fingerprint: string; presented_algorithm: string; presented_fingerprint: string }
 export type HostTrustPrompt = { host: string; port: number; algorithm: string; fingerprint: string }
-export type LoginInput = { username: string; password: string }
-export type SaveConnectionInput = { id: string | null; name: string; host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null; existing_key_id: string | null }
-export type Setting = { key: string; value: string }
 export type SshConnectResponse = { status: "connected"; session_id: string } | { status: "trust_required"; prompt: HostTrustPrompt } | { status: "trust_mismatch"; mismatch: HostTrustMismatch }
-export type SshHostRecord = { id: string; name: string; host: string; port: number; username: string; auth_mode: string; ssh_key_id: string | null }
-export type SshKeyRecord = { id: string; name: string; kind: string; fingerprint: string | null }
 
 /** tauri-specta globals **/
 

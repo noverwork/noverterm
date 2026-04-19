@@ -1,4 +1,6 @@
-use keyring::Entry;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StoredAuthTokens {
@@ -14,51 +16,50 @@ pub trait SecureTokenStore: Send + Sync + 'static {
 }
 
 #[derive(Debug, Clone)]
-pub struct KeyringTokenStore {
-    service_name: String,
-    account_name: String,
+pub struct JsonTokenStore {
+    path: PathBuf,
+    file_lock: Arc<Mutex<()>>,
 }
 
-impl KeyringTokenStore {
-    pub fn new(service_name: impl Into<String>, account_name: impl Into<String>) -> Self {
+impl JsonTokenStore {
+    pub fn new(path: PathBuf) -> Self {
         Self {
-            service_name: service_name.into(),
-            account_name: account_name.into(),
+            path,
+            file_lock: Arc::new(Mutex::new(())),
         }
     }
-
-    fn entry(&self) -> Result<Entry, String> {
-        Entry::new(&self.service_name, &self.account_name).map_err(|error| error.to_string())
-    }
 }
 
-impl SecureTokenStore for KeyringTokenStore {
+impl SecureTokenStore for JsonTokenStore {
     fn load(&self) -> Result<Option<StoredAuthTokens>, String> {
-        let entry = self.entry()?;
+        let _guard = self.file_lock.lock().map_err(|error| error.to_string())?;
 
-        match entry.get_password() {
+        match fs::read_to_string(&self.path) {
             Ok(serialized_tokens) => serde_json::from_str(&serialized_tokens)
                 .map(Some)
                 .map_err(|error| error.to_string()),
-            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(error) => Err(error.to_string()),
         }
     }
 
     fn save(&self, tokens: &StoredAuthTokens) -> Result<(), String> {
-        let entry = self.entry()?;
-        let serialized_tokens = serde_json::to_string(tokens).map_err(|error| error.to_string())?;
+        let _guard = self.file_lock.lock().map_err(|error| error.to_string())?;
 
-        entry
-            .set_password(&serialized_tokens)
-            .map_err(|error| error.to_string())
+        if let Some(parent) = self.path.parent() {
+            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+
+        let serialized_tokens = serde_json::to_string(tokens).map_err(|error| error.to_string())?;
+        fs::write(&self.path, serialized_tokens).map_err(|error| error.to_string())
     }
 
     fn clear(&self) -> Result<(), String> {
-        let entry = self.entry()?;
+        let _guard = self.file_lock.lock().map_err(|error| error.to_string())?;
 
-        match entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        match fs::remove_file(&self.path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(error) => Err(error.to_string()),
         }
     }
@@ -95,5 +96,33 @@ impl SecureTokenStore for MemoryTokenStore {
                 *current = None;
             })
             .map_err(|error| error.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{JsonTokenStore, SecureTokenStore, StoredAuthTokens};
+
+    #[test]
+    fn json_token_store_round_trips_and_clears_tokens() {
+        let path = std::env::temp_dir().join(format!(
+            "noverterm-auth-tokens-{}.json",
+            uuid::Uuid::new_v4()
+        ));
+        let store = JsonTokenStore::new(path.clone());
+        let tokens = StoredAuthTokens {
+            access_token: "access-token".to_string(),
+            refresh_token: "refresh-token".to_string(),
+            username: "alice".to_string(),
+        };
+
+        store.save(&tokens).expect("tokens should save");
+
+        let loaded = store.load().expect("tokens should load");
+        assert!(loaded.is_some());
+        assert_eq!(loaded.expect("tokens should exist").username, "alice");
+
+        store.clear().expect("tokens should clear");
+        assert!(store.load().expect("load after clear should succeed").is_none());
     }
 }

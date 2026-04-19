@@ -72,17 +72,6 @@ pub fn greet(name: &str) -> String {
 fn command_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
         greet,
-        crate::auth::auth_login,
-        crate::auth::auth_logout,
-        bootstrap_restore,
-        bootstrap_load_metadata,
-        bootstrap_save_connection,
-        bootstrap_delete_connection,
-        bootstrap_save_setting,
-        crate::settings::get_setting,
-        crate::settings::set_setting,
-        crate::settings::get_all_settings,
-        crate::connect::ssh_connect,
         crate::connect::ssh_connect_direct,
         crate::connect::ssh_confirm_host_trust,
         crate::connect::ssh_write,
@@ -131,7 +120,9 @@ pub fn run() {
     let specta_builder = command_builder();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .setup(|app| -> Result<(), Box<dyn std::error::Error>> {
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
@@ -141,7 +132,8 @@ pub fn run() {
             app.manage(settings);
 
             let backend_url = backend_base_url();
-            let auth_manager = DesktopAuthManager::from_backend_url(backend_url);
+            let auth_tokens_path = app_data_dir.join("auth").join("tokens.json");
+            let auth_manager = DesktopAuthManager::from_backend_url(backend_url, auth_tokens_path);
             app.manage(auth_manager);
 
             let trust_path = app_data_dir.join("trust").join("ssh_hosts.json");

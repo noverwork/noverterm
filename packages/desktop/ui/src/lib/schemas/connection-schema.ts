@@ -9,48 +9,27 @@ export const connectionSchema = z
     password: z.string(),
     privateKey: z.string(),
     passphrase: z.string(),
-    authMode: z.enum(["password", "publickey", "publickey_password"]),
+    useSshKey: z.boolean().default(false),
     hasExistingKey: z.boolean().default(false),
   })
   .superRefine((data, ctx) => {
     const hasPassword = data.password.trim().length > 0;
-    const hasPrivateKey = data.privateKey.trim().length > 0 || data.hasExistingKey;
+    const hasPrivateKey = data.privateKey.trim().length > 0 || (data.useSshKey && data.hasExistingKey);
 
-    if (data.authMode === "password" && !hasPassword) {
+    if (!hasPassword && !hasPrivateKey) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: data.hasExistingKey
-          ? "Re-enter the password to keep password authentication"
-          : "Password is required",
+        message: "Enter a password or use an SSH key",
         path: ["password"],
       });
     }
 
-    if (data.authMode === "publickey" && !hasPrivateKey) {
+    if (data.useSshKey && !hasPrivateKey) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Paste a private key or keep the existing saved key",
         path: ["privateKey"],
       });
-    }
-
-    if (data.authMode === "publickey_password") {
-      if (!hasPrivateKey) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "A private key is required for this auth mode",
-          path: ["privateKey"],
-        });
-      }
-      if (!hasPassword) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: data.hasExistingKey
-            ? "Re-enter the password to keep hybrid authentication"
-            : "Password is required for this auth mode",
-          path: ["password"],
-        });
-      }
     }
   });
 

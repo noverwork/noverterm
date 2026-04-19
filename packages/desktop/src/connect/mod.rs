@@ -1,6 +1,5 @@
 use tauri::{AppHandle, State};
 
-use crate::auth::{BackendConnectAuthMaterial, DesktopAuthManager};
 use crate::runtime::local::LocalSessionManager;
 use crate::runtime::ssh::{AuthMethod, SshConnectResponse, SshSessionManager};
 use crate::trust::{HostTrustConfirmation, SshTrustStore};
@@ -13,36 +12,6 @@ pub struct DirectSshConnectInput {
     pub password: Option<String>,
     pub private_key: Option<String>,
     pub passphrase: Option<String>,
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn ssh_connect(
-    app: AppHandle,
-    host_id: String,
-    cols: u32,
-    rows: u32,
-    auth_manager: State<'_, DesktopAuthManager>,
-    ssh_manager: State<'_, SshSessionManager>,
-    trust_store: State<'_, SshTrustStore>,
-) -> Result<SshConnectResponse, String> {
-    let material = auth_manager.issue_connect_material(host_id).await?;
-    let port = u16::try_from(material.port)
-        .map_err(|_| "backend returned invalid SSH port".to_string())?;
-    let auth_method = into_auth_method(material.auth);
-
-    ssh_manager
-        .connect(
-            app,
-            trust_store.inner().clone(),
-            material.host,
-            port,
-            material.username,
-            auth_method,
-            cols,
-            rows,
-        )
-        .await
 }
 
 #[tauri::command]
@@ -149,28 +118,6 @@ pub async fn local_disconnect(
     local_manager: State<'_, LocalSessionManager>,
 ) -> Result<(), String> {
     local_manager.disconnect(&session_id).await
-}
-
-fn into_auth_method(auth: BackendConnectAuthMaterial) -> AuthMethod {
-    match auth {
-        BackendConnectAuthMaterial::Password { password } => AuthMethod::Password(password),
-        BackendConnectAuthMaterial::PublicKey {
-            private_key,
-            passphrase,
-        } => AuthMethod::PublicKey {
-            private_key,
-            passphrase,
-        },
-        BackendConnectAuthMaterial::PublicKeyAndPassword {
-            private_key,
-            passphrase,
-            password,
-        } => AuthMethod::PublicKeyAndPassword {
-            private_key,
-            passphrase,
-            password,
-        },
-    }
 }
 
 fn direct_auth_method(
