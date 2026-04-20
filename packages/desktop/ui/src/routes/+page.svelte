@@ -73,16 +73,16 @@
     sessionStore.cleanup();
   });
 
-  async function handleLogin(username: string, password: string) {
-    await bootstrapStore.login(username, password);
+  async function handleLogin(email: string, password: string) {
+    await bootstrapStore.login(email, password);
     if (bootstrapStore.isAuthenticated) {
       bootstrapStore.applyTheme(bootstrapStore.getTerminalConfig().theme);
       await openInitialLocalTerminal();
     }
   }
 
-  async function handleSignup(username: string, email: string, password: string) {
-    await bootstrapStore.register(username, password);
+  async function handleSignup(email: string, password: string) {
+    await bootstrapStore.register(email, password);
     if (bootstrapStore.isAuthenticated) {
       bootstrapStore.applyTheme(bootstrapStore.getTerminalConfig().theme);
       await openInitialLocalTerminal();
@@ -291,7 +291,7 @@
             <Command class="size-3.5 text-primary" />
             Noverterm workspace
           </div>
-          <span class="text-xs text-muted-foreground">{bootstrapStore.authStatus?.username ?? ""}</span>
+          <span class="text-xs text-muted-foreground">{bootstrapStore.authStatus?.email ?? ""}</span>
           <Button variant="ghost" size="icon-xs" onclick={() => (showSettings = true)}>
             <Settings class="size-3.5" />
           </Button>

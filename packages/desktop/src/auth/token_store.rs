@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 pub struct StoredAuthTokens {
     pub access_token: String,
     pub refresh_token: String,
-    pub username: String,
+    pub email: String,
 }
 
 pub trait SecureTokenStore: Send + Sync + 'static {
@@ -113,14 +113,14 @@ mod tests {
         let tokens = StoredAuthTokens {
             access_token: "access-token".to_string(),
             refresh_token: "refresh-token".to_string(),
-            username: "alice".to_string(),
+            email: "alice".to_string(),
         };
 
         store.save(&tokens).expect("tokens should save");
 
         let loaded = store.load().expect("tokens should load");
         assert!(loaded.is_some());
-        assert_eq!(loaded.expect("tokens should exist").username, "alice");
+        assert_eq!(loaded.expect("tokens should exist").email, "alice");
 
         store.clear().expect("tokens should clear");
         assert!(store.load().expect("load after clear should succeed").is_none());

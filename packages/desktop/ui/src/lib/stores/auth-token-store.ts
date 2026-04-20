@@ -3,7 +3,7 @@ import { load } from "@tauri-apps/plugin-store";
 export interface AuthSessionTokens {
   access_token: string;
   refresh_token: string;
-  username: string;
+  email: string;
 }
 
 const TOKEN_STORE_FILE = "auth-tokens.json";

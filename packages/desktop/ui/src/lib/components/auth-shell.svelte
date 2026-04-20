@@ -10,8 +10,8 @@
     isLoading,
     error,
   }: {
-    onLogin: (username: string, password: string) => void;
-    onSignup: (username: string, email: string, password: string) => void;
+    onLogin: (email: string, password: string) => void;
+    onSignup: (email: string, password: string) => void;
     isLoading: boolean;
     error: string | null;
   } = $props();

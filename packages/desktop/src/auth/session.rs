@@ -10,7 +10,7 @@ use super::token_store::{JsonTokenStore, SecureTokenStore, StoredAuthTokens};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, PartialEq, Eq)]
 pub struct AuthBootstrapStatus {
-    pub username: String,
+    pub email: String,
     pub bootstrap_message: String,
 }
 
@@ -53,18 +53,18 @@ impl<S: SecureTokenStore> AuthManager<S> {
 
     pub async fn login(
         &self,
-        username: String,
+        email: String,
         password: String,
     ) -> Result<AuthBootstrapStatus, String> {
         let auth_response = self
             .client
-            .login(&username, &password)
+            .login(&email, &password)
             .await
             .map_err(map_client_error)?;
         let tokens = StoredAuthTokens {
             access_token: auth_response.access_token,
             refresh_token: auth_response.refresh_token,
-            username: auth_response.username,
+            email: auth_response.email,
         };
 
         let bootstrap_status = self.complete_bootstrap(tokens).await?;
@@ -140,7 +140,7 @@ impl<S: SecureTokenStore> AuthManager<S> {
                 let rotated_tokens = StoredAuthTokens {
                     access_token: refreshed.access_token,
                     refresh_token: refreshed.refresh_token,
-                    username: refreshed.username,
+                    email: refreshed.email,
                 };
                 self.persist_tokens(&rotated_tokens).await?;
                 self.client
@@ -160,7 +160,7 @@ impl<S: SecureTokenStore> AuthManager<S> {
 
         match self.client.bootstrap_smoke(&tokens.access_token).await {
             Ok(response) => Ok(AuthBootstrapStatus {
-                username: response.username,
+                email: response.email,
                 bootstrap_message: response.message,
             }),
             Err(BackendClientError::Unauthorized(_)) => {
@@ -187,7 +187,7 @@ impl<S: SecureTokenStore> AuthManager<S> {
             Ok(response) => {
                 self.persist_tokens(&tokens).await?;
                 Ok(AuthBootstrapStatus {
-                    username: response.username,
+                    email: response.email,
                     bootstrap_message: response.message,
                 })
             }
@@ -200,7 +200,7 @@ impl<S: SecureTokenStore> AuthManager<S> {
                 let rotated_tokens = StoredAuthTokens {
                     access_token: refreshed.access_token,
                     refresh_token: refreshed.refresh_token,
-                    username: refreshed.username,
+                    email: refreshed.email,
                 };
 
                 self.persist_tokens(&rotated_tokens).await?;
@@ -211,7 +211,7 @@ impl<S: SecureTokenStore> AuthManager<S> {
                     .map_err(map_client_error)?;
 
                 Ok(AuthBootstrapStatus {
-                    username: response.username,
+                    email: response.email,
                     bootstrap_message: response.message,
                 })
             }

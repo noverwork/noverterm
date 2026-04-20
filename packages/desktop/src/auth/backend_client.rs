@@ -9,7 +9,7 @@ pub struct BackendClient {
 
 #[derive(Debug, Clone, Serialize)]
 struct LoginPayload<'a> {
-    username: &'a str,
+    email: &'a str,
     password: &'a str,
 }
 
@@ -28,7 +28,7 @@ pub struct BackendAuthResponse {
     pub access_token: String,
     pub refresh_token: String,
     pub access_token_expires_at: Option<String>,
-    pub username: String,
+    pub email: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -84,7 +84,7 @@ pub enum BackendConnectAuthMaterial {
 #[derive(Debug, Clone, Deserialize)]
 pub struct BootstrapSmokeResponse {
     pub message: String,
-    pub username: String,
+    pub email: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,13 +107,13 @@ impl BackendClient {
 
     pub async fn login(
         &self,
-        username: &str,
+        email: &str,
         password: &str,
     ) -> Result<BackendAuthResponse, BackendClientError> {
         let response = self
             .http
             .post(format!("{}/auth/login", self.base_url))
-            .json(&LoginPayload { username, password })
+            .json(&LoginPayload { email, password })
             .send()
             .await
             .map_err(|error| BackendClientError::Transport(error.to_string()))?;

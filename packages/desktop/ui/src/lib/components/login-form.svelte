@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { AlertCircle, Loader2, LockKeyhole, UserRound } from "@lucide/svelte";
+  import { AlertCircle, Loader2, LockKeyhole, Mail } from "@lucide/svelte";
   import { superForm } from "sveltekit-superforms";
   import { zod4 } from "sveltekit-superforms/adapters";
 
@@ -12,13 +12,13 @@
     isLoading,
     error,
   }: {
-    onLogin: (username: string, password: string) => void;
+    onLogin: (email: string, password: string) => void;
     isLoading: boolean;
     error: string | null;
   } = $props();
 
   const form = superForm<LoginForm>(
-    { username: "", password: "" },
+    { email: "", password: "" },
     { validators: zod4(loginSchema) },
   );
 
@@ -27,7 +27,7 @@
   async function handleSubmit() {
     const result = loginSchema.safeParse($formData);
     if (!result.success || isLoading) return;
-    onLogin(result.data.username.trim(), result.data.password);
+    onLogin(result.data.email.trim(), result.data.password);
   }
 </script>
 
@@ -47,20 +47,21 @@
 
     <div class="space-y-4">
       <div class="space-y-2">
-        <label for="login-username" class="text-sm font-medium text-slate-100">Username</label>
+        <label for="login-email" class="text-sm font-medium text-slate-100">Email</label>
         <div class="relative">
-          <UserRound class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
+          <Mail class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
           <Input
-            id="login-username"
-            bind:value={$formData.username}
-            placeholder="username"
+            id="login-email"
+            type="email"
+            bind:value={$formData.email}
+            placeholder="you@example.com"
             disabled={isLoading || $submitting}
             onkeydown={(event) => event.key === "Enter" && handleSubmit()}
-            class={$errors.username ? "pl-9 border-destructive bg-white/5 text-white placeholder:text-slate-500" : "pl-9 border-white/10 bg-white/5 text-white placeholder:text-slate-500"}
+            class={$errors.email ? "pl-9 border-destructive bg-white/5 text-white placeholder:text-slate-500" : "pl-9 border-white/10 bg-white/5 text-white placeholder:text-slate-500"}
           />
         </div>
-        {#if $errors.username}
-          <p class="text-xs text-destructive" role="alert">{$errors.username}</p>
+        {#if $errors.email}
+          <p class="text-xs text-destructive" role="alert">{$errors.email}</p>
         {/if}
       </div>
 

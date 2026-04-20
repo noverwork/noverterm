@@ -147,13 +147,13 @@ export function createBootstrapStore(api: BootstrapApi = backendApi) {
     }
   }
 
-  async function login(username: string, password: string) {
+  async function login(email: string, password: string) {
     state.phase = "loading";
     state.error = null;
     commit();
 
     try {
-      state.authStatus = await api.login(username, password);
+      state.authStatus = await api.login(email, password);
       await refreshMetadata();
     } catch (error) {
       state.phase = "unauthenticated";
@@ -163,13 +163,13 @@ export function createBootstrapStore(api: BootstrapApi = backendApi) {
     }
   }
 
-  async function register(username: string, password: string) {
+  async function register(email: string, password: string) {
     state.phase = "loading";
     state.error = null;
     commit();
 
     try {
-      state.authStatus = await api.register(username, password);
+      state.authStatus = await api.register(email, password);
       await refreshMetadata();
     } catch (error) {
       state.phase = "unauthenticated";

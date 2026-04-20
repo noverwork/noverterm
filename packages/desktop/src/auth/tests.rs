@@ -35,7 +35,7 @@ async fn restore_refreshes_expired_access_token_and_keeps_session() {
     assert_eq!(
         login_status,
         AuthBootstrapStatus {
-            username: "alice".to_string(),
+            email: "alice".to_string(),
             bootstrap_message: "bootstrap ready".to_string(),
         }
     );
@@ -45,7 +45,7 @@ async fn restore_refreshes_expired_access_token_and_keeps_session() {
         .await
         .expect("restore should succeed")
         .expect("restore should return a session");
-    assert_eq!(restored_status.username, "alice");
+    assert_eq!(restored_status.email, "alice");
 
     manager.logout().await.expect("logout should succeed");
     let restored_after_logout = manager
@@ -174,16 +174,16 @@ fn test_auth_server() -> Router {
 async fn login_handler(
     Json(payload): Json<serde_json::Value>,
 ) -> (StatusCode, Json<serde_json::Value>) {
-    let username = payload["username"].as_str().unwrap_or_default();
+    let email = payload["email"].as_str().unwrap_or_default();
     let password = payload["password"].as_str().unwrap_or_default();
 
-    if username == "alice" && password == "wonderland" {
+    if email == "alice" && password == "wonderland" {
         (
             StatusCode::OK,
             Json(json!({
                 "access_token": "expired-access-token",
                 "refresh_token": "good-refresh-token",
-                "username": "alice"
+                "email": "alice"
             })),
         )
     } else {
@@ -205,7 +205,7 @@ async fn refresh_handler(
             Json(json!({
                 "access_token": "fresh-access-token",
                 "refresh_token": "rotated-refresh-token",
-                "username": "alice"
+                "email": "alice"
             })),
         )
     } else {
@@ -232,7 +232,7 @@ async fn smoke_handler(
     if token == "Bearer fresh-access-token" {
         (
             StatusCode::OK,
-            Json(json!({ "message": "bootstrap ready", "username": "alice" })),
+            Json(json!({ "message": "bootstrap ready", "email": "alice" })),
         )
     } else {
         (

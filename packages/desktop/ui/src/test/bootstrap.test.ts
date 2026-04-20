@@ -40,7 +40,7 @@ const sampleMetadata = {
   keys: [{ id: "k1", name: "deploy-key", kind: "ed25519", fingerprint: "SHA256:abc" }],
 };
 
-const sampleAuthStatus = { username: "alice", bootstrap_message: "bootstrap ready" };
+const sampleAuthStatus = { email: "alice", bootstrap_message: "bootstrap ready" };
 
 describe("bootstrap store", () => {
   beforeEach(() => {

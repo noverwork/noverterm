@@ -33,15 +33,15 @@ pub fn build_test_router(auth_service: crate::auth::AuthService, db_pool: crate:
 #[derive(Debug, Serialize)]
 struct BootstrapSmokeResponse {
     message: String,
-    username: String,
+    email: String,
 }
 
 async fn bootstrap_smoke(
     Extension(authenticated_user): Extension<AuthenticatedUser>,
 ) -> Json<BootstrapSmokeResponse> {
     Json(BootstrapSmokeResponse {
-        message: format!("bootstrap ready for {}", authenticated_user.username),
-        username: authenticated_user.username,
+        message: format!("bootstrap ready for {}", authenticated_user.email),
+        email: authenticated_user.email,
     })
 }
 

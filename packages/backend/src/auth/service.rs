@@ -27,19 +27,19 @@ pub struct AuthService {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedUser {
     pub user_id: String,
-    pub username: String,
+    pub email: String,
     pub session_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LoginRequest {
-    pub username: String,
+    pub email: String,
     pub password: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RegisterRequest {
-    pub username: String,
+    pub email: String,
     pub password: String,
 }
 
@@ -58,7 +58,7 @@ pub struct AuthResponse {
     pub access_token: String,
     pub refresh_token: String,
     pub access_token_expires_at: chrono::DateTime<Utc>,
-    pub username: String,
+    pub email: String,
 }
 
 #[derive(Debug, Default)]
@@ -70,7 +70,7 @@ struct SessionState {
 
 #[derive(Debug, Clone)]
 struct SessionRecord {
-    username: String,
+    email: String,
     refresh_token_hash: String,
     refresh_expires_at: chrono::DateTime<Utc>,
     revoked: bool,
@@ -94,11 +94,11 @@ impl AuthService {
     }
 
     pub async fn register(&self, request: RegisterRequest) -> Result<AuthResponse, String> {
-        let username = request.username.clone();
-        let check_username = username.clone();
+        let email = request.email.clone();
+        let check_email = email.clone();
         let existing: Result<Option<User>, String> = run_db(self.pool.clone(), move |conn| {
             users::table
-                .filter(users::username.eq(&check_username))
+                .filter(users::email.eq(&check_email))
                 .first::<User>(conn)
                 .optional()
                 .map_err(|e| format!("database error: {e}"))
@@ -106,14 +106,14 @@ impl AuthService {
         .await;
 
         if existing?.is_some() {
-            return Err("username already exists".to_string());
+            return Err("email already exists".to_string());
         }
 
         let password_hash = hash_password(&request.password);
         let now = Utc::now().naive_utc();
         let new_user = NewUser {
             id: Uuid::new_v4().to_string(),
-            username: request.username.clone(),
+            email: request.email.clone(),
             password_hash,
             created_at: now,
             updated_at: now,
@@ -127,15 +127,15 @@ impl AuthService {
         })
         .await?;
 
-        self.create_session(&username).await
+        self.create_session(&email).await
     }
 
     pub async fn login(&self, request: LoginRequest) -> Result<AuthResponse, String> {
-        let username = request.username.clone();
-        let check_username = username.clone();
+        let email = request.email.clone();
+        let check_email = email.clone();
         let user: Option<User> = run_db(self.pool.clone(), move |conn| {
             users::table
-                .filter(users::username.eq(&check_username))
+                .filter(users::email.eq(&check_email))
                 .first::<User>(conn)
                 .optional()
                 .map_err(|e| format!("database error: {e}"))
@@ -150,7 +150,7 @@ impl AuthService {
             return Err("invalid credentials".to_string());
         }
 
-        self.create_session(&username).await
+        self.create_session(&email).await
     }
 
     pub async fn refresh(&self, request: RefreshRequest) -> Result<AuthResponse, String> {
@@ -179,7 +179,7 @@ impl AuthService {
             return Err("invalid refresh token".to_string());
         };
 
-        let username = session.username.clone();
+        let email = session.email.clone();
         let session_revoked = session.revoked;
         let refresh_expires_at = session.refresh_expires_at;
 
@@ -191,7 +191,7 @@ impl AuthService {
         let access_token = self
             .config
             .token_service
-            .issue_access_token(&username, &session_id)?;
+            .issue_access_token(&email, &session_id)?;
         let refresh_token = self.config.token_service.issue_refresh_token();
         sessions.active_refresh_tokens.remove(&refresh_token_hash);
         sessions
@@ -209,7 +209,7 @@ impl AuthService {
             access_token: access_token.token,
             refresh_token: refresh_token.token,
             access_token_expires_at: access_token.expires_at,
-            username,
+            email,
         })
     }
 
@@ -252,24 +252,24 @@ impl AuthService {
             return Err("session revoked".to_string());
         }
 
-        if session.username != claims.sub {
+        if session.email != claims.sub {
             return Err("invalid session subject".to_string());
         }
 
-        let user_id = self.lookup_user_id(&session.username).await?;
+        let user_id = self.lookup_user_id(&session.email).await?;
 
         Ok(AuthenticatedUser {
             user_id,
-            username: session.username.clone(),
+            email: session.email.clone(),
             session_id: claims.sid,
         })
     }
 
-    async fn lookup_user_id(&self, username: &str) -> Result<String, String> {
-        let username = username.to_string();
+    async fn lookup_user_id(&self, email: &str) -> Result<String, String> {
+        let email = email.to_string();
         run_db(self.pool.clone(), move |conn| {
             orm::schema::users::table
-                .filter(orm::schema::users::username.eq(&username))
+                .filter(orm::schema::users::email.eq(&email))
                 .select(orm::schema::users::id)
                 .first::<String>(conn)
                 .map_err(|e| format!("user lookup failed: {e}"))
@@ -277,22 +277,22 @@ impl AuthService {
         .await
     }
 
-    pub async fn active_session_count_for(&self, username: &str) -> usize {
+    pub async fn active_session_count_for(&self, email: &str) -> usize {
         let sessions = self.sessions.read().await;
 
         sessions
             .sessions
             .values()
-            .filter(|session| !session.revoked && session.username == username)
+            .filter(|session| !session.revoked && session.email == email)
             .count()
     }
 
-    async fn create_session(&self, username: &str) -> Result<AuthResponse, String> {
+    async fn create_session(&self, email: &str) -> Result<AuthResponse, String> {
         let session_id = Uuid::new_v4().to_string();
         let access_token = self
             .config
             .token_service
-            .issue_access_token(username, &session_id)?;
+            .issue_access_token(email, &session_id)?;
         let refresh_token = self.config.token_service.issue_refresh_token();
 
         let mut sessions = self.sessions.write().await;
@@ -302,7 +302,7 @@ impl AuthService {
         sessions.sessions.insert(
             session_id,
             SessionRecord {
-                username: username.to_string(),
+                email: email.to_string(),
                 refresh_token_hash: refresh_token.token_hash.clone(),
                 refresh_expires_at: refresh_token.expires_at,
                 revoked: false,
@@ -313,7 +313,7 @@ impl AuthService {
             access_token: access_token.token,
             refresh_token: refresh_token.token,
             access_token_expires_at: access_token.expires_at,
-            username: username.to_string(),
+            email: email.to_string(),
         })
     }
 

@@ -18,24 +18,24 @@ async fn register_and_login_flow_creates_session() {
 
     let register_response = auth_service
         .register(super::service::RegisterRequest {
-            username: "alice".to_string(),
+            email: "alice".to_string(),
             password: "wonderland".to_string(),
         })
         .await
         .expect("register should succeed");
 
-    assert_eq!(register_response.username, "alice");
+    assert_eq!(register_response.email, "alice");
     assert!(!register_response.access_token.is_empty());
 
     let login_response = auth_service
         .login(super::service::LoginRequest {
-            username: "alice".to_string(),
+            email: "alice".to_string(),
             password: "wonderland".to_string(),
         })
         .await
         .expect("login should succeed");
 
-    assert_eq!(login_response.username, "alice");
+    assert_eq!(login_response.email, "alice");
 }
 
 #[tokio::test]
@@ -44,7 +44,7 @@ async fn login_refresh_and_logout_flow_rotates_refresh_tokens() {
 
     auth_service
         .register(super::service::RegisterRequest {
-            username: "bob".to_string(),
+            email: "bob".to_string(),
             password: "secret".to_string(),
         })
         .await
@@ -52,7 +52,7 @@ async fn login_refresh_and_logout_flow_rotates_refresh_tokens() {
 
     let login_response = auth_service
         .login(super::service::LoginRequest {
-            username: "bob".to_string(),
+            email: "bob".to_string(),
             password: "secret".to_string(),
         })
         .await
@@ -118,7 +118,7 @@ async fn protected_bootstrap_route_requires_valid_access_token() {
 
     auth_service
         .register(super::service::RegisterRequest {
-            username: "dave".to_string(),
+            email: "dave".to_string(),
             password: "pass".to_string(),
         })
         .await

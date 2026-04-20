@@ -10,7 +10,7 @@ pub use session::{
 
 #[derive(Debug, serde::Deserialize, specta::Type)]
 pub struct LoginInput {
-    pub username: String,
+    pub email: String,
     pub password: String,
 }
 
@@ -20,7 +20,7 @@ pub async fn auth_login(
     login: LoginInput,
     auth_manager: State<'_, DesktopAuthManager>,
 ) -> Result<AuthBootstrapStatus, String> {
-    auth_manager.login(login.username, login.password).await
+    auth_manager.login(login.email, login.password).await
 }
 
 #[tauri::command]

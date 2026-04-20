@@ -17,7 +17,7 @@ export async function loadAppSettings(): Promise<void> {
 }
 
 export interface AuthBootstrapStatus {
-  username: string;
+  email: string;
   bootstrap_message: string;
 }
 
@@ -53,7 +53,7 @@ interface BackendAuthResponse {
   access_token: string;
   refresh_token: string;
   access_token_expires_at: string;
-  username: string;
+  email: string;
 }
 
 interface HostWriteRequest {
@@ -129,7 +129,7 @@ function toSessionTokens(response: BackendAuthResponse): AuthSessionTokens {
   return {
     access_token: response.access_token,
     refresh_token: response.refresh_token,
-    username: response.username,
+    email: response.email,
   };
 }
 
@@ -254,12 +254,12 @@ async function bootstrapSmoke(accessToken: string): Promise<AuthBootstrapStatus>
 }
 
 export async function registerToBackend(
-  username: string,
+  email: string,
   password: string,
 ): Promise<AuthBootstrapStatus> {
   const authResponse = await requestJson<BackendAuthResponse>("/auth/register", {
     method: "POST",
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ email, password }),
   });
   const tokens = toSessionTokens(authResponse);
   await persistFrontendTokens(tokens);
@@ -273,12 +273,12 @@ export async function registerToBackend(
 }
 
 export async function loginToBackend(
-  username: string,
+  email: string,
   password: string,
 ): Promise<AuthBootstrapStatus> {
   const authResponse = await requestJson<BackendAuthResponse>("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ email, password }),
   });
   const tokens = toSessionTokens(authResponse);
   await persistFrontendTokens(tokens);
@@ -508,8 +508,8 @@ export async function issueBackendConnectionMaterial(
 
 export interface BootstrapApi {
   restore(): Promise<AuthBootstrapStatus | null>;
-  register(username: string, password: string): Promise<AuthBootstrapStatus>;
-  login(username: string, password: string): Promise<AuthBootstrapStatus>;
+  register(email: string, password: string): Promise<AuthBootstrapStatus>;
+  login(email: string, password: string): Promise<AuthBootstrapStatus>;
   logout(): Promise<void>;
   loadBootstrapMetadata(): Promise<BootstrapMetadata>;
   saveConnection(connection: SaveConnectionInput): Promise<SshHostRecord>;

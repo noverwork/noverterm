@@ -53,7 +53,7 @@ pub async fn issue_connect_material(
 ) -> Result<ConnectMaterial, ServiceError> {
     let AuthenticatedUser {
         user_id,
-        username,
+        email,
         session_id,
     } = authenticated_user;
     let pool = state.require_db_pool().map_err(ServiceError::Internal)?;
@@ -92,7 +92,7 @@ pub async fn issue_connect_material(
         host: host.host,
         port: host.port,
         username: host.username,
-        issued_for_username: username,
+        issued_for_username: email,
         issued_for_session_id: session_id,
         expires_at: Utc::now() + Duration::minutes(CONNECT_SECRET_TTL_MINUTES),
         auth,

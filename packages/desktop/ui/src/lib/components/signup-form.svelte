@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { AlertCircle, Loader2, LockKeyhole, Mail, UserRound } from "@lucide/svelte";
+  import { AlertCircle, Loader2, LockKeyhole, Mail } from "@lucide/svelte";
   import { superForm } from "sveltekit-superforms";
   import { zod4 } from "sveltekit-superforms/adapters";
 
@@ -12,13 +12,13 @@
     isLoading,
     error,
   }: {
-    onSignup: (username: string, email: string, password: string) => void;
+    onSignup: (email: string, password: string) => void;
     isLoading: boolean;
     error: string | null;
   } = $props();
 
   const form = superForm<SignupForm>(
-    { username: "", email: "", password: "", confirmPassword: "" },
+    { email: "", password: "", confirmPassword: "" },
     { validators: zod4(signupSchema) },
   );
 
@@ -27,7 +27,7 @@
   async function handleSubmit() {
     const result = signupSchema.safeParse($formData);
     if (!result.success || isLoading) return;
-    onSignup(result.data.username.trim(), result.data.email.trim(), result.data.password);
+    onSignup(result.data.email.trim(), result.data.password);
   }
 </script>
 
@@ -46,24 +46,6 @@
     {/if}
 
     <div class="space-y-4">
-      <div class="space-y-2">
-        <label for="signup-username" class="text-sm font-medium text-slate-100">Username</label>
-        <div class="relative">
-          <UserRound class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
-          <Input
-            id="signup-username"
-            bind:value={$formData.username}
-            placeholder="username"
-            disabled={isLoading || $submitting}
-            onkeydown={(event) => event.key === "Enter" && handleSubmit()}
-            class={$errors.username ? "pl-9 border-destructive bg-white/5 text-white placeholder:text-slate-500" : "pl-9 border-white/10 bg-white/5 text-white placeholder:text-slate-500"}
-          />
-        </div>
-        {#if $errors.username}
-          <p class="text-xs text-destructive" role="alert">{$errors.username}</p>
-        {/if}
-      </div>
-
       <div class="space-y-2">
         <label for="signup-email" class="text-sm font-medium text-slate-100">Email</label>
         <div class="relative">

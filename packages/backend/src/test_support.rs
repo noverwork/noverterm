@@ -55,13 +55,13 @@ pub fn build_test_app() -> Router {
     build_test_router(auth_service, pool)
 }
 
-pub async fn login_access_token(app: Router, username: &str, password: &str) -> String {
+pub async fn login_access_token(app: Router, email: &str, password: &str) -> String {
     let response = app
         .oneshot(
             Request::post("/auth/login")
                 .header("content-type", "application/json")
                 .body(Body::from(format!(
-                    r#"{{"username":"{username}","password":"{password}"}}"#
+                    r#"{{"email":"{email}","password":"{password}"}}"#
                 )))
                 .expect("login request should build"),
         )

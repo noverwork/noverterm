@@ -45,8 +45,8 @@ export async function fetchMetadata() {
 // components already expect, so the rest of the codebase needs minimal changes.
 // ---------------------------------------------------------------------------
 
-export async function mutateLogin(username: string, password: string) {
-  await bootstrapStore.login(username, password);
+export async function mutateLogin(email: string, password: string) {
+  await bootstrapStore.login(email, password);
   return bootstrapStore;
 }
 

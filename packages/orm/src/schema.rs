@@ -44,7 +44,7 @@ diesel::table! {
 diesel::table! {
     users (id) {
         id -> Text,
-        username -> Text,
+        email -> Text,
         password_hash -> Text,
         created_at -> Timestamp,
         updated_at -> Timestamp,
