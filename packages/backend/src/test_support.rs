@@ -1,6 +1,3 @@
-use std::env;
-use std::fs;
-use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use axum::body::Body;
@@ -14,7 +11,8 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 use crate::auth::{AuthConfig, AuthService};
-use crate::bootstrap::build_test_router_with_db;
+use crate::bootstrap::build_test_router;
+use crate::config::env_value;
 use crate::db::DbPool;
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("../migrator/migrations");
@@ -22,20 +20,8 @@ const MIGRATIONS: EmbeddedMigrations = embed_migrations!("../migrator/migrations
 static DATABASE_READY: OnceLock<()> = OnceLock::new();
 
 fn database_url() -> String {
-    if let Ok(value) = env::var("DATABASE_URL") {
-        return value;
-    }
-
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.push("../migrator/.env");
-    let contents = fs::read_to_string(&path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
-
-    contents
-        .lines()
-        .find_map(|line| line.strip_prefix("DATABASE_URL="))
-        .map(str::to_string)
-        .unwrap_or_else(|| panic!("DATABASE_URL missing from {}", path.display()))
+    env_value("DATABASE_URL")
+        .unwrap_or_else(|| panic!("DATABASE_URL must be set in environment or backend env file"))
 }
 
 pub fn test_db_pool() -> DbPool {
@@ -59,13 +45,14 @@ pub fn unique_name(prefix: &str) -> String {
     format!("{prefix}-{}", Uuid::new_v4())
 }
 
-pub fn build_test_app(users: &[(String, String)]) -> Router {
-    let auth_service = AuthService::new(AuthConfig::new(
-        users.iter().cloned(),
-        "backend-test-secret".to_string(),
-    ));
+pub fn build_test_app() -> Router {
+    let pool = test_db_pool();
+    let auth_service = AuthService::new(
+        AuthConfig::new("backend-test-secret".to_string()),
+        pool.clone(),
+    );
 
-    build_test_router_with_db(auth_service, test_db_pool())
+    build_test_router(auth_service, pool)
 }
 
 pub async fn login_access_token(app: Router, username: &str, password: &str) -> String {

@@ -97,7 +97,11 @@ impl BackendClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
             base_url: base_url.into().trim_end_matches('/').to_string(),
-            http: reqwest::Client::new(),
+            http: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(5))
+                .connect_timeout(std::time::Duration::from_secs(3))
+                .build()
+                .expect("failed to build HTTP client"),
         }
     }
 

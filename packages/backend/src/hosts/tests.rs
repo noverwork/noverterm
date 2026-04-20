@@ -1,5 +1,7 @@
-use axum::http::{Method, StatusCode};
+use axum::body::Body;
+use axum::http::{Method, Request, StatusCode};
 use serde_json::json;
+use tower::ServiceExt;
 
 use crate::test_support::{
     authorized_empty_request, authorized_json_request, build_test_app, login_access_token,
@@ -11,10 +13,31 @@ async fn host_routes_are_owner_scoped_and_redact_password_fields() {
     let alice = unique_name("alice");
     let bob = unique_name("bob");
     let password = "wonderland";
-    let app = build_test_app(&[
-        (alice.clone(), password.to_string()),
-        (bob.clone(), password.to_string()),
-    ]);
+    let app = build_test_app();
+
+    app.clone()
+        .oneshot(
+            Request::post("/auth/register")
+                .header("content-type", "application/json")
+                .body(Body::from(format!(
+                    r#"{{"username":"{alice}","password":"{password}"}}"#
+                )))
+                .expect("request should build"),
+        )
+        .await
+        .expect("register should succeed");
+
+    app.clone()
+        .oneshot(
+            Request::post("/auth/register")
+                .header("content-type", "application/json")
+                .body(Body::from(format!(
+                    r#"{{"username":"{bob}","password":"{password}"}}"#
+                )))
+                .expect("request should build"),
+        )
+        .await
+        .expect("register should succeed");
 
     let alice_token = login_access_token(app.clone(), &alice, password).await;
     let bob_token = login_access_token(app.clone(), &bob, password).await;

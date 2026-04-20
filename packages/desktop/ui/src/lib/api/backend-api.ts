@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { fetch } from "@tauri-apps/plugin-http";
 
 import type { ConnectionConfig, SaveConnectionInput } from "$lib/stores/bootstrap.svelte.js";
@@ -7,6 +8,13 @@ import {
   saveStoredAuthTokens,
   type AuthSessionTokens,
 } from "$lib/stores/auth-token-store.js";
+
+let backendBaseUrl: string | null = null;
+
+export async function loadAppSettings(): Promise<void> {
+  const settings = await invoke<{ api_url: string }>("get_app_settings");
+  backendBaseUrl = settings.api_url;
+}
 
 export interface AuthBootstrapStatus {
   username: string;
@@ -110,14 +118,11 @@ class HttpError extends Error {
 
 class AuthExpiredError extends Error {}
 
-function getBackendBaseUrl(): string {
-  const configured =
-    import.meta.env.VITE_NOVERTERM_BACKEND_URL ?? import.meta.env.VITE_BACKEND_API_URL;
-  return configured?.trim() || "http://127.0.0.1:3000";
-}
-
 function buildUrl(path: string): string {
-  return `${getBackendBaseUrl().replace(/\/$/, "")}${path}`;
+  if (!backendBaseUrl) {
+    throw new Error("backend URL not initialized. Call loadAppSettings() first.");
+  }
+  return `${backendBaseUrl.replace(/\/$/, "")}${path}`;
 }
 
 function toSessionTokens(response: BackendAuthResponse): AuthSessionTokens {
@@ -246,6 +251,25 @@ async function withAuthorizedRetry<T>(
 
 async function bootstrapSmoke(accessToken: string): Promise<AuthBootstrapStatus> {
   return requestWithAccessToken<AuthBootstrapStatus>("/bootstrap/smoke", accessToken);
+}
+
+export async function registerToBackend(
+  username: string,
+  password: string,
+): Promise<AuthBootstrapStatus> {
+  const authResponse = await requestJson<BackendAuthResponse>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ username, password }),
+  });
+  const tokens = toSessionTokens(authResponse);
+  await persistFrontendTokens(tokens);
+
+  try {
+    return await withAuthorizedRetry(async (accessToken) => bootstrapSmoke(accessToken));
+  } catch (error) {
+    await clearFrontendTokens();
+    throw error;
+  }
 }
 
 export async function loginToBackend(
@@ -484,6 +508,7 @@ export async function issueBackendConnectionMaterial(
 
 export interface BootstrapApi {
   restore(): Promise<AuthBootstrapStatus | null>;
+  register(username: string, password: string): Promise<AuthBootstrapStatus>;
   login(username: string, password: string): Promise<AuthBootstrapStatus>;
   logout(): Promise<void>;
   loadBootstrapMetadata(): Promise<BootstrapMetadata>;
@@ -495,6 +520,7 @@ export interface BootstrapApi {
 
 export const backendApi: BootstrapApi = {
   restore: restoreBackendSession,
+  register: registerToBackend,
   login: loginToBackend,
   logout: logoutFromBackend,
   loadBootstrapMetadata: loadBootstrapMetadataFromBackend,

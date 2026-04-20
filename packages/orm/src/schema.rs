@@ -41,4 +41,18 @@ diesel::table! {
     }
 }
 
-diesel::allow_tables_to_appear_in_same_query!(ssh_hosts, ssh_keys, user_settings,);
+diesel::table! {
+    users (id) {
+        id -> Text,
+        username -> Text,
+        password_hash -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::joinable!(ssh_hosts -> users (owner_id));
+diesel::joinable!(ssh_keys -> users (owner_id));
+diesel::joinable!(user_settings -> users (owner_id));
+
+diesel::allow_tables_to_appear_in_same_query!(ssh_hosts, ssh_keys, user_settings, users,);

@@ -30,7 +30,7 @@ async fn list_keys(
     Extension(authenticated_user): Extension<AuthenticatedUser>,
 ) -> Result<Json<Vec<SshKeyRecord>>, (StatusCode, String)> {
     let pool = state.require_db_pool().map_err(internal_error)?;
-    let keys = repository::list(pool, authenticated_user.username)
+    let keys = repository::list(pool, authenticated_user.user_id)
         .await
         .map_err(into_http_error)?;
 
@@ -43,7 +43,7 @@ async fn get_key(
     Path(id): Path<String>,
 ) -> Result<Json<SshKeyRecord>, (StatusCode, String)> {
     let pool = state.require_db_pool().map_err(internal_error)?;
-    let key = repository::get(pool, authenticated_user.username, id)
+    let key = repository::get(pool, authenticated_user.user_id, id)
         .await
         .map_err(into_http_error)?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "ssh key not found".to_string()))?;
@@ -60,7 +60,7 @@ async fn create_key(
     let key = repository::create(
         pool,
         CreateKeyInput {
-            owner_id: authenticated_user.username,
+            owner_id: authenticated_user.user_id,
             name: request.name,
             kind: request.kind,
             fingerprint: request.fingerprint,
@@ -84,7 +84,7 @@ async fn update_key(
     let key = repository::update(
         pool,
         UpdateKeyInput {
-            owner_id: authenticated_user.username,
+            owner_id: authenticated_user.user_id,
             id,
             name: request.name,
             kind: request.kind,
@@ -105,7 +105,7 @@ async fn delete_key(
     Path(id): Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let pool = state.require_db_pool().map_err(internal_error)?;
-    let deleted = repository::delete(pool, authenticated_user.username, id)
+    let deleted = repository::delete(pool, authenticated_user.user_id, id)
         .await
         .map_err(into_http_error)?;
 

@@ -52,18 +52,19 @@ pub async fn issue_connect_material(
     host_id: String,
 ) -> Result<ConnectMaterial, ServiceError> {
     let AuthenticatedUser {
+        user_id,
         username,
         session_id,
     } = authenticated_user;
     let pool = state.require_db_pool().map_err(ServiceError::Internal)?;
-    let host = host_repository::get(pool.clone(), username.clone(), host_id.clone())
+    let host = host_repository::get(pool.clone(), user_id.clone(), host_id.clone())
         .await
         .map_err(map_host_error)?
         .ok_or_else(|| ServiceError::NotFound("host not found".to_string()))?;
 
     let auth = match (host.ssh_key_id.clone(), host.encrypted_password.clone()) {
         (Some(ssh_key_id), Some(password)) => {
-            let key = load_owner_key(pool, &username, ssh_key_id).await?;
+            let key = load_owner_key(pool, &user_id, ssh_key_id).await?;
             ConnectAuthMaterial::PublicKeyAndPassword {
                 private_key: key.encrypted_private_key,
                 passphrase: key.encrypted_passphrase,
@@ -71,7 +72,7 @@ pub async fn issue_connect_material(
             }
         }
         (Some(ssh_key_id), None) => {
-            let key = load_owner_key(pool, &username, ssh_key_id).await?;
+            let key = load_owner_key(pool, &user_id, ssh_key_id).await?;
             ConnectAuthMaterial::PublicKey {
                 private_key: key.encrypted_private_key,
                 passphrase: key.encrypted_passphrase,
@@ -100,10 +101,10 @@ pub async fn issue_connect_material(
 
 async fn load_owner_key(
     pool: crate::db::DbPool,
-    username: &str,
+    user_id: &str,
     ssh_key_id: String,
 ) -> Result<orm::models::SshKey, ServiceError> {
-    key_repository::get(pool, username.to_string(), ssh_key_id)
+    key_repository::get(pool, user_id.to_string(), ssh_key_id)
         .await
         .map_err(map_key_error)?
         .ok_or_else(|| ServiceError::NotFound("ssh key not found".to_string()))

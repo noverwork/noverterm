@@ -2,13 +2,26 @@ use axum::{routing::post, Json, Router};
 
 use crate::bootstrap::AppState;
 
-use super::service::{AuthResponse, LoginRequest, LogoutRequest, RefreshRequest};
+use super::service::{AuthResponse, LoginRequest, LogoutRequest, RefreshRequest, RegisterRequest};
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/register", post(register))
         .route("/login", post(login))
         .route("/refresh", post(refresh))
         .route("/logout", post(logout))
+}
+
+async fn register(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(request): Json<RegisterRequest>,
+) -> Result<Json<AuthResponse>, (axum::http::StatusCode, String)> {
+    state
+        .auth_service
+        .register(request)
+        .await
+        .map(Json)
+        .map_err(|error| (axum::http::StatusCode::CONFLICT, error))
 }
 
 async fn login(

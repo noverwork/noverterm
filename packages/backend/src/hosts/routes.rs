@@ -32,7 +32,7 @@ async fn list_hosts(
     Extension(authenticated_user): Extension<AuthenticatedUser>,
 ) -> Result<Json<Vec<SshHostRecord>>, (StatusCode, String)> {
     let pool = state.require_db_pool().map_err(internal_error)?;
-    let hosts = repository::list(pool, authenticated_user.username)
+    let hosts = repository::list(pool, authenticated_user.user_id)
         .await
         .map_err(into_http_error)?;
 
@@ -45,7 +45,7 @@ async fn get_host(
     Path(id): Path<String>,
 ) -> Result<Json<SshHostRecord>, (StatusCode, String)> {
     let pool = state.require_db_pool().map_err(internal_error)?;
-    let host = repository::get(pool, authenticated_user.username, id)
+    let host = repository::get(pool, authenticated_user.user_id, id)
         .await
         .map_err(into_http_error)?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "host not found".to_string()))?;
@@ -62,7 +62,7 @@ async fn create_host(
     let host = repository::create(
         pool,
         CreateHostInput {
-            owner_id: authenticated_user.username,
+            owner_id: authenticated_user.user_id,
             name: request.name,
             host: request.host,
             port: request.port,
@@ -88,7 +88,7 @@ async fn update_host(
     let host = repository::update(
         pool,
         UpdateHostInput {
-            owner_id: authenticated_user.username,
+            owner_id: authenticated_user.user_id,
             id,
             name: request.name,
             host: request.host,
@@ -111,7 +111,7 @@ async fn delete_host(
     Path(id): Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let pool = state.require_db_pool().map_err(internal_error)?;
-    let deleted = repository::delete(pool, authenticated_user.username, id)
+    let deleted = repository::delete(pool, authenticated_user.user_id, id)
         .await
         .map_err(into_http_error)?;
 

@@ -23,7 +23,7 @@ async fn list_settings(
     Extension(authenticated_user): Extension<AuthenticatedUser>,
 ) -> Result<Json<Vec<Setting>>, (StatusCode, String)> {
     let pool = state.require_db_pool().map_err(internal_error)?;
-    let settings = repository::list(pool, authenticated_user.username)
+    let settings = repository::list(pool, authenticated_user.user_id)
         .await
         .map_err(into_http_error)?;
 
@@ -36,7 +36,7 @@ async fn get_setting(
     Path(key): Path<String>,
 ) -> Result<Json<Setting>, (StatusCode, String)> {
     let pool = state.require_db_pool().map_err(internal_error)?;
-    let setting = repository::get(pool, authenticated_user.username, key)
+    let setting = repository::get(pool, authenticated_user.user_id, key)
         .await
         .map_err(into_http_error)?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "setting not found".to_string()))?;
@@ -52,7 +52,7 @@ async fn create_setting(
     let pool = state.require_db_pool().map_err(internal_error)?;
     let setting = repository::create(
         pool,
-        authenticated_user.username,
+        authenticated_user.user_id,
         setting.key,
         setting.value,
     )
@@ -69,7 +69,7 @@ async fn update_setting(
     Json(setting): Json<Setting>,
 ) -> Result<Json<Setting>, (StatusCode, String)> {
     let pool = state.require_db_pool().map_err(internal_error)?;
-    let setting = repository::update(pool, authenticated_user.username, key, setting.value)
+    let setting = repository::update(pool, authenticated_user.user_id, key, setting.value)
         .await
         .map_err(into_http_error)?;
 
@@ -82,7 +82,7 @@ async fn delete_setting(
     Path(key): Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let pool = state.require_db_pool().map_err(internal_error)?;
-    let deleted = repository::delete(pool, authenticated_user.username, key)
+    let deleted = repository::delete(pool, authenticated_user.user_id, key)
         .await
         .map_err(into_http_error)?;
 

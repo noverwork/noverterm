@@ -1,115 +1,137 @@
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use http_body_util::BodyExt;
 use tower::ServiceExt;
 
-use crate::bootstrap::{build_test_router, test_app_state};
-
-use super::{router, AuthConfig, AuthService};
+use crate::auth::{AuthConfig, AuthService};
+use crate::test_support::{login_access_token, test_db_pool};
 
 fn auth_service() -> AuthService {
-    AuthService::new(AuthConfig::new(
-        [("alice".to_string(), "wonderland".to_string())],
-        "backend-test-secret".to_string(),
-    ))
+    AuthService::new(
+        AuthConfig::new("backend-test-secret".to_string()),
+        test_db_pool(),
+    )
 }
 
 #[tokio::test]
-async fn login_refresh_and_logout_flow_rotates_refresh_tokens() {
+async fn register_and_login_flow_creates_session() {
     let auth_service = auth_service();
-    let app = router().with_state(test_app_state(auth_service.clone()));
 
-    let login_response = app
-        .clone()
-        .oneshot(
-            Request::post("/login")
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    r#"{"username":"alice","password":"wonderland"}"#,
-                ))
-                .expect("request should build"),
-        )
+    let register_response = auth_service
+        .register(super::service::RegisterRequest {
+            username: "alice".to_string(),
+            password: "wonderland".to_string(),
+        })
         .await
-        .expect("login request should succeed");
-    assert_eq!(login_response.status(), StatusCode::OK);
-    let body = login_response
-        .into_body()
-        .collect()
-        .await
-        .expect("login body should collect")
-        .to_bytes();
-    let login: serde_json::Value =
-        serde_json::from_slice(&body).expect("login body should deserialize");
-    let refresh_token = login["refresh_token"]
-        .as_str()
-        .expect("refresh token should exist");
+        .expect("register should succeed");
 
-    let refresh_response = app
-        .clone()
-        .oneshot(
-            Request::post("/refresh")
-                .header("content-type", "application/json")
-                .body(Body::from(format!(
-                    r#"{{"refresh_token":"{refresh_token}"}}"#
-                )))
-                .expect("request should build"),
-        )
-        .await
-        .expect("refresh request should succeed");
-    assert_eq!(refresh_response.status(), StatusCode::OK);
-    let body = refresh_response
-        .into_body()
-        .collect()
-        .await
-        .expect("refresh body should collect")
-        .to_bytes();
-    let refreshed: serde_json::Value =
-        serde_json::from_slice(&body).expect("refresh body should deserialize");
-    let rotated_refresh_token = refreshed["refresh_token"]
-        .as_str()
-        .expect("rotated refresh token should exist");
-    assert_ne!(refresh_token, rotated_refresh_token);
+    assert_eq!(register_response.username, "alice");
+    assert!(!register_response.access_token.is_empty());
 
-    let reuse_response = app
-        .clone()
-        .oneshot(
-            Request::post("/refresh")
-                .header("content-type", "application/json")
-                .body(Body::from(format!(
-                    r#"{{"refresh_token":"{refresh_token}"}}"#
-                )))
-                .expect("request should build"),
-        )
-        .await
-        .expect("reused refresh request should succeed");
-    assert_eq!(reuse_response.status(), StatusCode::UNAUTHORIZED);
-
-    let logout_response = app
-        .oneshot(
-            Request::post("/logout")
-                .header("content-type", "application/json")
-                .body(Body::from(format!(
-                    r#"{{"refresh_token":"{rotated_refresh_token}"}}"#
-                )))
-                .expect("request should build"),
-        )
-        .await
-        .expect("logout request should succeed");
-    assert_eq!(logout_response.status(), StatusCode::NO_CONTENT);
-    assert_eq!(auth_service.active_session_count_for("alice").await, 0);
-}
-
-#[tokio::test]
-async fn protected_bootstrap_route_requires_valid_access_token() {
-    let auth_service = auth_service();
-    let login = auth_service
+    let login_response = auth_service
         .login(super::service::LoginRequest {
             username: "alice".to_string(),
             password: "wonderland".to_string(),
         })
         .await
         .expect("login should succeed");
-    let app = build_test_router(auth_service);
+
+    assert_eq!(login_response.username, "alice");
+}
+
+#[tokio::test]
+async fn login_refresh_and_logout_flow_rotates_refresh_tokens() {
+    let auth_service = auth_service();
+
+    auth_service
+        .register(super::service::RegisterRequest {
+            username: "bob".to_string(),
+            password: "secret".to_string(),
+        })
+        .await
+        .expect("register should succeed");
+
+    let login_response = auth_service
+        .login(super::service::LoginRequest {
+            username: "bob".to_string(),
+            password: "secret".to_string(),
+        })
+        .await
+        .expect("login request should succeed");
+
+    let refresh_token = login_response.refresh_token;
+
+    let refresh_response = auth_service
+        .refresh(super::service::RefreshRequest {
+            refresh_token: refresh_token.clone(),
+        })
+        .await
+        .expect("refresh request should succeed");
+
+    let rotated_refresh_token = refresh_response.refresh_token;
+    assert_ne!(refresh_token, rotated_refresh_token);
+
+    let reuse_response = auth_service
+        .refresh(super::service::RefreshRequest {
+            refresh_token: refresh_token.clone(),
+        })
+        .await;
+    assert!(reuse_response.is_err());
+
+    let logout_result = auth_service
+        .logout(super::service::LogoutRequest {
+            refresh_token: rotated_refresh_token,
+        })
+        .await;
+    assert!(logout_result.is_ok());
+    assert_eq!(auth_service.active_session_count_for("bob").await, 0);
+}
+
+#[tokio::test]
+async fn register_duplicate_username_fails() {
+    let auth_service = auth_service();
+
+    auth_service
+        .register(super::service::RegisterRequest {
+            username: "charlie".to_string(),
+            password: "pass1".to_string(),
+        })
+        .await
+        .expect("first register should succeed");
+
+    let result = auth_service
+        .register(super::service::RegisterRequest {
+            username: "charlie".to_string(),
+            password: "pass2".to_string(),
+        })
+        .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn protected_bootstrap_route_requires_valid_access_token() {
+    let pool = test_db_pool();
+    let auth_service = AuthService::new(
+        AuthConfig::new("backend-test-secret".to_string()),
+        pool.clone(),
+    );
+
+    auth_service
+        .register(super::service::RegisterRequest {
+            username: "dave".to_string(),
+            password: "pass".to_string(),
+        })
+        .await
+        .expect("register should succeed");
+
+    let access_token = login_access_token(
+        crate::test_support::build_test_app(),
+        "dave",
+        "pass",
+    )
+    .await;
+
+    let app = crate::bootstrap::build_test_router(auth_service, pool);
 
     let unauthorized = app
         .clone()
@@ -125,7 +147,7 @@ async fn protected_bootstrap_route_requires_valid_access_token() {
     let authorized = app
         .oneshot(
             Request::get("/bootstrap/smoke")
-                .header("authorization", format!("Bearer {}", login.access_token))
+                .header("authorization", format!("Bearer {access_token}"))
                 .body(Body::empty())
                 .expect("request should build"),
         )

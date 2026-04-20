@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockedState = vi.hoisted(() => ({
   api: {
     restore: vi.fn(),
+    register: vi.fn(),
     login: vi.fn(),
     logout: vi.fn(),
     loadBootstrapMetadata: vi.fn(),
@@ -15,6 +16,7 @@ const mockedState = vi.hoisted(() => ({
 
 const createMockApi = () => ({
   restore: vi.fn(),
+  register: vi.fn(),
   login: vi.fn(),
   logout: vi.fn(),
   loadBootstrapMetadata: vi.fn(),

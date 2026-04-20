@@ -1,4 +1,4 @@
-pub use crate::bootstrap::db::{init_pool, DbPool};
+pub use crate::bootstrap::db::{init_pool, run_db, DbPool};
 
 #[cfg(test)]
 mod tests {

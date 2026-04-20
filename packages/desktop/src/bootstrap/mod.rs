@@ -1,7 +1,3 @@
-use std::env;
-use std::fs;
-use std::path::PathBuf;
-
 use specta_typescript::Typescript;
 use tauri::Manager;
 use tauri_specta::{collect_commands, Builder};
@@ -12,6 +8,21 @@ use crate::runtime::local::LocalSessionManager;
 use crate::runtime::ssh::SshSessionManager;
 use crate::settings::SettingsManager;
 use crate::trust::SshTrustStore;
+
+#[derive(Clone, serde::Serialize, specta::Type)]
+pub struct AppSettings {
+    pub api_url: String,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_app_settings() -> Result<AppSettings, String> {
+    Ok(AppSettings {
+        api_url: option_env!("API_URL")
+            .expect("API_URL must be set at build time")
+            .to_string(),
+    })
+}
 
 #[tauri::command]
 #[specta::specta]
@@ -72,6 +83,7 @@ pub fn greet(name: &str) -> String {
 fn command_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
         greet,
+        get_app_settings,
         crate::connect::ssh_connect_direct,
         crate::connect::ssh_confirm_host_trust,
         crate::connect::ssh_write,
@@ -109,8 +121,6 @@ pub fn export_types() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    load_runtime_env();
-
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
@@ -118,12 +128,15 @@ pub fn run() {
         .init();
 
     let specta_builder = command_builder();
+    let api_url = option_env!("API_URL")
+        .expect("API_URL must be set at build time (see .env.example)")
+        .to_string();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .setup(|app| -> Result<(), Box<dyn std::error::Error>> {
+        .setup(move |app| -> Result<(), Box<dyn std::error::Error>> {
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
 
@@ -131,9 +144,8 @@ pub fn run() {
             let settings = SettingsManager::new(settings_path);
             app.manage(settings);
 
-            let backend_url = backend_base_url();
             let auth_tokens_path = app_data_dir.join("auth").join("tokens.json");
-            let auth_manager = DesktopAuthManager::from_backend_url(backend_url, auth_tokens_path);
+            let auth_manager = DesktopAuthManager::from_backend_url(api_url.clone(), auth_tokens_path);
             app.manage(auth_manager);
 
             let trust_path = app_data_dir.join("trust").join("ssh_hosts.json");
@@ -153,96 +165,12 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-fn load_runtime_env() {
-    for path in env_candidates() {
-        let Ok(contents) = fs::read_to_string(&path) else {
-            continue;
-        };
-
-        for line in contents.lines() {
-            let trimmed = line.trim();
-            if trimmed.is_empty() || trimmed.starts_with('#') {
-                continue;
-            }
-
-            let Some((key, value)) = trimmed.split_once('=') else {
-                continue;
-            };
-
-            if env::var_os(key.trim()).is_none() {
-                env::set_var(key.trim(), value.trim());
-            }
-        }
-    }
-}
-
-fn env_candidates() -> [PathBuf; 2] {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    [manifest_dir.join(".env"), manifest_dir.join("../backend/.env")]
-}
-
-fn backend_base_url() -> String {
-    if let Ok(url) = env::var("NOVERTERM_BACKEND_URL") {
-        return url;
-    }
-
-    if let Ok(url) = env::var("BACKEND_API_URL") {
-        return url;
-    }
-
-    let host = env::var("BACKEND_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
-    let port = env::var("BACKEND_PORT").unwrap_or_else(|_| "3000".to_string());
-    format!("http://{host}:{port}")
-}
-
 #[cfg(test)]
 mod tests {
-    use std::env;
-    use std::sync::{Mutex, OnceLock};
-
-    use super::{backend_base_url, greet};
-
-    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    use super::greet;
 
     #[test]
     fn greet_includes_name() {
         assert!(greet("Noverterm").contains("Noverterm"));
-    }
-
-    #[test]
-    fn backend_base_url_prefers_composed_host_and_port() {
-        let _guard = ENV_LOCK
-            .get_or_init(|| Mutex::new(()))
-            .lock()
-            .expect("env lock should be acquirable");
-
-        let original_backend_url = env::var_os("NOVERTERM_BACKEND_URL");
-        let original_backend_api_url = env::var_os("BACKEND_API_URL");
-        let original_host = env::var_os("BACKEND_HOST");
-        let original_port = env::var_os("BACKEND_PORT");
-
-        env::remove_var("NOVERTERM_BACKEND_URL");
-        env::remove_var("BACKEND_API_URL");
-        env::set_var("BACKEND_HOST", "127.0.0.1");
-        env::set_var("BACKEND_PORT", "4310");
-
-        assert_eq!(backend_base_url(), "http://127.0.0.1:4310");
-
-        match original_backend_url {
-            Some(value) => env::set_var("NOVERTERM_BACKEND_URL", value),
-            None => env::remove_var("NOVERTERM_BACKEND_URL"),
-        }
-        match original_backend_api_url {
-            Some(value) => env::set_var("BACKEND_API_URL", value),
-            None => env::remove_var("BACKEND_API_URL"),
-        }
-        match original_host {
-            Some(value) => env::set_var("BACKEND_HOST", value),
-            None => env::remove_var("BACKEND_HOST"),
-        }
-        match original_port {
-            Some(value) => env::set_var("BACKEND_PORT", value),
-            None => env::remove_var("BACKEND_PORT"),
-        }
     }
 }

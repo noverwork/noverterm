@@ -163,6 +163,22 @@ export function createBootstrapStore(api: BootstrapApi = backendApi) {
     }
   }
 
+  async function register(username: string, password: string) {
+    state.phase = "loading";
+    state.error = null;
+    commit();
+
+    try {
+      state.authStatus = await api.register(username, password);
+      await refreshMetadata();
+    } catch (error) {
+      state.phase = "unauthenticated";
+      state.authStatus = null;
+      state.error = error instanceof Error ? error.message : String(error);
+      commit();
+    }
+  }
+
   async function logout() {
     await api.logout();
     state.phase = "unauthenticated";
@@ -242,6 +258,7 @@ export function createBootstrapStore(api: BootstrapApi = backendApi) {
     },
     init,
     login,
+    register,
     logout,
     refreshMetadata,
     saveConnection,

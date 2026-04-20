@@ -26,16 +26,8 @@ pub fn build_router(state: AppState) -> Router {
 }
 
 #[cfg(test)]
-pub fn build_test_router(auth_service: crate::auth::AuthService) -> Router {
-    build_router(super::test_app_state(auth_service))
-}
-
-#[cfg(test)]
-pub fn build_test_router_with_db(
-    auth_service: crate::auth::AuthService,
-    db_pool: crate::db::DbPool,
-) -> Router {
-    build_router(super::test_app_state_with_db(auth_service, db_pool))
+pub fn build_test_router(auth_service: crate::auth::AuthService, db_pool: crate::db::DbPool) -> Router {
+    build_router(super::test_app_state(auth_service, db_pool))
 }
 
 #[derive(Debug, Serialize)]
@@ -68,10 +60,12 @@ mod tests {
 
     #[tokio::test]
     async fn router_exposes_healthcheck() {
-        let app = super::build_test_router(AuthService::new(AuthConfig::new(
-            [("alice".to_string(), "wonderland".to_string())],
-            "backend-test-secret".to_string(),
-        )));
+        let pool = crate::test_support::test_db_pool();
+        let auth_service = AuthService::new(
+            AuthConfig::new("backend-test-secret".to_string()),
+            pool.clone(),
+        );
+        let app = super::build_test_router(auth_service, pool);
 
         let response = app
             .oneshot(

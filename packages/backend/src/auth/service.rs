@@ -2,32 +2,43 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::{Duration, Utc};
+use diesel::prelude::*;
+use orm::models::{NewUser, User};
+use orm::schema::users;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use super::token::{hash_password, hash_token, TokenService};
+use crate::db::{run_db, DbPool};
 
 #[derive(Clone)]
 pub struct AuthConfig {
-    users: HashMap<String, String>,
     token_service: TokenService,
 }
 
 #[derive(Clone)]
 pub struct AuthService {
     config: AuthConfig,
+    pool: DbPool,
     sessions: Arc<RwLock<SessionState>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedUser {
+    pub user_id: String,
     pub username: String,
     pub session_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RegisterRequest {
     pub username: String,
     pub password: String,
 }
@@ -66,46 +77,80 @@ struct SessionRecord {
 }
 
 impl AuthConfig {
-    pub fn new(users: impl IntoIterator<Item = (String, String)>, secret: String) -> Self {
+    pub fn new(secret: String) -> Self {
         Self {
-            users: users
-                .into_iter()
-                .map(|(username, password)| (username, hash_password(&password)))
-                .collect(),
             token_service: TokenService::new(secret, Duration::minutes(15), Duration::days(30)),
         }
-    }
-
-    pub fn from_env() -> Self {
-        let username = crate::bootstrap::env_value("NOVERTERM_AUTH_USERNAME")
-            .unwrap_or_else(|| "admin".to_string());
-        let password = crate::bootstrap::env_value("NOVERTERM_AUTH_PASSWORD")
-            .unwrap_or_else(|| "admin".to_string());
-        let secret = crate::bootstrap::env_value("NOVERTERM_AUTH_SECRET")
-            .unwrap_or_else(|| "development-only-noverterm-auth-secret".to_string());
-
-        Self::new([(username, password)], secret)
     }
 }
 
 impl AuthService {
-    pub fn new(config: AuthConfig) -> Self {
+    pub fn new(config: AuthConfig, pool: DbPool) -> Self {
         Self {
             config,
+            pool,
             sessions: Arc::new(RwLock::new(SessionState::default())),
         }
     }
 
+    pub async fn register(&self, request: RegisterRequest) -> Result<AuthResponse, String> {
+        let username = request.username.clone();
+        let check_username = username.clone();
+        let existing: Result<Option<User>, String> = run_db(self.pool.clone(), move |conn| {
+            users::table
+                .filter(users::username.eq(&check_username))
+                .first::<User>(conn)
+                .optional()
+                .map_err(|e| format!("database error: {e}"))
+        })
+        .await;
+
+        if existing?.is_some() {
+            return Err("username already exists".to_string());
+        }
+
+        let password_hash = hash_password(&request.password);
+        let now = Utc::now().naive_utc();
+        let new_user = NewUser {
+            id: Uuid::new_v4().to_string(),
+            username: request.username.clone(),
+            password_hash,
+            created_at: now,
+            updated_at: now,
+        };
+
+        run_db(self.pool.clone(), move |conn| {
+            diesel::insert_into(users::table)
+                .values(&new_user)
+                .execute(conn)
+                .map_err(|e| format!("database error: {e}"))
+        })
+        .await?;
+
+        self.create_session(&username).await
+    }
+
     pub async fn login(&self, request: LoginRequest) -> Result<AuthResponse, String> {
-        let Some(expected_hash) = self.config.users.get(&request.username) else {
+        let username = request.username.clone();
+        let check_username = username.clone();
+        let user: Option<User> = run_db(self.pool.clone(), move |conn| {
+            users::table
+                .filter(users::username.eq(&check_username))
+                .first::<User>(conn)
+                .optional()
+                .map_err(|e| format!("database error: {e}"))
+        })
+        .await?;
+
+        let Some(user) = user else {
             return Err("invalid credentials".to_string());
         };
 
-        if hash_password(&request.password) != *expected_hash {
+        if hash_password(&request.password) != user.password_hash {
             return Err("invalid credentials".to_string());
         }
 
-        self.create_session(&request.username).await
+        self.create_session(&username).await
     }
 
     pub async fn refresh(&self, request: RefreshRequest) -> Result<AuthResponse, String> {
@@ -211,10 +256,25 @@ impl AuthService {
             return Err("invalid session subject".to_string());
         }
 
+        let user_id = self.lookup_user_id(&session.username).await?;
+
         Ok(AuthenticatedUser {
+            user_id,
             username: session.username.clone(),
             session_id: claims.sid,
         })
+    }
+
+    async fn lookup_user_id(&self, username: &str) -> Result<String, String> {
+        let username = username.to_string();
+        run_db(self.pool.clone(), move |conn| {
+            orm::schema::users::table
+                .filter(orm::schema::users::username.eq(&username))
+                .select(orm::schema::users::id)
+                .first::<String>(conn)
+                .map_err(|e| format!("user lookup failed: {e}"))
+        })
+        .await
     }
 
     pub async fn active_session_count_for(&self, username: &str) -> usize {

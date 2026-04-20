@@ -17,6 +17,7 @@
   } from "$lib/stores/bootstrap.svelte.js";
   import { createBootstrapStore } from "$lib/stores/bootstrap.svelte.js";
   import { createSessionStore, type Session } from "$lib/stores/session.svelte.js";
+  import { loadAppSettings } from "$lib/api/backend-api.js";
   import TerminalView from "$lib/terminal/terminal.svelte";
 
   const bootstrapStore = createBootstrapStore();
@@ -58,6 +59,7 @@
   }
 
   onMount(async () => {
+    await loadAppSettings();
     await sessionStore.init();
     await bootstrapStore.init();
 
@@ -80,8 +82,11 @@
   }
 
   async function handleSignup(username: string, email: string, password: string) {
-    // TODO: wire up backend sign-up flow
-    console.log("Sign up requested:", { username, email, password });
+    await bootstrapStore.register(username, password);
+    if (bootstrapStore.isAuthenticated) {
+      bootstrapStore.applyTheme(bootstrapStore.getTerminalConfig().theme);
+      await openInitialLocalTerminal();
+    }
   }
 
   async function handleLogout() {

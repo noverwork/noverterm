@@ -8,6 +8,14 @@ export const commands = {
 async greet(name: string) : Promise<string> {
     return await TAURI_INVOKE("greet", { name });
 },
+async getAppSettings() : Promise<Result<AppSettings, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_app_settings") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async sshConnectDirect(input: DirectSshConnectInput, cols: number, rows: number) : Promise<Result<SshConnectResponse, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ssh_connect_direct", { input, cols, rows }) };
@@ -92,6 +100,7 @@ async localDisconnect(sessionId: string) : Promise<Result<null, string>> {
 
 /** user-defined types **/
 
+export type AppSettings = { api_url: string }
 export type DirectSshConnectInput = { host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null }
 export type HostTrustConfirmation = { host: string; port: number; algorithm: string; fingerprint: string }
 export type HostTrustMismatch = { host: string; port: number; expected_algorithm: string; expected_fingerprint: string; presented_algorithm: string; presented_fingerprint: string }
