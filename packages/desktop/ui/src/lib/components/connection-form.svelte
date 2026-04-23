@@ -5,17 +5,20 @@
 
   import { connectionSchema, type ConnectionForm } from "$lib/schemas/index.js";
   import type { ConnectionConfig, SaveConnectionInput } from "$lib/stores/bootstrap.svelte.js";
+  import type { SshKeyRecord } from "$lib/api/types.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
 
   let {
     connection = null,
+    keys = [],
     onSave,
     onCancel,
     error = null,
     isSaving = false,
   }: {
     connection?: ConnectionConfig | null;
+    keys?: SshKeyRecord[];
     onSave: (connection: SaveConnectionInput) => void | Promise<void>;
     onCancel: () => void;
     error?: string | null;
@@ -32,12 +35,15 @@
       privateKey: "",
       passphrase: "",
       useSshKey: false,
-      hasExistingKey: false,
+      keyMode: "saved",
+      selectedKeyId: null,
     },
     { validators: zod4(connectionSchema) },
   );
 
   const { form: formData, errors } = form;
+
+  let keyName = $state("");
 
   $effect(() => {
     $formData.name = connection?.name ?? "";
@@ -48,12 +54,18 @@
     $formData.privateKey = "";
     $formData.passphrase = "";
     $formData.useSshKey = Boolean(connection?.sshKeyId);
-    $formData.hasExistingKey = Boolean(connection?.sshKeyId);
+    $formData.keyMode = connection?.sshKeyId ? "saved" : "saved";
+    $formData.selectedKeyId = connection?.sshKeyId ?? null;
+    keyName = "";
     form.reset();
   });
 
-  const existingKeyWillBeKept = $derived(
-    $formData.useSshKey && $formData.hasExistingKey && !$formData.privateKey.trim(),
+  const selectedKeyWillBeUsed = $derived(
+    $formData.useSshKey && $formData.keyMode === "saved" && !!$formData.selectedKeyId,
+  );
+
+  const pastingNewKey = $derived(
+    $formData.useSshKey && $formData.keyMode === "new",
   );
 
   function toggleSshKey() {
@@ -61,12 +73,26 @@
     if (!$formData.useSshKey) {
       $formData.privateKey = "";
       $formData.passphrase = "";
+      $formData.keyMode = "saved";
+      $formData.selectedKeyId = null;
+      keyName = "";
+    }
+  }
+
+  function handleKeyModeChange(mode: "saved" | "new") {
+    $formData.keyMode = mode;
+    if (mode === "new") {
+      $formData.selectedKeyId = null;
+    } else {
+      keyName = "";
     }
   }
 
   async function handleSubmit() {
     const result = connectionSchema.safeParse($formData);
     if (!result.success || isSaving) return;
+
+    const effectiveKeyId = $formData.keyMode === "saved" ? $formData.selectedKeyId : null;
 
     await onSave({
       ...(connection?.id ? { id: connection.id } : {}),
@@ -75,13 +101,14 @@
       port: $formData.port,
       username: $formData.username.trim(),
       ...($formData.password.trim() ? { password: $formData.password.trim() } : {}),
-      ...($formData.useSshKey && $formData.privateKey.trim()
+      ...($formData.useSshKey && $formData.keyMode === "new" && $formData.privateKey.trim()
         ? { privateKey: $formData.privateKey.trim() }
         : {}),
-      ...($formData.useSshKey && $formData.passphrase.trim()
+      ...($formData.useSshKey && $formData.keyMode === "new" && $formData.passphrase.trim()
         ? { passphrase: $formData.passphrase.trim() }
         : {}),
-      existingKeyId: $formData.useSshKey ? connection?.sshKeyId ?? null : null,
+      ...(keyName.trim() ? { keyName: keyName.trim() } : {}),
+      existingKeyId: effectiveKeyId,
     });
   }
 </script>
@@ -248,9 +275,9 @@
                   <p class="font-medium text-white">Use SSH key</p>
                   <p class="text-sm leading-6 text-slate-400">
                     {#if connection?.sshKeyId}
-                      Keep the saved key, replace it, or turn this off if the host should use password only.
+                      Select a saved key from the backend, paste a new one, or turn this off.
                     {:else}
-                      Turn this on only when the host needs key-based SSH auth.
+                      Select a saved key from the backend or paste a new SSH private key.
                     {/if}
                   </p>
                 </div>
@@ -258,44 +285,92 @@
 
               {#if $formData.useSshKey}
                 <div class="mt-4 space-y-4">
-                  <div class="space-y-2">
-                    <div class="flex items-center justify-between gap-3">
-                      <label for="conn-private-key" class="text-sm font-medium text-slate-100">Private key</label>
-                      {#if connection?.sshKeyId}
-                        <span class="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-slate-300">
-                          {existingKeyWillBeKept ? "Keeping saved key" : "Replacing saved key"}
-                        </span>
+                  {#if keys.length > 0}
+                    <div class="space-y-2">
+                      <label for="conn-key-select" class="text-sm font-medium text-slate-100">Saved key</label>
+                      <select
+                        id="conn-key-select"
+                        bind:value={$formData.selectedKeyId}
+                        class="flex w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        disabled={isSaving}
+                      >
+                        <option value="" class="bg-slate-900">— Select a saved key —</option>
+                        {#each keys as key (key.id)}
+                          <option value={key.id} class="bg-slate-900">
+                            {key.name} ({key.kind}){key.fingerprint ? " — " + key.fingerprint.slice(0, 16) + "…" : ""}
+                          </option>
+                        {/each}
+                      </select>
+                      {#if selectedKeyWillBeUsed}
+                        <p class="text-xs text-emerald-400">
+                          Using saved key: {keys.find(k => k.id === $formData.selectedKeyId)?.name ?? ""}
+                        </p>
                       {/if}
                     </div>
-                    <textarea
-                      id="conn-private-key"
-                      bind:value={$formData.privateKey}
-                      placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-                      rows="7"
-                      class={$errors.privateKey
-                        ? "flex w-full rounded-xl border border-destructive bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        : "flex w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"}
-                      disabled={isSaving}
-                    ></textarea>
-                    {#if $errors.privateKey}
-                      <p class="text-xs text-destructive" role="alert">{$errors.privateKey}</p>
-                    {/if}
-                    <p class="text-xs leading-5 text-slate-400">
-                      Paste a key only when you want to add or replace SSH key material for this connection.
-                    </p>
-                  </div>
 
-                  <div class="space-y-2">
-                    <label for="conn-passphrase" class="text-sm font-medium text-slate-100">Key passphrase</label>
-                    <Input
-                      id="conn-passphrase"
-                      type="password"
-                      bind:value={$formData.passphrase}
-                      placeholder="Optional passphrase"
-                      class="border-white/10 bg-white/5 text-white placeholder:text-slate-500"
-                      disabled={isSaving}
-                    />
-                  </div>
+                    <div class="flex items-center gap-3 text-xs text-slate-400">
+                      <span>or</span>
+                      <button
+                        type="button"
+                        class="text-primary hover:text-primary/80 underline"
+                        onclick={() => handleKeyModeChange($formData.keyMode === "new" ? "saved" : "new")}
+                      >
+                        {$formData.keyMode === "new" ? "select a saved key instead" : "paste a new key"}
+                      </button>
+                    </div>
+                  {/if}
+
+                  {#if pastingNewKey || keys.length === 0}
+                    <div class="space-y-2">
+                      <label for="conn-key-name" class="text-sm font-medium text-slate-100">Key name</label>
+                      <Input
+                        id="conn-key-name"
+                        bind:value={keyName}
+                        placeholder="my-github-key (optional)"
+                        class="border-white/10 bg-white/5 text-white placeholder:text-slate-500"
+                        disabled={isSaving}
+                      />
+                    </div>
+
+                    <div class="space-y-2">
+                      <div class="flex items-center justify-between gap-3">
+                        <label for="conn-private-key" class="text-sm font-medium text-slate-100">Private key</label>
+                        {#if connection?.sshKeyId && $formData.keyMode === "saved"}
+                          <span class="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-slate-300">
+                            Keeping saved key
+                          </span>
+                        {/if}
+                      </div>
+                      <textarea
+                        id="conn-private-key"
+                        bind:value={$formData.privateKey}
+                        placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                        rows="7"
+                        class={$errors.privateKey
+                          ? "flex w-full rounded-xl border border-destructive bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          : "flex w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"}
+                        disabled={isSaving}
+                      ></textarea>
+                      {#if $errors.privateKey}
+                        <p class="text-xs text-destructive" role="alert">{$errors.privateKey}</p>
+                      {/if}
+                      <p class="text-xs leading-5 text-slate-400">
+                        Paste a key only when you want to add or replace SSH key material for this connection.
+                      </p>
+                    </div>
+
+                    <div class="space-y-2">
+                      <label for="conn-passphrase" class="text-sm font-medium text-slate-100">Key passphrase</label>
+                      <Input
+                        id="conn-passphrase"
+                        type="password"
+                        bind:value={$formData.passphrase}
+                        placeholder="Optional passphrase"
+                        class="border-white/10 bg-white/5 text-white placeholder:text-slate-500"
+                        disabled={isSaving}
+                      />
+                    </div>
+                  {/if}
                 </div>
               {/if}
             </div>

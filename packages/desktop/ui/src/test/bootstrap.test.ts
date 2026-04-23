@@ -1,19 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockedState = vi.hoisted(() => ({
-  api: {
-    restore: vi.fn(),
-    register: vi.fn(),
-    login: vi.fn(),
-    logout: vi.fn(),
-    loadBootstrapMetadata: vi.fn(),
-    saveConnection: vi.fn(),
-    deleteConnection: vi.fn(),
-    saveSetting: vi.fn(),
-    issueConnectionMaterial: vi.fn(),
-  },
-}));
-
 const createMockApi = () => ({
   restore: vi.fn(),
   register: vi.fn(),
@@ -24,13 +10,10 @@ const createMockApi = () => ({
   deleteConnection: vi.fn(),
   saveSetting: vi.fn(),
   issueConnectionMaterial: vi.fn(),
+  createKey: vi.fn(),
+  updateKey: vi.fn(),
+  deleteKey: vi.fn(),
 });
-
-let mockApi = mockedState.api;
-
-vi.mock("$lib/api/backend-api.js", () => ({
-  backendApi: mockedState.api,
-}));
 
 import { createBootstrapStore } from "$lib/stores/bootstrap.svelte.js";
 
@@ -43,9 +26,10 @@ const sampleMetadata = {
 const sampleAuthStatus = { email: "alice", bootstrap_message: "bootstrap ready" };
 
 describe("bootstrap store", () => {
+  let mockApi: ReturnType<typeof createMockApi>;
+
   beforeEach(() => {
-    Object.assign(mockedState.api, createMockApi());
-    mockApi = mockedState.api;
+    mockApi = createMockApi();
     document.documentElement.classList.remove("dark");
   });
 

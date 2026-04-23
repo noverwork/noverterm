@@ -1,11 +1,44 @@
-import type {
-  AuthBootstrapStatus,
-  BootstrapMetadata,
-  Setting,
-  SshHostRecord,
-  SshKeyRecord,
-} from "$lib/api/backend-api.js";
-import { backendApi, type BootstrapApi } from "$lib/api/backend-api.js";
+import type { AuthBootstrapStatus } from "$lib/api/auth-api.js";
+import type { BootstrapMetadata, KeyCreateRequest, KeyUpdateRequest, Setting, SshHostRecord, SshKeyRecord } from "$lib/api/types.js";
+
+import { restoreBackendSession, registerToBackend, loginToBackend, logoutFromBackend } from "$lib/api/auth-api.js";
+import { loadBootstrapMetadataFromBackend } from "$lib/api/bootstrap-api.js";
+import { saveBackendConnection, deleteBackendConnection } from "$lib/api/connections-api.js";
+import { upsertBackendSetting } from "$lib/api/settings-api.js";
+import { issueBackendConnectionMaterial } from "$lib/api/connect-api.js";
+import { createSshKey, updateSshKey, deleteSshKey } from "$lib/api/keys-api.js";
+
+import type { IssuedConnectionMaterial } from "$lib/api/connect-api.js";
+
+export interface BootstrapApi {
+  restore(): Promise<AuthBootstrapStatus | null>;
+  register(email: string, password: string): Promise<AuthBootstrapStatus>;
+  login(email: string, password: string): Promise<AuthBootstrapStatus>;
+  logout(): Promise<void>;
+  loadBootstrapMetadata(): Promise<BootstrapMetadata>;
+  saveConnection(connection: SaveConnectionInput): Promise<SshHostRecord>;
+  deleteConnection(connection: ConnectionConfig): Promise<void>;
+  saveSetting(setting: Setting): Promise<Setting>;
+  issueConnectionMaterial(connectionId: string): Promise<IssuedConnectionMaterial>;
+  createKey(key: KeyCreateRequest): Promise<SshKeyRecord>;
+  updateKey(keyId: string, key: KeyUpdateRequest): Promise<SshKeyRecord>;
+  deleteKey(keyId: string): Promise<void>;
+}
+
+const defaultApi: BootstrapApi = {
+  restore: restoreBackendSession,
+  register: registerToBackend,
+  login: loginToBackend,
+  logout: logoutFromBackend,
+  loadBootstrapMetadata: loadBootstrapMetadataFromBackend,
+  saveConnection: saveBackendConnection,
+  deleteConnection: deleteBackendConnection,
+  saveSetting: upsertBackendSetting,
+  issueConnectionMaterial: issueBackendConnectionMaterial,
+  createKey: createSshKey,
+  updateKey: updateSshKey,
+  deleteKey: deleteSshKey,
+};
 
 export type BootstrapPhase = "loading" | "authenticated" | "unauthenticated" | "error";
 
@@ -38,6 +71,7 @@ export interface SaveConnectionInput {
   password?: string;
   privateKey?: string;
   passphrase?: string;
+  keyName?: string;
   existingKeyId?: string | null;
 }
 
@@ -112,7 +146,7 @@ function applyTheme(theme: "dark" | "light") {
   }
 }
 
-export function createBootstrapStore(api: BootstrapApi = backendApi) {
+export function createBootstrapStore(api: BootstrapApi = defaultApi) {
   async function refreshMetadata() {
     const metadata = await api.loadBootstrapMetadata();
     state.metadata = metadata;
@@ -199,6 +233,21 @@ export function createBootstrapStore(api: BootstrapApi = backendApi) {
     await refreshMetadata();
   }
 
+  async function saveKey(key: KeyCreateRequest) {
+    await api.createKey(key);
+    await refreshMetadata();
+  }
+
+  async function updateKey(keyId: string, key: KeyUpdateRequest) {
+    await api.updateKey(keyId, key);
+    await refreshMetadata();
+  }
+
+  async function deleteKey(key: SshKeyRecord) {
+    await api.deleteKey(key.id);
+    await refreshMetadata();
+  }
+
   async function saveTerminalConfig(config: TerminalConfig) {
     await api.saveSetting({
       key: "noverterm-config",
@@ -263,6 +312,9 @@ export function createBootstrapStore(api: BootstrapApi = backendApi) {
     refreshMetadata,
     saveConnection,
     deleteConnection,
+    saveKey,
+    updateKey,
+    deleteKey,
     saveTerminalConfig,
     getTerminalConfig,
     getConnections,

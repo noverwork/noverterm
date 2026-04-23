@@ -7,6 +7,7 @@
   import ConnectionForm from "$lib/components/connection-form.svelte";
   import SettingsModal from "$lib/components/settings-modal.svelte";
   import Sidebar from "$lib/components/sidebar.svelte";
+  import SshKeysModal from "$lib/components/ssh-keys-modal.svelte";
   import TerminalTabs from "$lib/components/terminal-tabs.svelte";
   import WelcomeView from "$lib/components/welcome-view.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -17,7 +18,8 @@
   } from "$lib/stores/bootstrap.svelte.js";
   import { createBootstrapStore } from "$lib/stores/bootstrap.svelte.js";
   import { createSessionStore, type Session } from "$lib/stores/session.svelte.js";
-  import { loadAppSettings } from "$lib/api/backend-api.js";
+  import { loadAppSettings } from "$lib/api/api-client.js";
+  import type { SshKeyRecord } from "$lib/api/types.js";
   import TerminalView from "$lib/terminal/terminal.svelte";
 
   const bootstrapStore = createBootstrapStore();
@@ -26,6 +28,7 @@
   let sidebarCollapsed = $state(false);
   let showSettings = $state(false);
   let showConnectionForm = $state(false);
+  let showKeysModal = $state(false);
   let editingConnection = $state<ConnectionConfig | null>(null);
   let connectionFormError = $state<string | null>(null);
   let connectionSaving = $state(false);
@@ -171,6 +174,28 @@
     sessionStore.disconnectConnectionSessions(connection.id);
   }
 
+  async function handleSaveKey(name: string, privateKey: string, passphrase: string) {
+    await bootstrapStore.saveKey({
+      name,
+      kind: "inline",
+      encrypted_private_key: privateKey,
+      encrypted_passphrase: passphrase || null,
+    });
+  }
+
+  async function handleDeleteKey(key: SshKeyRecord) {
+    await bootstrapStore.deleteKey(key);
+  }
+
+  async function handleUpdateKey(keyId: string, name: string, privateKey: string, passphrase: string) {
+    await bootstrapStore.updateKey(keyId, {
+      name,
+      kind: "inline",
+      encrypted_private_key: privateKey,
+      encrypted_passphrase: passphrase || null,
+    });
+  }
+
   function handleSessionClose(id: string) {
     void sessionStore.disconnectSession(id);
   }
@@ -274,6 +299,8 @@
       onEdit={openEditConnectionForm}
       onDelete={handleDeleteConnection}
       onLocalTerminal={() => sessionStore.connectLocal("Local Terminal")}
+      onManageKeys={() => (showKeysModal = true)}
+      keyCount={bootstrapStore.getKeys().length}
     />
 
     <div class="flex min-h-0 flex-1 min-w-0 flex-col">
@@ -355,10 +382,21 @@
     {#if showConnectionForm}
       <ConnectionForm
         connection={editingConnection}
+        keys={bootstrapStore.getKeys()}
         error={connectionFormError}
         isSaving={connectionSaving}
         onSave={handleSaveConnection}
         onCancel={closeConnectionForm}
+      />
+    {/if}
+
+    {#if showKeysModal}
+      <SshKeysModal
+        keys={bootstrapStore.getKeys()}
+        onSave={handleSaveKey}
+        onUpdate={handleUpdateKey}
+        onDelete={handleDeleteKey}
+        onClose={() => (showKeysModal = false)}
       />
     {/if}
   </div>

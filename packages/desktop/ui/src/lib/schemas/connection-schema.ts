@@ -10,24 +10,26 @@ export const connectionSchema = z
     privateKey: z.string(),
     passphrase: z.string(),
     useSshKey: z.boolean().default(false),
-    hasExistingKey: z.boolean().default(false),
+    keyMode: z.enum(["saved", "new"]).default("saved"),
+    selectedKeyId: z.string().nullable(),
   })
   .superRefine((data, ctx) => {
     const hasPassword = data.password.trim().length > 0;
-    const hasPrivateKey = data.privateKey.trim().length > 0 || (data.useSshKey && data.hasExistingKey);
+    const hasSelectedKey = data.useSshKey && data.keyMode === "saved" && !!data.selectedKeyId;
+    const hasNewKeyMaterial = data.useSshKey && data.keyMode === "new" && data.privateKey.trim().length > 0;
 
-    if (!hasPassword && !hasPrivateKey) {
+    if (!hasPassword && !hasSelectedKey && !hasNewKeyMaterial) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Enter a password or use an SSH key",
+        message: "Enter a password, select a saved key, or paste an SSH key",
         path: ["password"],
       });
     }
 
-    if (data.useSshKey && !hasPrivateKey) {
+    if (data.useSshKey && data.keyMode === "new" && !data.privateKey.trim().length) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Paste a private key or keep the existing saved key",
+        message: "Paste a private key or select a saved key",
         path: ["privateKey"],
       });
     }

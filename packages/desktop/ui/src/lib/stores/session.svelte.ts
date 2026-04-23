@@ -1,7 +1,7 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 import { commands as tauriCommands } from "../../bindings.js";
-import { backendApi } from "$lib/api/backend-api.js";
+import { issueBackendConnectionMaterial } from "$lib/api/connect-api.js";
 import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
 
 export type SessionType = "ssh" | "local";
@@ -152,7 +152,7 @@ export function createSessionStore() {
       connectionId: connection.id,
     });
 
-    const material = await backendApi.issueConnectionMaterial(connection.id);
+    const material = await issueBackendConnectionMaterial(connection.id);
     const result = await tauriCommands.sshConnectDirect(
       {
         host: material.host,

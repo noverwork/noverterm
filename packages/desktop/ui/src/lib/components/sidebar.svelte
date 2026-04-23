@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronLeft, ChevronRight, Pencil, Plus, Search, Terminal, Trash2 } from "@lucide/svelte";
+  import { ChevronLeft, ChevronRight, KeyRound, Pencil, Plus, Search, Terminal, Trash2 } from "@lucide/svelte";
 
 import { Button } from "$lib/components/ui/button/index.js";
 import { Input } from "$lib/components/ui/input/index.js";
@@ -18,6 +18,8 @@ import { findConnectionSession } from "$lib/view-models/auth-and-sessions.js";
     onEdit,
     onDelete,
     onLocalTerminal,
+    onManageKeys,
+    keyCount = 0,
   }: {
     connections: ConnectionConfig[];
     sessions: Map<string, { id: string; name: string; status: SessionStatus; connectionId?: string | null }>;
@@ -29,6 +31,8 @@ import { findConnectionSession } from "$lib/view-models/auth-and-sessions.js";
     onEdit: (conn: ConnectionConfig) => void;
     onDelete: (conn: ConnectionConfig) => void;
     onLocalTerminal?: () => void;
+    onManageKeys?: () => void;
+    keyCount?: number;
   } = $props();
 
   let searchQuery = $state("");
@@ -110,6 +114,15 @@ import { findConnectionSession } from "$lib/view-models/auth-and-sessions.js";
           <Button onclick={onLocalTerminal} variant="outline" size="sm" class="w-full justify-start gap-2 rounded-xl">
             <Terminal class="size-3.5" />
             Open local terminal
+          </Button>
+        {/if}
+        {#if onManageKeys}
+          <Button onclick={onManageKeys} variant="outline" size="sm" class="w-full justify-start gap-2 rounded-xl">
+            <KeyRound class="size-3.5" />
+            Manage keys
+            {#if keyCount > 0}
+              <span class="ml-auto rounded-full bg-white/10 px-1.5 py-0.5 text-[10px]">{keyCount}</span>
+            {/if}
           </Button>
         {/if}
       </div>
