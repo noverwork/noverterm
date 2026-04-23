@@ -11,7 +11,16 @@ path = "src/lib.rs"
 name = "migrator"
 path = "src/main.rs"
 
+[[bin]]
+name = "seeds"
+path = "src/seed.rs"
+
+[[bin]]
+name = "dev-seeds"
+path = "src/dev_seed.rs"
+
 [dependencies]
+chrono = "0.4"
 diesel = { version = "2.3", features = ["postgres", "serde_json", "chrono"] }
 orm = { path = "../orm" }
 
