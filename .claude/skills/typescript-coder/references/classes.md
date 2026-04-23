@@ -118,3 +118,61 @@ class Foo {
   private userList: string[] = [];
 }
 ```
+
+## Arrow Functions as Properties
+
+**Official:** classes usually should **not** contain properties initialized to arrow functions. Arrow function properties require the caller to understand that the callee's `this` is already bound, which increases confusion about what `this` is. Call sites using such handlers look broken (require non-local knowledge to determine correctness).
+
+```typescript
+// ❌ BAD - arrow function property
+class MyComponent {
+  private handler = () => {
+    this.doSomething();
+  };
+
+  attach() {
+    // Looks broken, but is actually correct (non-local knowledge needed)
+    window.addEventListener('click', this.handler);
+  }
+}
+
+// ✅ GOOD - use arrow function at call site to invoke instance method
+class MyComponent {
+  private doSomething(): void { ... }
+
+  attach() {
+    const handler = (e: Event) => { this.doSomething(); };
+    window.addEventListener('click', handler);
+  }
+}
+```
+
+**Exception:** arrow function properties are the right approach when the handler requires uninstallation (e.g., event listeners), because they automatically capture `this` and provide a stable reference.
+
+```typescript
+// ✅ OK - stable reference needed for uninstallation
+class MyComponent {
+  private listener = () => {
+    confirm('Do you want to exit the page?');
+  };
+
+  onAttached() {
+    window.addEventListener('beforeunload', this.listener);
+  }
+
+  onDetached() {
+    window.removeEventListener('beforeunload', this.listener);
+  }
+}
+```
+
+Code should **always** use arrow functions to call instance methods, and **should not** obtain or pass references to instance methods:
+
+```typescript
+// ✅ GOOD - arrow function wrapping the method call
+const handler = (x: Event) => { this.listener(x); };
+
+// ❌ BAD - passing reference to instance method directly
+const handler = this.listener;
+handler(x);
+```

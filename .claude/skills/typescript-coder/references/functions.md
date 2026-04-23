@@ -142,3 +142,21 @@ function badDestructuring([a, b] = [4, 2]): void {
   usePair(a, b);
 }
 ```
+
+## Prefer Passing Arrow Functions as Callbacks
+
+**Official:** prefer passing arrow functions that explicitly forward parameters to named callbacks. Avoid passing a named function directly to a higher-order function unless you are sure of both functions' call signatures. Beware, in particular, of less-commonly-used optional parameters.
+
+```typescript
+// ❌ BAD - fn might receive unexpected extra arguments (index, array)
+// This type-checks but can cause logical errors
+myArray.forEach(fn);
+
+// ✅ GOOD - arrow function explicitly forwards only the parameters fn expects
+myArray.forEach((item) => fn(item));
+
+// ✅ GOOD - explicit parameter forwarding
+somePromise.then((value) => handleValue(value));
+```
+
+**Why:** higher-order functions may pass extra arguments (e.g., `forEach` passes `(item, index, array)`) that the callback doesn't expect. An arrow function wrapper ensures only the intended arguments are forwarded.
