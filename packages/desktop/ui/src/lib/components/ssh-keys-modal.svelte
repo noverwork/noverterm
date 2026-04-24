@@ -89,7 +89,7 @@
     <div class="flex items-center justify-between border-b border-white/10 px-5 py-4 sm:px-6 sm:py-5">
       <div>
         <p class="section-title text-slate-400">SSH Keys</p>
-        <h2 class="mt-2 text-xl font-semibold tracking-tight">Manage saved keys</h2>
+        <h2 class="mt-2 text-xl font-semibold tracking-tight">SSH Keys</h2>
       </div>
       <Button variant="ghost" size="icon-sm" class="text-slate-300 hover:text-white" onclick={onClose}>
         <X class="size-4" />

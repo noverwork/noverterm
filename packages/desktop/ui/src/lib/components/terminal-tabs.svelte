@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LaptopMinimal, Plus, X } from "@lucide/svelte";
+  import { X } from "@lucide/svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import type { Session, SessionStatus } from "$lib/stores/session.svelte.js";
 
@@ -8,15 +8,11 @@
     activeSessionId,
     onActivate,
     onClose,
-    onNew,
-    onNewLocal,
   }: {
     sessions: Session[];
     activeSessionId: string | null;
     onActivate: (id: string) => void;
     onClose: (id: string) => void;
-    onNew: () => void;
-    onNewLocal: () => void;
   } = $props();
 
   function sessionTone(status: SessionStatus) {
@@ -57,14 +53,5 @@
         </Button>
       </button>
     {/each}
-  </div>
-
-  <div class="flex shrink-0 items-center gap-1">
-    <Button variant="ghost" size="icon-sm" class="rounded-xl" onclick={onNewLocal} title="New local terminal">
-      <LaptopMinimal class="size-4" />
-    </Button>
-    <Button variant="ghost" size="icon-sm" class="rounded-xl" onclick={onNew} title="New SSH connection">
-      <Plus class="size-4" />
-    </Button>
   </div>
 </div>

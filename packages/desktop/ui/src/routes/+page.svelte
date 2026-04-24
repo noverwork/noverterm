@@ -1,13 +1,13 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { AlertCircle, Command, Loader2, LogOut, Settings } from "@lucide/svelte";
-  
-  import AuthShell from "$lib/components/auth-shell.svelte";
+  import { AlertCircle, Loader2 } from "@lucide/svelte";
 
+  import AuthShell from "$lib/components/auth-shell.svelte";
   import ConnectionForm from "$lib/components/connection-form.svelte";
+  import ConnectionsView from "$lib/components/connections-view.svelte";
+  import SshKeysView from "$lib/components/ssh-keys-view.svelte";
   import SettingsModal from "$lib/components/settings-modal.svelte";
   import Sidebar from "$lib/components/sidebar.svelte";
-  import SshKeysModal from "$lib/components/ssh-keys-modal.svelte";
   import TerminalTabs from "$lib/components/terminal-tabs.svelte";
   import WelcomeView from "$lib/components/welcome-view.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -28,12 +28,10 @@
   let sidebarCollapsed = $state(false);
   let showSettings = $state(false);
   let showConnectionForm = $state(false);
-  let showKeysModal = $state(false);
+  let currentView = $state<"terminal" | "connections" | "keys">("terminal");
   let editingConnection = $state<ConnectionConfig | null>(null);
   let connectionFormError = $state<string | null>(null);
   let connectionSaving = $state(false);
-
-  let qcConnecting = $state(false);
 
   const activeSession = $derived(
     sessionStore.activeSessionId ? sessionStore.sessions.get(sessionStore.activeSessionId) : undefined,
@@ -51,6 +49,7 @@
 
   const terminalConfig = $derived(bootstrapStore.getTerminalConfig());
   const connections = $derived(bootstrapStore.getConnections());
+  const keys = $derived(bootstrapStore.getKeys());
 
   async function openInitialLocalTerminal() {
     if (sessionStore.sessions.size > 0) return;
@@ -108,31 +107,6 @@
     await sessionStore.connectSavedConnection(connection, 80, 24);
   }
 
-  async function handleQuickConnect(
-    host: string,
-    port: number,
-    username: string,
-    password: string,
-    privateKey: string,
-  ) {
-    qcConnecting = true;
-    try {
-      await sessionStore.connectDirect(
-        {
-          host,
-          port,
-          username,
-          password: password || undefined,
-          privateKey: privateKey || undefined,
-        },
-        80,
-        24,
-      );
-    } finally {
-      qcConnecting = false;
-    }
-  }
-
   function openNewConnectionForm() {
     editingConnection = null;
     connectionFormError = null;
@@ -167,7 +141,7 @@
   }
 
   async function handleDeleteConnection(connection: ConnectionConfig) {
-    const confirmed = window.confirm(`Delete saved connection \"${connection.name}\"?`);
+    const confirmed = window.confirm(`Delete saved connection "${connection.name}"?`);
     if (!confirmed) return;
 
     await bootstrapStore.deleteConnection(connection);
@@ -216,7 +190,7 @@
       return;
     }
 
-    openNewConnectionForm();
+    currentView = "connections";
   }
 
   function handleGlobalKeydown(event: KeyboardEvent) {
@@ -236,7 +210,7 @@
 
     if (mod && (event.key === "t" || event.key === "T") && !isInput) {
       event.preventDefault();
-      openNewConnectionForm();
+      currentView = "terminal";
       return;
     }
 
@@ -255,6 +229,10 @@
         sessionStore.setActiveSession(activeSessions[index].id);
       }
     }
+  }
+
+  function switchView(view: "terminal" | "connections" | "keys") {
+    currentView = view;
   }
 </script>
 
@@ -295,79 +273,88 @@
       collapsed={sidebarCollapsed}
       onToggle={() => (sidebarCollapsed = !sidebarCollapsed)}
       onSelect={handleSelectConnection}
-      onAdd={openNewConnectionForm}
-      onEdit={openEditConnectionForm}
+      onEdit={(conn) => { currentView = "connections"; openEditConnectionForm(conn); }}
       onDelete={handleDeleteConnection}
-      onLocalTerminal={() => sessionStore.connectLocal("Local Terminal")}
-      onManageKeys={() => (showKeysModal = true)}
+      onLocalTerminal={() => { sessionStore.connectLocal("Local Terminal"); currentView = "terminal"; }}
+      onManageKeys={() => { currentView = "keys"; }}
+      onNewConnection={() => { currentView = "connections"; }}
+      authEmail={bootstrapStore.authStatus?.email ?? ""}
+      onOpenSettings={() => (showSettings = true)}
+      onLogout={handleLogout}
       keyCount={bootstrapStore.getKeys().length}
     />
 
     <div class="flex min-h-0 flex-1 min-w-0 flex-col">
-      <div class="flex items-center justify-between px-3 py-1.5 border-b border-border bg-background">
+      <div class="border-b border-border bg-background px-3 py-1.5">
         <TerminalTabs
-          sessions={activeSessions}
-          activeSessionId={sessionStore.activeSessionId}
-          onActivate={(id) => sessionStore.setActiveSession(id)}
-          onClose={handleSessionClose}
-          onNew={openNewConnectionForm}
-          onNewLocal={() => sessionStore.connectLocal("Local Terminal")}
-        />
-        <div class="flex items-center gap-2 shrink-0">
-          <div class="hidden items-center gap-2 rounded-full border border-border/70 bg-muted/50 px-3 py-1 text-xs text-muted-foreground md:flex">
-            <Command class="size-3.5 text-primary" />
-            Noverterm workspace
-          </div>
-          <span class="text-xs text-muted-foreground">{bootstrapStore.authStatus?.email ?? ""}</span>
-          <Button variant="ghost" size="icon-xs" onclick={() => (showSettings = true)}>
-            <Settings class="size-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon-xs" onclick={handleLogout}>
-            <LogOut class="size-3.5" />
-          </Button>
-        </div>
+            sessions={activeSessions}
+            activeSessionId={sessionStore.activeSessionId}
+            onActivate={(id) => sessionStore.setActiveSession(id)}
+            onClose={handleSessionClose}
+          />
       </div>
 
       <div class="relative flex flex-1 min-h-0 flex-col overflow-hidden">
-        {#if !activeSession}
-          <WelcomeView
+        {#if currentView === "connections"}
+          <ConnectionsView
             {connections}
             sessions={sessionStore.sessions}
             activeSessionId={sessionStore.activeSessionId}
-            onSelectConnection={handleSelectConnection}
-            onQuickConnect={handleQuickConnect}
-            onLocalTerminal={() => sessionStore.connectLocal("Local Terminal")}
-            onOpenConnectionManager={openNewConnectionForm}
-            connecting={qcConnecting}
+            onSelect={handleSelectConnection}
+            onEdit={openEditConnectionForm}
+            onNew={openNewConnectionForm}
+            onDelete={handleDeleteConnection}
           />
-        {:else if activeSession.status === "connecting"}
-          <div class="flex flex-col items-center justify-center h-full">
-            <Loader2 class="size-8 animate-spin text-primary mb-4" />
-            <p class="text-muted-foreground">Connecting to {activeSession.name}...</p>
-          </div>
-        {:else if activeSession.status === "error"}
-          <div class="flex flex-col items-center justify-center h-full text-center p-8">
-            <AlertCircle class="size-12 text-destructive mb-4" />
-            <h2 class="text-xl font-semibold mb-2">Connection Failed</h2>
-            <p class="text-muted-foreground mb-4 max-w-md">{activeSession.error ?? "Unknown error"}</p>
-            <Button onclick={retryActiveConnection} class="gap-2">
-              Retry
-            </Button>
-          </div>
+        {:else if currentView === "keys"}
+          <SshKeysView
+            keys={bootstrapStore.getKeys()}
+            onSave={handleSaveKey}
+            onUpdate={handleUpdateKey}
+            onDelete={handleDeleteKey}
+          />
         {:else}
-          <div class="relative flex-1 min-h-0 overflow-hidden">
-            {#each mountedTerminalSessions as session (session.id)}
-              <div class:hidden={session.id !== sessionStore.activeSessionId} class="absolute inset-0 min-h-0 overflow-hidden">
-                <TerminalView
-                  sessionId={session.id}
-                  sessionType={session.type}
-                  active={session.id === sessionStore.activeSessionId}
-                  config={terminalConfig}
-                  onClose={() => sessionStore.updateSession(session.id, { status: "disconnected" })}
-                />
-              </div>
-            {/each}
-          </div>
+          {#if !activeSession}
+            <WelcomeView
+              sessions={sessionStore.sessions}
+              sessionStore={{
+                sessions: sessionStore.sessions,
+                activeSessionId: sessionStore.activeSessionId,
+                setActiveSession: sessionStore.setActiveSession,
+                connectLocal: (name: string) => sessionStore.connectLocal(name),
+              }}
+              terminalConfig={terminalConfig}
+              onOpenConnectionManager={() => (currentView = "connections")}
+              onManageKeys={() => (currentView = "keys")}
+            />
+          {:else if activeSession.status === "connecting"}
+            <div class="flex flex-col items-center justify-center h-full">
+              <Loader2 class="size-8 animate-spin text-primary mb-4" />
+              <p class="text-muted-foreground">Connecting to {activeSession.name}...</p>
+            </div>
+          {:else if activeSession.status === "error"}
+            <div class="flex flex-col items-center justify-center h-full text-center p-8">
+              <AlertCircle class="size-12 text-destructive mb-4" />
+              <h2 class="text-xl font-semibold mb-2">Connection Failed</h2>
+              <p class="text-muted-foreground mb-4 max-w-md">{activeSession.error ?? "Unknown error"}</p>
+              <Button onclick={retryActiveConnection} class="gap-2">
+                Retry
+              </Button>
+            </div>
+          {:else}
+            <div class="relative flex-1 min-h-0 overflow-hidden">
+              {#each mountedTerminalSessions as session (session.id)}
+                <div class:hidden={session.id !== sessionStore.activeSessionId} class="absolute inset-0 min-h-0 overflow-hidden">
+                  <TerminalView
+                    sessionId={session.id}
+                    sessionType={session.type}
+                    active={session.id === sessionStore.activeSessionId}
+                    config={terminalConfig}
+                    onClose={() => sessionStore.updateSession(session.id, { status: "disconnected" })}
+                  />
+                </div>
+              {/each}
+            </div>
+          {/if}
         {/if}
       </div>
     </div>
@@ -387,16 +374,6 @@
         isSaving={connectionSaving}
         onSave={handleSaveConnection}
         onCancel={closeConnectionForm}
-      />
-    {/if}
-
-    {#if showKeysModal}
-      <SshKeysModal
-        keys={bootstrapStore.getKeys()}
-        onSave={handleSaveKey}
-        onUpdate={handleUpdateKey}
-        onDelete={handleDeleteKey}
-        onClose={() => (showKeysModal = false)}
       />
     {/if}
   </div>

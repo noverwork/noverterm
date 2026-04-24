@@ -124,9 +124,9 @@
   <div class="flex h-full w-full max-w-[40rem] flex-col border-l border-white/10 bg-slate-950/96 text-white shadow-2xl xl:max-w-[44rem]">
     <div class="flex items-center justify-between border-b border-white/10 px-5 py-4 sm:px-6 sm:py-5">
       <div>
-        <p class="section-title text-slate-400">Saved connection</p>
+        <p class="section-title text-slate-400">SSH connection</p>
         <h2 class="mt-2 text-xl font-semibold tracking-tight">
-          {connection ? "Edit connection" : "Create connection"}
+          {connection ? "Edit connection" : "New connection"}
         </h2>
       </div>
       <Button variant="ghost" size="icon-sm" class="text-slate-300 hover:text-white" onclick={onCancel}>
@@ -151,10 +151,6 @@
         <div class="rounded-2xl border border-white/8 bg-white/[0.04] p-5">
           <div class="space-y-2">
             <p class="section-title text-slate-400">Connection details</p>
-            <p class="text-sm leading-6 text-slate-400">
-              Keep it simple: save where to connect, then add only the credentials this host actually
-              needs.
-            </p>
           </div>
 
           <div class="mt-5 grid gap-4 sm:grid-cols-2">
@@ -227,7 +223,6 @@
         <div class="rounded-2xl border border-white/8 bg-white/[0.04] p-5">
           <div class="space-y-2">
             <p class="section-title text-slate-400">Credentials</p>
-            <h3 class="text-lg font-semibold text-white">Password first, SSH key only when needed</h3>
           </div>
 
           <div class="mt-5 space-y-5">

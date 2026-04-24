@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronLeft, ChevronRight, KeyRound, Pencil, Plus, Search, Terminal, Trash2 } from "@lucide/svelte";
+  import { ChevronLeft, ChevronRight, KeyRound, LogOut, Pencil, Plus, Search, Settings, Terminal, Trash2 } from "@lucide/svelte";
 
 import { Button } from "$lib/components/ui/button/index.js";
 import { Input } from "$lib/components/ui/input/index.js";
@@ -14,11 +14,14 @@ import { findConnectionSession } from "$lib/view-models/auth-and-sessions.js";
     collapsed,
     onToggle,
     onSelect,
-    onAdd,
     onEdit,
     onDelete,
     onLocalTerminal,
     onManageKeys,
+    onNewConnection,
+    authEmail,
+    onOpenSettings,
+    onLogout,
     keyCount = 0,
   }: {
     connections: ConnectionConfig[];
@@ -27,11 +30,14 @@ import { findConnectionSession } from "$lib/view-models/auth-and-sessions.js";
     collapsed: boolean;
     onToggle: () => void;
     onSelect: (conn: ConnectionConfig) => void;
-    onAdd: () => void;
     onEdit: (conn: ConnectionConfig) => void;
     onDelete: (conn: ConnectionConfig) => void;
     onLocalTerminal?: () => void;
     onManageKeys?: () => void;
+    onNewConnection?: () => void;
+    authEmail?: string;
+    onOpenSettings?: () => void;
+    onLogout?: () => void;
     keyCount?: number;
   } = $props();
 
@@ -106,20 +112,22 @@ import { findConnectionSession } from "$lib/view-models/auth-and-sessions.js";
       </div>
 
       <div class="grid gap-2">
-        <Button onclick={onAdd} variant="default" size="sm" class="w-full justify-start gap-2 rounded-xl">
-          <Plus class="size-3.5" />
-          Create connection
-        </Button>
         {#if onLocalTerminal}
-          <Button onclick={onLocalTerminal} variant="outline" size="sm" class="w-full justify-start gap-2 rounded-xl">
+          <Button onclick={onLocalTerminal} variant="default" size="sm" class="w-full justify-start gap-2 rounded-xl">
             <Terminal class="size-3.5" />
             Open local terminal
+          </Button>
+        {/if}
+        {#if onNewConnection}
+          <Button onclick={onNewConnection} variant="outline" size="sm" class="w-full justify-start gap-2 rounded-xl">
+            <Plus class="size-3.5" />
+            Connections
           </Button>
         {/if}
         {#if onManageKeys}
           <Button onclick={onManageKeys} variant="outline" size="sm" class="w-full justify-start gap-2 rounded-xl">
             <KeyRound class="size-3.5" />
-            Manage keys
+            SSH Keys
             {#if keyCount > 0}
               <span class="ml-auto rounded-full bg-white/10 px-1.5 py-0.5 text-[10px]">{keyCount}</span>
             {/if}
@@ -198,6 +206,43 @@ import { findConnectionSession } from "$lib/view-models/auth-and-sessions.js";
           {/if}
         </div>
       </div>
+    </div>
+
+    <div class="border-t border-border/70 px-4 py-4">
+      <div class="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+        {#if authEmail}
+          <p class="truncate px-1 text-xs text-muted-foreground">{authEmail}</p>
+        {/if}
+
+        <div class="mt-3 grid gap-2">
+          {#if onOpenSettings}
+            <Button onclick={onOpenSettings} variant="ghost" size="sm" class="w-full justify-start gap-2 rounded-xl">
+              <Settings class="size-3.5" />
+              Settings
+            </Button>
+          {/if}
+
+          {#if onLogout}
+            <Button onclick={onLogout} variant="ghost" size="sm" class="w-full justify-start gap-2 rounded-xl text-muted-foreground hover:text-foreground">
+              <LogOut class="size-3.5" />
+              Log out
+            </Button>
+          {/if}
+        </div>
+      </div>
+    </div>
+  {:else}
+    <div class="mt-auto flex flex-col items-center gap-2 border-t border-border/70 px-2 py-4">
+      {#if onOpenSettings}
+        <Button variant="ghost" size="icon-sm" class="rounded-xl" onclick={onOpenSettings} aria-label="Settings">
+          <Settings class="size-4" />
+        </Button>
+      {/if}
+      {#if onLogout}
+        <Button variant="ghost" size="icon-sm" class="rounded-xl text-muted-foreground hover:text-foreground" onclick={onLogout} aria-label="Log out">
+          <LogOut class="size-4" />
+        </Button>
+      {/if}
     </div>
   {/if}
 </div>
