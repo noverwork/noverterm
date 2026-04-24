@@ -18,7 +18,7 @@ fn main() {
         .values(NewUser {
             id: DEV_USER_ID.to_string(),
             email: "dev@nover.local".to_string(),
-            password_hash: "$2b$12$dummy_hash_for_development_only".to_string(),
+            password_hash: "87274af01876341455b32d805946f272871bb42effa6604dccf28bb027afa82b".to_string(),
             created_at: now,
             updated_at: now,
         })
@@ -80,4 +80,5 @@ fn main() {
     println!("   DEV_KEY_ID   = {}", DEV_KEY_ID);
     println!("   DEV_HOST_ID  = {}", DEV_HOST_ID);
     println!("\n   Dev email: dev@nover.local");
+    println!("   Dev password: dev123");
 }

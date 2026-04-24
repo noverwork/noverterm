@@ -15,7 +15,7 @@ fn main() {
         .values(NewUser {
             id: "default-user-0000-0000-0000-000000000001".to_string(),
             email: "admin@nover.local".to_string(),
-            password_hash: "$2b$12$placeholder_hash_needs_real_setup".to_string(),
+            password_hash: "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9".to_string(),
             created_at: now,
             updated_at: now,
         })
@@ -46,4 +46,6 @@ fn main() {
     println!("✓ Seeded default settings");
 
     println!("\n✅ Base seed data inserted successfully");
+    println!("   Admin email: admin@nover.local");
+    println!("   Admin password: admin123");
 }
