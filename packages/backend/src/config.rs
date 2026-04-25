@@ -31,7 +31,10 @@ impl AppConfig {
 
 pub fn env_candidates() -> [PathBuf; 2] {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    [manifest_dir.join(".env"), manifest_dir.join("../migrator/.env")]
+    [
+        manifest_dir.join(".env"),
+        manifest_dir.join("../migrator/.env"),
+    ]
 }
 
 pub fn env_value(key: &str) -> Option<String> {

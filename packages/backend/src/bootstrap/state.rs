@@ -11,7 +11,10 @@ pub struct AppState {
 impl AppState {
     pub fn new(config: &AppConfig, db_pool: DbPool) -> Self {
         Self {
-            auth_service: AuthService::new(AuthConfig::new(config.auth_secret.clone()), db_pool.clone()),
+            auth_service: AuthService::new(
+                AuthConfig::new(config.auth_secret.clone()),
+                db_pool.clone(),
+            ),
             db_pool,
         }
     }

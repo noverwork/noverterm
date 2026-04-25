@@ -26,7 +26,10 @@ pub fn build_router(state: AppState) -> Router {
 }
 
 #[cfg(test)]
-pub fn build_test_router(auth_service: crate::auth::AuthService, db_pool: crate::db::DbPool) -> Router {
+pub fn build_test_router(
+    auth_service: crate::auth::AuthService,
+    db_pool: crate::db::DbPool,
+) -> Router {
     build_router(super::test_app_state(auth_service, db_pool))
 }
 
