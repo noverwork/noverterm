@@ -50,14 +50,9 @@ async fn create_setting(
     Json(setting): Json<Setting>,
 ) -> Result<(StatusCode, Json<Setting>), (StatusCode, String)> {
     let pool = state.require_db_pool().map_err(internal_error)?;
-    let setting = repository::create(
-        pool,
-        authenticated_user.user_id,
-        setting.key,
-        setting.value,
-    )
-    .await
-    .map_err(into_http_error)?;
+    let setting = repository::create(pool, authenticated_user.user_id, setting.key, setting.value)
+        .await
+        .map_err(into_http_error)?;
 
     Ok((StatusCode::CREATED, Json(to_setting(setting))))
 }

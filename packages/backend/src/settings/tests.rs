@@ -21,7 +21,7 @@ async fn settings_routes_are_owner_scoped() {
                 Request::post("/auth/register")
                     .header("content-type", "application/json")
                     .body(Body::from(format!(
-                        r#"{{"username":"{user}","password":"{password}"}}"#
+                        r#"{{"email":"{user}","password":"{password}"}}"#
                     )))
                     .expect("request should build"),
             )
@@ -31,8 +31,8 @@ async fn settings_routes_are_owner_scoped() {
 
     let alice_token = login_access_token(app.clone(), &alice, password).await;
     let bob_token = login_access_token(app.clone(), &bob, password).await;
-    let alice_setting_key = unique_name("theme");
-    let bob_setting_key = unique_name("theme");
+    let alice_setting_key = unique_name("terminal-font-size");
+    let bob_setting_key = unique_name("terminal-font-size");
 
     let alice_create = authorized_json_request(
         app.clone(),
@@ -41,7 +41,7 @@ async fn settings_routes_are_owner_scoped() {
         &alice_token,
         json!({
             "key": alice_setting_key,
-            "value": "dark"
+            "value": "14"
         }),
     )
     .await;
@@ -58,7 +58,7 @@ async fn settings_routes_are_owner_scoped() {
         &bob_token,
         json!({
             "key": bob_setting_key,
-            "value": "light"
+            "value": "16"
         }),
     )
     .await;
@@ -77,7 +77,7 @@ async fn settings_routes_are_owner_scoped() {
         .as_array()
         .expect("settings list should be an array");
     assert_eq!(alice_settings.len(), 1);
-    assert_eq!(alice_settings[0]["value"], "dark");
+    assert_eq!(alice_settings[0]["value"], "14");
 
     let bob_get_alice = authorized_empty_request(
         app.clone(),
@@ -97,7 +97,7 @@ async fn settings_routes_are_owner_scoped() {
     .await;
     assert_eq!(bob_get_own.status(), StatusCode::OK);
     let bob_setting = response_json(bob_get_own).await;
-    assert_eq!(bob_setting["value"], "light");
+    assert_eq!(bob_setting["value"], "16");
 
     let alice_update = authorized_json_request(
         app.clone(),
@@ -106,13 +106,13 @@ async fn settings_routes_are_owner_scoped() {
         &alice_token,
         json!({
             "key": alice_setting_key,
-            "value": "system"
+            "value": "18"
         }),
     )
     .await;
     assert_eq!(alice_update.status(), StatusCode::OK);
     let alice_update = response_json(alice_update).await;
-    assert_eq!(alice_update["value"], "system");
+    assert_eq!(alice_update["value"], "18");
 
     let bob_delete_alice = authorized_empty_request(
         app.clone(),
