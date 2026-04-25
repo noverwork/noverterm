@@ -262,7 +262,7 @@
     </div>
   </div>
 {:else}
-  <div class="flex h-screen w-screen overflow-hidden bg-background">
+  <div class="workspace-canvas flex h-screen w-screen overflow-hidden bg-background">
     <Sidebar
       {connections}
       sessions={sessionStore.sessions}
@@ -281,17 +281,17 @@
       keyCount={bootstrapStore.getKeys().length}
     />
 
-    <div class="flex min-h-0 flex-1 min-w-0 flex-col">
-      <div class="border-b border-border bg-background px-3 py-1.5">
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-[#080c13]/72">
+      <div class="shrink-0">
         <TerminalTabs
-            sessions={activeSessions}
-            activeSessionId={sessionStore.activeSessionId}
-            onActivate={(id) => sessionStore.setActiveSession(id)}
-            onClose={handleSessionClose}
-          />
+          sessions={activeSessions}
+          activeSessionId={sessionStore.activeSessionId}
+          onActivate={(id) => sessionStore.setActiveSession(id)}
+          onClose={handleSessionClose}
+        />
       </div>
 
-      <div class="relative flex flex-1 min-h-0 flex-col overflow-hidden">
+      <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         {#if currentView === "connections"}
           <ConnectionsView
             {connections}
@@ -324,21 +324,29 @@
               onManageKeys={() => (currentView = "keys")}
             />
           {:else if activeSession.status === "connecting"}
-            <div class="flex flex-col items-center justify-center h-full">
-              <Loader2 class="size-8 animate-spin text-primary mb-4" />
-              <p class="text-muted-foreground">Connecting to {activeSession.name}...</p>
+            <div class="flex h-full flex-col items-center justify-center p-8">
+              <div class="rounded-[2rem] border border-amber-300/15 bg-amber-300/8 p-8 text-center shadow-2xl shadow-black/30">
+                <Loader2 class="mx-auto mb-4 size-8 animate-spin text-amber-200" />
+                <p class="text-sm font-semibold text-white">Connecting to {activeSession.name}</p>
+                <p class="mt-2 text-xs text-slate-500">Negotiating terminal session…</p>
+              </div>
             </div>
           {:else if activeSession.status === "error"}
-            <div class="flex flex-col items-center justify-center h-full text-center p-8">
-              <AlertCircle class="size-12 text-destructive mb-4" />
-              <h2 class="text-xl font-semibold mb-2">Connection Failed</h2>
-              <p class="text-muted-foreground mb-4 max-w-md">{activeSession.error ?? "Unknown error"}</p>
-              <Button onclick={retryActiveConnection} class="gap-2">
-                Retry
-              </Button>
+            <div class="flex h-full flex-col items-center justify-center p-8 text-center">
+              <div class="max-w-lg rounded-[2rem] border border-red-300/20 bg-red-400/8 p-8 shadow-2xl shadow-black/30">
+                <div class="mx-auto grid size-14 place-items-center rounded-2xl bg-red-400/12 text-red-300">
+                  <AlertCircle class="size-7" />
+                </div>
+                <h2 class="mt-5 text-xl font-semibold text-white">Connection failed</h2>
+                <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-400">{activeSession.error ?? "Unknown error"}</p>
+                <Button onclick={retryActiveConnection} class="mt-6 gap-2 rounded-2xl bg-red-300 text-red-950 hover:bg-red-200">
+                  Retry session
+                </Button>
+              </div>
             </div>
           {:else}
-            <div class="relative flex-1 min-h-0 overflow-hidden">
+            <div class="relative min-h-0 flex-1 overflow-hidden p-3">
+              <div class="terminal-frame relative h-full overflow-hidden rounded-[1.35rem] border border-white/10 bg-black/50 shadow-2xl shadow-black/45">
               {#each mountedTerminalSessions as session (session.id)}
                 <div class:hidden={session.id !== sessionStore.activeSessionId} class="absolute inset-0 min-h-0 overflow-hidden">
                   <TerminalView
@@ -350,6 +358,7 @@
                   />
                 </div>
               {/each}
+              </div>
             </div>
           {/if}
         {/if}
