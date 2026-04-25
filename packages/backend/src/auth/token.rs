@@ -1,10 +1,10 @@
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use base64::Engine;
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
-use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 #[derive(Clone)]
 pub struct TokenService {
@@ -29,11 +29,18 @@ pub struct AccessToken {
     pub expires_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RefreshTokenClaims {
+    pub sub: String,
+    pub sid: String,
+    pub exp: usize,
+    pub iat: usize,
+    pub typ: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct RefreshToken {
     pub token: String,
-    pub token_hash: String,
-    pub expires_at: DateTime<Utc>,
 }
 
 impl TokenService {
@@ -69,16 +76,35 @@ impl TokenService {
         Ok(AccessToken { token, expires_at })
     }
 
-    pub fn issue_refresh_token(&self) -> RefreshToken {
-        let mut random_bytes = [0_u8; 32];
-        rand::rngs::OsRng.fill_bytes(&mut random_bytes);
-        let token = URL_SAFE_NO_PAD.encode(random_bytes);
+    pub fn issue_refresh_token(&self, email: &str, session_id: &str) -> RefreshToken {
+        let issued_at = Utc::now();
+        let expires_at = issued_at + self.refresh_ttl;
+        let claims = RefreshTokenClaims {
+            sub: email.to_string(),
+            sid: session_id.to_string(),
+            exp: expires_at.timestamp() as usize,
+            iat: issued_at.timestamp() as usize,
+            typ: "refresh".to_string(),
+        };
 
-        RefreshToken {
-            token_hash: hash_token(&token),
-            token,
-            expires_at: Utc::now() + self.refresh_ttl,
+        let token = encode(&Header::new(Algorithm::HS256), &claims, &self.encoding_key)
+            .expect("failed to encode refresh token");
+
+        RefreshToken { token }
+    }
+
+    pub fn decode_refresh_token(&self, token: &str) -> Result<RefreshTokenClaims, String> {
+        let mut validation = Validation::new(Algorithm::HS256);
+        validation.validate_exp = true;
+
+        let data = decode::<RefreshTokenClaims>(token, &self.decoding_key, &validation)
+            .map_err(|error| format!("invalid refresh token: {error}"))?;
+
+        if data.claims.typ != "refresh" {
+            return Err("invalid refresh token type".to_string());
         }
+
+        Ok(data.claims)
     }
 
     pub fn decode_access_token(&self, token: &str) -> Result<AccessTokenClaims, String> {
@@ -96,12 +122,20 @@ impl TokenService {
     }
 }
 
-pub fn hash_token(token: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    format!("{:x}", hasher.finalize())
+pub fn hash_password(password: &str) -> String {
+    let salt = SaltString::generate(&mut OsRng);
+    Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .expect("argon2 hashing should not fail")
+        .to_string()
 }
 
-pub fn hash_password(password: &str) -> String {
-    hash_token(password)
+pub fn verify_password(password: &str, hash: &str) -> bool {
+    let parsed_hash = match PasswordHash::new(hash) {
+        Ok(h) => h,
+        Err(_) => return false,
+    };
+    Argon2::default()
+        .verify_password(password.as_bytes(), &parsed_hash)
+        .is_ok()
 }

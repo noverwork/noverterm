@@ -1,15 +1,11 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use diesel::prelude::*;
 use orm::models::{NewUser, User};
 use orm::schema::users;
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use super::token::{hash_password, hash_token, TokenService};
+use super::token::{hash_password, verify_password, TokenService};
 use crate::db::{run_db, DbPool};
 
 #[derive(Clone)]
@@ -21,7 +17,6 @@ pub struct AuthConfig {
 pub struct AuthService {
     config: AuthConfig,
     pool: DbPool,
-    sessions: Arc<RwLock<SessionState>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,36 +56,21 @@ pub struct AuthResponse {
     pub email: String,
 }
 
-#[derive(Debug, Default)]
-struct SessionState {
-    active_refresh_tokens: HashMap<String, String>,
-    retired_refresh_tokens: HashMap<String, String>,
-    sessions: HashMap<String, SessionRecord>,
-}
-
-#[derive(Debug, Clone)]
-struct SessionRecord {
-    email: String,
-    refresh_token_hash: String,
-    refresh_expires_at: chrono::DateTime<Utc>,
-    revoked: bool,
-}
-
 impl AuthConfig {
     pub fn new(secret: String) -> Self {
         Self {
-            token_service: TokenService::new(secret, Duration::minutes(15), Duration::days(30)),
+            token_service: TokenService::new(
+                secret,
+                chrono::Duration::minutes(15),
+                chrono::Duration::days(30),
+            ),
         }
     }
 }
 
 impl AuthService {
     pub fn new(config: AuthConfig, pool: DbPool) -> Self {
-        Self {
-            config,
-            pool,
-            sessions: Arc::new(RwLock::new(SessionState::default())),
-        }
+        Self { config, pool }
     }
 
     pub async fn register(&self, request: RegisterRequest) -> Result<AuthResponse, String> {
@@ -146,7 +126,7 @@ impl AuthService {
             return Err("invalid credentials".to_string());
         };
 
-        if hash_password(&request.password) != user.password_hash {
+        if !verify_password(&request.password, &user.password_hash) {
             return Err("invalid credentials".to_string());
         }
 
@@ -154,56 +134,22 @@ impl AuthService {
     }
 
     pub async fn refresh(&self, request: RefreshRequest) -> Result<AuthResponse, String> {
-        let refresh_token_hash = hash_token(&request.refresh_token);
-        let mut sessions = self.sessions.write().await;
+        let claims = self
+            .config
+            .token_service
+            .decode_refresh_token(&request.refresh_token)?;
 
-        if let Some(session_id) = sessions
-            .retired_refresh_tokens
-            .get(&refresh_token_hash)
-            .cloned()
-        {
-            self.revoke_session_locked(&mut sessions, &session_id);
-            return Err("refresh token reuse detected".to_string());
-        }
-
-        let Some(session_id) = sessions
-            .active_refresh_tokens
-            .get(&refresh_token_hash)
-            .cloned()
-        else {
-            return Err("invalid refresh token".to_string());
-        };
-
-        let Some(session) = sessions.sessions.get(&session_id) else {
-            sessions.active_refresh_tokens.remove(&refresh_token_hash);
-            return Err("invalid refresh token".to_string());
-        };
-
-        let email = session.email.clone();
-        let session_revoked = session.revoked;
-        let refresh_expires_at = session.refresh_expires_at;
-
-        if session_revoked || refresh_expires_at <= Utc::now() {
-            self.revoke_session_locked(&mut sessions, &session_id);
-            return Err("refresh token expired".to_string());
-        }
+        let email = claims.sub;
+        let session_id = claims.sid;
 
         let access_token = self
             .config
             .token_service
             .issue_access_token(&email, &session_id)?;
-        let refresh_token = self.config.token_service.issue_refresh_token();
-        sessions.active_refresh_tokens.remove(&refresh_token_hash);
-        sessions
-            .retired_refresh_tokens
-            .insert(refresh_token_hash, session_id.clone());
-        if let Some(session) = sessions.sessions.get_mut(&session_id) {
-            session.refresh_token_hash = refresh_token.token_hash.clone();
-            session.refresh_expires_at = refresh_token.expires_at;
-        }
-        sessions
-            .active_refresh_tokens
-            .insert(refresh_token.token_hash.clone(), session_id);
+        let refresh_token = self
+            .config
+            .token_service
+            .issue_refresh_token(&email, &session_id);
 
         Ok(AuthResponse {
             access_token: access_token.token,
@@ -213,27 +159,7 @@ impl AuthService {
         })
     }
 
-    pub async fn logout(&self, request: LogoutRequest) -> Result<(), String> {
-        let refresh_token_hash = hash_token(&request.refresh_token);
-        let mut sessions = self.sessions.write().await;
-
-        if let Some(session_id) = sessions
-            .active_refresh_tokens
-            .get(&refresh_token_hash)
-            .cloned()
-        {
-            self.revoke_session_locked(&mut sessions, &session_id);
-            return Ok(());
-        }
-
-        if let Some(session_id) = sessions
-            .retired_refresh_tokens
-            .get(&refresh_token_hash)
-            .cloned()
-        {
-            self.revoke_session_locked(&mut sessions, &session_id);
-        }
-
+    pub async fn logout(&self, _request: LogoutRequest) -> Result<(), String> {
         Ok(())
     }
 
@@ -242,25 +168,12 @@ impl AuthService {
         token: &str,
     ) -> Result<AuthenticatedUser, String> {
         let claims = self.config.token_service.decode_access_token(token)?;
-        let sessions = self.sessions.read().await;
 
-        let Some(session) = sessions.sessions.get(&claims.sid) else {
-            return Err("unknown session".to_string());
-        };
-
-        if session.revoked {
-            return Err("session revoked".to_string());
-        }
-
-        if session.email != claims.sub {
-            return Err("invalid session subject".to_string());
-        }
-
-        let user_id = self.lookup_user_id(&session.email).await?;
+        let user_id = self.lookup_user_id(&claims.sub).await?;
 
         Ok(AuthenticatedUser {
             user_id,
-            email: session.email.clone(),
+            email: claims.sub,
             session_id: claims.sid,
         })
     }
@@ -277,37 +190,16 @@ impl AuthService {
         .await
     }
 
-    pub async fn active_session_count_for(&self, email: &str) -> usize {
-        let sessions = self.sessions.read().await;
-
-        sessions
-            .sessions
-            .values()
-            .filter(|session| !session.revoked && session.email == email)
-            .count()
-    }
-
     async fn create_session(&self, email: &str) -> Result<AuthResponse, String> {
         let session_id = Uuid::new_v4().to_string();
         let access_token = self
             .config
             .token_service
             .issue_access_token(email, &session_id)?;
-        let refresh_token = self.config.token_service.issue_refresh_token();
-
-        let mut sessions = self.sessions.write().await;
-        sessions
-            .active_refresh_tokens
-            .insert(refresh_token.token_hash.clone(), session_id.clone());
-        sessions.sessions.insert(
-            session_id,
-            SessionRecord {
-                email: email.to_string(),
-                refresh_token_hash: refresh_token.token_hash.clone(),
-                refresh_expires_at: refresh_token.expires_at,
-                revoked: false,
-            },
-        );
+        let refresh_token = self
+            .config
+            .token_service
+            .issue_refresh_token(email, &session_id);
 
         Ok(AuthResponse {
             access_token: access_token.token,
@@ -315,19 +207,5 @@ impl AuthService {
             access_token_expires_at: access_token.expires_at,
             email: email.to_string(),
         })
-    }
-
-    fn revoke_session_locked(&self, sessions: &mut SessionState, session_id: &str) {
-        let Some(session) = sessions.sessions.get_mut(session_id) else {
-            return;
-        };
-
-        session.revoked = true;
-        sessions
-            .active_refresh_tokens
-            .remove(&session.refresh_token_hash);
-        sessions
-            .retired_refresh_tokens
-            .insert(session.refresh_token_hash.clone(), session_id.to_string());
     }
 }
