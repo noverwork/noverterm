@@ -1,4 +1,5 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { SvelteDate } from "svelte/reactivity";
 
 import { commands as tauriCommands } from "../../bindings.js";
 import { decryptSecret } from "$lib/crypto/vault.js";
@@ -34,7 +35,7 @@ interface SessionState {
   activeSessionId: string | null;
 }
 
-let state: SessionState = $state({
+const state: SessionState = $state({
   sessions: new Map(),
   activeSessionId: null,
 });
@@ -189,7 +190,7 @@ export function createSessionStore() {
       username: connection.username,
       type: "ssh",
       status: "connecting",
-      createdAt: new Date(),
+      createdAt: new SvelteDate(),
       connectionId: connection.id,
     });
 
@@ -249,7 +250,7 @@ export function createSessionStore() {
       username: input.username,
       type: "ssh",
       status: "connecting",
-      createdAt: new Date(),
+      createdAt: new SvelteDate(),
       connectionId: null,
     });
 
@@ -310,7 +311,7 @@ export function createSessionStore() {
       username: "",
       type: "local",
       status: "connecting",
-      createdAt: new Date(),
+      createdAt: new SvelteDate(),
       connectionId: null,
     });
 
