@@ -20,6 +20,7 @@ name = "dev-seeds"
 path = "src/dev_seed.rs"
 
 [dependencies]
+argon2 = { version = "0.5", features = ["std"] }
 chrono = "0.4"
 diesel = { version = "2.3", features = ["postgres", "serde_json", "chrono"] }
 orm = { path = "../orm" }

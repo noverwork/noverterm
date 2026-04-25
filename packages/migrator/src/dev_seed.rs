@@ -1,8 +1,20 @@
+use argon2::{
+    Argon2,
+    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+};
 use chrono::Utc;
 use diesel::prelude::*;
 use orm::models::{NewSshHost, NewSshKey, NewUser};
 use orm::schema::{ssh_hosts, ssh_keys, users};
 use std::env;
+
+fn hash_password(password: &str) -> String {
+    let salt = SaltString::generate(&mut OsRng);
+    Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .expect("argon2 hashing should not fail")
+        .to_string()
+}
 
 const DEV_USER_ID: &str = "dev-user-00000000-0000-0000-0000-000000000001";
 const DEV_KEY_ID: &str = "dev-key-00000000-0000-0000-0000-000000000001";
@@ -18,7 +30,7 @@ fn main() {
         .values(NewUser {
             id: DEV_USER_ID.to_string(),
             email: "dev@nover.local".to_string(),
-            password_hash: "87274af01876341455b32d805946f272871bb42effa6604dccf28bb027afa82b".to_string(),
+            password_hash: hash_password("dev123"),
             created_at: now,
             updated_at: now,
         })
