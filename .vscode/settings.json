@@ -1,3 +1,5 @@
 {
+  "eslint.workingDirectories": [{ "directory": "packages/desktop/ui", "changeProcessCWD": true }],
+  "eslint.validate": ["javascript", "typescript", "svelte"],
   "svelte.enable-ts-plugin": true
 }
