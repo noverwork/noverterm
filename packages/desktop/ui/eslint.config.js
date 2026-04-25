@@ -16,6 +16,15 @@ export default [
     },
   },
   {
+    files: ['**/*.svelte.ts'],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        sourceType: 'module',
+      },
+    },
+  },
+  {
     files: ['**/*.svelte'],
     languageOptions: {
       parserOptions: {
