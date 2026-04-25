@@ -346,18 +346,16 @@ name = "backend"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
+ "argon2",
  "axum",
- "base64 0.22.1",
  "chrono",
  "diesel",
  "diesel_migrations",
  "http-body-util",
  "jsonwebtoken",
  "orm",
- "rand 0.8.5",
  "serde",
  "serde_json",
- "sha2 0.10.9",
  "shared",
  "tokio",
  "tower",
@@ -3123,6 +3121,7 @@ dependencies = [
 name = "migrator"
 version = "0.1.0"
 dependencies = [
+ "argon2",
  "chrono",
  "diesel",
  "orm",

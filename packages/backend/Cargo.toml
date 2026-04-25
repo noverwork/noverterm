@@ -17,9 +17,7 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 tower-http = { version = "0.6", features = ["cors"] }
 aes-gcm = "0.10"
-base64 = "0.22"
-sha2 = "0.10"
-rand = "0.8"
+argon2 = { version = "0.5", features = ["std"] }
 jsonwebtoken = "9"
 
 [dev-dependencies]
