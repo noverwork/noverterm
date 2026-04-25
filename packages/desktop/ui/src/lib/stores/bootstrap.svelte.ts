@@ -63,6 +63,7 @@ export interface SaveConnectionInput {
   port: number;
   username: string;
   password?: string;
+  preservedEncryptedPassword?: string;
   privateKey?: string;
   passphrase?: string;
   keyName?: string;

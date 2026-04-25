@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { KeyRound, X } from "@lucide/svelte";
+  import { ChevronDown, KeyRound, X } from "@lucide/svelte";
   import { superForm } from "sveltekit-superforms";
   import { zod4 } from "sveltekit-superforms/adapters";
 
@@ -37,6 +37,7 @@
       useSshKey: false,
       keyMode: "saved",
       selectedKeyId: null,
+      existingPassword: false,
     },
     { validators: zod4(connectionSchema) },
   );
@@ -44,20 +45,29 @@
   const { form: formData, errors } = form;
 
   let keyName = $state("");
+  let initializedConnectionId = $state<string | null>(null);
 
   $effect(() => {
-    $formData.name = connection?.name ?? "";
-    $formData.host = connection?.host ?? "";
-    $formData.port = connection?.port ?? 22;
-    $formData.username = connection?.username ?? "";
-    $formData.password = "";
-    $formData.privateKey = "";
-    $formData.passphrase = "";
-    $formData.useSshKey = Boolean(connection?.sshKeyId);
-    $formData.keyMode = connection?.sshKeyId ? "saved" : "saved";
-    $formData.selectedKeyId = connection?.sshKeyId ?? null;
+    const connectionId = connection?.id ?? "new";
+    if (initializedConnectionId === connectionId) {
+      return;
+    }
+
+    initializedConnectionId = connectionId;
     keyName = "";
-    form.reset();
+    $formData = {
+      name: connection?.name ?? "",
+      host: connection?.host ?? "",
+      port: connection?.port ?? 22,
+      username: connection?.username ?? "",
+      password: "",
+      privateKey: "",
+      passphrase: "",
+      useSshKey: Boolean(connection?.sshKeyId),
+      keyMode: "saved",
+      selectedKeyId: connection?.sshKeyId ?? null,
+      existingPassword: Boolean(connection?.hasPassword),
+    };
   });
 
   const selectedKeyWillBeUsed = $derived(
@@ -93,6 +103,11 @@
     if (!result.success || isSaving) return;
 
     const effectiveKeyId = $formData.keyMode === "saved" ? $formData.selectedKeyId : null;
+    const preservedEncryptedPassword = connection?.hasPassword && !$formData.password.trim()
+      ? connection.auth?.kind === "password" || connection.auth?.kind === "public_key_and_password"
+        ? connection.auth.password
+        : null
+      : null;
 
     await onSave({
       ...(connection?.id ? { id: connection.id } : {}),
@@ -101,6 +116,7 @@
       port: $formData.port,
       username: $formData.username.trim(),
       ...($formData.password.trim() ? { password: $formData.password.trim() } : {}),
+      ...(preservedEncryptedPassword ? { preservedEncryptedPassword } : {}),
       ...($formData.useSshKey && $formData.keyMode === "new" && $formData.privateKey.trim()
         ? { privateKey: $formData.privateKey.trim() }
         : {}),
@@ -160,6 +176,10 @@
                 id="conn-name"
                 bind:value={$formData.name}
                 placeholder="Production API"
+                autocapitalize="none"
+                autocomplete="off"
+                autocorrect="off"
+                spellcheck="false"
                 class={$errors.name
                   ? "border-destructive bg-white/5 text-white placeholder:text-slate-500"
                   : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"}
@@ -176,6 +196,10 @@
                 id="conn-host"
                 bind:value={$formData.host}
                 placeholder="prod.example.com"
+                autocapitalize="none"
+                autocomplete="off"
+                autocorrect="off"
+                spellcheck="false"
                 class={$errors.host
                   ? "border-destructive bg-white/5 text-white placeholder:text-slate-500"
                   : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"}
@@ -192,6 +216,10 @@
                 id="conn-username"
                 bind:value={$formData.username}
                 placeholder="deploy"
+                autocapitalize="none"
+                autocomplete="username"
+                autocorrect="off"
+                spellcheck="false"
                 class={$errors.username
                   ? "border-destructive bg-white/5 text-white placeholder:text-slate-500"
                   : "border-white/10 bg-white/5 text-white placeholder:text-slate-500"}
@@ -283,19 +311,22 @@
                   {#if keys.length > 0}
                     <div class="space-y-2">
                       <label for="conn-key-select" class="text-sm font-medium text-slate-100">Saved key</label>
-                      <select
-                        id="conn-key-select"
-                        bind:value={$formData.selectedKeyId}
-                        class="flex w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        disabled={isSaving}
-                      >
-                        <option value="" class="bg-slate-900">— Select a saved key —</option>
-                        {#each keys as key (key.id)}
-                          <option value={key.id} class="bg-slate-900">
-                            {key.name} ({key.kind}){key.fingerprint ? " — " + key.fingerprint.slice(0, 16) + "…" : ""}
-                          </option>
-                        {/each}
-                      </select>
+                      <div class="relative">
+                        <select
+                          id="conn-key-select"
+                          bind:value={$formData.selectedKeyId}
+                          class="flex h-11 w-full appearance-none rounded-2xl border border-white/10 bg-black/20 px-3 py-1 pr-10 text-sm text-white shadow-sm transition-colors hover:bg-white/[0.06] focus-visible:border-cyan-300/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={isSaving}
+                        >
+                          <option value="" class="bg-slate-900">— Select a saved key —</option>
+                          {#each keys as key (key.id)}
+                            <option value={key.id} class="bg-slate-900">
+                              {key.name} ({key.kind}){key.fingerprint ? " — " + key.fingerprint.slice(0, 16) + "…" : ""}
+                            </option>
+                          {/each}
+                        </select>
+                        <ChevronDown class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                      </div>
                       {#if selectedKeyWillBeUsed}
                         <p class="text-xs text-emerald-400">
                           Using saved key: {keys.find(k => k.id === $formData.selectedKeyId)?.name ?? ""}

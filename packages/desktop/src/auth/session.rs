@@ -280,10 +280,6 @@ impl<S: SecureTokenStore> AuthManager<S> {
             connection.existing_key_id.clone()
         };
 
-        if trimmed_password.is_none() && ssh_key_id.is_none() {
-            return Err("password or private key is required".to_string());
-        }
-
         let host_input = BackendHostUpsertInput {
             name: connection.name,
             host: connection.host,

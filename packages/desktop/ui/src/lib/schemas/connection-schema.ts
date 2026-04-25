@@ -12,20 +12,9 @@ export const connectionSchema = z
     useSshKey: z.boolean().default(false),
     keyMode: z.enum(["saved", "new"]).default("saved"),
     selectedKeyId: z.string().nullable(),
+    existingPassword: z.boolean().default(false),
   })
   .superRefine((data, ctx) => {
-    const hasPassword = data.password.trim().length > 0;
-    const hasSelectedKey = data.useSshKey && data.keyMode === "saved" && !!data.selectedKeyId;
-    const hasNewKeyMaterial = data.useSshKey && data.keyMode === "new" && data.privateKey.trim().length > 0;
-
-    if (!hasPassword && !hasSelectedKey && !hasNewKeyMaterial) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Enter a password, select a saved key, or paste an SSH key",
-        path: ["password"],
-      });
-    }
-
     if (data.useSshKey && data.keyMode === "new" && !data.privateKey.trim().length) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

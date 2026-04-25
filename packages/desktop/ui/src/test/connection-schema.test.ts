@@ -15,6 +15,7 @@ describe("connection schema", () => {
       useSshKey: false,
       keyMode: "saved",
       selectedKeyId: null,
+      existingPassword: false,
     });
 
     expect(result.success).toBe(true);
@@ -32,6 +33,7 @@ describe("connection schema", () => {
       useSshKey: true,
       keyMode: "new",
       selectedKeyId: null,
+      existingPassword: false,
     });
 
     expect(result.success).toBe(true);
@@ -49,12 +51,13 @@ describe("connection schema", () => {
       useSshKey: true,
       keyMode: "saved",
       selectedKeyId: "key-123",
+      existingPassword: false,
     });
 
     expect(result.success).toBe(true);
   });
 
-  it("requires either a password, saved key, or ssh key", () => {
+  it("accepts connections without auth material", () => {
     const result = connectionSchema.safeParse({
       name: "prod",
       host: "prod.example.com",
@@ -66,10 +69,28 @@ describe("connection schema", () => {
       useSshKey: false,
       keyMode: "saved",
       selectedKeyId: null,
+      existingPassword: false,
     });
 
-    expect(result.success).toBe(false);
-    expect(result.error?.flatten().fieldErrors.password).toContain("Enter a password, select a saved key, or paste an SSH key");
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts existing password when editing without changing auth", () => {
+    const result = connectionSchema.safeParse({
+      name: "prod",
+      host: "prod.example.com",
+      port: 22,
+      username: "deploy",
+      password: "",
+      privateKey: "",
+      passphrase: "",
+      useSshKey: false,
+      keyMode: "saved",
+      selectedKeyId: null,
+      existingPassword: true,
+    });
+
+    expect(result.success).toBe(true);
   });
 
   it("requires key material when keyMode is new and no key is pasted", () => {
@@ -84,6 +105,7 @@ describe("connection schema", () => {
       useSshKey: true,
       keyMode: "new",
       selectedKeyId: null,
+      existingPassword: false,
     });
 
     expect(result.success).toBe(false);

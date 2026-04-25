@@ -37,7 +37,9 @@ export async function saveBackendConnection(
   const trimmedPassword = trimOptional(connection.password);
   const trimmedPrivateKey = trimOptional(connection.privateKey);
   const trimmedPassphrase = trimOptional(connection.passphrase);
-  const encryptedPassword = await encryptSecret(trimmedPassword);
+  const encryptedPassword = trimmedPassword
+    ? await encryptSecret(trimmedPassword)
+    : (connection.preservedEncryptedPassword ?? null);
   const encryptedPrivateKey = await encryptSecret(trimmedPrivateKey);
   const encryptedPassphrase = await encryptSecret(trimmedPassphrase);
 
@@ -65,10 +67,6 @@ export async function saveBackendConnection(
           });
 
       sshKeyId = key.id;
-    }
-
-    if (!encryptedPassword && !sshKeyId) {
-      throw new Error("password or private key is required");
     }
 
     const hostInput: HostWriteRequest = {
