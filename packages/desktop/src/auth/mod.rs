@@ -29,6 +29,5 @@ pub async fn auth_logout(auth_manager: State<'_, DesktopAuthManager>) -> Result<
     auth_manager.logout().await
 }
 
-
 #[cfg(test)]
 mod tests;

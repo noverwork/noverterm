@@ -252,7 +252,10 @@ impl<S: SecureTokenStore> AuthManager<S> {
             .ok_or_else(|| "not authenticated".to_string())
     }
 
-    pub async fn upsert_setting(&self, setting: shared::Setting) -> Result<shared::Setting, String> {
+    pub async fn upsert_setting(
+        &self,
+        setting: shared::Setting,
+    ) -> Result<shared::Setting, String> {
         let tokens = self.fresh_tokens().await?;
 
         match self
@@ -303,19 +306,21 @@ impl<S: SecureTokenStore> AuthManager<S> {
                 encrypted_passphrase: trimmed_passphrase,
             };
 
-            Some(if let Some(existing_key_id) = connection.existing_key_id.clone() {
-                self.client
-                    .update_key(&tokens.access_token, &existing_key_id, &key_input)
-                    .await
-                    .map_err(map_client_error)?
-                    .id
-            } else {
-                self.client
-                    .create_key(&tokens.access_token, &key_input)
-                    .await
-                    .map_err(map_client_error)?
-                    .id
-            })
+            Some(
+                if let Some(existing_key_id) = connection.existing_key_id.clone() {
+                    self.client
+                        .update_key(&tokens.access_token, &existing_key_id, &key_input)
+                        .await
+                        .map_err(map_client_error)?
+                        .id
+                } else {
+                    self.client
+                        .create_key(&tokens.access_token, &key_input)
+                        .await
+                        .map_err(map_client_error)?
+                        .id
+                },
+            )
         } else {
             connection.existing_key_id.clone()
         };
@@ -398,11 +403,8 @@ impl<S: SecureTokenStore> AuthManager<S> {
     }
 
     pub async fn load_bootstrap_metadata(&self) -> Result<BootstrapMetadata, String> {
-        let (settings, hosts, keys) = tokio::join!(
-            self.load_settings(),
-            self.load_hosts(),
-            self.load_keys(),
-        );
+        let (settings, hosts, keys) =
+            tokio::join!(self.load_settings(), self.load_hosts(), self.load_keys(),);
 
         Ok(BootstrapMetadata {
             settings: settings?,
@@ -414,7 +416,10 @@ impl<S: SecureTokenStore> AuthManager<S> {
 
 impl AuthManager<JsonTokenStore> {
     pub fn from_backend_url(base_url: String, store_path: PathBuf) -> Self {
-        Self::new(BackendClient::new(base_url), JsonTokenStore::new(store_path))
+        Self::new(
+            BackendClient::new(base_url),
+            JsonTokenStore::new(store_path),
+        )
     }
 }
 

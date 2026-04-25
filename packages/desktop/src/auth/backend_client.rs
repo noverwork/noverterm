@@ -229,7 +229,10 @@ impl BackendClient {
     ) -> Result<shared::Setting, BackendClientError> {
         let response = self
             .http
-            .put(format!("{}/bootstrap/settings/{}", self.base_url, setting.key))
+            .put(format!(
+                "{}/bootstrap/settings/{}",
+                self.base_url, setting.key
+            ))
             .bearer_auth(access_token)
             .json(setting)
             .send()
@@ -355,11 +358,7 @@ impl BackendClient {
         parse_json_response(response).await
     }
 
-    pub async fn delete_key(
-        &self,
-        access_token: &str,
-        id: &str,
-    ) -> Result<(), BackendClientError> {
+    pub async fn delete_key(&self, access_token: &str, id: &str) -> Result<(), BackendClientError> {
         let response = self
             .http
             .delete(format!("{}/bootstrap/keys/{id}", self.base_url))

@@ -123,6 +123,9 @@ mod tests {
         assert_eq!(loaded.expect("tokens should exist").email, "alice");
 
         store.clear().expect("tokens should clear");
-        assert!(store.load().expect("load after clear should succeed").is_none());
+        assert!(store
+            .load()
+            .expect("load after clear should succeed")
+            .is_none());
     }
 }
