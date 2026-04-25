@@ -1,7 +1,10 @@
 use tauri::{AppHandle, State};
 
 use crate::runtime::local::LocalSessionManager;
-use crate::runtime::ssh::{AuthMethod, SshConnectResponse, SshSessionManager};
+use crate::runtime::ssh::{
+    AuthMethod, SshConnectResponse, SshLocalPortForwardInput, SshPortForwardStatus,
+    SshSessionManager,
+};
 use crate::trust::{HostTrustConfirmation, SshTrustStore};
 
 #[derive(Debug, serde::Deserialize, specta::Type)]
@@ -73,10 +76,34 @@ pub async fn ssh_resize(
 #[tauri::command]
 #[specta::specta]
 pub async fn ssh_disconnect(
+    app: AppHandle,
     session_id: String,
     ssh_manager: State<'_, SshSessionManager>,
 ) -> Result<(), String> {
-    ssh_manager.disconnect(&session_id).await
+    ssh_manager.disconnect(app, &session_id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn ssh_start_local_port_forward(
+    app: AppHandle,
+    input: SshLocalPortForwardInput,
+    ssh_manager: State<'_, SshSessionManager>,
+) -> Result<SshPortForwardStatus, String> {
+    ssh_manager.start_local_port_forward(app, input).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn ssh_stop_port_forward(
+    app: AppHandle,
+    session_id: String,
+    forward_id: String,
+    ssh_manager: State<'_, SshSessionManager>,
+) -> Result<SshPortForwardStatus, String> {
+    ssh_manager
+        .stop_port_forward(app, &session_id, &forward_id)
+        .await
 }
 
 #[tauri::command]

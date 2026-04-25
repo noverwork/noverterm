@@ -56,6 +56,22 @@ async sshDisconnect(sessionId: string) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+async sshStartLocalPortForward(input: SshLocalPortForwardInput) : Promise<Result<SshPortForwardStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ssh_start_local_port_forward", { input }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async sshStopPortForward(sessionId: string, forwardId: string) : Promise<Result<SshPortForwardStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ssh_stop_port_forward", { sessionId, forwardId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async localConnect(cols: number, rows: number) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("local_connect", { cols, rows }) };
@@ -106,6 +122,9 @@ export type HostTrustConfirmation = { host: string; port: number; algorithm: str
 export type HostTrustMismatch = { host: string; port: number; expected_algorithm: string; expected_fingerprint: string; presented_algorithm: string; presented_fingerprint: string }
 export type HostTrustPrompt = { host: string; port: number; algorithm: string; fingerprint: string }
 export type SshConnectResponse = { status: "connected"; session_id: string } | { status: "trust_required"; prompt: HostTrustPrompt } | { status: "trust_mismatch"; mismatch: HostTrustMismatch }
+export type SshLocalPortForwardInput = { session_id: string; bind_host: string; bind_port: number; target_host: string; target_port: number }
+export type SshPortForwardState = "listening" | "stopped" | "error"
+export type SshPortForwardStatus = { forward_id: string; session_id: string; bind_host: string; bind_port: number; target_host: string; target_port: number; status: SshPortForwardState; error: string | null }
 
 /** tauri-specta globals **/
 

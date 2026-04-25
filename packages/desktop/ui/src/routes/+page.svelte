@@ -5,6 +5,7 @@
   import AuthShell from "$lib/components/auth-shell.svelte";
   import ConnectionForm from "$lib/components/connection-form.svelte";
   import ConnectionsView from "$lib/components/connections-view.svelte";
+  import PortForwardPanel from "$lib/components/port-forward-panel.svelte";
   import SshKeysView from "$lib/components/ssh-keys-view.svelte";
   import SettingsModal from "$lib/components/settings-modal.svelte";
   import Sidebar from "$lib/components/sidebar.svelte";
@@ -32,6 +33,8 @@
   let editingConnection = $state<ConnectionConfig | null>(null);
   let connectionFormError = $state<string | null>(null);
   let connectionSaving = $state(false);
+  let trustConfirming = $state(false);
+  let trustError = $state<string | null>(null);
 
   const activeSession = $derived(
     sessionStore.activeSessionId ? sessionStore.sessions.get(sessionStore.activeSessionId) : undefined,
@@ -45,6 +48,14 @@
 
   const mountedTerminalSessions = $derived(
     activeSessions.filter((session) => session.status === "connected") as Session[],
+  );
+
+  const activeSessionPortForwards = $derived(
+    activeSession
+      ? Array.from(sessionStore.portForwards.values()).filter(
+          (forward) => forward.session_id === activeSession.id,
+        )
+      : [],
   );
 
   const terminalConfig = $derived(bootstrapStore.getTerminalConfig());
@@ -169,6 +180,36 @@
     }
 
     currentView = "connections";
+  }
+
+  async function trustActiveHost() {
+    if (!activeSession?.trustPrompt || !activeSession.connectionId) return;
+
+    const connection = connections.find((candidate) => candidate.id === activeSession.connectionId);
+    if (!connection) {
+      trustError = "Saved connection not found. Open Connections and try again.";
+      return;
+    }
+
+    const prompt = activeSession.trustPrompt;
+    const failedSessionId = activeSession.id;
+    trustConfirming = true;
+    trustError = null;
+
+    try {
+      await sessionStore.confirmHostTrust({
+        host: prompt.host,
+        port: prompt.port,
+        algorithm: prompt.algorithm,
+        fingerprint: prompt.fingerprint,
+      });
+      sessionStore.removeSession(failedSessionId);
+      await handleSelectConnection(connection);
+    } catch (error) {
+      trustError = error instanceof Error ? error.message : String(error);
+    } finally {
+      trustConfirming = false;
+    }
   }
 
   function handleGlobalKeydown(event: KeyboardEvent) {
@@ -318,14 +359,87 @@
                 </div>
                 <h2 class="mt-5 text-xl font-semibold text-white">Connection failed</h2>
                 <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-400">{activeSession.error ?? "Unknown error"}</p>
-                <Button onclick={retryActiveConnection} class="mt-6 gap-2 rounded-2xl bg-red-300 text-red-950 hover:bg-red-200">
-                  Retry session
-                </Button>
+                {#if activeSession.trustPrompt}
+                  <div class="mt-5 rounded-2xl border border-amber-300/20 bg-amber-300/8 p-4 text-left">
+                    <p class="text-sm font-semibold text-amber-100">Trust this SSH host?</p>
+                    <dl class="mt-3 grid gap-2 text-xs text-slate-300">
+                      <div class="flex justify-between gap-3">
+                        <dt class="text-slate-500">Host</dt>
+                        <dd class="font-mono">{activeSession.trustPrompt.host}:{activeSession.trustPrompt.port}</dd>
+                      </div>
+                      <div class="flex justify-between gap-3">
+                        <dt class="text-slate-500">Algorithm</dt>
+                        <dd class="font-mono">{activeSession.trustPrompt.algorithm}</dd>
+                      </div>
+                      <div class="space-y-1">
+                        <dt class="text-slate-500">Fingerprint</dt>
+                        <dd class="break-all rounded-xl bg-black/30 px-3 py-2 font-mono text-amber-100">{activeSession.trustPrompt.fingerprint}</dd>
+                      </div>
+                    </dl>
+                    <p class="mt-3 text-xs leading-5 text-slate-400">
+                      Only trust this fingerprint if it matches the server you expect. It will be saved in this app's local Tauri trust JSON.
+                    </p>
+                  </div>
+                  {#if trustError}
+                    <p class="mt-3 text-sm text-red-300">{trustError}</p>
+                  {/if}
+                  <div class="mt-6 flex flex-wrap justify-center gap-3">
+                    {#if activeSession.connectionId}
+                      <Button
+                        onclick={trustActiveHost}
+                        disabled={trustConfirming}
+                        class="gap-2 rounded-2xl bg-amber-300 text-amber-950 hover:bg-amber-200"
+                      >
+                        {#if trustConfirming}
+                          <Loader2 class="size-4 animate-spin" />
+                        {/if}
+                        Trust fingerprint and retry
+                      </Button>
+                    {:else}
+                      <p class="max-w-md text-sm leading-6 text-slate-400">
+                        Save this connection first to trust the fingerprint and retry automatically.
+                      </p>
+                    {/if}
+                    <Button variant="outline" onclick={() => sessionStore.removeSession(activeSession.id)} class="rounded-2xl border-white/10 bg-white/4 text-white hover:bg-white/8">
+                      Cancel
+                    </Button>
+                  </div>
+                {:else if activeSession.trustMismatch}
+                  <div class="mt-5 rounded-2xl border border-red-300/25 bg-red-300/8 p-4 text-left">
+                    <p class="text-sm font-semibold text-red-100">Saved fingerprint does not match.</p>
+                    <dl class="mt-3 grid gap-2 text-xs text-slate-300">
+                      <div class="space-y-1">
+                        <dt class="text-slate-500">Expected</dt>
+                        <dd class="break-all rounded-xl bg-black/30 px-3 py-2 font-mono">{activeSession.trustMismatch.expected_fingerprint}</dd>
+                      </div>
+                      <div class="space-y-1">
+                        <dt class="text-slate-500">Presented</dt>
+                        <dd class="break-all rounded-xl bg-black/30 px-3 py-2 font-mono text-red-100">{activeSession.trustMismatch.presented_fingerprint}</dd>
+                      </div>
+                    </dl>
+                    <p class="mt-3 text-xs leading-5 text-slate-400">This may indicate the server changed keys or a man-in-the-middle risk. Not updating trust automatically.</p>
+                  </div>
+                  <Button onclick={retryActiveConnection} class="mt-6 gap-2 rounded-2xl bg-red-300 text-red-950 hover:bg-red-200">
+                    Retry session
+                  </Button>
+                {:else}
+                  <Button onclick={retryActiveConnection} class="mt-6 gap-2 rounded-2xl bg-red-300 text-red-950 hover:bg-red-200">
+                    Retry session
+                  </Button>
+                {/if}
               </div>
             </div>
           {:else}
-            <div class="relative min-h-0 flex-1 overflow-hidden p-3">
-              <div class="terminal-frame relative h-full overflow-hidden rounded-[1.35rem] border border-white/10 bg-black/50 shadow-2xl shadow-black/45">
+            <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden p-3">
+              {#if activeSession.type === "ssh" && activeSession.status === "connected"}
+                <PortForwardPanel
+                  session={activeSession}
+                  forwards={activeSessionPortForwards}
+                  onStart={sessionStore.startLocalPortForward}
+                  onStop={sessionStore.stopLocalPortForward}
+                />
+              {/if}
+              <div class="terminal-frame relative min-h-0 flex-1 overflow-hidden rounded-[1.35rem] border border-white/10 bg-black/50 shadow-2xl shadow-black/45">
               {#each mountedTerminalSessions as session (session.id)}
                 <div class:hidden={session.id !== sessionStore.activeSessionId} class="absolute inset-0 min-h-0 overflow-hidden">
                   <TerminalView

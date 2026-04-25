@@ -2,6 +2,13 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { SvelteDate } from "svelte/reactivity";
 
 import { commands as tauriCommands } from "../../bindings.js";
+import type {
+  HostTrustConfirmation,
+  HostTrustMismatch,
+  HostTrustPrompt,
+  SshConnectResponse,
+  SshPortForwardStatus,
+} from "../../bindings.js";
 import { decryptSecret } from "$lib/crypto/vault.js";
 import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
 
@@ -17,6 +24,16 @@ export interface DirectConnectionInput {
   passphrase?: string;
 }
 
+export interface StartLocalPortForwardInput {
+  sessionId: string;
+  bindHost: string;
+  bindPort: number;
+  targetHost: string;
+  targetPort: number;
+}
+
+export type LocalPortForward = SshPortForwardStatus;
+
 export interface Session {
   id: string;
   name: string;
@@ -28,23 +45,37 @@ export interface Session {
   createdAt: Date;
   connectionId?: string | null;
   error?: string;
+  trustPrompt?: HostTrustPrompt;
+  trustMismatch?: HostTrustMismatch;
 }
 
 interface SessionState {
   sessions: Map<string, Session>;
+  portForwards: Map<string, LocalPortForward>;
   activeSessionId: string | null;
 }
 
 const state: SessionState = $state({
   sessions: new Map(),
+  portForwards: new Map(),
   activeSessionId: null,
 });
 
 let eventUnlisten: UnlistenFn | null = null;
 let localEventUnlisten: UnlistenFn | null = null;
+let portForwardEventUnlisten: UnlistenFn | null = null;
 
 function commitSessions() {
   state.sessions = new Map(state.sessions);
+}
+
+function commitPortForwards() {
+  state.portForwards = new Map(state.portForwards);
+}
+
+function updatePortForward(status: LocalPortForward) {
+  state.portForwards.set(status.forward_id, status);
+  commitPortForwards();
 }
 
   function sessionName(host: string, port: number, username: string) {
@@ -92,7 +123,7 @@ function commitSessions() {
     }
   }
 
-function connectResponseError(response: { status: string; prompt?: { host: string; fingerprint: string }; mismatch?: { host: string; expected_fingerprint: string; presented_fingerprint: string } }) {
+function connectResponseError(response: SshConnectResponse) {
   if (response.status === "trust_required" && response.prompt) {
     return `Host trust confirmation required for ${response.prompt.host} (${response.prompt.fingerprint})`;
   }
@@ -102,6 +133,32 @@ function connectResponseError(response: { status: string; prompt?: { host: strin
   }
 
   return "SSH connection failed";
+}
+
+function connectResponseSessionUpdates(
+  response: SshConnectResponse,
+): Partial<Session> {
+  const error = connectResponseError(response);
+
+  if (response.status === "trust_required") {
+    return {
+      status: "error",
+      error,
+      trustPrompt: response.prompt,
+      trustMismatch: undefined,
+    };
+  }
+
+  if (response.status === "trust_mismatch") {
+    return {
+      status: "error",
+      error,
+      trustPrompt: undefined,
+      trustMismatch: response.mismatch,
+    };
+  }
+
+  return { status: "error", error };
 }
 
 export function createSessionStore() {
@@ -139,6 +196,13 @@ export function createSessionStore() {
         }
       },
     );
+
+    portForwardEventUnlisten = await listen(
+      "ssh_port_forward",
+      (event: { payload: LocalPortForward }) => {
+        updatePortForward(event.payload);
+      },
+    );
   }
 
   function addSession(session: Session) {
@@ -157,6 +221,12 @@ export function createSessionStore() {
 
   function removeSession(id: string) {
     state.sessions.delete(id);
+    for (const [forwardId, forward] of state.portForwards.entries()) {
+      if (forward.session_id === id) {
+        state.portForwards.delete(forwardId);
+      }
+    }
+    commitPortForwards();
     commitSessions();
     if (state.activeSessionId === id) {
       state.activeSessionId = state.sessions.size > 0 ? Array.from(state.sessions.keys())[0] : null;
@@ -174,6 +244,12 @@ export function createSessionStore() {
 
   function getSessions(): Session[] {
     return Array.from(state.sessions.values());
+  }
+
+  function getPortForwardsForSession(sessionId: string): LocalPortForward[] {
+    return Array.from(state.portForwards.values()).filter(
+      (forward) => forward.session_id === sessionId,
+    );
   }
 
   async function connectSavedConnection(
@@ -213,9 +289,9 @@ export function createSessionStore() {
     }
 
     if (result.data.status !== "connected") {
-      const error = connectResponseError(result.data);
-      updateSession(tempId, { status: "error", error });
-      throw new Error(error);
+      const updates = connectResponseSessionUpdates(result.data);
+      updateSession(tempId, updates);
+      throw new Error(updates.error ?? "SSH connection failed");
     }
 
     const sessionId = result.data.session_id;
@@ -230,6 +306,8 @@ export function createSessionStore() {
       id: sessionId,
       status: "connected",
       error: undefined,
+      trustPrompt: undefined,
+      trustMismatch: undefined,
     });
     state.activeSessionId = sessionId;
     commitSessions();
@@ -273,9 +351,9 @@ export function createSessionStore() {
     }
 
     if (result.data.status !== "connected") {
-      const error = connectResponseError(result.data);
-      updateSession(tempId, { status: "error", error });
-      throw new Error(error);
+      const updates = connectResponseSessionUpdates(result.data);
+      updateSession(tempId, updates);
+      throw new Error(updates.error ?? "SSH connection failed");
     }
 
     const sessionId = result.data.session_id;
@@ -290,6 +368,8 @@ export function createSessionStore() {
       id: sessionId,
       status: "connected",
       error: undefined,
+      trustPrompt: undefined,
+      trustMismatch: undefined,
     });
     state.activeSessionId = sessionId;
     commitSessions();
@@ -371,6 +451,47 @@ export function createSessionStore() {
     }
   }
 
+  async function startLocalPortForward(
+    input: StartLocalPortForwardInput,
+  ): Promise<LocalPortForward> {
+    const result = await tauriCommands.sshStartLocalPortForward({
+      session_id: input.sessionId,
+      bind_host: input.bindHost,
+      bind_port: input.bindPort,
+      target_host: input.targetHost,
+      target_port: input.targetPort,
+    });
+
+    if (result.status === "error") {
+      throw new Error(result.error);
+    }
+
+    updatePortForward(result.data);
+    return result.data;
+  }
+
+  async function stopLocalPortForward(
+    sessionId: string,
+    forwardId: string,
+  ): Promise<LocalPortForward> {
+    const result = await tauriCommands.sshStopPortForward(sessionId, forwardId);
+
+    if (result.status === "error") {
+      throw new Error(result.error);
+    }
+
+    updatePortForward(result.data);
+    return result.data;
+  }
+
+  async function confirmHostTrust(confirmation: HostTrustConfirmation): Promise<void> {
+    const result = await tauriCommands.sshConfirmHostTrust(confirmation);
+
+    if (result.status === "error") {
+      throw new Error(result.error);
+    }
+  }
+
   function disconnectConnectionSessions(connectionId: string) {
     const sessionIds = Array.from(state.sessions.values())
       .filter((session) => session.connectionId === connectionId)
@@ -388,6 +509,10 @@ export function createSessionStore() {
       localEventUnlisten();
       localEventUnlisten = null;
     }
+    if (portForwardEventUnlisten) {
+      portForwardEventUnlisten();
+      portForwardEventUnlisten = null;
+    }
   }
 
   return {
@@ -397,6 +522,9 @@ export function createSessionStore() {
     get activeSessionId() {
       return state.activeSessionId;
     },
+    get portForwards() {
+      return state.portForwards;
+    },
     init,
     addSession,
     updateSession,
@@ -404,6 +532,7 @@ export function createSessionStore() {
     setActiveSession,
     getActiveSession,
     getSessions,
+    getPortForwardsForSession,
     connectSavedConnection,
     connectDirect,
     connectLocal,
@@ -411,6 +540,9 @@ export function createSessionStore() {
     disconnectConnectionSessions,
     writeSession,
     resizeSession,
+    startLocalPortForward,
+    stopLocalPortForward,
+    confirmHostTrust,
     cleanup,
   };
 }

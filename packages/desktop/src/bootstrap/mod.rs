@@ -89,6 +89,8 @@ fn command_builder() -> Builder<tauri::Wry> {
         crate::connect::ssh_write,
         crate::connect::ssh_resize,
         crate::connect::ssh_disconnect,
+        crate::connect::ssh_start_local_port_forward,
+        crate::connect::ssh_stop_port_forward,
         crate::connect::local_connect,
         crate::connect::local_write,
         crate::connect::local_resize,
