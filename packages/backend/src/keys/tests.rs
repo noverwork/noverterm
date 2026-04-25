@@ -21,7 +21,7 @@ async fn key_routes_are_owner_scoped_and_redact_secret_fields() {
                 Request::post("/auth/register")
                     .header("content-type", "application/json")
                     .body(Body::from(format!(
-                        r#"{{"username":"{user}","password":"{password}"}}"#
+                        r#"{{"email":"{user}","password":"{password}"}}"#
                     )))
                     .expect("request should build"),
             )

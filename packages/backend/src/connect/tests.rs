@@ -20,7 +20,7 @@ async fn connect_issue_route_requires_ownership_and_returns_scoped_material() {
                 Request::post("/auth/register")
                     .header("content-type", "application/json")
                     .body(Body::from(format!(
-                        r#"{{"username":"{user}","password":"{password}"}}"#
+                        r#"{{"email":"{user}","password":"{password}"}}"#
                     )))
                     .expect("request should build"),
             )

@@ -20,7 +20,7 @@ async fn host_routes_are_owner_scoped_and_redact_password_fields() {
             Request::post("/auth/register")
                 .header("content-type", "application/json")
                 .body(Body::from(format!(
-                    r#"{{"username":"{alice}","password":"{password}"}}"#
+                    r#"{{"email":"{alice}","password":"{password}"}}"#
                 )))
                 .expect("request should build"),
         )
@@ -32,7 +32,7 @@ async fn host_routes_are_owner_scoped_and_redact_password_fields() {
             Request::post("/auth/register")
                 .header("content-type", "application/json")
                 .body(Body::from(format!(
-                    r#"{{"username":"{bob}","password":"{password}"}}"#
+                    r#"{{"email":"{bob}","password":"{password}"}}"#
                 )))
                 .expect("request should build"),
         )
