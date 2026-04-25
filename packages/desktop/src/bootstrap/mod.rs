@@ -98,8 +98,7 @@ fn command_builder() -> Builder<tauri::Wry> {
 
 pub fn export_types() -> Result<(), Box<dyn std::error::Error>> {
     let builder = command_builder();
-    let bindings_path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("ui/src/bindings.ts");
+    let bindings_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("ui/src/bindings.ts");
 
     builder.export(Typescript::default(), &bindings_path)?;
 
@@ -145,7 +144,8 @@ pub fn run() {
             app.manage(settings);
 
             let auth_tokens_path = app_data_dir.join("auth").join("tokens.json");
-            let auth_manager = DesktopAuthManager::from_backend_url(api_url.clone(), auth_tokens_path);
+            let auth_manager =
+                DesktopAuthManager::from_backend_url(api_url.clone(), auth_tokens_path);
             app.manage(auth_manager);
 
             let trust_path = app_data_dir.join("trust").join("ssh_hosts.json");

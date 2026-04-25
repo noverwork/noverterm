@@ -156,9 +156,10 @@ fn direct_auth_method(
             passphrase,
             password,
         }),
-        (None, Some(private_key), passphrase) => {
-            Ok(AuthMethod::PublicKey { private_key, passphrase })
-        }
+        (None, Some(private_key), passphrase) => Ok(AuthMethod::PublicKey {
+            private_key,
+            passphrase,
+        }),
         (Some(password), None, _) => Ok(AuthMethod::Password(password)),
         (None, None, _) => Err("password or private key is required".to_string()),
     }
