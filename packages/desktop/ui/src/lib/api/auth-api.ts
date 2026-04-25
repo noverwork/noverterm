@@ -7,7 +7,6 @@ import {
   requestWithAuth,
   toSessionTokens,
   withAuthorizedRetry,
-  isAuthExpiredError,
   type BackendAuthResponse,
 } from "./api-client.js";
 
@@ -67,11 +66,8 @@ export async function restoreBackendSession(): Promise<AuthBootstrapStatus | nul
 
   try {
     return await withAuthorizedRetry(async (accessToken) => bootstrapSmoke(accessToken));
-  } catch (error) {
-    if (isAuthExpiredError(error)) {
-      return null;
-    }
-    throw error;
+  } catch {
+    return null;
   }
 }
 
