@@ -1,7 +1,7 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 import { commands as tauriCommands } from "../../bindings.js";
-import { issueBackendConnectionMaterial } from "$lib/api/connect-api.js";
+import { decryptSecret } from "$lib/crypto/vault.js";
 import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
 
 export type SessionType = "ssh" | "local";
@@ -46,9 +46,50 @@ function commitSessions() {
   state.sessions = new Map(state.sessions);
 }
 
-function sessionName(host: string, port: number, username: string) {
-  return `${username}@${host}:${port}`;
-}
+  function sessionName(host: string, port: number, username: string) {
+    return `${username}@${host}:${port}`;
+  }
+
+  function savedConnectionSessionName(connection: Pick<ConnectionConfig, "id" | "name">) {
+    const matchingSessions = Array.from(state.sessions.values()).filter(
+      (session) => session.connectionId === connection.id && session.status !== "disconnected",
+    );
+
+    if (matchingSessions.length === 0) {
+      return connection.name;
+    }
+
+    return `${connection.name} #${matchingSessions.length + 1}`;
+  }
+
+  async function connectionAuthInput(connection: ConnectionConfig): Promise<{
+    password: string | null;
+    privateKey: string | null;
+    passphrase: string | null;
+  }> {
+    switch (connection.auth?.kind) {
+      case "password":
+        return {
+          password: await decryptSecret(connection.auth.password),
+          privateKey: null,
+          passphrase: null,
+        };
+      case "public_key":
+        return {
+          password: null,
+          privateKey: await decryptSecret(connection.auth.private_key),
+          passphrase: await decryptSecret(connection.auth.passphrase),
+        };
+      case "public_key_and_password":
+        return {
+          password: await decryptSecret(connection.auth.password),
+          privateKey: await decryptSecret(connection.auth.private_key),
+          passphrase: await decryptSecret(connection.auth.passphrase),
+        };
+      default:
+        throw new Error("host has no connectable authentication material");
+    }
+  }
 
 function connectResponseError(response: { status: string; prompt?: { host: string; fingerprint: string }; mismatch?: { host: string; expected_fingerprint: string; presented_fingerprint: string } }) {
   if (response.status === "trust_required" && response.prompt) {
@@ -142,7 +183,7 @@ export function createSessionStore() {
     const tempId = crypto.randomUUID();
     addSession({
       id: tempId,
-      name: connection.name,
+      name: savedConnectionSessionName(connection),
       host: connection.host,
       port: connection.port,
       username: connection.username,
@@ -152,15 +193,15 @@ export function createSessionStore() {
       connectionId: connection.id,
     });
 
-    const material = await issueBackendConnectionMaterial(connection.id);
+    const auth = await connectionAuthInput(connection);
     const result = await tauriCommands.sshConnectDirect(
       {
-        host: material.host,
-        port: material.port,
-        username: material.username,
-        password: material.password ?? null,
-        private_key: material.privateKey ?? null,
-        passphrase: material.passphrase ?? null,
+        host: connection.host,
+        port: connection.port,
+        username: connection.username,
+        password: auth.password,
+        private_key: auth.privateKey,
+        passphrase: auth.passphrase,
       },
       cols,
       rows,

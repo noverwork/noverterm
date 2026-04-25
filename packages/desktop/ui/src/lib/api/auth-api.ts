@@ -9,6 +9,7 @@ import {
   withAuthorizedRetry,
   type BackendAuthResponse,
 } from "./api-client.js";
+import { setActiveVaultEmail, unlockVaultWithPassword } from "$lib/crypto/vault.js";
 
 export interface AuthBootstrapStatus {
   email: string;
@@ -29,6 +30,7 @@ export async function registerToBackend(
   });
   const tokens = toSessionTokens(authResponse);
   await persistFrontendTokens(tokens);
+  await unlockVaultWithPassword(email, password);
 
   try {
     return await withAuthorizedRetry(async (accessToken) => bootstrapSmoke(accessToken));
@@ -48,6 +50,7 @@ export async function loginToBackend(
   });
   const tokens = toSessionTokens(authResponse);
   await persistFrontendTokens(tokens);
+  await unlockVaultWithPassword(email, password);
 
   try {
     return await withAuthorizedRetry(async (accessToken) => bootstrapSmoke(accessToken));
@@ -65,7 +68,9 @@ export async function restoreBackendSession(): Promise<AuthBootstrapStatus | nul
   }
 
   try {
-    return await withAuthorizedRetry(async (accessToken) => bootstrapSmoke(accessToken));
+    const status = await withAuthorizedRetry(async (accessToken) => bootstrapSmoke(accessToken));
+    setActiveVaultEmail(status.email);
+    return status;
   } catch {
     return null;
   }

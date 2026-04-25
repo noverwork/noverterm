@@ -10,6 +10,7 @@
   let {
     connections,
     sessions,
+    recentConnectionIds,
     activeSessionId,
     collapsed,
     onToggle,
@@ -26,6 +27,7 @@
   }: {
     connections: ConnectionConfig[];
     sessions: Map<string, { id: string; name: string; status: SessionStatus; connectionId?: string | null }>;
+    recentConnectionIds: string[];
     activeSessionId: string | null;
     collapsed: boolean;
     onToggle: () => void;
@@ -54,6 +56,12 @@
       .sort((a, b) => a.name.localeCompare(b.name)),
   );
 
+  const recentConnections = $derived(
+    recentConnectionIds
+      .map((id) => filteredConnections.find((connection) => connection.id === id))
+      .filter((connection): connection is ConnectionConfig => connection !== undefined),
+  );
+
   function getConnectionSession(conn: ConnectionConfig) {
     return findConnectionSession(sessions.values(), conn);
   }
@@ -78,7 +86,7 @@
     }),
   );
 
-  const otherConnections = $derived(filteredConnections.filter((conn) => !connectedConnections.some((connected) => connected.id === conn.id)));
+  const otherConnections = $derived(recentConnections.filter((conn) => !connectedConnections.some((connected) => connected.id === conn.id)));
 </script>
 
 <aside class="sidebar relative flex flex-col border-r border-white/10 bg-[#070b12]/96 shadow-[18px_0_60px_rgb(0_0_0/0.28)] backdrop-blur-2xl transition-all duration-300 {collapsed ? 'w-[4.5rem]' : 'w-[20.5rem]'}">
@@ -187,7 +195,7 @@
 
       <div>
         <div class="flex items-center justify-between px-2">
-          <p class="section-title">Saved</p>
+          <p class="section-title">Recent</p>
           <span class="text-[10px] font-medium text-slate-600">{otherConnections.length}</span>
         </div>
         <div class="mt-2 space-y-1.5">
@@ -215,12 +223,12 @@
             </div>
           {/each}
 
-          {#if filteredConnections.length === 0}
+          {#if otherConnections.length === 0}
             <div class="rounded-3xl border border-dashed border-white/10 bg-white/[0.025] px-4 py-7 text-center text-sm leading-6 text-slate-500">
               {#if searchQuery}
-                No saved connections match “{searchQuery}”.
+                No recent connections match “{searchQuery}”.
               {:else}
-                Create your first SSH host to build a reusable command center.
+                Connect to a host once and it will appear here.
               {/if}
             </div>
           {/if}

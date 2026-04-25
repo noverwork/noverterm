@@ -37,7 +37,6 @@ pub struct BackendHostUpsertInput {
     pub host: String,
     pub port: i32,
     pub username: String,
-    pub auth_mode: String,
     pub ssh_key_id: Option<String>,
     pub encrypted_password: Option<String>,
 }
@@ -49,36 +48,6 @@ pub struct BackendKeyUpsertInput {
     pub fingerprint: Option<String>,
     pub encrypted_private_key: String,
     pub encrypted_passphrase: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
-pub struct BackendConnectMaterial {
-    pub issuance_id: String,
-    pub host_id: String,
-    pub host: String,
-    pub port: i32,
-    pub username: String,
-    pub issued_for_username: String,
-    pub issued_for_session_id: String,
-    pub expires_at: String,
-    pub auth: BackendConnectAuthMaterial,
-}
-
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum BackendConnectAuthMaterial {
-    Password {
-        password: String,
-    },
-    PublicKey {
-        private_key: String,
-        passphrase: Option<String>,
-    },
-    PublicKeyAndPassword {
-        private_key: String,
-        passphrase: Option<String>,
-        password: String,
-    },
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -163,25 +132,6 @@ impl BackendClient {
         let response = self
             .http
             .get(format!("{}/bootstrap/smoke", self.base_url))
-            .bearer_auth(access_token)
-            .send()
-            .await
-            .map_err(|error| BackendClientError::Transport(error.to_string()))?;
-
-        parse_json_response(response).await
-    }
-
-    pub async fn issue_connect_material(
-        &self,
-        access_token: &str,
-        host_id: &str,
-    ) -> Result<BackendConnectMaterial, BackendClientError> {
-        let response = self
-            .http
-            .post(format!(
-                "{}/bootstrap/connect/{host_id}/issue",
-                self.base_url
-            ))
             .bearer_auth(access_token)
             .send()
             .await

@@ -1,14 +1,11 @@
 import type { AuthBootstrapStatus } from "$lib/api/auth-api.js";
-import type { BootstrapMetadata, KeyCreateRequest, KeyUpdateRequest, Setting, SshHostRecord, SshKeyRecord } from "$lib/api/types.js";
+import type { BootstrapMetadata, KeyCreateRequest, KeyUpdateRequest, Setting, SshHostAuthMaterial, SshHostRecord, SshKeyRecord } from "$lib/api/types.js";
 
 import { restoreBackendSession, registerToBackend, loginToBackend, logoutFromBackend } from "$lib/api/auth-api.js";
 import { loadBootstrapMetadataFromBackend } from "$lib/api/bootstrap-api.js";
 import { saveBackendConnection, deleteBackendConnection } from "$lib/api/connections-api.js";
 import { upsertBackendSetting } from "$lib/api/settings-api.js";
-import { issueBackendConnectionMaterial } from "$lib/api/connect-api.js";
 import { createSshKey, updateSshKey, deleteSshKey } from "$lib/api/keys-api.js";
-
-import type { IssuedConnectionMaterial } from "$lib/api/connect-api.js";
 
 export interface BootstrapApi {
   restore(): Promise<AuthBootstrapStatus | null>;
@@ -19,7 +16,6 @@ export interface BootstrapApi {
   saveConnection(connection: SaveConnectionInput): Promise<SshHostRecord>;
   deleteConnection(connection: ConnectionConfig): Promise<void>;
   saveSetting(setting: Setting): Promise<Setting>;
-  issueConnectionMaterial(connectionId: string): Promise<IssuedConnectionMaterial>;
   createKey(key: KeyCreateRequest): Promise<SshKeyRecord>;
   updateKey(keyId: string, key: KeyUpdateRequest): Promise<SshKeyRecord>;
   deleteKey(keyId: string): Promise<void>;
@@ -34,7 +30,6 @@ const defaultApi: BootstrapApi = {
   saveConnection: saveBackendConnection,
   deleteConnection: deleteBackendConnection,
   saveSetting: upsertBackendSetting,
-  issueConnectionMaterial: issueBackendConnectionMaterial,
   createKey: createSshKey,
   updateKey: updateSshKey,
   deleteKey: deleteSshKey,
@@ -56,9 +51,9 @@ export interface ConnectionConfig {
   host: string;
   port: number;
   username: string;
-  authMode: string;
   sshKeyId: string | null;
   hasPassword: boolean;
+  auth: SshHostAuthMaterial | null;
 }
 
 export interface SaveConnectionInput {
@@ -72,6 +67,11 @@ export interface SaveConnectionInput {
   passphrase?: string;
   keyName?: string;
   existingKeyId?: string | null;
+}
+
+interface NovertermConfig {
+  terminal?: Partial<TerminalConfig>;
+  recentConnectionIds?: string[];
 }
 
 const DEFAULT_TERMINAL_CONFIG: TerminalConfig = {
@@ -110,17 +110,51 @@ export function resetBootstrapState() {
   commit();
 }
 
-function parseTerminalConfig(settings: Setting[]): TerminalConfig {
+function parseNovertermConfig(settings: Setting[]): NovertermConfig {
   const configStr = settings.find((setting) => setting.key === "noverterm-config")?.value;
   if (configStr) {
     try {
-      const parsed = JSON.parse(configStr) as { terminal?: Partial<TerminalConfig> };
-      return { ...DEFAULT_TERMINAL_CONFIG, ...parsed.terminal };
+      const parsed = JSON.parse(configStr) as NovertermConfig;
+      return {
+        terminal: parsed.terminal,
+        recentConnectionIds: Array.isArray(parsed.recentConnectionIds)
+          ? parsed.recentConnectionIds.filter((id) => typeof id === "string")
+          : [],
+      };
     } catch {
-      return DEFAULT_TERMINAL_CONFIG;
+      return {};
     }
   }
-  return DEFAULT_TERMINAL_CONFIG;
+  return {};
+}
+
+function parseTerminalConfig(settings: Setting[]): TerminalConfig {
+  const config = parseNovertermConfig(settings);
+  return { ...DEFAULT_TERMINAL_CONFIG, ...config.terminal };
+}
+
+function parseRecentConnectionIds(settings: Setting[]): string[] {
+  const config = parseNovertermConfig(settings);
+  return config.recentConnectionIds ?? [];
+}
+
+function buildNovertermConfig(settings: Setting[], updates: Partial<NovertermConfig>): string {
+  return JSON.stringify({ ...parseNovertermConfig(settings), ...updates });
+}
+
+function uniqueRecentConnectionIds(connectionId: string, currentIds: string[]): string[] {
+  return [connectionId, ...currentIds.filter((id) => id !== connectionId)].slice(0, 12);
+}
+
+function filterExistingConnectionIds(connectionIds: string[], connections: ConnectionConfig[]): string[] {
+  const existingConnectionIds = new Set(connections.map((connection) => connection.id));
+  return connectionIds.filter((id) => existingConnectionIds.has(id));
+}
+
+function mapRecentConnections(connectionIds: string[], connections: ConnectionConfig[]): ConnectionConfig[] {
+  return connectionIds
+    .map((id) => connections.find((connection) => connection.id === id))
+    .filter((connection): connection is ConnectionConfig => connection !== undefined);
 }
 
 function mapHostsToConnections(hosts: SshHostRecord[]): ConnectionConfig[] {
@@ -130,9 +164,9 @@ function mapHostsToConnections(hosts: SshHostRecord[]): ConnectionConfig[] {
     host: host.host,
     port: host.port,
     username: host.username,
-    authMode: host.auth_mode,
     sshKeyId: host.ssh_key_id,
-    hasPassword: host.auth_mode === "password" || host.auth_mode === "publickey_password",
+    hasPassword: host.auth?.kind === "password" || host.auth?.kind === "public_key_and_password",
+    auth: host.auth,
   }));
 }
 
@@ -220,6 +254,13 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
 
   async function deleteConnection(connection: ConnectionConfig) {
     await api.deleteConnection(connection);
+    const currentSettings = state.metadata?.settings ?? [];
+    await api.saveSetting({
+      key: "noverterm-config",
+      value: buildNovertermConfig(currentSettings, {
+        recentConnectionIds: parseRecentConnectionIds(currentSettings).filter((id) => id !== connection.id),
+      }),
+    });
     await refreshMetadata();
   }
 
@@ -239,9 +280,22 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
   }
 
   async function saveTerminalConfig(config: TerminalConfig) {
+    const currentSettings = state.metadata?.settings ?? [];
     await api.saveSetting({
       key: "noverterm-config",
-      value: JSON.stringify({ terminal: config }),
+      value: buildNovertermConfig(currentSettings, { terminal: config }),
+    });
+
+    await refreshMetadata();
+  }
+
+  async function recordRecentConnection(connectionId: string) {
+    const currentSettings = state.metadata?.settings ?? [];
+    await api.saveSetting({
+      key: "noverterm-config",
+      value: buildNovertermConfig(currentSettings, {
+        recentConnectionIds: uniqueRecentConnectionIds(connectionId, parseRecentConnectionIds(currentSettings)),
+      }),
     });
 
     await refreshMetadata();
@@ -259,6 +313,21 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
       return mapHostsToConnections(state.metadata.hosts);
     }
     return [];
+  }
+
+  function getRecentConnectionIds(): string[] {
+    if (!state.metadata) {
+      return [];
+    }
+
+    return filterExistingConnectionIds(
+      parseRecentConnectionIds(state.metadata.settings),
+      getConnections(),
+    );
+  }
+
+  function getRecentConnections(): ConnectionConfig[] {
+    return mapRecentConnections(getRecentConnectionIds(), getConnections());
   }
 
   function getKeys(): SshKeyRecord[] {
@@ -305,8 +374,11 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
     updateKey,
     deleteKey,
     saveTerminalConfig,
+    recordRecentConnection,
     getTerminalConfig,
     getConnections,
+    getRecentConnectionIds,
+    getRecentConnections,
     getKeys,
     getSettings,
   };

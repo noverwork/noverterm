@@ -6,6 +6,7 @@ import {
 } from "./api-client.js";
 
 import type { SshHostRecord, SshKeyRecord } from "./types.js";
+import { encryptSecret } from "$lib/crypto/vault.js";
 import type { SaveConnectionInput, ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
 
 interface HostWriteRequest {
@@ -13,7 +14,6 @@ interface HostWriteRequest {
   host: string;
   port: number;
   username: string;
-  auth_mode: string;
   ssh_key_id: string | null;
   encrypted_password: string | null;
 }
@@ -37,17 +37,20 @@ export async function saveBackendConnection(
   const trimmedPassword = trimOptional(connection.password);
   const trimmedPrivateKey = trimOptional(connection.privateKey);
   const trimmedPassphrase = trimOptional(connection.passphrase);
+  const encryptedPassword = await encryptSecret(trimmedPassword);
+  const encryptedPrivateKey = await encryptSecret(trimmedPrivateKey);
+  const encryptedPassphrase = await encryptSecret(trimmedPassphrase);
 
   return withAuthorizedRetry(async (accessToken) => {
     let sshKeyId = connection.existingKeyId ?? null;
 
-    if (trimmedPrivateKey) {
+    if (encryptedPrivateKey) {
       const keyInput: KeyWriteRequest = {
         name: connection.keyName || `${connection.name} key`,
         kind: "inline",
         fingerprint: null,
-        encrypted_private_key: trimmedPrivateKey,
-        encrypted_passphrase: trimmedPassphrase,
+        encrypted_private_key: encryptedPrivateKey,
+        encrypted_passphrase: encryptedPassphrase,
       };
 
       const key = connection.existingKeyId
@@ -64,24 +67,17 @@ export async function saveBackendConnection(
       sshKeyId = key.id;
     }
 
-    if (!trimmedPassword && !sshKeyId) {
+    if (!encryptedPassword && !sshKeyId) {
       throw new Error("password or private key is required");
     }
-
-    const authMode = sshKeyId && trimmedPassword
-      ? "publickey_password"
-      : sshKeyId
-        ? "publickey"
-        : "password";
 
     const hostInput: HostWriteRequest = {
       name: connection.name,
       host: connection.host,
       port: connection.port,
       username: connection.username,
-      auth_mode: authMode,
       ssh_key_id: sshKeyId,
-      encrypted_password: trimmedPassword,
+      encrypted_password: encryptedPassword,
     };
 
     return connection.id

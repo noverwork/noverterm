@@ -74,10 +74,10 @@
   }
 
   function getAuthLabel(connection: ConnectionConfig): string {
-    switch (connection.authMode) {
-      case "publickey_password":
+    switch (connection.auth?.kind) {
+      case "public_key_and_password":
         return "Key + Password";
-      case "publickey":
+      case "public_key":
         return "SSH Key";
       default:
         return "Password";
@@ -156,7 +156,7 @@
 
               <div class="mt-4 flex flex-wrap items-center gap-2">
                 <Button variant="ghost" size="xs" class="gap-1.5 rounded-xl bg-white/[0.035] text-slate-200 hover:bg-cyan-300/10 hover:text-white" onclick={() => onSelect(connection)}>
-                  Open
+                  Connect
                 </Button>
                 <Button variant="ghost" size="xs" class="gap-1.5 rounded-xl text-slate-400 hover:bg-white/7 hover:text-white" onclick={() => onEdit(connection)}>
                   <Pencil class="size-3" />

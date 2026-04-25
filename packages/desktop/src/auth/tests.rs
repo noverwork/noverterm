@@ -58,42 +58,6 @@ async fn restore_refreshes_expired_access_token_and_keeps_session() {
 }
 
 #[tokio::test]
-async fn connect_material_request_refreshes_access_token_when_needed() {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("listener should bind");
-    let address = listener
-        .local_addr()
-        .expect("listener should have an address");
-    let server = tokio::spawn(async move {
-        axum::serve(listener, test_auth_server())
-            .await
-            .expect("test auth server should run");
-    });
-
-    let manager = AuthManager::new(
-        BackendClient::new(format!("http://{}", address)),
-        MemoryTokenStore::default(),
-    );
-
-    manager
-        .login("alice".to_string(), "wonderland".to_string())
-        .await
-        .expect("login should succeed");
-
-    let material = manager
-        .issue_connect_material("host-123".to_string())
-        .await
-        .expect("connect material should refresh and load");
-    assert_eq!(material.host_id, "host-123");
-    assert_eq!(material.host, "example.com");
-    assert_eq!(material.port, 22);
-    assert_eq!(material.username, "deploy");
-
-    server.abort();
-}
-
-#[tokio::test]
 async fn bootstrap_metadata_loads_settings_hosts_and_keys() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
@@ -163,7 +127,6 @@ fn test_auth_server() -> Router {
         .route("/auth/login", post(login_handler))
         .route("/auth/refresh", post(refresh_handler))
         .route("/auth/logout", post(logout_handler))
-        .route("/bootstrap/connect/{host_id}/issue", post(connect_handler))
         .route("/bootstrap/smoke", get(smoke_handler))
         .route("/bootstrap/settings", get(settings_handler))
         .route("/bootstrap/hosts", get(hosts_handler))
@@ -242,42 +205,6 @@ async fn smoke_handler(
     }
 }
 
-async fn connect_handler(
-    State(()): State<()>,
-    axum::extract::Path(host_id): axum::extract::Path<String>,
-    headers: HeaderMap,
-) -> (StatusCode, Json<serde_json::Value>) {
-    let token = headers
-        .get("authorization")
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or_default();
-
-    if token == "Bearer fresh-access-token" {
-        (
-            StatusCode::OK,
-            Json(json!({
-                "issuance_id": "issuance-1",
-                "host_id": host_id,
-                "host": "example.com",
-                "port": 22,
-                "username": "deploy",
-                "issued_for_username": "alice",
-                "issued_for_session_id": "session-123",
-                "expires_at": "2026-04-18T12:00:00Z",
-                "auth": {
-                    "kind": "password",
-                    "password": "secret"
-                }
-            })),
-        )
-    } else {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(json!({ "error": "unauthorized" })),
-        )
-    }
-}
-
 async fn settings_handler(
     State(()): State<()>,
     headers: HeaderMap,
@@ -321,8 +248,12 @@ async fn hosts_handler(
                     "host": "prod.example.com",
                     "port": 22,
                     "username": "deploy",
-                    "auth_mode": "key",
-                    "ssh_key_id": "key-1"
+                    "ssh_key_id": "key-1",
+                    "auth": {
+                        "kind": "public_key",
+                        "private_key": "private-key",
+                        "passphrase": null
+                    }
                 }
             ])),
         )

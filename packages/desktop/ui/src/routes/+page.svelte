@@ -49,6 +49,7 @@
 
   const terminalConfig = $derived(bootstrapStore.getTerminalConfig());
   const connections = $derived(bootstrapStore.getConnections());
+  const recentConnectionIds = $derived(bootstrapStore.getRecentConnectionIds());
   const keys = $derived(bootstrapStore.getKeys());
 
   async function openInitialLocalTerminal() {
@@ -93,15 +94,14 @@
   }
 
   async function handleSelectConnection(connection: ConnectionConfig) {
-    const existing = Array.from(sessionStore.sessions.values()).find(
-      (session) => session.connectionId === connection.id && session.status !== "disconnected",
-    );
-    if (existing) {
-      sessionStore.setActiveSession(existing.id);
-      return;
-    }
-
+    currentView = "terminal";
     await sessionStore.connectSavedConnection(connection, 80, 24);
+    void bootstrapStore.recordRecentConnection(connection.id).catch(() => undefined);
+  }
+
+  function handleActivateSession(id: string) {
+    sessionStore.setActiveSession(id);
+    currentView = "terminal";
   }
 
   function openNewConnectionForm() {
@@ -223,7 +223,7 @@
       event.preventDefault();
       const index = Number.parseInt(event.key, 10) - 1;
       if (index < activeSessions.length) {
-        sessionStore.setActiveSession(activeSessions[index].id);
+        handleActivateSession(activeSessions[index].id);
       }
     }
   }
@@ -266,6 +266,7 @@
     <Sidebar
       {connections}
       sessions={sessionStore.sessions}
+      {recentConnectionIds}
       activeSessionId={sessionStore.activeSessionId}
       collapsed={sidebarCollapsed}
       onToggle={() => (sidebarCollapsed = !sidebarCollapsed)}
@@ -286,7 +287,7 @@
         <TerminalTabs
           sessions={activeSessions}
           activeSessionId={sessionStore.activeSessionId}
-          onActivate={(id) => sessionStore.setActiveSession(id)}
+          onActivate={handleActivateSession}
           onClose={handleSessionClose}
         />
       </div>

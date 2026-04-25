@@ -1,8 +1,7 @@
 use tokio::sync::RwLock;
 
 use super::backend_client::{
-    BackendClient, BackendClientError, BackendConnectMaterial, BackendHostUpsertInput,
-    BackendKeyUpsertInput,
+    BackendClient, BackendClientError, BackendHostUpsertInput, BackendKeyUpsertInput,
 };
 use std::path::PathBuf;
 
@@ -106,50 +105,6 @@ impl<S: SecureTokenStore> AuthManager<S> {
         }
 
         self.clear_local_session().await
-    }
-
-    pub async fn issue_connect_material(
-        &self,
-        host_id: String,
-    ) -> Result<BackendConnectMaterial, String> {
-        let tokens = if let Some(tokens) = self.cached_tokens.read().await.clone() {
-            Some(tokens)
-        } else {
-            self.store.load()?
-        };
-
-        let Some(tokens) = tokens else {
-            return Err("not authenticated".to_string());
-        };
-
-        match self
-            .client
-            .issue_connect_material(&tokens.access_token, &host_id)
-            .await
-        {
-            Ok(material) => {
-                self.persist_tokens(&tokens).await?;
-                Ok(material)
-            }
-            Err(BackendClientError::Unauthorized(_)) => {
-                let refreshed = self
-                    .client
-                    .refresh(&tokens.refresh_token)
-                    .await
-                    .map_err(map_client_error)?;
-                let rotated_tokens = StoredAuthTokens {
-                    access_token: refreshed.access_token,
-                    refresh_token: refreshed.refresh_token,
-                    email: refreshed.email,
-                };
-                self.persist_tokens(&rotated_tokens).await?;
-                self.client
-                    .issue_connect_material(&rotated_tokens.access_token, &host_id)
-                    .await
-                    .map_err(map_client_error)
-            }
-            Err(BackendClientError::Transport(error)) => Err(error),
-        }
     }
 
     async fn complete_bootstrap(
@@ -329,20 +284,11 @@ impl<S: SecureTokenStore> AuthManager<S> {
             return Err("password or private key is required".to_string());
         }
 
-        let auth_mode = match (ssh_key_id.is_some(), trimmed_password.is_some()) {
-            (true, true) => "publickey_password",
-            (true, false) => "publickey",
-            (false, true) => "password",
-            (false, false) => unreachable!("validated above"),
-        }
-        .to_string();
-
         let host_input = BackendHostUpsertInput {
             name: connection.name,
             host: connection.host,
             port: connection.port,
             username: connection.username,
-            auth_mode,
             ssh_key_id,
             encrypted_password: trimmed_password,
         };
