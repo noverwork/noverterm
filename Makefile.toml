@@ -29,6 +29,7 @@ echo "  cargo make tauri:build    - Build Tauri desktop app"
 echo "  cargo make frontend:dev   - Start frontend dev server (Vite)"
 echo "  cargo make db:status      - Check migration status"
 echo "  cargo make db:generate    - Generate new migration (diesel --diff-schema)"
+echo "  cargo make db:print-schema - Print DB schema to orm/src/schema.rs"
 echo "  cargo make db:drift-check - Check schema drift without creating migration"
 echo "  cargo make db:migrate     - Apply pending migrations"
 echo "  cargo make db:up          - Apply all migrations"
@@ -282,6 +283,27 @@ if [ "$has_sql" -eq 1 ]; then
 fi
 
 echo "No schema drift detected"
+'''
+
+[tasks."db:print-schema"]
+description = "Print current database schema into orm/src/schema.rs"
+workspace = false
+dependencies = ["db:ensure-diesel"]
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+cd packages/migrator
+
+# Support both .env file and direct environment variables (for Docker/K8s)
+if [ -f .env ]; then
+  set -a
+  source .env
+  set +a
+fi
+
+: "${DATABASE_URL:?DATABASE_URL must be set as environment variable}"
+
+diesel print-schema > ../orm/src/schema.rs
 '''
 
 [tasks."db:up"]
