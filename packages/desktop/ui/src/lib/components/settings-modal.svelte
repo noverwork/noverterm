@@ -122,7 +122,7 @@
                     bind:value={$formData.fontFamily}
                     class="flex h-11 w-full appearance-none rounded-2xl border border-white/10 bg-black/20 px-3 py-1 text-sm text-white shadow-sm transition-colors focus-visible:border-cyan-300/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300/20"
                   >
-                    {#each FONT_FAMILIES as font}
+                    {#each FONT_FAMILIES as font (font)}
                       <option value={font}>{font}</option>
                     {/each}
                   </select>
@@ -163,7 +163,7 @@
                     bind:value={$formData.cursorStyle}
                     class="flex h-11 w-full appearance-none rounded-2xl border border-white/10 bg-black/20 px-3 py-1 text-sm text-white shadow-sm transition-colors focus-visible:border-cyan-300/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300/20"
                   >
-                    {#each CURSOR_STYLES as style}
+                    {#each CURSOR_STYLES as style (style)}
                       <option value={style}>{style}</option>
                     {/each}
                   </select>

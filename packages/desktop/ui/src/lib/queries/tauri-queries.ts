@@ -5,7 +5,6 @@
  * createQuery / createMutation throughout the UI layer.
  */
 
-import { commands as tauriCommands } from "../../bindings.js";
 import type {
   ConnectionConfig,
   SaveConnectionInput,

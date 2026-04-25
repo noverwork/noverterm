@@ -15,7 +15,7 @@ export async function loadBootstrapMetadataFromBackend(): Promise<BootstrapMetad
     });
   } catch (error) {
     if (isAuthExpiredError(error)) {
-      throw new Error("session expired");
+      throw new Error("session expired", { cause: error });
     }
     throw error;
   }
