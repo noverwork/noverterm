@@ -3,6 +3,7 @@ use diesel::prelude::*;
 use diesel::OptionalExtension;
 use orm::models::{NewUserSetting, UpdateUserSetting, UserSetting};
 use orm::schema::user_settings;
+use uuid::Uuid;
 
 use crate::bootstrap::db::run_db;
 use crate::db::DbPool;
@@ -56,6 +57,7 @@ pub async fn create(
     run_db(pool, move |connection| {
         let now = Utc::now().naive_utc();
         let new_setting = NewUserSetting {
+            id: Uuid::new_v4().to_string(),
             owner_id,
             key,
             value,

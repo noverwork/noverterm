@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::schema::ssh_keys;
 
-#[derive(Debug, Clone, Queryable, Selectable, Serialize, Deserialize)]
+#[derive(Debug, Clone, Queryable, Selectable, AsChangeset, Serialize, Deserialize)]
 #[diesel(table_name = ssh_keys)]
 pub struct SshKey {
     pub id: String,

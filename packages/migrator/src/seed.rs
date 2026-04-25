@@ -4,8 +4,8 @@ use argon2::{
 };
 use chrono::Utc;
 use diesel::prelude::*;
-use orm::models::{NewUser, NewUserSetting};
-use orm::schema::{user_settings, users};
+use orm::models::NewUser;
+use orm::schema::users;
 use std::env;
 
 fn hash_password(password: &str) -> String {
@@ -34,19 +34,6 @@ fn main() {
         .execute(&mut conn)
         .expect("Failed to seed default user");
     println!("✓ Seeded default user");
-
-    // ── Default Settings ─────────────────────────────────────────────────────
-    diesel::insert_into(user_settings::table)
-        .values(&vec![NewUserSetting {
-            owner_id: "default-user-0000-0000-0000-000000000001".to_string(),
-            key: "language".to_string(),
-            value: "en".to_string(),
-            created_at: now,
-            updated_at: now,
-        }])
-        .execute(&mut conn)
-        .expect("Failed to seed default settings");
-    println!("✓ Seeded default settings");
 
     println!("\n✅ Base seed data inserted successfully");
     println!("   Admin email: admin@nover.local");

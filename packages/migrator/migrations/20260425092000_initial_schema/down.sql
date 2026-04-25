@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS ssh_hosts;
+DROP TABLE IF EXISTS user_settings;
+DROP TABLE IF EXISTS ssh_keys;
+DROP TABLE IF EXISTS users;

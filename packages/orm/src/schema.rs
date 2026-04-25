@@ -7,12 +7,10 @@ diesel::table! {
         host -> Text,
         port -> Int4,
         username -> Text,
-        auth_mode -> Text,
         ssh_key_id -> Nullable<Text>,
         encrypted_password -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
-        last_connected_at -> Nullable<Timestamp>,
         owner_id -> Text,
     }
 }
@@ -32,7 +30,8 @@ diesel::table! {
 }
 
 diesel::table! {
-    user_settings (owner_id, key) {
+    user_settings (id) {
+        id -> Text,
         owner_id -> Text,
         key -> Text,
         value -> Text,

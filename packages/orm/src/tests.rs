@@ -9,8 +9,8 @@ use diesel::prelude::*;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use uuid::Uuid;
 
-use crate::models::{NewSshHost, NewSshKey, NewUserSetting};
-use crate::schema::{ssh_hosts, ssh_keys, user_settings};
+use crate::models::{NewSshHost, NewSshKey, NewUser, NewUserSetting};
+use crate::schema::{ssh_hosts, ssh_keys, user_settings, users};
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("../migrator/migrations");
 
@@ -49,6 +49,19 @@ fn connection() -> PgConnection {
     connection
 }
 
+fn insert_test_user(connection: &mut PgConnection, id: &str, now: chrono::NaiveDateTime) {
+    diesel::insert_into(users::table)
+        .values(&NewUser {
+            id: id.to_string(),
+            email: format!("{id}@example.test"),
+            password_hash: "test-password-hash".to_string(),
+            created_at: now,
+            updated_at: now,
+        })
+        .execute(connection)
+        .expect("test user insert should succeed");
+}
+
 #[test]
 fn owner_scoped_host_foreign_keys_reject_cross_user_key_references() {
     let mut connection = connection();
@@ -56,6 +69,9 @@ fn owner_scoped_host_foreign_keys_reject_cross_user_key_references() {
     let key_id = format!("key-{}", Uuid::new_v4());
     let owner_id = format!("alice-{}", Uuid::new_v4());
     let other_owner_id = format!("bob-{}", Uuid::new_v4());
+
+    insert_test_user(&mut connection, &owner_id, now);
+    insert_test_user(&mut connection, &other_owner_id, now);
 
     diesel::insert_into(ssh_keys::table)
         .values(&NewSshKey {
@@ -80,12 +96,10 @@ fn owner_scoped_host_foreign_keys_reject_cross_user_key_references() {
             host: "prod.example.com".to_string(),
             port: 22,
             username: "deploy".to_string(),
-            auth_mode: "publickey".to_string(),
             ssh_key_id: Some(key_id),
             encrypted_password: None,
             created_at: now,
             updated_at: now,
-            last_connected_at: None,
         })
         .execute(&mut connection);
 
@@ -97,18 +111,25 @@ fn user_settings_allow_same_key_for_different_owners() {
     let mut connection = connection();
     let now = Utc::now().naive_utc();
     let setting_key = format!("terminal-font-size-{}", Uuid::new_v4());
+    let alice_id = format!("alice-{}", Uuid::new_v4());
+    let bob_id = format!("bob-{}", Uuid::new_v4());
+
+    insert_test_user(&mut connection, &alice_id, now);
+    insert_test_user(&mut connection, &bob_id, now);
 
     diesel::insert_into(user_settings::table)
         .values(&vec![
             NewUserSetting {
-                owner_id: format!("alice-{}", Uuid::new_v4()),
+                id: format!("setting-{}", Uuid::new_v4()),
+                owner_id: alice_id,
                 key: setting_key.clone(),
                 value: "14".to_string(),
                 created_at: now,
                 updated_at: now,
             },
             NewUserSetting {
-                owner_id: format!("bob-{}", Uuid::new_v4()),
+                id: format!("setting-{}", Uuid::new_v4()),
+                owner_id: bob_id,
                 key: setting_key.clone(),
                 value: "16".to_string(),
                 created_at: now,

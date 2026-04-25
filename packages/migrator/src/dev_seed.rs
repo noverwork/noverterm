@@ -75,12 +75,10 @@ fn main() {
             host: "127.0.0.1".to_string(),
             port: 22,
             username: "ubuntu".to_string(),
-            auth_mode: "public_key".to_string(),
             ssh_key_id: Some(DEV_KEY_ID.to_string()),
             encrypted_password: None,
             created_at: now,
             updated_at: now,
-            last_connected_at: None,
             owner_id: DEV_USER_ID.to_string(),
         })
         .execute(&mut conn)

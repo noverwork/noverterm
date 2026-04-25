@@ -4,9 +4,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::schema::user_settings;
 
-#[derive(Debug, Clone, Queryable, Selectable, Serialize, Deserialize)]
+#[derive(Debug, Clone, Queryable, Selectable, AsChangeset, Serialize, Deserialize)]
 #[diesel(table_name = user_settings)]
 pub struct UserSetting {
+    pub id: String,
     pub owner_id: String,
     pub key: String,
     pub value: String,
@@ -17,6 +18,7 @@ pub struct UserSetting {
 #[derive(Debug, Clone, Insertable)]
 #[diesel(table_name = user_settings)]
 pub struct NewUserSetting {
+    pub id: String,
     pub owner_id: String,
     pub key: String,
     pub value: String,
