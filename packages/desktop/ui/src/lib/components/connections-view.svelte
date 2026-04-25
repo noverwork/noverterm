@@ -102,15 +102,16 @@
   }
 </script>
 
-<div class="flex h-full flex-col overflow-y-auto bg-background px-5 py-6 lg:px-8">
-  <section class="panel-glass flex min-h-full flex-col rounded-[1.75rem] p-5 text-white sm:p-6">
+<div class="workspace-canvas flex h-full flex-col overflow-y-auto px-5 py-6 lg:px-8">
+  <section class="ide-panel flex min-h-full flex-col p-5 text-white sm:p-6">
     <div class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <p class="section-title text-slate-400">Connections</p>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight">Connections</h1>
+        <p class="section-title text-cyan-200/70">Inventory</p>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">SSH Connections</h1>
+        <p class="mt-2 text-sm text-slate-500">Curated hosts, credentials, and active terminal targets.</p>
       </div>
 
-      <Button onclick={onNew} variant="default" size="sm" class="gap-2 self-start rounded-xl">
+      <Button onclick={onNew} variant="default" size="sm" class="gap-2 self-start rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200">
         <Plus class="size-3.5" />
         Add connection
       </Button>
@@ -124,7 +125,7 @@
 
     <div class="mt-6 flex-1">
       {#if sortedConnections.length === 0}
-        <div class="flex h-full min-h-[16rem] items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-8 text-center text-sm text-muted-foreground">
+        <div class="flex h-full min-h-[16rem] items-center justify-center rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground">
           No saved connections yet
         </div>
       {:else}
@@ -135,8 +136,8 @@
             {@const isActive = session?.id === activeSessionId}
 
             <article class={isActive
-              ? "rounded-2xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-3"
-              : "rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3"}>
+              ? "group rounded-[1.35rem] border border-cyan-300/24 bg-cyan-300/8 px-4 py-4 shadow-[0_16px_42px_rgb(34_211_238/0.10)]"
+              : "group rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055]"}>
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0 flex-1">
                   <div class="flex flex-wrap items-center gap-2">
@@ -146,7 +147,7 @@
                     </span>
                   </div>
 
-                  <p class="mt-1 text-xs text-slate-400">{connection.username}@{connection.host}:{connection.port}</p>
+                  <p class="mt-2 truncate font-mono text-xs text-slate-400">{connection.username}@{connection.host}:{connection.port}</p>
                   <p class="mt-1 text-xs text-slate-500">{getAuthLabel(connection)}</p>
                 </div>
 
@@ -154,17 +155,17 @@
               </div>
 
               <div class="mt-4 flex flex-wrap items-center gap-2">
-                <Button variant="ghost" size="xs" class="gap-1.5 rounded-xl text-slate-300 hover:text-white" onclick={() => onSelect(connection)}>
+                <Button variant="ghost" size="xs" class="gap-1.5 rounded-xl bg-white/[0.035] text-slate-200 hover:bg-cyan-300/10 hover:text-white" onclick={() => onSelect(connection)}>
                   Open
                 </Button>
-                <Button variant="ghost" size="xs" class="gap-1.5 rounded-xl text-slate-300 hover:text-white" onclick={() => onEdit(connection)}>
+                <Button variant="ghost" size="xs" class="gap-1.5 rounded-xl text-slate-400 hover:bg-white/7 hover:text-white" onclick={() => onEdit(connection)}>
                   <Pencil class="size-3" />
                   Edit
                 </Button>
                 <Button
                   variant="ghost"
                   size="xs"
-                  class="gap-1.5 rounded-xl text-slate-300 hover:text-destructive"
+                  class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
                   onclick={() => handleDelete(connection)}
                   disabled={deletingConnectionId === connection.id}
                 >
