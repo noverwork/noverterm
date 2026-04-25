@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export interface TerminalConfig {
-  theme: "dark" | "light";
   fontSize: number;
   fontFamily: string;
   cursorStyle: "block" | "underline" | "bar";
@@ -27,7 +26,6 @@ export interface AppConfig {
 
 const DEFAULT_CONFIG: AppConfig = {
   terminal: {
-    theme: "dark",
     fontSize: 14,
     fontFamily: "JetBrains Mono, Fira Code, monospace",
     cursorStyle: "block",

@@ -66,7 +66,6 @@
     await bootstrapStore.init();
 
     if (bootstrapStore.isAuthenticated) {
-      bootstrapStore.applyTheme(bootstrapStore.getTerminalConfig().theme);
       await openInitialLocalTerminal();
     }
   });
@@ -78,7 +77,6 @@
   async function handleLogin(email: string, password: string) {
     await bootstrapStore.login(email, password);
     if (bootstrapStore.isAuthenticated) {
-      bootstrapStore.applyTheme(bootstrapStore.getTerminalConfig().theme);
       await openInitialLocalTerminal();
     }
   }
@@ -86,7 +84,6 @@
   async function handleSignup(email: string, password: string) {
     await bootstrapStore.register(email, password);
     if (bootstrapStore.isAuthenticated) {
-      bootstrapStore.applyTheme(bootstrapStore.getTerminalConfig().theme);
       await openInitialLocalTerminal();
     }
   }

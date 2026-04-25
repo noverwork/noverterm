@@ -28,52 +28,27 @@ export interface TerminalController {
   dispose(): void;
 }
 
-function getTheme(theme: TerminalConfig["theme"]) {
-  if (theme === "dark") {
-    return {
-      background: "#0a0a0a",
-      foreground: "#e5e5e5",
-      cursor: "#e5e5e5",
-      selectionBackground: "#ffffff20",
-      black: "#0a0a0a",
-      red: "#ef4444",
-      green: "#22c55e",
-      yellow: "#eab308",
-      blue: "#3b82f6",
-      magenta: "#a855f7",
-      cyan: "#06b6d4",
-      white: "#e5e5e5",
-      brightBlack: "#404040",
-      brightRed: "#f87171",
-      brightGreen: "#4ade80",
-      brightYellow: "#facc15",
-      brightBlue: "#60a5fa",
-      brightMagenta: "#c084fc",
-      brightCyan: "#22d3ee",
-      brightWhite: "#ffffff",
-    };
-  }
-
+function getTheme() {
   return {
-    background: "#ffffff",
-    foreground: "#111827",
-    cursor: "#111827",
-    selectionBackground: "#11182720",
-    black: "#1f2937",
-    red: "#dc2626",
-    green: "#16a34a",
-    yellow: "#ca8a04",
-    blue: "#2563eb",
-    magenta: "#9333ea",
-    cyan: "#0891b2",
-    white: "#f9fafb",
-    brightBlack: "#6b7280",
-    brightRed: "#ef4444",
-    brightGreen: "#22c55e",
-    brightYellow: "#eab308",
-    brightBlue: "#3b82f6",
-    brightMagenta: "#a855f7",
-    brightCyan: "#06b6d4",
+    background: "#0a0a0a",
+    foreground: "#e5e5e5",
+    cursor: "#e5e5e5",
+    selectionBackground: "#ffffff20",
+    black: "#0a0a0a",
+    red: "#ef4444",
+    green: "#22c55e",
+    yellow: "#eab308",
+    blue: "#3b82f6",
+    magenta: "#a855f7",
+    cyan: "#06b6d4",
+    white: "#e5e5e5",
+    brightBlack: "#404040",
+    brightRed: "#f87171",
+    brightGreen: "#4ade80",
+    brightYellow: "#facc15",
+    brightBlue: "#60a5fa",
+    brightMagenta: "#c084fc",
+    brightCyan: "#22d3ee",
     brightWhite: "#ffffff",
   };
 }
@@ -111,7 +86,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     console.info("[xterm:init]", { sessionId, hasContainer: Boolean(container) });
 
     terminal = new Terminal({
-      theme: getTheme(currentConfig.theme),
+      theme: getTheme(),
       fontSize: currentConfig.fontSize,
       fontFamily: currentConfig.fontFamily,
       cursorStyle: currentConfig.cursorStyle,
@@ -201,12 +176,14 @@ export function createTerminal(options: TerminalOptions): TerminalController {
 
     if (!terminal) return;
 
-    terminal.options.theme = getTheme(config.theme);
+    terminal.options.theme = getTheme();
     terminal.options.fontSize = config.fontSize;
     terminal.options.fontFamily = config.fontFamily;
     terminal.options.cursorStyle = config.cursorStyle;
     terminal.options.cursorBlink = config.cursorBlink;
     terminal.options.scrollback = config.scrollback;
+
+    terminal.refresh(0, terminal.rows - 1);
 
     fit();
   }

@@ -43,7 +43,6 @@ const defaultApi: BootstrapApi = {
 export type BootstrapPhase = "loading" | "authenticated" | "unauthenticated" | "error";
 
 export interface TerminalConfig {
-  theme: "dark" | "light";
   fontSize: number;
   fontFamily: string;
   cursorStyle: "block" | "underline" | "bar";
@@ -76,7 +75,6 @@ export interface SaveConnectionInput {
 }
 
 const DEFAULT_TERMINAL_CONFIG: TerminalConfig = {
-  theme: "dark",
   fontSize: 14,
   fontFamily: "JetBrains Mono, Fira Code, monospace",
   cursorStyle: "block",
@@ -136,14 +134,6 @@ function mapHostsToConnections(hosts: SshHostRecord[]): ConnectionConfig[] {
     sshKeyId: host.ssh_key_id,
     hasPassword: host.auth_mode === "password" || host.auth_mode === "publickey_password",
   }));
-}
-
-function applyTheme(theme: "dark" | "light") {
-  if (theme === "dark") {
-    document.documentElement.classList.add("dark");
-  } else {
-    document.documentElement.classList.remove("dark");
-  }
 }
 
 export function createBootstrapStore(api: BootstrapApi = defaultApi) {
@@ -254,7 +244,6 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
       value: JSON.stringify({ terminal: config }),
     });
 
-    applyTheme(config.theme);
     await refreshMetadata();
   }
 
@@ -320,6 +309,5 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
     getConnections,
     getKeys,
     getSettings,
-    applyTheme,
   };
 }

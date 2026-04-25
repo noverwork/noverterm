@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Moon, MousePointer, ScrollText, Sun, Type, X } from "@lucide/svelte";
+  import { MousePointer, ScrollText, Type, X } from "@lucide/svelte";
   import { superForm } from "sveltekit-superforms";
   import { zod4 } from "sveltekit-superforms/adapters";
 
@@ -32,7 +32,6 @@
   const CURSOR_STYLES = ["block", "underline", "bar"] as const;
 
   const DEFAULTS: SettingsForm = {
-    theme: "dark",
     fontSize: 14,
     fontFamily: "JetBrains Mono, Fira Code, monospace",
     cursorStyle: "block",
@@ -49,7 +48,6 @@
 
   $effect(() => {
     if (open && config) {
-      $formData.theme = config.theme;
       $formData.fontSize = config.fontSize;
       $formData.fontFamily = config.fontFamily;
       $formData.cursorStyle = config.cursorStyle;
@@ -63,7 +61,6 @@
     const result = settingsSchema.safeParse($formData);
     if (!result.success) return;
     onSave({
-      theme: $formData.theme,
       fontSize: $formData.fontSize,
       fontFamily: $formData.fontFamily,
       cursorStyle: $formData.cursorStyle,
@@ -73,7 +70,6 @@
   }
 
   function handleReset() {
-    $formData.theme = DEFAULTS.theme;
     $formData.fontSize = DEFAULTS.fontSize;
     $formData.fontFamily = DEFAULTS.fontFamily;
     $formData.cursorStyle = DEFAULTS.cursorStyle;
@@ -93,36 +89,23 @@
     aria-label="Terminal settings"
     tabindex="-1"
   >
-    <div class="w-full max-w-3xl rounded-[1.75rem] border border-white/10 bg-slate-950/92 text-white shadow-2xl">
-      <div class="flex items-center justify-between border-b border-white/10 px-6 py-5">
+    <div class="flex h-full max-h-[90vh] w-full max-w-3xl flex-col rounded-[1.75rem] border border-white/10 bg-slate-950/92 text-white shadow-2xl">
+      <div class="flex items-center justify-between border-b border-white/10 px-6 py-4">
         <div>
           <p class="section-title text-slate-400">Workspace preferences</p>
-          <h2 class="mt-2 text-xl font-semibold tracking-tight">Terminal settings</h2>
-          <p class="mt-2 text-sm leading-6 text-slate-400">Tune appearance and terminal behavior without leaving your current workspace.</p>
+          <h2 class="mt-1 text-lg font-semibold tracking-tight">Terminal settings</h2>
         </div>
         <Button variant="ghost" size="icon-sm" class="text-slate-300 hover:text-white" onclick={onClose}>
           <X class="size-4" />
         </Button>
       </div>
 
-      <div class="grid gap-6 px-6 py-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <div class="space-y-5 rounded-2xl border border-white/8 bg-white/[0.04] p-5">
+      <div class="flex-1 overflow-y-auto px-6 py-5">
+        <div class="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+          <div class="space-y-5 rounded-2xl border border-white/8 bg-white/[0.04] p-5">
           <div>
             <p class="section-title text-slate-400">Appearance</p>
             <h3 class="mt-2 text-lg font-semibold text-white">Visual tone of your terminal workspace</h3>
-          </div>
-
-          <div class="grid gap-3 sm:grid-cols-2">
-            <button type="button" class={$formData.theme === "dark" ? "rounded-2xl border border-primary/35 bg-primary/10 p-4 text-left" : "rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-left hover:bg-white/[0.06]"} onclick={() => ($formData.theme = "dark")}>
-              <Moon class="size-5 text-primary" />
-              <p class="mt-4 font-medium text-white">Dark workspace</p>
-              <p class="mt-2 text-sm leading-6 text-slate-400">Best for sustained terminal work and low-eye-strain environments.</p>
-            </button>
-            <button type="button" class={$formData.theme === "light" ? "rounded-2xl border border-primary/35 bg-primary/10 p-4 text-left" : "rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-left hover:bg-white/[0.06]"} onclick={() => ($formData.theme = "light")}>
-              <Sun class="size-5 text-primary" />
-              <p class="mt-4 font-medium text-white">Light workspace</p>
-              <p class="mt-2 text-sm leading-6 text-slate-400">Useful when you want higher contrast against the desktop and brighter shell output.</p>
-            </button>
           </div>
 
           <div class="space-y-2">
@@ -139,7 +122,7 @@
               </select>
               <Type class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
             </div>
-            <p class="text-xs text-slate-400">JetBrains Mono stays the default, but you can switch to a lighter monospace tone if needed.</p>
+            <p class="text-xs text-slate-400">JetBrains Mono stays the default, with other monospace options available if needed.</p>
           </div>
 
           <div class="space-y-2">
@@ -206,13 +189,14 @@
           </div>
 
           <div class="rounded-2xl border border-white/8 bg-slate-950/45 p-4 text-sm text-slate-300">
-            Reset returns you to the default developer-focused profile: dark theme, JetBrains Mono, block cursor,
+            Reset returns you to the default developer-focused profile: JetBrains Mono, block cursor,
             blinking caret, and a 5000-line scrollback buffer.
+          </div>
           </div>
         </div>
       </div>
 
-      <div class="flex gap-3 border-t border-white/10 px-6 py-5">
+      <div class="flex shrink-0 gap-3 border-t border-white/10 px-6 py-4">
         <Button type="button" variant="outline" class="flex-1 border-white/10 bg-white/4 text-white hover:bg-white/8" onclick={handleReset}>
           <ScrollText class="mr-2 size-4" />
           Reset to defaults

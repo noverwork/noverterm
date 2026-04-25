@@ -18,7 +18,7 @@ const createMockApi = () => ({
 import { createBootstrapStore } from "$lib/stores/bootstrap.svelte.js";
 
 const sampleMetadata = {
-  settings: [{ key: "noverterm-config", value: '{"terminal":{"theme":"dark","fontSize":16}}' }],
+  settings: [{ key: "noverterm-config", value: '{"terminal":{"fontSize":16}}' }],
   hosts: [{ id: "h1", name: "prod", host: "prod.example.com", port: 22, username: "deploy", auth_mode: "publickey_password", ssh_key_id: "k1" }],
   keys: [{ id: "k1", name: "deploy-key", kind: "ed25519", fingerprint: "SHA256:abc" }],
 };
@@ -30,7 +30,6 @@ describe("bootstrap store", () => {
 
   beforeEach(() => {
     mockApi = createMockApi();
-    document.documentElement.classList.remove("dark");
   });
 
   it("starts in loading phase", () => {
@@ -111,37 +110,5 @@ describe("bootstrap store", () => {
       expect.objectContaining({ id: "h1", sshKeyId: "k1" }),
     );
     expect(store.getConnections()).toHaveLength(0);
-  });
-
-  it("saves terminal config via backend settings and reapplies theme", async () => {
-    mockApi.restore.mockResolvedValue(sampleAuthStatus);
-    mockApi.loadBootstrapMetadata
-      .mockResolvedValueOnce(sampleMetadata)
-      .mockResolvedValueOnce({
-        ...sampleMetadata,
-        settings: [{ key: "noverterm-config", value: '{"terminal":{"theme":"light","fontSize":18}}' }],
-      });
-    mockApi.saveSetting.mockResolvedValue({
-      key: "noverterm-config",
-      value: '{"terminal":{"theme":"light","fontSize":18}}',
-    });
-
-    const store = createBootstrapStore(mockApi);
-    await store.init();
-    await store.saveTerminalConfig({
-      theme: "light",
-      fontSize: 18,
-      fontFamily: "JetBrains Mono, Fira Code, monospace",
-      cursorStyle: "block",
-      cursorBlink: true,
-      scrollback: 5000,
-    });
-
-    expect(mockApi.saveSetting).toHaveBeenCalledWith({
-      key: "noverterm-config",
-      value: '{"terminal":{"theme":"light","fontSize":18,"fontFamily":"JetBrains Mono, Fira Code, monospace","cursorStyle":"block","cursorBlink":true,"scrollback":5000}}',
-    });
-    expect(document.documentElement.classList.contains("dark")).toBe(false);
-    expect(store.getTerminalConfig().theme).toBe("light");
   });
 });
