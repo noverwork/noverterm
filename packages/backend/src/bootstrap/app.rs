@@ -11,7 +11,6 @@ pub fn build_router(state: AppState) -> Router {
         .route("/smoke", get(bootstrap_smoke))
         .nest("/hosts", crate::hosts::router())
         .nest("/keys", crate::keys::router())
-        .nest("/connect", crate::connect::router())
         .nest("/settings", crate::settings::router())
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

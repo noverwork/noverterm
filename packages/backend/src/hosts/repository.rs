@@ -27,7 +27,6 @@ pub struct CreateHostInput {
     pub host: String,
     pub port: i32,
     pub username: String,
-    pub auth_mode: String,
     pub ssh_key_id: Option<String>,
     pub encrypted_password: Option<String>,
 }
@@ -40,7 +39,6 @@ pub struct UpdateHostInput {
     pub host: String,
     pub port: i32,
     pub username: String,
-    pub auth_mode: String,
     pub ssh_key_id: Option<String>,
     pub encrypted_password: Option<String>,
 }
@@ -84,12 +82,10 @@ pub async fn create(pool: DbPool, input: CreateHostInput) -> Result<SshHost, Rep
             host: input.host,
             port: input.port,
             username: input.username,
-            auth_mode: input.auth_mode,
             ssh_key_id: input.ssh_key_id,
             encrypted_password: input.encrypted_password,
             created_at: now,
             updated_at: now,
-            last_connected_at: None,
         };
 
         diesel::insert_into(ssh_hosts::table)
@@ -109,11 +105,9 @@ pub async fn update(pool: DbPool, input: UpdateHostInput) -> Result<SshHost, Rep
             host: input.host,
             port: input.port,
             username: input.username,
-            auth_mode: input.auth_mode,
             ssh_key_id: input.ssh_key_id,
             encrypted_password: input.encrypted_password,
             updated_at: Utc::now().naive_utc(),
-            last_connected_at: None,
         };
 
         diesel::update(

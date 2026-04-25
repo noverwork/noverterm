@@ -9,7 +9,7 @@ use crate::test_support::{
 };
 
 #[tokio::test]
-async fn host_routes_are_owner_scoped_and_redact_password_fields() {
+async fn host_routes_are_owner_scoped_and_return_auth_material() {
     let alice = unique_name("alice");
     let bob = unique_name("bob");
     let password = "wonderland";
@@ -52,7 +52,6 @@ async fn host_routes_are_owner_scoped_and_redact_password_fields() {
             "host": "alice.example.com",
             "port": 22,
             "username": "deploy",
-            "auth_mode": "password",
             "ssh_key_id": null,
             "encrypted_password": "encrypted-alice-password"
         }),
@@ -60,6 +59,8 @@ async fn host_routes_are_owner_scoped_and_redact_password_fields() {
     .await;
     assert_eq!(alice_create.status(), StatusCode::CREATED);
     let alice_host = response_json(alice_create).await;
+    assert_eq!(alice_host["auth"]["kind"], "password");
+    assert_eq!(alice_host["auth"]["password"], "encrypted-alice-password");
     assert!(alice_host.get("encrypted_password").is_none());
     let alice_host_id = alice_host["id"].as_str().expect("host id should exist");
 
@@ -73,7 +74,6 @@ async fn host_routes_are_owner_scoped_and_redact_password_fields() {
             "host": "bob.example.com",
             "port": 2222,
             "username": "ops",
-            "auth_mode": "password",
             "ssh_key_id": null,
             "encrypted_password": "encrypted-bob-password"
         }),
@@ -92,9 +92,9 @@ async fn host_routes_are_owner_scoped_and_redact_password_fields() {
         .expect("hosts list should be an array");
     assert!(alice_hosts.iter().any(|host| host["id"] == alice_host_id));
     assert!(!alice_hosts.iter().any(|host| host["id"] == bob_host_id));
-    assert!(alice_hosts
-        .iter()
-        .all(|host| host.get("encrypted_password").is_none()));
+    assert!(alice_hosts.iter().all(|host| {
+        host.get("encrypted_password").is_none() && host["auth"]["kind"] == "password"
+    }));
 
     let bob_get_alice = authorized_empty_request(
         app.clone(),
@@ -115,7 +115,6 @@ async fn host_routes_are_owner_scoped_and_redact_password_fields() {
             "host": "alice-updated.example.com",
             "port": 2200,
             "username": "root",
-            "auth_mode": "password",
             "ssh_key_id": null,
             "encrypted_password": "encrypted-alice-password-v2"
         }),
@@ -124,6 +123,11 @@ async fn host_routes_are_owner_scoped_and_redact_password_fields() {
     assert_eq!(alice_update.status(), StatusCode::OK);
     let alice_update = response_json(alice_update).await;
     assert_eq!(alice_update["host"], "alice-updated.example.com");
+    assert_eq!(alice_update["auth"]["kind"], "password");
+    assert_eq!(
+        alice_update["auth"]["password"],
+        "encrypted-alice-password-v2"
+    );
     assert!(alice_update.get("encrypted_password").is_none());
 
     let bob_delete_alice = authorized_empty_request(
