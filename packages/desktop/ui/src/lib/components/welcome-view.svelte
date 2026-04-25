@@ -1,11 +1,9 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { KeyRound, Plus, Sparkles, Terminal } from "@lucide/svelte";
+  import { KeyRound, Plus, Sparkles } from "@lucide/svelte";
 
-  import { Button } from "$lib/components/ui/button/index.js";
   import TerminalView from "$lib/terminal/terminal.svelte";
   import type { SessionStatus } from "$lib/stores/session.svelte.js";
-  import type { ConnectionConfig, TerminalConfig } from "$lib/stores/bootstrap.svelte.js";
+  import type { TerminalConfig } from "$lib/stores/bootstrap.svelte.js";
 
   let {
     sessions,
@@ -29,17 +27,6 @@
   const localSession = $derived(
     Array.from(sessions.values()).find((s) => s.name === "Local Terminal" && s.status === "connected"),
   );
-
-  onMount(() => {
-    if (localSession) return;
-    (async () => {
-      try {
-        await sessionStore.connectLocal("Local Terminal");
-      } catch {
-        // ignore
-      }
-    })();
-  });
 </script>
 
 <div class="workspace-canvas flex h-full flex-col overflow-y-auto px-5 py-6 lg:px-8">

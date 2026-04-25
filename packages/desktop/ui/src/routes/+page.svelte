@@ -52,23 +52,10 @@
   const recentConnectionIds = $derived(bootstrapStore.getRecentConnectionIds());
   const keys = $derived(bootstrapStore.getKeys());
 
-  async function openInitialLocalTerminal() {
-    if (sessionStore.sessions.size > 0) return;
-    try {
-      await sessionStore.connectLocal("Local Terminal");
-    } catch {
-      // Ignore initial local-terminal failures and keep the app usable.
-    }
-  }
-
   onMount(async () => {
     await loadAppSettings();
     await sessionStore.init();
     await bootstrapStore.init();
-
-    if (bootstrapStore.isAuthenticated) {
-      await openInitialLocalTerminal();
-    }
   });
 
   onDestroy(() => {
@@ -77,16 +64,10 @@
 
   async function handleLogin(email: string, password: string) {
     await bootstrapStore.login(email, password);
-    if (bootstrapStore.isAuthenticated) {
-      await openInitialLocalTerminal();
-    }
   }
 
   async function handleSignup(email: string, password: string) {
     await bootstrapStore.register(email, password);
-    if (bootstrapStore.isAuthenticated) {
-      await openInitialLocalTerminal();
-    }
   }
 
   async function handleLogout() {
@@ -228,9 +209,6 @@
     }
   }
 
-  function switchView(view: "terminal" | "connections" | "keys") {
-    currentView = view;
-  }
 </script>
 
 <svelte:window onkeydown={handleGlobalKeydown} />
@@ -305,7 +283,7 @@
           />
         {:else if currentView === "keys"}
           <SshKeysView
-            keys={bootstrapStore.getKeys()}
+            keys={keys}
             onSave={handleSaveKey}
             onUpdate={handleUpdateKey}
             onDelete={handleDeleteKey}
@@ -376,7 +354,7 @@
     {#if showConnectionForm}
       <ConnectionForm
         connection={editingConnection}
-        keys={bootstrapStore.getKeys()}
+        keys={keys}
         error={connectionFormError}
         isSaving={connectionSaving}
         onSave={handleSaveConnection}
