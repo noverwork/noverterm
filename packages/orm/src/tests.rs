@@ -96,21 +96,21 @@ fn owner_scoped_host_foreign_keys_reject_cross_user_key_references() {
 fn user_settings_allow_same_key_for_different_owners() {
     let mut connection = connection();
     let now = Utc::now().naive_utc();
-    let setting_key = format!("theme-{}", Uuid::new_v4());
+    let setting_key = format!("terminal-font-size-{}", Uuid::new_v4());
 
     diesel::insert_into(user_settings::table)
         .values(&vec![
             NewUserSetting {
                 owner_id: format!("alice-{}", Uuid::new_v4()),
                 key: setting_key.clone(),
-                value: "dark".to_string(),
+                value: "14".to_string(),
                 created_at: now,
                 updated_at: now,
             },
             NewUserSetting {
                 owner_id: format!("bob-{}", Uuid::new_v4()),
                 key: setting_key.clone(),
-                value: "light".to_string(),
+                value: "16".to_string(),
                 created_at: now,
                 updated_at: now,
             },

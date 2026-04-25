@@ -291,7 +291,7 @@ async fn settings_handler(
         (
             StatusCode::OK,
             Json(json!([
-                { "key": "noverterm-config", "value": "{\"terminal\":{\"theme\":\"dark\",\"fontSize\":16}}" }
+                { "key": "noverterm-config", "value": "{\"terminal\":{\"fontSize\":16}}" }
             ])),
         )
     } else {

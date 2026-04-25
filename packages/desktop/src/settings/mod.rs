@@ -104,13 +104,15 @@ mod tests {
 
         manager
             .set(Setting {
-                key: "theme".to_string(),
-                value: "dark".to_string(),
+                key: "terminal-font-size".to_string(),
+                value: "14".to_string(),
             })
             .expect("setting should save");
 
-        let setting = manager.get("theme").expect("theme setting should exist");
-        assert_eq!(setting.value, "dark");
+        let setting = manager
+            .get("terminal-font-size")
+            .expect("font size setting should exist");
+        assert_eq!(setting.value, "14");
 
         let _ = std::fs::remove_file(path);
     }
