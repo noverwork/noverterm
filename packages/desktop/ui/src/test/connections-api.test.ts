@@ -93,4 +93,32 @@ describe("connections API", () => {
     expect(hostBody.ssh_key_id).toBeNull();
     expect(hostBody.encrypted_password).toBeNull();
   });
+
+  it("clears ssh key when existingKeyId is empty string", async () => {
+    mockRequestWithAuth.mockResolvedValueOnce({
+      id: "h1",
+      name: "prod",
+      host: "prod.example.com",
+      port: 22,
+      username: "deploy",
+      ssh_key_id: null,
+      auth: null,
+    });
+
+    await saveBackendConnection({
+      name: "prod",
+      host: "prod.example.com",
+      port: 22,
+      username: "deploy",
+      existingKeyId: "",
+    });
+
+    expect(mockRequestWithAuth).toHaveBeenCalledTimes(1);
+    const hostBody = JSON.parse(mockRequestWithAuth.mock.calls[0][2].body as string) as {
+      ssh_key_id: string | null;
+      encrypted_password: string | null;
+    };
+
+    expect(hostBody.ssh_key_id).toBeNull();
+  });
 });

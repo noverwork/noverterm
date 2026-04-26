@@ -102,7 +102,8 @@
     const result = connectionSchema.safeParse($formData);
     if (!result.success || isSaving) return;
 
-    const effectiveKeyId = $formData.keyMode === "saved" ? $formData.selectedKeyId : null;
+    const rawKeyId = $formData.keyMode === "saved" ? $formData.selectedKeyId : null;
+    const effectiveKeyId = rawKeyId && rawKeyId.trim() ? rawKeyId : null;
     const preservedEncryptedPassword = connection?.hasPassword && !$formData.password.trim()
       ? connection.auth?.kind === "password" || connection.auth?.kind === "public_key_and_password"
         ? connection.auth.password

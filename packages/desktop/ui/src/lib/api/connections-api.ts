@@ -44,7 +44,9 @@ export async function saveBackendConnection(
   const encryptedPassphrase = await encryptSecret(trimmedPassphrase);
 
   return withAuthorizedRetry(async (accessToken) => {
-    let sshKeyId = connection.existingKeyId ?? null;
+    let sshKeyId = (connection.existingKeyId && connection.existingKeyId.trim())
+      ? connection.existingKeyId
+      : null;
 
     if (encryptedPrivateKey) {
       const keyInput: KeyWriteRequest = {

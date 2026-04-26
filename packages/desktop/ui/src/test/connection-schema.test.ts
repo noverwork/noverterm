@@ -75,6 +75,24 @@ describe("connection schema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts empty string selectedKeyId as valid deselection", () => {
+    const result = connectionSchema.safeParse({
+      name: "prod",
+      host: "prod.example.com",
+      port: 22,
+      username: "deploy",
+      password: "",
+      privateKey: "",
+      passphrase: "",
+      useSshKey: false,
+      keyMode: "saved",
+      selectedKeyId: "",
+      existingPassword: false,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it("accepts existing password when editing without changing auth", () => {
     const result = connectionSchema.safeParse({
       name: "prod",
