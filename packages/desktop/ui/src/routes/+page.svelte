@@ -9,7 +9,6 @@
   import SshKeysView from "$lib/components/ssh-keys-view.svelte";
   import SettingsModal from "$lib/components/settings-modal.svelte";
   import Sidebar from "$lib/components/sidebar.svelte";
-  import TerminalTabs from "$lib/components/terminal-tabs.svelte";
   import WelcomeView from "$lib/components/welcome-view.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import type {
@@ -290,6 +289,8 @@
       collapsed={sidebarCollapsed}
       onToggle={() => (sidebarCollapsed = !sidebarCollapsed)}
       onSelect={handleSelectConnection}
+      onActivateSession={handleActivateSession}
+      onCloseSession={handleSessionClose}
       onEdit={(conn) => { currentView = "connections"; openEditConnectionForm(conn); }}
       onDelete={handleDeleteConnection}
       onLocalTerminal={() => { sessionStore.connectLocal("Local Terminal"); currentView = "terminal"; }}
@@ -302,15 +303,6 @@
     />
 
     <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-[#080c13]/72">
-      <div class="shrink-0">
-        <TerminalTabs
-          sessions={activeSessions}
-          activeSessionId={sessionStore.activeSessionId}
-          onActivate={handleActivateSession}
-          onClose={handleSessionClose}
-        />
-      </div>
-
       <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         {#if currentView === "connections"}
           <ConnectionsView
@@ -469,7 +461,11 @@
               {/if}
               <div class="terminal-frame relative min-h-0 flex-1 overflow-hidden rounded-[1.35rem] border border-white/10 bg-black/50 shadow-2xl shadow-black/45">
               {#each mountedTerminalSessions as session (session.id)}
-                <div class:hidden={session.id !== sessionStore.activeSessionId} class="absolute inset-0 min-h-0 overflow-hidden">
+                <div
+                  class={session.id === sessionStore.activeSessionId
+                    ? "absolute inset-0 z-10 min-h-0 overflow-hidden pointer-events-auto"
+                    : "absolute inset-0 z-0 min-h-0 overflow-hidden pointer-events-none"}
+                >
                   <TerminalView
                     sessionId={session.id}
                     sessionType={session.type}

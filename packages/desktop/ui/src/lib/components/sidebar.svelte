@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { ChevronLeft, ChevronRight, KeyRound, LogOut, Pencil, Plus, Search, Settings, Terminal, Trash2 } from "@lucide/svelte";
+  import { ChevronLeft, ChevronRight, KeyRound, LogOut, Pencil, Plus, Search, Settings, Terminal, Trash2, X } from "@lucide/svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
-  import type { SessionStatus } from "$lib/stores/session.svelte.js";
+  import type { Session, SessionStatus } from "$lib/stores/session.svelte.js";
   import { findConnectionSession } from "$lib/view-models/auth-and-sessions.js";
 
   let {
@@ -15,6 +15,8 @@
     collapsed,
     onToggle,
     onSelect,
+    onActivateSession,
+    onCloseSession,
     onEdit,
     onDelete,
     onLocalTerminal,
@@ -26,12 +28,14 @@
     keyCount = 0,
   }: {
     connections: ConnectionConfig[];
-    sessions: Map<string, { id: string; name: string; status: SessionStatus; connectionId?: string | null }>;
+    sessions: Map<string, Session>;
     recentConnectionIds: string[];
     activeSessionId: string | null;
     collapsed: boolean;
     onToggle: () => void;
     onSelect: (conn: ConnectionConfig) => void;
+    onActivateSession: (id: string) => void;
+    onCloseSession: (id: string) => void;
     onEdit: (conn: ConnectionConfig) => void;
     onDelete: (conn: ConnectionConfig) => void;
     onLocalTerminal?: () => void;
@@ -62,6 +66,10 @@
       .filter((connection): connection is ConnectionConfig => connection !== undefined),
   );
 
+  const activeSessions = $derived(
+    Array.from(sessions.values()).filter((session) => session.status !== "disconnected"),
+  );
+
   function getConnectionSession(conn: ConnectionConfig) {
     return findConnectionSession(sessions.values(), conn);
   }
@@ -81,14 +89,19 @@
     }
   }
 
-  const connectedConnections = $derived(
-    filteredConnections.filter((conn) => {
-      const session = getConnectionSession(conn);
-      return session?.status === "connected" || session?.status === "connecting" || session?.status === "trust_required";
-    }),
+  function sessionSubtitle(session: Session) {
+    if (session.type === "local") {
+      return "Local shell";
+    }
+
+    return `${session.username}@${session.host}:${session.port}`;
+  }
+
+  const activeConnectionIds = $derived(
+    new Set(activeSessions.map((session) => session.connectionId).filter((id): id is string => Boolean(id))),
   );
 
-  const otherConnections = $derived(recentConnections.filter((conn) => !connectedConnections.some((connected) => connected.id === conn.id)));
+  const otherConnections = $derived(recentConnections.filter((conn) => !activeConnectionIds.has(conn.id)));
 </script>
 
 <aside class="sidebar relative flex flex-col border-r border-white/10 bg-[#070b12]/96 shadow-[18px_0_60px_rgb(0_0_0/0.28)] backdrop-blur-2xl transition-all duration-300 {collapsed ? 'w-[4.5rem]' : 'w-[20.5rem]'}">
@@ -165,31 +178,32 @@
     </div>
 
     <div class="flex-1 overflow-y-auto px-3 pb-3">
-      {#if connectedConnections.length > 0}
+      {#if activeSessions.length > 0}
         <div class="mb-6">
           <div class="flex items-center justify-between px-2">
             <p class="section-title text-emerald-300/80">Active</p>
-            <span class="rounded-full border border-emerald-300/15 bg-emerald-300/8 px-2 py-0.5 text-[10px] font-medium text-emerald-200">{connectedConnections.length}</span>
+            <span class="rounded-full border border-emerald-300/15 bg-emerald-300/8 px-2 py-0.5 text-[10px] font-medium text-emerald-200">{activeSessions.length}</span>
           </div>
           <div class="mt-2 space-y-1.5">
-            {#each connectedConnections as conn (conn.id)}
-              {@const session = getConnectionSession(conn)}
-              {@const status = statusBadge(session?.status)}
-              <button
-                class={session?.id === activeSessionId
-                  ? "group flex w-full cursor-pointer items-start gap-3 rounded-2xl border border-cyan-300/30 bg-cyan-300/10 px-3 py-3 text-left text-white shadow-[0_10px_32px_rgb(34_211_238/0.10)] transition"
-                  : "group flex w-full cursor-pointer items-start gap-3 rounded-2xl border border-transparent px-3 py-3 text-left text-slate-300 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white"}
-                onclick={() => onSelect(conn)}
-              >
-                <span class="mt-1.5 size-2.5 shrink-0 rounded-full {status.tone}"></span>
-                <span class="min-w-0 flex-1">
-                  <span class="flex items-center gap-2">
-                    <span class="truncate text-sm font-semibold">{conn.name}</span>
-                    <span class="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide {status.text}">{status.label}</span>
+            {#each activeSessions as session (session.id)}
+              {@const status = statusBadge(session.status)}
+              <div class={session.id === activeSessionId
+                ? "group flex items-start gap-2 rounded-2xl border border-cyan-300/30 bg-cyan-300/10 p-1.5 text-white shadow-[0_10px_32px_rgb(34_211_238/0.10)] transition"
+                : "group flex items-start gap-2 rounded-2xl border border-transparent p-1.5 text-slate-300 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white"}>
+                <button class="flex min-w-0 flex-1 cursor-pointer items-start gap-3 rounded-xl px-1.5 py-1.5 text-left" onclick={() => onActivateSession(session.id)}>
+                  <span class="mt-1.5 size-2.5 shrink-0 rounded-full {status.tone}"></span>
+                  <span class="min-w-0 flex-1">
+                    <span class="flex items-center gap-2">
+                      <span class="truncate text-sm font-semibold">{session.name}</span>
+                      <span class="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide {status.text}">{status.label}</span>
+                    </span>
+                    <span class="mt-1 block truncate text-xs text-slate-500">{sessionSubtitle(session)}</span>
                   </span>
-                  <span class="mt-1 block truncate text-xs text-slate-500">{conn.username}@{conn.host}:{conn.port}</span>
-                </span>
-              </button>
+                </button>
+                <Button variant="ghost" size="icon-xs" class="size-7 shrink-0 rounded-xl text-slate-500 opacity-0 transition-opacity hover:bg-red-400/10 hover:text-red-300 group-hover:opacity-100 group-focus-within:opacity-100" onclick={() => onCloseSession(session.id)} aria-label={`Close ${session.name}`}>
+                  <X class="size-3" />
+                </Button>
+              </div>
             {/each}
           </div>
         </div>
