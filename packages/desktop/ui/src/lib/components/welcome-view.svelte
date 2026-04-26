@@ -2,7 +2,7 @@
   import { KeyRound, Plus, Sparkles } from "@lucide/svelte";
 
   import TerminalView from "$lib/terminal/terminal.svelte";
-  import type { SessionStatus } from "$lib/stores/session.svelte.js";
+  import type { SessionStatus, TerminalOutputCallback } from "$lib/stores/session.svelte.js";
   import type { TerminalConfig } from "$lib/stores/bootstrap.svelte.js";
 
   let {
@@ -18,6 +18,7 @@
       activeSessionId: string | null;
       setActiveSession: (id: string) => void;
       connectLocal: (name: string) => Promise<string>;
+      subscribeSessionOutput: (sessionId: string, callback: TerminalOutputCallback) => () => void;
     };
     terminalConfig: TerminalConfig;
     onOpenConnectionManager: () => void;
@@ -47,6 +48,7 @@
         sessionType="local"
         active={localSession.id === sessionStore.activeSessionId}
         config={terminalConfig}
+        subscribeOutput={(callback) => sessionStore.subscribeSessionOutput(localSession.id, callback)}
       />
     </div>
   {/if}

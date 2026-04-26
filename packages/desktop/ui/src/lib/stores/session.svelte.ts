@@ -1,5 +1,5 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { SvelteDate, SvelteMap } from "svelte/reactivity";
+import { SvelteDate, SvelteMap, SvelteSet } from "svelte/reactivity";
 
 import { commands as tauriCommands } from "../../bindings.js";
 import type {
@@ -14,6 +14,14 @@ import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
 
 export type SessionType = "ssh" | "local";
 export type SessionStatus = "connecting" | "connected" | "trust_required" | "disconnected" | "error";
+
+export interface TerminalOutputPayload {
+  session_id: string;
+  output: string;
+  closed: boolean;
+}
+
+export type TerminalOutputCallback = (payload: TerminalOutputPayload) => void;
 
 export interface DirectConnectionInput {
   host: string;
@@ -64,9 +72,38 @@ const state: SessionState = $state({
 let eventUnlisten: UnlistenFn | null = null;
 let localEventUnlisten: UnlistenFn | null = null;
 let portForwardEventUnlisten: UnlistenFn | null = null;
+let initPromise: Promise<void> | null = null;
+
+const pendingOutput = new SvelteMap<string, TerminalOutputPayload[]>();
+const outputSubscribers = new SvelteMap<string, SvelteSet<TerminalOutputCallback>>();
 
 function updatePortForward(status: LocalPortForward) {
   state.portForwards.set(status.forward_id, status);
+}
+
+function handleTerminalOutput(payload: TerminalOutputPayload) {
+  const subscribers = outputSubscribers.get(payload.session_id);
+  if (subscribers && subscribers.size > 0) {
+    for (const subscriber of subscribers) {
+      subscriber(payload);
+    }
+  } else {
+    const output = pendingOutput.get(payload.session_id) ?? [];
+    output.push(payload);
+    pendingOutput.set(payload.session_id, output);
+  }
+
+  const session = state.sessions.get(payload.session_id);
+  if (session) {
+    state.sessions.set(payload.session_id, {
+      ...session,
+      status: payload.closed
+        ? "disconnected"
+        : session.status === "connecting"
+          ? "connected"
+          : session.status,
+    });
+  }
 }
 
   function sessionName(host: string, port: number, username: string) {
@@ -154,48 +191,43 @@ function connectResponseSessionUpdates(
 
 export function createSessionStore() {
   async function init() {
-    if (eventUnlisten) return;
+    if (eventUnlisten && localEventUnlisten && portForwardEventUnlisten) return;
+    if (initPromise) return initPromise;
 
-    eventUnlisten = await listen(
-      "ssh_output",
-      (event: { payload: { session_id: string; output: string; closed: boolean } }) => {
-        const { session_id, closed } = event.payload;
-        const session = state.sessions.get(session_id);
-        if (session) {
-          updateSession(session_id, {
-            status: closed
-              ? "disconnected"
-              : session.status === "connecting"
-                ? "connected"
-                : session.status,
-          });
-        }
-      },
-    );
+    initPromise = (async () => {
+      if (!eventUnlisten) {
+        eventUnlisten = await listen(
+          "ssh_output",
+          (event: { payload: TerminalOutputPayload }) => {
+            handleTerminalOutput(event.payload);
+          },
+        );
+      }
 
-    localEventUnlisten = await listen(
-      "local_output",
-      (event: { payload: { session_id: string; output: string; closed: boolean } }) => {
-        const { session_id, closed } = event.payload;
-        const session = state.sessions.get(session_id);
-        if (session) {
-          updateSession(session_id, {
-            status: closed
-              ? "disconnected"
-              : session.status === "connecting"
-                ? "connected"
-                : session.status,
-          });
-        }
-      },
-    );
+      if (!localEventUnlisten) {
+        localEventUnlisten = await listen(
+          "local_output",
+          (event: { payload: TerminalOutputPayload }) => {
+            handleTerminalOutput(event.payload);
+          },
+        );
+      }
 
-    portForwardEventUnlisten = await listen(
-      "ssh_port_forward",
-      (event: { payload: LocalPortForward }) => {
-        updatePortForward(event.payload);
-      },
-    );
+      if (!portForwardEventUnlisten) {
+        portForwardEventUnlisten = await listen(
+          "ssh_port_forward",
+          (event: { payload: LocalPortForward }) => {
+            updatePortForward(event.payload);
+          },
+        );
+      }
+    })();
+
+    try {
+      await initPromise;
+    } finally {
+      initPromise = null;
+    }
   }
 
   function addSession(session: Session) {
@@ -212,6 +244,8 @@ export function createSessionStore() {
 
   function removeSession(id: string) {
     state.sessions.delete(id);
+    pendingOutput.delete(id);
+    outputSubscribers.delete(id);
     for (const [forwardId, forward] of state.portForwards.entries()) {
       if (forward.session_id === id) {
         state.portForwards.delete(forwardId);
@@ -242,11 +276,34 @@ export function createSessionStore() {
     );
   }
 
+  function subscribeSessionOutput(sessionId: string, callback: TerminalOutputCallback) {
+    const subscribers = outputSubscribers.get(sessionId) ?? new SvelteSet<TerminalOutputCallback>();
+    subscribers.add(callback);
+    outputSubscribers.set(sessionId, subscribers);
+
+    const buffered = pendingOutput.get(sessionId);
+    if (buffered) {
+      pendingOutput.delete(sessionId);
+      for (const payload of buffered) {
+        callback(payload);
+      }
+    }
+
+    return () => {
+      subscribers.delete(callback);
+      if (subscribers.size === 0) {
+        outputSubscribers.delete(sessionId);
+      }
+    };
+  }
+
   async function connectSavedConnection(
     connection: ConnectionConfig,
     cols: number = 80,
     rows: number = 24,
   ): Promise<string> {
+    await init();
+
     const tempId = crypto.randomUUID();
     addSession({
       id: tempId,
@@ -308,6 +365,8 @@ export function createSessionStore() {
     cols: number = 80,
     rows: number = 24,
   ): Promise<string> {
+    await init();
+
     const tempId = crypto.randomUUID();
     addSession({
       id: tempId,
@@ -369,6 +428,8 @@ export function createSessionStore() {
     cols: number = 80,
     rows: number = 24,
   ): Promise<string> {
+    await init();
+
     const tempId = crypto.randomUUID();
 
     addSession({
@@ -500,6 +561,9 @@ export function createSessionStore() {
       portForwardEventUnlisten();
       portForwardEventUnlisten = null;
     }
+    initPromise = null;
+    pendingOutput.clear();
+    outputSubscribers.clear();
   }
 
   return {
@@ -520,6 +584,7 @@ export function createSessionStore() {
     getActiveSession,
     getSessions,
     getPortForwardsForSession,
+    subscribeSessionOutput,
     connectSavedConnection,
     connectDirect,
     connectLocal,

@@ -212,10 +212,6 @@
     background: #525252;
   }
 
-  .terminal-container .xterm-screen {
-    height: 100%;
-  }
-
   .sidebar {
     scrollbar-width: thin;
     scrollbar-color: var(--sidebar-border) transparent;

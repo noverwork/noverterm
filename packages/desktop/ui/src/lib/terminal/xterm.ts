@@ -1,11 +1,10 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import type { TerminalConfig } from "$lib/stores/bootstrap.svelte.js";
 
-import type { SessionType } from "$lib/stores/session.svelte.js";
+import type { SessionType, TerminalOutputCallback } from "$lib/stores/session.svelte.js";
 
 interface TerminalOptions {
   sessionId: string;
@@ -13,6 +12,7 @@ interface TerminalOptions {
   config: TerminalConfig;
   onOutput?: (data: string) => void;
   onClose?: () => void;
+  subscribeOutput?: (callback: TerminalOutputCallback) => () => void;
 }
 
 export interface TerminalController {
@@ -60,14 +60,14 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   let currentConfig = options.config;
   let terminal: Terminal | null = null;
   let fitAddon: FitAddon | null = null;
-  let outputUnlisten: UnlistenFn | null = null;
+  let outputUnlisten: (() => void) | null = null;
   let disposed = false;
   let selectionCallback: (() => void) | null = null;
   let initialSizeSynced = false;
+  let revealFrame: number | null = null;
 
   const writeCmd = sessionType === "local" ? "local_write" : "ssh_write";
   const resizeCmd = sessionType === "local" ? "local_resize" : "ssh_resize";
-  const outputEvent = sessionType === "local" ? "local_output" : "ssh_output";
 
   function syncInitialSize() {
     if (!terminal || !fitAddon || initialSizeSynced || disposed) return;
@@ -127,25 +127,19 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       selectionCallback?.();
     });
 
-    listen(
-      outputEvent,
-      (event: { payload: { session_id: string; output: string; closed: boolean } }) => {
-        if (event.payload.session_id === sessionId && terminal) {
-          console.info("[xterm:output]", {
-            sessionId,
-            closed: event.payload.closed,
-            bytes: event.payload.output.length,
-          });
-          if (event.payload.closed) {
-            options.onClose?.();
-          } else {
-            terminal.write(event.payload.output);
-          }
-        }
+    outputUnlisten = options.subscribeOutput?.((payload) => {
+      if (!terminal) return;
+      console.info("[xterm:output]", {
+        sessionId,
+        closed: payload.closed,
+        bytes: payload.output.length,
+      });
+      if (payload.closed) {
+        options.onClose?.();
+      } else {
+        terminal.write(payload.output);
       }
-    ).then((unlisten) => {
-      outputUnlisten = unlisten;
-    }).catch(() => void 0);
+    }) ?? null;
 
   }
 
@@ -157,18 +151,28 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     if (!terminal) return;
 
     terminal.clearTextureAtlas();
-    terminal.refresh(0, terminal.rows - 1);
+    if (terminal.rows > 0) {
+      terminal.refresh(0, terminal.rows - 1);
+    }
   }
 
   function reveal() {
     if (!terminal) return;
 
     fitAddon?.fit();
-    terminal.scrollToBottom();
-    terminal.clearTextureAtlas();
-    terminal.refresh(0, terminal.rows - 1);
-    terminal.write("");
-    terminal.focus();
+
+    if (revealFrame !== null) {
+      cancelAnimationFrame(revealFrame);
+    }
+
+    revealFrame = requestAnimationFrame(() => {
+      revealFrame = null;
+      if (!terminal || disposed) return;
+
+      terminal.scrollToBottom();
+      refresh();
+      terminal.focus();
+    });
   }
 
   function copySelection() {
@@ -203,13 +207,19 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     terminal.options.cursorBlink = config.cursorBlink;
     terminal.options.scrollback = config.scrollback;
 
-    terminal.refresh(0, terminal.rows - 1);
+    if (terminal.rows > 0) {
+      terminal.refresh(0, terminal.rows - 1);
+    }
 
     fit();
   }
 
   function dispose() {
     disposed = true;
+    if (revealFrame !== null) {
+      cancelAnimationFrame(revealFrame);
+      revealFrame = null;
+    }
     outputUnlisten?.();
     outputUnlisten = null;
     terminal?.dispose();

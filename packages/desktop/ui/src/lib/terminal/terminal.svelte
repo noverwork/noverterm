@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
+  import { onMount, tick } from "svelte";
   import { createTerminal } from "./xterm.js";
   import type { TerminalConfig } from "$lib/stores/bootstrap.svelte.js";
-  import type { SessionType } from "$lib/stores/session.svelte.js";
+  import type { SessionType, TerminalOutputCallback } from "$lib/stores/session.svelte.js";
 
   let {
     sessionId,
@@ -11,6 +11,7 @@
     config,
     onOutput,
     onClose,
+    subscribeOutput,
     onSelectionChange,
     controller = $bindable(null),
   }: {
@@ -20,6 +21,7 @@
     config: TerminalConfig;
     onOutput?: (data: string) => void;
     onClose?: () => void;
+    subscribeOutput?: (callback: TerminalOutputCallback) => () => void;
     onSelectionChange?: () => void;
     controller?: ReturnType<typeof createTerminal> | null;
   } = $props();
@@ -27,26 +29,57 @@
   let container = $state<HTMLDivElement | null>(null);
   let term: ReturnType<typeof createTerminal> | null = null;
   let resizeObserver: ResizeObserver | null = null;
+  let revealFrame: number | null = null;
+  let revealGeneration = 0;
+
+  function cancelScheduledReveal() {
+    revealGeneration += 1;
+
+    if (revealFrame !== null) {
+      cancelAnimationFrame(revealFrame);
+      revealFrame = null;
+    }
+  }
+
+  async function scheduleReveal() {
+    const generation = ++revealGeneration;
+
+    await tick();
+
+    if (generation !== revealGeneration || !active || !term || !container) return;
+    if (container.clientWidth === 0 || container.clientHeight === 0) return;
+
+    if (revealFrame !== null) {
+      cancelAnimationFrame(revealFrame);
+    }
+
+    revealFrame = requestAnimationFrame(() => {
+      revealFrame = null;
+
+      if (!active || !term || !container) return;
+      if (container.clientWidth === 0 || container.clientHeight === 0) return;
+
+      term.reveal();
+    });
+  }
 
   $effect(() => {
     term?.updateConfig(config);
   });
 
   $effect(() => {
-    if (!active || !term) return;
+    if (!active) {
+      cancelScheduledReveal();
+      return;
+    }
 
-    requestAnimationFrame(() => {
-      term?.reveal();
-      requestAnimationFrame(() => {
-        term?.reveal();
-      });
-    });
+    void scheduleReveal();
   });
 
   onMount(() => {
     if (!container) return;
 
-    term = createTerminal({ sessionId, sessionType, config, onOutput, onClose });
+    term = createTerminal({ sessionId, sessionType, config, onOutput, onClose, subscribeOutput });
     term.init(container);
 
     if (controller !== undefined) {
@@ -57,21 +90,25 @@
       term.onSelectionChange(onSelectionChange);
     }
 
-    resizeObserver = new ResizeObserver(() => {
-      if (!active) return;
+    if (active) {
+      void scheduleReveal();
+    }
 
-      term?.fit();
+    resizeObserver = new ResizeObserver((entries) => {
+      if (!active) return;
+      const [entry] = entries;
+      if (entry && (entry.contentRect.width === 0 || entry.contentRect.height === 0)) return;
+
+      void scheduleReveal();
     });
     resizeObserver.observe(container);
 
     return () => {
+      cancelScheduledReveal();
       resizeObserver?.disconnect();
       term?.dispose();
+      term = null;
     };
-  });
-
-  onDestroy(() => {
-    term?.dispose();
   });
 </script>
 

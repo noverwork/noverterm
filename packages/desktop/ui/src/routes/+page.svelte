@@ -34,6 +34,7 @@
   let connectionSaving = $state(false);
   let trustConfirming = $state(false);
   let trustError = $state<string | null>(null);
+  let visibleTerminalSessionId = $state<string | null>(null);
 
   const activeSession = $derived(
     sessionStore.activeSessionId ? sessionStore.sessions.get(sessionStore.activeSessionId) : undefined,
@@ -59,8 +60,25 @@
 
   const terminalConfig = $derived(bootstrapStore.getTerminalConfig());
   const connections = $derived(bootstrapStore.getConnections());
-  const recentConnectionIds = $derived(bootstrapStore.getRecentConnectionIds());
   const keys = $derived(bootstrapStore.getKeys());
+
+  $effect(() => {
+    if (activeSession?.status === "connected") {
+      if (visibleTerminalSessionId !== activeSession.id) {
+        visibleTerminalSessionId = activeSession.id;
+      }
+      return;
+    }
+
+    if (visibleTerminalSessionId && mountedTerminalSessions.some((session) => session.id === visibleTerminalSessionId)) {
+      return;
+    }
+
+    const fallbackSessionId = mountedTerminalSessions[0]?.id ?? null;
+    if (visibleTerminalSessionId !== fallbackSessionId) {
+      visibleTerminalSessionId = fallbackSessionId;
+    }
+  });
 
   onMount(async () => {
     await loadAppSettings();
@@ -282,17 +300,12 @@
 {:else}
   <div class="workspace-canvas flex h-screen w-screen overflow-hidden bg-background">
     <Sidebar
-      {connections}
       sessions={sessionStore.sessions}
-      {recentConnectionIds}
       activeSessionId={sessionStore.activeSessionId}
       collapsed={sidebarCollapsed}
       onToggle={() => (sidebarCollapsed = !sidebarCollapsed)}
-      onSelect={handleSelectConnection}
       onActivateSession={handleActivateSession}
       onCloseSession={handleSessionClose}
-      onEdit={(conn) => { currentView = "connections"; openEditConnectionForm(conn); }}
-      onDelete={handleDeleteConnection}
       onLocalTerminal={() => { sessionStore.connectLocal("Local Terminal"); currentView = "terminal"; }}
       onManageKeys={() => { currentView = "keys"; }}
       onNewConnection={() => { currentView = "connections"; }}
@@ -304,6 +317,39 @@
 
     <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-[#080c13]/72">
       <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        {#if mountedTerminalSessions.length > 0}
+          <div class={currentView === "terminal" && activeSession?.status === "connected"
+            ? "relative z-0 flex h-full min-h-0 flex-1 flex-col overflow-hidden p-3"
+            : "pointer-events-none absolute inset-0 z-0 flex min-h-0 flex-col overflow-hidden p-3 opacity-0"}>
+            {#if activeSession?.type === "ssh" && activeSession.status === "connected"}
+              <PortForwardPanel
+                session={activeSession}
+                forwards={activeSessionPortForwards}
+                onStart={sessionStore.startLocalPortForward}
+                onStop={sessionStore.stopLocalPortForward}
+              />
+            {/if}
+            <div class="terminal-frame relative min-h-0 flex-1 overflow-hidden rounded-[1.35rem] border border-white/10 bg-black/50 shadow-2xl shadow-black/45">
+              {#each mountedTerminalSessions as session (session.id)}
+                <div
+                  class={session.id === visibleTerminalSessionId
+                    ? "absolute inset-0 z-10 min-h-0 overflow-hidden opacity-100 pointer-events-auto"
+                    : "absolute inset-0 z-0 min-h-0 overflow-hidden opacity-0 pointer-events-none"}
+                >
+                  <TerminalView
+                    sessionId={session.id}
+                    sessionType={session.type}
+                    active={currentView === "terminal" && session.id === visibleTerminalSessionId}
+                    config={terminalConfig}
+                    subscribeOutput={(callback) => sessionStore.subscribeSessionOutput(session.id, callback)}
+                    onClose={() => sessionStore.updateSession(session.id, { status: "disconnected" })}
+                  />
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
         {#if currentView === "connections"}
           <ConnectionsView
             {connections}
@@ -330,6 +376,7 @@
                 activeSessionId: sessionStore.activeSessionId,
                 setActiveSession: sessionStore.setActiveSession,
                 connectLocal: (name: string) => sessionStore.connectLocal(name),
+                subscribeSessionOutput: sessionStore.subscribeSessionOutput,
               }}
               terminalConfig={terminalConfig}
               onOpenConnectionManager={() => (currentView = "connections")}
@@ -449,32 +496,11 @@
                 {/if}
               </div>
             </div>
-          {:else}
-            <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden p-3">
-              {#if activeSession.type === "ssh" && activeSession.status === "connected"}
-                <PortForwardPanel
-                  session={activeSession}
-                  forwards={activeSessionPortForwards}
-                  onStart={sessionStore.startLocalPortForward}
-                  onStop={sessionStore.stopLocalPortForward}
-                />
-              {/if}
-              <div class="terminal-frame relative min-h-0 flex-1 overflow-hidden rounded-[1.35rem] border border-white/10 bg-black/50 shadow-2xl shadow-black/45">
-              {#each mountedTerminalSessions as session (session.id)}
-                <div
-                  class={session.id === sessionStore.activeSessionId
-                    ? "absolute inset-0 z-10 min-h-0 overflow-hidden pointer-events-auto"
-                    : "absolute inset-0 z-0 min-h-0 overflow-hidden pointer-events-none"}
-                >
-                  <TerminalView
-                    sessionId={session.id}
-                    sessionType={session.type}
-                    active={session.id === sessionStore.activeSessionId}
-                    config={terminalConfig}
-                    onClose={() => sessionStore.updateSession(session.id, { status: "disconnected" })}
-                  />
-                </div>
-              {/each}
+          {:else if mountedTerminalSessions.length === 0}
+            <div class="flex h-full flex-col items-center justify-center p-8">
+              <div class="rounded-[2rem] border border-white/10 bg-white/[0.035] p-8 text-center shadow-2xl shadow-black/30">
+                <p class="text-sm font-semibold text-white">No active terminal</p>
+                <p class="mt-2 text-xs text-slate-500">Open a local terminal or SSH connection to start.</p>
               </div>
             </div>
           {/if}

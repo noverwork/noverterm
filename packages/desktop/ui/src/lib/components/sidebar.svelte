@@ -1,24 +1,17 @@
 <script lang="ts">
-  import { ChevronLeft, ChevronRight, KeyRound, LogOut, Pencil, Plus, Search, Settings, Terminal, Trash2, X } from "@lucide/svelte";
+  import { ChevronLeft, ChevronRight, KeyRound, LogOut, Plus, Search, Settings, Terminal, X } from "@lucide/svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
-  import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
   import type { Session, SessionStatus } from "$lib/stores/session.svelte.js";
-  import { findConnectionSession } from "$lib/view-models/auth-and-sessions.js";
 
   let {
-    connections,
     sessions,
-    recentConnectionIds,
     activeSessionId,
     collapsed,
     onToggle,
-    onSelect,
     onActivateSession,
     onCloseSession,
-    onEdit,
-    onDelete,
     onLocalTerminal,
     onManageKeys,
     onNewConnection,
@@ -27,17 +20,12 @@
     onLogout,
     keyCount = 0,
   }: {
-    connections: ConnectionConfig[];
     sessions: Map<string, Session>;
-    recentConnectionIds: string[];
     activeSessionId: string | null;
     collapsed: boolean;
     onToggle: () => void;
-    onSelect: (conn: ConnectionConfig) => void;
     onActivateSession: (id: string) => void;
     onCloseSession: (id: string) => void;
-    onEdit: (conn: ConnectionConfig) => void;
-    onDelete: (conn: ConnectionConfig) => void;
     onLocalTerminal?: () => void;
     onManageKeys?: () => void;
     onNewConnection?: () => void;
@@ -49,30 +37,20 @@
 
   let searchQuery = $state("");
 
-  const filteredConnections = $derived(
-    connections
-      .filter(
-        (connection) =>
-          connection.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          connection.host.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          connection.username.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-      .sort((a, b) => a.name.localeCompare(b.name)),
-  );
-
-  const recentConnections = $derived(
-    recentConnectionIds
-      .map((id) => filteredConnections.find((connection) => connection.id === id))
-      .filter((connection): connection is ConnectionConfig => connection !== undefined),
-  );
-
   const activeSessions = $derived(
     Array.from(sessions.values()).filter((session) => session.status !== "disconnected"),
   );
 
-  function getConnectionSession(conn: ConnectionConfig) {
-    return findConnectionSession(sessions.values(), conn);
-  }
+  const filteredSessions = $derived(
+    activeSessions.filter((session) => {
+      const query = searchQuery.toLowerCase();
+      return (
+        session.name.toLowerCase().includes(query) ||
+        session.host.toLowerCase().includes(query) ||
+        session.username.toLowerCase().includes(query)
+      );
+    }),
+  );
 
   function statusBadge(status?: SessionStatus) {
     switch (status) {
@@ -96,12 +74,6 @@
 
     return `${session.username}@${session.host}:${session.port}`;
   }
-
-  const activeConnectionIds = $derived(
-    new Set(activeSessions.map((session) => session.connectionId).filter((id): id is string => Boolean(id))),
-  );
-
-  const otherConnections = $derived(recentConnections.filter((conn) => !activeConnectionIds.has(conn.id)));
 </script>
 
 <aside class="sidebar relative flex flex-col border-r border-white/10 bg-[#070b12]/96 shadow-[18px_0_60px_rgb(0_0_0/0.28)] backdrop-blur-2xl transition-all duration-300 {collapsed ? 'w-[4.5rem]' : 'w-[20.5rem]'}">
@@ -185,7 +157,7 @@
             <span class="rounded-full border border-emerald-300/15 bg-emerald-300/8 px-2 py-0.5 text-[10px] font-medium text-emerald-200">{activeSessions.length}</span>
           </div>
           <div class="mt-2 space-y-1.5">
-            {#each activeSessions as session (session.id)}
+            {#each filteredSessions as session (session.id)}
               {@const status = statusBadge(session.status)}
               <div class={session.id === activeSessionId
                 ? "group flex items-start gap-2 rounded-2xl border border-cyan-300/30 bg-cyan-300/10 p-1.5 text-white shadow-[0_10px_32px_rgb(34_211_238/0.10)] transition"
@@ -205,51 +177,14 @@
                 </Button>
               </div>
             {/each}
+            {#if filteredSessions.length === 0}
+              <div class="rounded-3xl border border-dashed border-white/10 bg-white/[0.025] px-4 py-7 text-center text-sm leading-6 text-slate-500">
+                No active sessions match “{searchQuery}”.
+              </div>
+            {/if}
           </div>
         </div>
       {/if}
-
-      <div>
-        <div class="flex items-center justify-between px-2">
-          <p class="section-title">Recent</p>
-          <span class="text-[10px] font-medium text-slate-600">{otherConnections.length}</span>
-        </div>
-        <div class="mt-2 space-y-1.5">
-          {#each otherConnections as conn (conn.id)}
-            {@const session = getConnectionSession(conn)}
-            {@const status = statusBadge(session?.status)}
-            <div class={session?.id === activeSessionId
-              ? "group flex items-start gap-2 rounded-2xl border border-cyan-300/25 bg-cyan-300/8 p-1.5"
-              : "group flex items-start gap-2 rounded-2xl border border-transparent p-1.5 transition hover:border-white/10 hover:bg-white/[0.035]"}>
-              <button class="flex min-w-0 flex-1 cursor-pointer items-start gap-3 rounded-xl px-1.5 py-1.5 text-left" onclick={() => onSelect(conn)}>
-                <span class="mt-1.5 size-2.5 shrink-0 rounded-full {status.tone}"></span>
-                <span class="min-w-0 flex-1">
-                  <span class="truncate text-sm font-medium text-slate-100">{conn.name}</span>
-                  <span class="mt-1 block truncate text-xs text-slate-500">{conn.username}@{conn.host}:{conn.port}</span>
-                </span>
-              </button>
-              <div class="flex shrink-0 items-center gap-1 pt-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                <Button variant="ghost" size="icon-xs" class="size-7 rounded-xl text-slate-500 hover:bg-white/8 hover:text-white" onclick={() => onEdit(conn)} aria-label={`Edit ${conn.name}`}>
-                  <Pencil class="size-3" />
-                </Button>
-                <Button variant="ghost" size="icon-xs" class="size-7 rounded-xl text-slate-500 hover:bg-red-400/10 hover:text-red-300" onclick={() => onDelete(conn)} aria-label={`Delete ${conn.name}`}>
-                  <Trash2 class="size-3" />
-                </Button>
-              </div>
-            </div>
-          {/each}
-
-          {#if otherConnections.length === 0}
-            <div class="rounded-3xl border border-dashed border-white/10 bg-white/[0.025] px-4 py-7 text-center text-sm leading-6 text-slate-500">
-              {#if searchQuery}
-                No recent connections match “{searchQuery}”.
-              {:else}
-                Connect to a host once and it will appear here.
-              {/if}
-            </div>
-          {/if}
-        </div>
-      </div>
     </div>
 
     <div class="border-t border-white/10 p-3">
