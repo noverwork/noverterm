@@ -262,7 +262,11 @@ impl<S: SecureTokenStore> AuthManager<S> {
             };
 
             Some(
-                if let Some(existing_key_id) = connection.existing_key_id.clone() {
+                if let Some(existing_key_id) = connection
+                    .existing_key_id
+                    .clone()
+                    .filter(|s| !s.trim().is_empty())
+                {
                     self.client
                         .update_key(&tokens.access_token, &existing_key_id, &key_input)
                         .await
@@ -277,7 +281,10 @@ impl<S: SecureTokenStore> AuthManager<S> {
                 },
             )
         } else {
-            connection.existing_key_id.clone()
+            connection
+                .existing_key_id
+                .clone()
+                .filter(|s| !s.trim().is_empty())
         };
 
         let host_input = BackendHostUpsertInput {
