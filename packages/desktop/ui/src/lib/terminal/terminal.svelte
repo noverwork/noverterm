@@ -36,8 +36,10 @@
     if (!active || !term) return;
 
     requestAnimationFrame(() => {
-      term?.fit();
-      term?.focus();
+      term?.reveal();
+      requestAnimationFrame(() => {
+        term?.reveal();
+      });
     });
   });
 
@@ -56,6 +58,8 @@
     }
 
     resizeObserver = new ResizeObserver(() => {
+      if (!active) return;
+
       term?.fit();
     });
     resizeObserver.observe(container);

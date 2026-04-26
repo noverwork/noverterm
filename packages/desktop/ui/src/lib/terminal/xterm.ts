@@ -23,6 +23,8 @@ export interface TerminalController {
   clear(): void;
   focus(): void;
   fit(): void;
+  refresh(): void;
+  reveal(): void;
   updateConfig(config: TerminalConfig): void;
   onSelectionChange(callback: () => void): void;
   dispose(): void;
@@ -151,6 +153,24 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     fitAddon?.fit();
   }
 
+  function refresh() {
+    if (!terminal) return;
+
+    terminal.clearTextureAtlas();
+    terminal.refresh(0, terminal.rows - 1);
+  }
+
+  function reveal() {
+    if (!terminal) return;
+
+    fitAddon?.fit();
+    terminal.scrollToBottom();
+    terminal.clearTextureAtlas();
+    terminal.refresh(0, terminal.rows - 1);
+    terminal.write("");
+    terminal.focus();
+  }
+
   function copySelection() {
     return terminal?.getSelection() || null;
   }
@@ -207,6 +227,8 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     clear,
     focus,
     fit,
+    refresh,
+    reveal,
     updateConfig,
     onSelectionChange,
     dispose,
