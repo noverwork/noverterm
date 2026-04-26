@@ -1,5 +1,5 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { SvelteDate } from "svelte/reactivity";
+import { SvelteDate, SvelteMap } from "svelte/reactivity";
 
 import { commands as tauriCommands } from "../../bindings.js";
 import type {
@@ -13,7 +13,7 @@ import { decryptSecret } from "$lib/crypto/vault.js";
 import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
 
 export type SessionType = "ssh" | "local";
-export type SessionStatus = "connecting" | "connected" | "disconnected" | "error";
+export type SessionStatus = "connecting" | "connected" | "trust_required" | "disconnected" | "error";
 
 export interface DirectConnectionInput {
   host: string;
@@ -50,14 +50,14 @@ export interface Session {
 }
 
 interface SessionState {
-  sessions: Map<string, Session>;
-  portForwards: Map<string, LocalPortForward>;
+  sessions: SvelteMap<string, Session>;
+  portForwards: SvelteMap<string, LocalPortForward>;
   activeSessionId: string | null;
 }
 
 const state: SessionState = $state({
-  sessions: new Map(),
-  portForwards: new Map(),
+  sessions: new SvelteMap(),
+  portForwards: new SvelteMap(),
   activeSessionId: null,
 });
 
@@ -65,17 +65,8 @@ let eventUnlisten: UnlistenFn | null = null;
 let localEventUnlisten: UnlistenFn | null = null;
 let portForwardEventUnlisten: UnlistenFn | null = null;
 
-function commitSessions() {
-  state.sessions = new Map(state.sessions);
-}
-
-function commitPortForwards() {
-  state.portForwards = new Map(state.portForwards);
-}
-
 function updatePortForward(status: LocalPortForward) {
   state.portForwards.set(status.forward_id, status);
-  commitPortForwards();
 }
 
   function sessionName(host: string, port: number, username: string) {
@@ -142,8 +133,8 @@ function connectResponseSessionUpdates(
 
   if (response.status === "trust_required") {
     return {
-      status: "error",
-      error,
+      status: "trust_required",
+      error: undefined,
       trustPrompt: response.prompt,
       trustMismatch: undefined,
     };
@@ -171,12 +162,13 @@ export function createSessionStore() {
         const { session_id, closed } = event.payload;
         const session = state.sessions.get(session_id);
         if (session) {
-          if (closed) {
-            session.status = "disconnected";
-          } else if (session.status === "connecting") {
-            session.status = "connected";
-          }
-          commitSessions();
+          updateSession(session_id, {
+            status: closed
+              ? "disconnected"
+              : session.status === "connecting"
+                ? "connected"
+                : session.status,
+          });
         }
       },
     );
@@ -187,12 +179,13 @@ export function createSessionStore() {
         const { session_id, closed } = event.payload;
         const session = state.sessions.get(session_id);
         if (session) {
-          if (closed) {
-            session.status = "disconnected";
-          } else if (session.status === "connecting") {
-            session.status = "connected";
-          }
-          commitSessions();
+          updateSession(session_id, {
+            status: closed
+              ? "disconnected"
+              : session.status === "connecting"
+                ? "connected"
+                : session.status,
+          });
         }
       },
     );
@@ -208,14 +201,12 @@ export function createSessionStore() {
   function addSession(session: Session) {
     state.sessions.set(session.id, session);
     state.activeSessionId = session.id;
-    commitSessions();
   }
 
   function updateSession(id: string, updates: Partial<Session>) {
     const session = state.sessions.get(id);
     if (session) {
-      Object.assign(session, updates);
-      commitSessions();
+      state.sessions.set(id, { ...session, ...updates });
     }
   }
 
@@ -226,8 +217,7 @@ export function createSessionStore() {
         state.portForwards.delete(forwardId);
       }
     }
-    commitPortForwards();
-    commitSessions();
+
     if (state.activeSessionId === id) {
       state.activeSessionId = state.sessions.size > 0 ? Array.from(state.sessions.keys())[0] : null;
     }
@@ -310,7 +300,6 @@ export function createSessionStore() {
       trustMismatch: undefined,
     });
     state.activeSessionId = sessionId;
-    commitSessions();
     return sessionId;
   }
 
@@ -372,7 +361,6 @@ export function createSessionStore() {
       trustMismatch: undefined,
     });
     state.activeSessionId = sessionId;
-    commitSessions();
     return sessionId;
   }
 
@@ -415,7 +403,6 @@ export function createSessionStore() {
       error: undefined,
     });
     state.activeSessionId = sessionId;
-    commitSessions();
     return sessionId;
   }
 

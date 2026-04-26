@@ -351,60 +351,83 @@
                 <p class="mt-2 text-xs text-slate-500">Negotiating terminal session…</p>
               </div>
             </div>
-          {:else if activeSession.status === "error"}
-            <div class="flex h-full flex-col items-center justify-center p-8 text-center">
-              <div class="max-w-lg rounded-[2rem] border border-red-300/20 bg-red-400/8 p-8 shadow-2xl shadow-black/30">
-                <div class="mx-auto grid size-14 place-items-center rounded-2xl bg-red-400/12 text-red-300">
-                  <AlertCircle class="size-7" />
-                </div>
-                <h2 class="mt-5 text-xl font-semibold text-white">Connection failed</h2>
-                <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-400">{activeSession.error ?? "Unknown error"}</p>
+          {:else if activeSession.status === "error" || activeSession.status === "trust_required"}
+            <div class="flex h-full flex-col items-center justify-center p-8">
+              <div class={activeSession.status === "trust_required"
+                ? "w-full max-w-xl overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/88 text-left shadow-2xl shadow-black/40 ring-1 ring-amber-300/10 backdrop-blur-xl"
+                : "max-w-lg rounded-[2rem] border border-red-300/20 bg-red-400/8 p-8 shadow-2xl shadow-black/30"}>
                 {#if activeSession.trustPrompt}
-                  <div class="mt-5 rounded-2xl border border-amber-300/20 bg-amber-300/8 p-4 text-left">
-                    <p class="text-sm font-semibold text-amber-100">Trust this SSH host?</p>
-                    <dl class="mt-3 grid gap-2 text-xs text-slate-300">
-                      <div class="flex justify-between gap-3">
-                        <dt class="text-slate-500">Host</dt>
-                        <dd class="font-mono">{activeSession.trustPrompt.host}:{activeSession.trustPrompt.port}</dd>
+                  <div class="border-b border-white/10 px-6 py-5 sm:px-7">
+                    <div class="flex items-start gap-4">
+                      <div class="grid size-11 shrink-0 place-items-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-amber-200 shadow-[0_0_24px_rgb(252_211_77/0.08)]">
+                        <AlertCircle class="size-5" />
                       </div>
-                      <div class="flex justify-between gap-3">
-                        <dt class="text-slate-500">Algorithm</dt>
-                        <dd class="font-mono">{activeSession.trustPrompt.algorithm}</dd>
+                      <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <span class="rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-amber-200">
+                            SSH host identity
+                          </span>
+                        </div>
+                        <h2 class="mt-3 text-xl font-semibold tracking-tight text-white">Verify SSH host identity</h2>
+                        <p class="mt-2 text-sm leading-6 text-slate-400">
+                          Confirm this fingerprint before opening a terminal session.
+                        </p>
                       </div>
-                      <div class="space-y-1">
-                        <dt class="text-slate-500">Fingerprint</dt>
-                        <dd class="break-all rounded-xl bg-black/30 px-3 py-2 font-mono text-amber-100">{activeSession.trustPrompt.fingerprint}</dd>
+                    </div>
+                  </div>
+
+                  <div class="px-6 py-5 sm:px-7">
+                    <dl class="grid gap-3 text-sm">
+                      <div class="flex items-center justify-between gap-4 rounded-2xl border border-white/8 bg-white/[0.035] px-4 py-3">
+                        <dt class="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Host</dt>
+                        <dd class="truncate font-mono text-slate-100">{activeSession.trustPrompt.host}:{activeSession.trustPrompt.port}</dd>
+                      </div>
+                      <div class="flex items-center justify-between gap-4 rounded-2xl border border-white/8 bg-white/[0.035] px-4 py-3">
+                        <dt class="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Algorithm</dt>
+                        <dd class="font-mono text-slate-100">{activeSession.trustPrompt.algorithm}</dd>
+                      </div>
+                      <div class="rounded-2xl border border-white/8 bg-black/25 p-4">
+                        <dt class="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Fingerprint</dt>
+                        <dd class="mt-3 break-all rounded-xl border border-amber-300/10 bg-amber-300/[0.06] px-3 py-2.5 font-mono text-sm leading-6 text-amber-100">
+                          {activeSession.trustPrompt.fingerprint}
+                        </dd>
                       </div>
                     </dl>
-                    <p class="mt-3 text-xs leading-5 text-slate-400">
-                      Only trust this fingerprint if it matches the server you expect. It will be saved in this app's local Tauri trust JSON.
+                    <p class="mt-4 text-xs leading-5 text-slate-500">
+                      Only continue if this fingerprint matches the server you expect. It will be saved locally in Tauri's trust JSON.
                     </p>
                   </div>
+
                   {#if trustError}
-                    <p class="mt-3 text-sm text-red-300">{trustError}</p>
+                    <p class="mx-6 mb-4 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200 sm:mx-7">{trustError}</p>
                   {/if}
-                  <div class="mt-6 flex flex-wrap justify-center gap-3">
+                  <div class="flex flex-wrap items-center justify-end gap-3 border-t border-white/10 bg-white/[0.025] px-6 py-4 sm:px-7">
                     {#if activeSession.connectionId}
                       <Button
                         onclick={trustActiveHost}
                         disabled={trustConfirming}
-                        class="gap-2 rounded-2xl bg-amber-300 text-amber-950 hover:bg-amber-200"
+                        class="order-2 gap-2 rounded-2xl bg-amber-300 px-4 text-amber-950 hover:bg-amber-200 sm:order-none"
                       >
                         {#if trustConfirming}
                           <Loader2 class="size-4 animate-spin" />
                         {/if}
-                        Trust fingerprint and retry
+                        Trust host and retry
                       </Button>
                     {:else}
                       <p class="max-w-md text-sm leading-6 text-slate-400">
-                        Save this connection first to trust the fingerprint and retry automatically.
+                        Save this connection first to trust the host and retry automatically.
                       </p>
                     {/if}
-                    <Button variant="outline" onclick={() => sessionStore.removeSession(activeSession.id)} class="rounded-2xl border-white/10 bg-white/4 text-white hover:bg-white/8">
+                    <Button variant="outline" onclick={() => sessionStore.removeSession(activeSession.id)} class="rounded-2xl border-white/10 bg-white/4 px-4 text-white hover:bg-white/8">
                       Cancel
                     </Button>
                   </div>
                 {:else if activeSession.trustMismatch}
+                  <div class="mx-auto grid size-14 place-items-center rounded-2xl bg-red-400/12 text-red-300">
+                    <AlertCircle class="size-7" />
+                  </div>
+                  <h2 class="mt-5 text-center text-xl font-semibold text-white">Connection failed</h2>
+                  <p class="mx-auto mt-2 max-w-md text-center text-sm leading-6 text-slate-400">{activeSession.error ?? "Unknown error"}</p>
                   <div class="mt-5 rounded-2xl border border-red-300/25 bg-red-300/8 p-4 text-left">
                     <p class="text-sm font-semibold text-red-100">Saved fingerprint does not match.</p>
                     <dl class="mt-3 grid gap-2 text-xs text-slate-300">
@@ -423,6 +446,11 @@
                     Retry session
                   </Button>
                 {:else}
+                  <div class="mx-auto grid size-14 place-items-center rounded-2xl bg-red-400/12 text-red-300">
+                    <AlertCircle class="size-7" />
+                  </div>
+                  <h2 class="mt-5 text-center text-xl font-semibold text-white">Connection failed</h2>
+                  <p class="mx-auto mt-2 max-w-md text-center text-sm leading-6 text-slate-400">{activeSession.error ?? "Unknown error"}</p>
                   <Button onclick={retryActiveConnection} class="mt-6 gap-2 rounded-2xl bg-red-300 text-red-950 hover:bg-red-200">
                     Retry session
                   </Button>

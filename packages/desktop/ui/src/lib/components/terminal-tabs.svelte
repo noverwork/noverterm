@@ -21,6 +21,8 @@
         return "bg-emerald-400 shadow-[0_0_12px_rgb(52_211_153/0.7)]";
       case "connecting":
         return "bg-amber-300 shadow-[0_0_12px_rgb(252_211_77/0.55)] animate-pulse";
+      case "trust_required":
+        return "bg-amber-300 shadow-[0_0_12px_rgb(252_211_77/0.55)]";
       case "error":
         return "bg-red-400 shadow-[0_0_12px_rgb(248_113_113/0.55)]";
       default:

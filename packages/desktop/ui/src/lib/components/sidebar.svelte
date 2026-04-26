@@ -72,6 +72,8 @@
         return { tone: "bg-emerald-400 shadow-[0_0_14px_rgb(52_211_153/0.65)]", label: "Live", text: "text-emerald-300" };
       case "connecting":
         return { tone: "bg-amber-300 shadow-[0_0_14px_rgb(252_211_77/0.55)] animate-pulse", label: "Starting", text: "text-amber-300" };
+      case "trust_required":
+        return { tone: "bg-amber-300 shadow-[0_0_14px_rgb(252_211_77/0.55)]", label: "Trust", text: "text-amber-300" };
       case "error":
         return { tone: "bg-red-400 shadow-[0_0_14px_rgb(248_113_113/0.55)]", label: "Error", text: "text-red-300" };
       default:
@@ -82,7 +84,7 @@
   const connectedConnections = $derived(
     filteredConnections.filter((conn) => {
       const session = getConnectionSession(conn);
-      return session?.status === "connected" || session?.status === "connecting";
+      return session?.status === "connected" || session?.status === "connecting" || session?.status === "trust_required";
     }),
   );
 
