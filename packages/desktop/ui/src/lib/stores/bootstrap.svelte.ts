@@ -56,6 +56,26 @@ export interface ConnectionConfig {
   auth: SshHostAuthMaterial | null;
 }
 
+export interface SavedPortForwardConfig {
+  id: string;
+  name: string;
+  connectionId: string;
+  bind_host: string;
+  bind_port: number;
+  target_host: string;
+  target_port: number;
+}
+
+export interface SavePortForwardInput {
+  id?: string;
+  name: string;
+  connectionId: string;
+  bind_host: string;
+  bind_port: number;
+  target_host: string;
+  target_port: number;
+}
+
 export interface SaveConnectionInput {
   id?: string;
   name: string;
@@ -73,6 +93,7 @@ export interface SaveConnectionInput {
 interface NovertermConfig {
   terminal?: Partial<TerminalConfig>;
   recentConnectionIds?: string[];
+  savedPortForwards?: SavedPortForwardConfig[];
 }
 
 const DEFAULT_TERMINAL_CONFIG: TerminalConfig = {
@@ -121,6 +142,21 @@ function parseNovertermConfig(settings: Setting[]): NovertermConfig {
         recentConnectionIds: Array.isArray(parsed.recentConnectionIds)
           ? parsed.recentConnectionIds.filter((id) => typeof id === "string")
           : [],
+        ...(Array.isArray(parsed.savedPortForwards)
+          ? {
+              savedPortForwards: parsed.savedPortForwards.filter((forward): forward is SavedPortForwardConfig => (
+              typeof forward === "object" &&
+              forward !== null &&
+              typeof forward.id === "string" &&
+              typeof forward.name === "string" &&
+              typeof forward.connectionId === "string" &&
+              typeof forward.bind_host === "string" &&
+              typeof forward.bind_port === "number" &&
+              typeof forward.target_host === "string" &&
+              typeof forward.target_port === "number"
+            )),
+            }
+          : {}),
       };
     } catch {
       return {};
@@ -150,6 +186,18 @@ function uniqueRecentConnectionIds(connectionId: string, currentIds: string[]): 
 function filterExistingConnectionIds(connectionIds: string[], connections: ConnectionConfig[]): string[] {
   const existingConnectionIds = new Set(connections.map((connection) => connection.id));
   return connectionIds.filter((id) => existingConnectionIds.has(id));
+}
+
+function filterExistingPortForwards(
+  forwards: SavedPortForwardConfig[],
+  connections: ConnectionConfig[],
+): SavedPortForwardConfig[] {
+  const existingConnectionIds = new Set(connections.map((connection) => connection.id));
+  return forwards.filter((forward) => existingConnectionIds.has(forward.connectionId));
+}
+
+function createPortForwardId(): string {
+  return `pf-${globalThis.crypto.randomUUID()}`;
 }
 
 function mapRecentConnections(connectionIds: string[], connections: ConnectionConfig[]): ConnectionConfig[] {
@@ -302,6 +350,46 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
     await refreshMetadata();
   }
 
+  async function savePortForward(input: SavePortForwardInput) {
+    const currentSettings = state.metadata?.settings ?? [];
+    const existingForwards = parseNovertermConfig(currentSettings).savedPortForwards ?? [];
+    const savedForward: SavedPortForwardConfig = {
+      id: input.id ?? createPortForwardId(),
+      name: input.name,
+      connectionId: input.connectionId,
+      bind_host: input.bind_host,
+      bind_port: input.bind_port,
+      target_host: input.target_host,
+      target_port: input.target_port,
+    };
+    const savedPortForwards = [
+      savedForward,
+      ...existingForwards.filter((forward) => forward.id !== savedForward.id),
+    ];
+
+    await api.saveSetting({
+      key: "noverterm-config",
+      value: buildNovertermConfig(currentSettings, { savedPortForwards }),
+    });
+
+    await refreshMetadata();
+    return savedForward;
+  }
+
+  async function deletePortForward(forwardId: string) {
+    const currentSettings = state.metadata?.settings ?? [];
+    const savedPortForwards = (parseNovertermConfig(currentSettings).savedPortForwards ?? []).filter(
+      (forward) => forward.id !== forwardId,
+    );
+
+    await api.saveSetting({
+      key: "noverterm-config",
+      value: buildNovertermConfig(currentSettings, { savedPortForwards }),
+    });
+
+    await refreshMetadata();
+  }
+
   function getTerminalConfig(): TerminalConfig {
     if (state.metadata) {
       return parseTerminalConfig(state.metadata.settings);
@@ -329,6 +417,17 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
 
   function getRecentConnections(): ConnectionConfig[] {
     return mapRecentConnections(getRecentConnectionIds(), getConnections());
+  }
+
+  function getSavedPortForwards(): SavedPortForwardConfig[] {
+    if (!state.metadata) {
+      return [];
+    }
+
+    return filterExistingPortForwards(
+      parseNovertermConfig(state.metadata.settings).savedPortForwards ?? [],
+      getConnections(),
+    );
   }
 
   function getKeys(): SshKeyRecord[] {
@@ -376,10 +475,13 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
     deleteKey,
     saveTerminalConfig,
     recordRecentConnection,
+    savePortForward,
+    deletePortForward,
     getTerminalConfig,
     getConnections,
     getRecentConnectionIds,
     getRecentConnections,
+    getSavedPortForwards,
     getKeys,
     getSettings,
   };
