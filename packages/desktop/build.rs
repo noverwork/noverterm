@@ -3,6 +3,11 @@ use std::path::Path;
 fn main() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let env_path = Path::new(manifest_dir).join(".env");
+    let env_example_path = Path::new(manifest_dir).join(".env.example");
+
+    println!("cargo:rerun-if-changed={}", env_path.display());
+    println!("cargo:rerun-if-changed={}", env_example_path.display());
+    println!("cargo:rerun-if-env-changed=API_URL");
 
     if env_path.exists() {
         let content = std::fs::read_to_string(&env_path).expect("Failed to read .env");
