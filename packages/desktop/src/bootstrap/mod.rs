@@ -5,6 +5,7 @@ use tracing_subscriber::EnvFilter;
 
 use crate::auth::DesktopAuthManager;
 use crate::runtime::local::LocalSessionManager;
+use crate::runtime::port_forward::PortForwardManager;
 use crate::runtime::ssh::SshSessionManager;
 use crate::settings::SettingsManager;
 use crate::trust::SshTrustStore;
@@ -94,7 +95,10 @@ fn command_builder() -> Builder<tauri::Wry> {
         crate::connect::local_connect,
         crate::connect::local_write,
         crate::connect::local_resize,
-        crate::connect::local_disconnect
+        crate::connect::local_disconnect,
+        crate::connect::port_forward_start,
+        crate::connect::port_forward_stop,
+        crate::connect::port_forward_list
     ])
 }
 
@@ -159,6 +163,9 @@ pub fn run() {
 
             let local_manager = LocalSessionManager::new();
             app.manage(local_manager);
+
+            let pf_manager = PortForwardManager::new();
+            app.manage(pf_manager);
 
             Ok(())
         })

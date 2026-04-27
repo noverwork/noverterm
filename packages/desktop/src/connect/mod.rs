@@ -1,6 +1,10 @@
 use tauri::{AppHandle, State};
 
 use crate::runtime::local::LocalSessionManager;
+use crate::runtime::port_forward::{
+    PortForwardAuth, PortForwardCreateInput as InternalPortForwardInput, PortForwardManager,
+    PortForwardStatus,
+};
 use crate::runtime::ssh::{
     AuthMethod, SshConnectResponse, SshLocalPortForwardInput, SshPortForwardStatus,
     SshSessionManager,
@@ -145,6 +149,115 @@ pub async fn local_disconnect(
     local_manager: State<'_, LocalSessionManager>,
 ) -> Result<(), String> {
     local_manager.disconnect(&session_id).await
+}
+
+#[derive(Debug, serde::Deserialize, specta::Type)]
+pub struct PortForwardStartInput {
+    pub name: String,
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub password: Option<String>,
+    pub private_key: Option<String>,
+    pub passphrase: Option<String>,
+    pub bind_host: String,
+    pub bind_port: u16,
+    pub target_host: String,
+    pub target_port: u16,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn port_forward_start(
+    app: AppHandle,
+    input: PortForwardStartInput,
+    pf_manager: State<'_, PortForwardManager>,
+    trust_store: State<'_, SshTrustStore>,
+) -> Result<PortForwardStatus, String> {
+    let auth = port_forward_auth_method(input.password, input.private_key, input.passphrase)?;
+
+    pf_manager
+        .start(
+            app,
+            InternalPortForwardInput {
+                name: input.name,
+                host: input.host,
+                port: input.port,
+                username: input.username,
+                auth,
+                bind_host: input.bind_host,
+                bind_port: input.bind_port,
+                target_host: input.target_host,
+                target_port: input.target_port,
+            },
+            trust_store.inner().clone(),
+        )
+        .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn port_forward_stop(
+    app: AppHandle,
+    forward_id: String,
+    pf_manager: State<'_, PortForwardManager>,
+) -> Result<PortForwardStatus, String> {
+    pf_manager.stop(app, &forward_id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn port_forward_list(
+    pf_manager: State<'_, PortForwardManager>,
+) -> Result<Vec<PortForwardStatus>, String> {
+    Ok(pf_manager.list().await)
+}
+
+fn port_forward_auth_method(
+    password: Option<String>,
+    private_key: Option<String>,
+    passphrase: Option<String>,
+) -> Result<PortForwardAuth, String> {
+    match (
+        password.and_then(|value| {
+            let trimmed = value.trim().to_string();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
+        }),
+        private_key.and_then(|value| {
+            let trimmed = value.trim().to_string();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
+        }),
+        passphrase.and_then(|value| {
+            let trimmed = value.trim().to_string();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
+        }),
+    ) {
+        (Some(password), Some(private_key), passphrase) => {
+            Ok(PortForwardAuth::PublicKeyAndPassword {
+                private_key,
+                passphrase,
+                password,
+            })
+        }
+        (None, Some(private_key), passphrase) => Ok(PortForwardAuth::PublicKey {
+            private_key,
+            passphrase,
+        }),
+        (Some(password), None, _) => Ok(PortForwardAuth::Password(password)),
+        (None, None, _) => Err("password or private key is required".to_string()),
+    }
 }
 
 fn direct_auth_method(
