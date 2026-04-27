@@ -112,6 +112,28 @@ async fn key_routes_are_owner_scoped_and_redact_secret_fields() {
     assert_eq!(alice_update["fingerprint"], "SHA256:alice-updated");
     assert!(alice_update.get("encrypted_private_key").is_none());
 
+    let alice_name_only_update = authorized_json_request(
+        app.clone(),
+        Method::PUT,
+        &format!("/bootstrap/keys/{alice_key_id}"),
+        &alice_token,
+        json!({
+            "name": "Alice key renamed",
+            "kind": "ed25519"
+        }),
+    )
+    .await;
+    assert_eq!(alice_name_only_update.status(), StatusCode::OK);
+    let alice_name_only_update = response_json(alice_name_only_update).await;
+    assert_eq!(alice_name_only_update["name"], "Alice key renamed");
+    assert_eq!(
+        alice_name_only_update["fingerprint"],
+        "SHA256:alice-updated"
+    );
+    assert!(alice_name_only_update
+        .get("encrypted_private_key")
+        .is_none());
+
     let bob_delete_alice = authorized_empty_request(
         app.clone(),
         Method::DELETE,

@@ -36,7 +36,7 @@ pub struct UpdateKeyInput {
     pub name: String,
     pub kind: String,
     pub fingerprint: Option<String>,
-    pub encrypted_private_key: String,
+    pub encrypted_private_key: Option<String>,
     pub encrypted_passphrase: Option<String>,
 }
 
@@ -92,12 +92,27 @@ pub async fn create(pool: DbPool, input: CreateKeyInput) -> Result<SshKey, Repos
 
 pub async fn update(pool: DbPool, input: UpdateKeyInput) -> Result<SshKey, RepositoryError> {
     run_db(pool, move |connection| {
+        let existing_key = ssh_keys::table
+            .filter(ssh_keys::owner_id.eq(&input.owner_id))
+            .filter(ssh_keys::id.eq(&input.id))
+            .first::<SshKey>(connection)
+            .optional()
+            .map_err(internal_error)?
+            .ok_or_else(|| RepositoryError::NotFound("ssh key not found".to_string()))?;
+
+        let replacing_private_key = input.encrypted_private_key.is_some();
         let changes = UpdateSshKey {
             name: input.name,
             kind: input.kind,
-            fingerprint: input.fingerprint,
-            encrypted_private_key: input.encrypted_private_key,
-            encrypted_passphrase: input.encrypted_passphrase,
+            fingerprint: input.fingerprint.or(existing_key.fingerprint),
+            encrypted_private_key: input
+                .encrypted_private_key
+                .unwrap_or(existing_key.encrypted_private_key),
+            encrypted_passphrase: if replacing_private_key {
+                input.encrypted_passphrase
+            } else {
+                existing_key.encrypted_passphrase
+            },
             updated_at: Utc::now().naive_utc(),
         };
 

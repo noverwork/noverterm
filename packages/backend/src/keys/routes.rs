@@ -25,6 +25,18 @@ struct KeyWriteRequest {
     encrypted_passphrase: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct KeyUpdateRequest {
+    name: String,
+    kind: String,
+    #[serde(default)]
+    fingerprint: Option<String>,
+    #[serde(default)]
+    encrypted_private_key: Option<String>,
+    #[serde(default)]
+    encrypted_passphrase: Option<String>,
+}
+
 async fn list_keys(
     State(state): State<AppState>,
     Extension(authenticated_user): Extension<AuthenticatedUser>,
@@ -78,7 +90,7 @@ async fn update_key(
     State(state): State<AppState>,
     Extension(authenticated_user): Extension<AuthenticatedUser>,
     Path(id): Path<String>,
-    Json(request): Json<KeyWriteRequest>,
+    Json(request): Json<KeyUpdateRequest>,
 ) -> Result<Json<SshKeyRecord>, (StatusCode, String)> {
     let pool = state.require_db_pool().map_err(internal_error)?;
     let key = repository::update(
