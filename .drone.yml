@@ -5,7 +5,7 @@ name: noverterm-ci
 
 steps:
   - name: rust-check
-    image: rust:1.88-slim-bookworm
+    image: rust:1.93-slim-bookworm
     commands:
       - apt-get update
       - apt-get install -y --no-install-recommends pkg-config libssl-dev libpq-dev

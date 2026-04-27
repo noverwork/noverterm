@@ -1,4 +1,4 @@
-FROM rust:1.85-bookworm AS tools
+FROM rust:1.93-bookworm AS tools
 
 RUN cargo install diesel_cli --no-default-features --features postgres \
     && cargo install cargo-make
