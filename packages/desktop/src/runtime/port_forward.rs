@@ -174,7 +174,10 @@ impl PortForwardManager {
         let forward_id_clone = forward_id.clone();
         self.forwards.lock().await.insert(forward_id, entry);
 
-        info!(forward_id = forward_id_clone, "Started independent port forward");
+        info!(
+            forward_id = forward_id_clone,
+            "Started independent port forward"
+        );
         Ok(status)
     }
 
@@ -224,8 +227,12 @@ async fn run_port_forward(
     };
     let config = Arc::new(config);
     let trust_check = Arc::new(Mutex::new(None));
-    let handler =
-        ClientHandler::new(input.host.clone(), input.port, trust_store, trust_check.clone());
+    let handler = ClientHandler::new(
+        input.host.clone(),
+        input.port,
+        trust_store,
+        trust_check.clone(),
+    );
 
     info!(
         forward_id = %status.id,
@@ -410,9 +417,7 @@ async fn handle_forward_connection(
             u32::from(originator_addr.port()),
         )
         .await
-        .map_err(|e| {
-            format!("Failed to open direct-tcpip channel: {}", e)
-        })?;
+        .map_err(|e| format!("Failed to open direct-tcpip channel: {}", e))?;
 
     let mut remote_stream = channel.into_stream();
     copy_bidirectional(&mut local_stream, &mut remote_stream)
