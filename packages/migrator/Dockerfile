@@ -12,8 +12,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-
 COPY --from=tools /usr/local/cargo/bin/diesel /usr/local/bin/diesel
 COPY --from=tools /usr/local/cargo/bin/cargo-make /usr/local/bin/cargo-make
 COPY --from=tools /app /app
+
+WORKDIR /app/packages/migrator
