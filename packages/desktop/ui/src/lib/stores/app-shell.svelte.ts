@@ -142,11 +142,6 @@ export function createAppShellStore() {
   }
 
   async function deleteConnection(connection: ConnectionConfig) {
-    const confirmed = window.confirm(`Delete saved connection "${connection.name}"?`);
-    if (!confirmed) {
-      return;
-    }
-
     await bootstrapStore.deleteConnection(connection);
     sessionStore.disconnectConnectionSessions(connection.id);
   }

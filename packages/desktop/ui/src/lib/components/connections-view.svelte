@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Pencil, Plus, Trash2 } from "@lucide/svelte";
 
+  import DeleteConfirmDialog from "$lib/components/delete-confirm-dialog.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
   import type { SessionStatus } from "$lib/stores/session.svelte.js";
@@ -35,6 +36,7 @@
 
   let error = $state<string | null>(null);
   let deletingConnectionId = $state<string | null>(null);
+  let pendingDeleteConnection = $state<ConnectionConfig | null>(null);
 
   let sortedConnections = $derived(
     [...connections].sort((a, b) => a.name.localeCompare(b.name)),
@@ -55,16 +57,23 @@
     }
   }
 
-  async function handleDelete(connection: ConnectionConfig) {
-    if (!window.confirm(`Delete saved connection "${connection.name}"?`)) {
+  function requestDelete(connection: ConnectionConfig) {
+    pendingDeleteConnection = connection;
+    error = null;
+  }
+
+  async function confirmDelete() {
+    if (!pendingDeleteConnection) {
       return;
     }
 
+    const connection = pendingDeleteConnection;
     deletingConnectionId = connection.id;
     error = null;
 
     try {
       await onDelete(connection);
+      pendingDeleteConnection = null;
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Failed to delete connection";
     } finally {
@@ -131,7 +140,7 @@
                   variant="ghost"
                   size="xs"
                   class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
-                  onclick={() => handleDelete(connection)}
+                  onclick={() => requestDelete(connection)}
                   disabled={deletingConnectionId === connection.id}
                 >
                   <Trash2 class="size-3" />
@@ -145,3 +154,14 @@
     </div>
   </section>
 </div>
+
+<DeleteConfirmDialog
+  open={pendingDeleteConnection !== null}
+  title="Delete saved connection?"
+  description="This removes the saved host profile and disconnects any sessions that were opened from it. This action cannot be undone."
+  itemName={pendingDeleteConnection?.name}
+  confirmLabel="Delete connection"
+  isDeleting={deletingConnectionId !== null}
+  onConfirm={confirmDelete}
+  onCancel={() => (pendingDeleteConnection = null)}
+/>

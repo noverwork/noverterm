@@ -2,6 +2,7 @@
   import { KeyRound, Pencil, Plus, Trash2 } from "@lucide/svelte";
 
   import type { SshKeyRecord } from "$lib/api/types.js";
+  import DeleteConfirmDialog from "$lib/components/delete-confirm-dialog.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
 
@@ -21,6 +22,8 @@
   let isSaving = $state(false);
   let showForm = $state(false);
   let editingKey = $state<SshKeyRecord | null>(null);
+  let pendingDeleteKey = $state<SshKeyRecord | null>(null);
+  let deletingKeyId = $state<string | null>(null);
 
   let formTitle = $derived(editingKey ? "Edit SSH key" : "New SSH key");
   let submitLabel = $derived.by(() => {
@@ -84,17 +87,27 @@
     }
   }
 
-  async function handleDelete(key: SshKeyRecord) {
-    if (!window.confirm(`Delete SSH key "${key.name}"?`)) {
+  function requestDelete(key: SshKeyRecord) {
+    pendingDeleteKey = key;
+    error = null;
+  }
+
+  async function confirmDelete() {
+    if (!pendingDeleteKey) {
       return;
     }
 
+    const key = pendingDeleteKey;
     error = null;
+    deletingKeyId = key.id;
 
     try {
       await onDelete(key);
+      pendingDeleteKey = null;
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Failed to delete key";
+    } finally {
+      deletingKeyId = null;
     }
   }
 
@@ -214,7 +227,13 @@
                   <Pencil class="size-3" />
                   Edit
                 </Button>
-                <Button variant="ghost" size="xs" class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300" onclick={() => handleDelete(key)}>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
+                  onclick={() => requestDelete(key)}
+                  disabled={deletingKeyId === key.id}
+                >
                   <Trash2 class="size-3" />
                   Delete
                 </Button>
@@ -226,3 +245,14 @@
     </div>
   </section>
 </div>
+
+<DeleteConfirmDialog
+  open={pendingDeleteKey !== null}
+  title="Delete SSH key?"
+  description="Saved connections using this key may no longer be able to authenticate. This action cannot be undone."
+  itemName={pendingDeleteKey?.name}
+  confirmLabel="Delete key"
+  isDeleting={deletingKeyId !== null}
+  onConfirm={confirmDelete}
+  onCancel={() => (pendingDeleteKey = null)}
+/>

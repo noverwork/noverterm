@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Loader2, Network, Play, Plus, Server, Square, Trash2 } from "@lucide/svelte";
 
+  import DeleteConfirmDialog from "$lib/components/delete-confirm-dialog.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import type {
@@ -9,6 +10,10 @@
     SavedPortForwardConfig,
   } from "$lib/stores/bootstrap.svelte.js";
   import type { PortForward } from "$lib/stores/port-forward.svelte.js";
+
+  type DeleteTarget =
+    | { kind: "saved"; forward: SavedPortForwardConfig }
+    | { kind: "runtime"; forward: PortForward };
 
   interface Props {
     connections: ConnectionConfig[];
@@ -39,6 +44,7 @@
   let stoppingForwardIds = $state<string[]>([]);
   let deletingSavedForwardIds = $state<string[]>([]);
   let deletingRuntimeForwardIds = $state<string[]>([]);
+  let pendingDeleteTarget = $state<DeleteTarget | null>(null);
 
   let selectedConnectionId = $state<string | null>(null);
   let selectedConnection = $derived(
@@ -180,16 +186,38 @@
     }
   }
 
-  async function handleDeleteSaved(forward: SavedPortForwardConfig) {
-    if (!window.confirm(`Delete saved port forward "${forward.name}"?`)) {
+  function requestDeleteSaved(forward: SavedPortForwardConfig) {
+    pendingDeleteTarget = { kind: "saved", forward };
+    error = null;
+  }
+
+  function requestDeleteRuntime(forward: PortForward) {
+    pendingDeleteTarget = { kind: "runtime", forward };
+    error = null;
+  }
+
+  async function confirmDelete() {
+    if (!pendingDeleteTarget) {
       return;
     }
 
+    const deleteTarget = pendingDeleteTarget;
     error = null;
+
+    if (deleteTarget.kind === "saved") {
+      await confirmDeleteSaved(deleteTarget.forward);
+      return;
+    }
+
+    await confirmDeleteRuntime(deleteTarget.forward);
+  }
+
+  async function confirmDeleteSaved(forward: SavedPortForwardConfig) {
     deletingSavedForwardIds = [...deletingSavedForwardIds, forward.id];
 
     try {
       await onDeleteSaved(forward.id);
+      pendingDeleteTarget = null;
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Failed to delete saved port forward";
     } finally {
@@ -197,16 +225,12 @@
     }
   }
 
-  async function handleDeleteRuntime(forward: PortForward) {
-    if (!window.confirm(`Remove stopped port forward "${forward.name}" from this list?`)) {
-      return;
-    }
-
-    error = null;
+  async function confirmDeleteRuntime(forward: PortForward) {
     deletingRuntimeForwardIds = [...deletingRuntimeForwardIds, forward.id];
 
     try {
       await onDeleteRuntime(forward.id);
+      pendingDeleteTarget = null;
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Failed to remove stopped port forward";
     } finally {
@@ -225,6 +249,38 @@
       default:
         return { tone: "bg-slate-500", label: "Stopped", text: "text-slate-400" };
     }
+  }
+
+  function deleteDialogTitle(): string {
+    if (pendingDeleteTarget?.kind === "runtime") {
+      return "Remove stopped forward?";
+    }
+
+    return "Delete saved forward?";
+  }
+
+  function deleteDialogDescription(): string {
+    if (pendingDeleteTarget?.kind === "runtime") {
+      return "This only removes the stopped runtime entry from the current list. The saved preset is not affected.";
+    }
+
+    return "This removes the saved forwarding preset. Existing runtime forwards are not stopped automatically.";
+  }
+
+  function deleteDialogItemName(): string | undefined {
+    return pendingDeleteTarget?.forward.name;
+  }
+
+  function deleteDialogIsDeleting(): boolean {
+    if (!pendingDeleteTarget) {
+      return false;
+    }
+
+    if (pendingDeleteTarget.kind === "saved") {
+      return deletingSavedForwardIds.includes(pendingDeleteTarget.forward.id);
+    }
+
+    return deletingRuntimeForwardIds.includes(pendingDeleteTarget.forward.id);
   }
 </script>
 
@@ -452,7 +508,7 @@
                     variant="ghost"
                     size="xs"
                     class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
-                    onclick={() => handleDeleteSaved(savedForward)}
+                    onclick={() => requestDeleteSaved(savedForward)}
                     disabled={deletingSavedForwardIds.includes(savedForward.id)}
                   >
                     {#if deletingSavedForwardIds.includes(savedForward.id)}
@@ -519,7 +575,7 @@
                     </Button>
                   {/if}
                   {#if forward.state === "stopped"}
-                    <Button variant="ghost" size="xs" class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300" onclick={() => handleDeleteRuntime(forward)} disabled={deletingRuntimeForwardIds.includes(forward.id)}>
+                    <Button variant="ghost" size="xs" class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300" onclick={() => requestDeleteRuntime(forward)} disabled={deletingRuntimeForwardIds.includes(forward.id)}>
                       {#if deletingRuntimeForwardIds.includes(forward.id)}
                         <Loader2 class="size-3 animate-spin" />
                       {:else}
@@ -537,3 +593,14 @@
     </div>
   </section>
 </div>
+
+<DeleteConfirmDialog
+  open={pendingDeleteTarget !== null}
+  title={deleteDialogTitle()}
+  description={deleteDialogDescription()}
+  itemName={deleteDialogItemName()}
+  confirmLabel={pendingDeleteTarget?.kind === "runtime" ? "Remove entry" : "Delete forward"}
+  isDeleting={deleteDialogIsDeleting()}
+  onConfirm={confirmDelete}
+  onCancel={() => (pendingDeleteTarget = null)}
+/>
