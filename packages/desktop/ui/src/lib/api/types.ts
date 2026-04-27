@@ -46,6 +46,6 @@ export interface KeyCreateRequest {
 export interface KeyUpdateRequest {
   name: string;
   kind: string;
-  encrypted_private_key: string;
-  encrypted_passphrase: string | null;
+  encrypted_private_key?: string;
+  encrypted_passphrase?: string | null;
 }

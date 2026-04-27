@@ -155,12 +155,12 @@ export function createAppShellStore() {
     });
   }
 
-  async function updateKey(keyId: string, name: string, privateKey: string, passphrase: string) {
+  async function updateKey(keyId: string, name: string, privateKey?: string, passphrase?: string) {
     await bootstrapStore.updateKey(keyId, {
       name,
       kind: "inline",
-      encrypted_private_key: privateKey,
-      encrypted_passphrase: passphrase || null,
+      ...(privateKey ? { encrypted_private_key: privateKey } : {}),
+      ...(privateKey ? { encrypted_passphrase: passphrase || null } : {}),
     });
   }
 

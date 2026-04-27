@@ -88,6 +88,26 @@ describe("keys API", () => {
         expect.any(Object),
       );
     });
+
+    it("supports name-only updates without resending private key material", async () => {
+      const nameOnlyRequest: KeyUpdateRequest = {
+        name: "renamed-key",
+        kind: "inline",
+      };
+      mockRequestWithAuth.mockResolvedValue({ ...sampleKey, name: "renamed-key" });
+
+      const result = await updateSshKey("k1", nameOnlyRequest);
+
+      expect(mockRequestWithAuth).toHaveBeenCalledWith(
+        "/bootstrap/keys/k1",
+        "test-access-token",
+        {
+          method: "PUT",
+          body: JSON.stringify(nameOnlyRequest),
+        },
+      );
+      expect(result.name).toBe("renamed-key");
+    });
   });
 
   describe("deleteSshKey", () => {
