@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { ChevronLeft, ChevronRight, KeyRound, LogOut, Plus, Search, Settings, Terminal, X } from "@lucide/svelte";
+  import { ChevronLeft, ChevronRight, KeyRound, LogOut, Network, Plus, Search, Settings, Terminal, X } from "@lucide/svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import type { Session, SessionStatus } from "$lib/stores/session.svelte.js";
+
+  type SidebarSection = "terminal" | "hosts" | "keys" | "forwards";
 
   let {
     sessions,
@@ -14,11 +16,13 @@
     onCloseSession,
     onLocalTerminal,
     onManageKeys,
+    onPortForwards,
     onNewConnection,
     authEmail,
     onOpenSettings,
     onLogout,
     keyCount = 0,
+    activeSection = "terminal",
   }: {
     sessions: Map<string, Session>;
     activeSessionId: string | null;
@@ -28,11 +32,13 @@
     onCloseSession: (id: string) => void;
     onLocalTerminal?: () => void;
     onManageKeys?: () => void;
+    onPortForwards?: () => void;
     onNewConnection?: () => void;
     authEmail?: string;
     onOpenSettings?: () => void;
     onLogout?: () => void;
     keyCount?: number;
+    activeSection?: SidebarSection;
   } = $props();
 
   let searchQuery = $state("");
@@ -73,6 +79,22 @@
     }
 
     return `${session.username}@${session.host}:${session.port}`;
+  }
+
+  function navButtonClass(section: SidebarSection): string {
+    if (activeSection === section) {
+      return "h-10 justify-start gap-2 rounded-2xl border-cyan-300/35 bg-cyan-300/12 text-cyan-50 shadow-[0_10px_30px_rgb(34_211_238/0.16)] ring-1 ring-cyan-300/10 hover:border-cyan-300/45 hover:bg-cyan-300/16 hover:text-white";
+    }
+
+    return "h-10 justify-start gap-2 rounded-2xl border-white/10 bg-white/[0.035] text-slate-200 hover:border-cyan-300/30 hover:bg-cyan-300/8 hover:text-white";
+  }
+
+  function iconButtonClass(section: SidebarSection): string {
+    if (activeSection === section) {
+      return "rounded-2xl border border-cyan-300/30 bg-cyan-300/12 text-cyan-100 shadow-[0_0_24px_rgb(34_211_238/0.15)] hover:bg-cyan-300/16 hover:text-white";
+    }
+
+    return "rounded-2xl text-slate-400 hover:bg-white/8 hover:text-white";
   }
 </script>
 
@@ -124,25 +146,35 @@
 
       <div class="mt-3 grid gap-2">
         {#if onLocalTerminal}
-          <Button onclick={onLocalTerminal} variant="default" size="sm" class="h-10 justify-start gap-2 rounded-2xl bg-cyan-300 text-slate-950 shadow-[0_12px_34px_rgb(34_211_238/0.20)] hover:bg-cyan-200">
+          <Button onclick={onLocalTerminal} variant="default" size="sm" class={activeSection === "terminal"
+            ? "h-10 justify-start gap-2 rounded-2xl bg-cyan-300 text-slate-950 shadow-[0_12px_34px_rgb(34_211_238/0.24)] ring-1 ring-cyan-100/20 hover:bg-cyan-200"
+            : "h-10 justify-start gap-2 rounded-2xl bg-cyan-300/12 text-cyan-100 shadow-[0_12px_34px_rgb(34_211_238/0.10)] hover:bg-cyan-300/18 hover:text-white"}>
             <Terminal class="size-3.5" />
             Local terminal
           </Button>
         {/if}
         <div class="grid grid-cols-2 gap-2">
           {#if onNewConnection}
-            <Button onclick={onNewConnection} variant="outline" size="sm" class="h-10 justify-start gap-2 rounded-2xl border-white/10 bg-white/[0.035] text-slate-200 hover:border-cyan-300/30 hover:bg-cyan-300/8 hover:text-white">
+            <Button onclick={onNewConnection} variant="outline" size="sm" class={navButtonClass("hosts")}>
               <Plus class="size-3.5" />
               Hosts
             </Button>
           {/if}
           {#if onManageKeys}
-            <Button onclick={onManageKeys} variant="outline" size="sm" class="h-10 justify-start gap-2 rounded-2xl border-white/10 bg-white/[0.035] text-slate-200 hover:border-cyan-300/30 hover:bg-cyan-300/8 hover:text-white">
+            <Button onclick={onManageKeys} variant="outline" size="sm" class={navButtonClass("keys")}>
               <KeyRound class="size-3.5" />
               Keys
               {#if keyCount > 0}
-                <span class="ml-auto rounded-full bg-cyan-300/12 px-1.5 py-0.5 text-[10px] text-cyan-200">{keyCount}</span>
+                <span class={activeSection === "keys"
+                  ? "ml-auto rounded-full bg-cyan-200/20 px-1.5 py-0.5 text-[10px] text-cyan-50"
+                  : "ml-auto rounded-full bg-cyan-300/12 px-1.5 py-0.5 text-[10px] text-cyan-200"}>{keyCount}</span>
               {/if}
+            </Button>
+          {/if}
+          {#if onPortForwards}
+            <Button onclick={onPortForwards} variant="outline" size="sm" class={navButtonClass("forwards")}>
+              <Network class="size-3.5" />
+              Forwards
             </Button>
           {/if}
         </div>
@@ -214,18 +246,23 @@
   {:else}
     <div class="flex flex-1 flex-col items-center gap-2 px-2 py-4">
       {#if onLocalTerminal}
-        <Button variant="ghost" size="icon-sm" class="rounded-2xl text-cyan-200 hover:bg-cyan-300/10" onclick={onLocalTerminal} aria-label="Open local terminal" title="Local terminal">
+        <Button variant="ghost" size="icon-sm" class={iconButtonClass("terminal")} onclick={onLocalTerminal} aria-label="Open local terminal" title="Local terminal">
           <Terminal class="size-4" />
         </Button>
       {/if}
       {#if onNewConnection}
-        <Button variant="ghost" size="icon-sm" class="rounded-2xl text-slate-400 hover:bg-white/8 hover:text-white" onclick={onNewConnection} aria-label="Connections" title="Connections">
+        <Button variant="ghost" size="icon-sm" class={iconButtonClass("hosts")} onclick={onNewConnection} aria-label="Connections" title="Connections">
           <Plus class="size-4" />
         </Button>
       {/if}
       {#if onManageKeys}
-        <Button variant="ghost" size="icon-sm" class="rounded-2xl text-slate-400 hover:bg-white/8 hover:text-white" onclick={onManageKeys} aria-label="SSH keys" title="SSH keys">
+        <Button variant="ghost" size="icon-sm" class={iconButtonClass("keys")} onclick={onManageKeys} aria-label="SSH keys" title="SSH keys">
           <KeyRound class="size-4" />
+        </Button>
+      {/if}
+      {#if onPortForwards}
+        <Button variant="ghost" size="icon-sm" class={iconButtonClass("forwards")} onclick={onPortForwards} aria-label="Port forwards" title="Port forwards">
+          <Network class="size-4" />
         </Button>
       {/if}
     </div>
