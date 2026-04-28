@@ -24,7 +24,6 @@
     </filter>
   </defs>
 
-  <rect width="1024" height="1024" rx="228" fill="#020617" />
   <rect x="136" y="120" width="752" height="784" rx="174" fill="url(#base)" filter="url(#tileShadow)" />
   <rect x="164" y="148" width="696" height="728" rx="148" stroke="white" stroke-opacity="0.11" stroke-width="4" />
 
