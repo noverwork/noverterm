@@ -25,6 +25,8 @@ struct HostWriteRequest {
     username: String,
     ssh_key_id: Option<String>,
     encrypted_password: Option<String>,
+    #[serde(default)]
+    group_id: Option<String>,
 }
 
 async fn list_hosts(
@@ -85,6 +87,7 @@ async fn create_host(
             username: request.username,
             ssh_key_id: request.ssh_key_id,
             encrypted_password: request.encrypted_password,
+            group_id: request.group_id,
         },
     )
     .await
@@ -119,6 +122,7 @@ async fn update_host(
             username: request.username,
             ssh_key_id: request.ssh_key_id,
             encrypted_password: request.encrypted_password,
+            group_id: request.group_id,
         },
     )
     .await
@@ -162,6 +166,7 @@ async fn to_record(
         port: host.port,
         username: host.username,
         ssh_key_id: host.ssh_key_id,
+        group_id: host.group_id,
         auth,
     })
 }

@@ -9,6 +9,7 @@ use crate::auth::AuthenticatedUser;
 pub fn build_router(state: AppState) -> Router {
     let protected_routes = Router::new()
         .route("/smoke", get(bootstrap_smoke))
+        .nest("/host-groups", crate::host_groups::router())
         .nest("/hosts", crate::hosts::router())
         .nest("/keys", crate::keys::router())
         .nest("/settings", crate::settings::router())

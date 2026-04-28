@@ -2,7 +2,7 @@ use chrono::Utc;
 use diesel::prelude::*;
 use diesel::OptionalExtension;
 use orm::models::{NewSshHost, SshHost, UpdateSshHost};
-use orm::schema::{ssh_hosts, ssh_keys};
+use orm::schema::{host_groups, ssh_hosts, ssh_keys};
 use uuid::Uuid;
 
 use crate::bootstrap::db::run_db;
@@ -29,6 +29,7 @@ pub struct CreateHostInput {
     pub username: String,
     pub ssh_key_id: Option<String>,
     pub encrypted_password: Option<String>,
+    pub group_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -41,13 +42,14 @@ pub struct UpdateHostInput {
     pub username: String,
     pub ssh_key_id: Option<String>,
     pub encrypted_password: Option<String>,
+    pub group_id: Option<String>,
 }
 
 pub async fn list(pool: DbPool, owner_id: String) -> Result<Vec<SshHost>, RepositoryError> {
     run_db(pool, move |connection| {
         ssh_hosts::table
             .filter(ssh_hosts::owner_id.eq(owner_id))
-            .order(ssh_hosts::created_at.asc())
+            .order((ssh_hosts::group_id.asc(), ssh_hosts::name.asc()))
             .load::<SshHost>(connection)
             .map_err(internal_error)
     })
@@ -73,6 +75,7 @@ pub async fn get(
 pub async fn create(pool: DbPool, input: CreateHostInput) -> Result<SshHost, RepositoryError> {
     run_db(pool, move |connection| {
         ensure_owner_scoped_key_exists(connection, &input.owner_id, input.ssh_key_id.as_deref())?;
+        ensure_owner_scoped_group_exists(connection, &input.owner_id, input.group_id.as_deref())?;
 
         let now = Utc::now().naive_utc();
         let new_host = NewSshHost {
@@ -84,6 +87,7 @@ pub async fn create(pool: DbPool, input: CreateHostInput) -> Result<SshHost, Rep
             username: input.username,
             ssh_key_id: input.ssh_key_id,
             encrypted_password: input.encrypted_password,
+            group_id: normalize_group_id(input.group_id),
             created_at: now,
             updated_at: now,
         };
@@ -99,15 +103,17 @@ pub async fn create(pool: DbPool, input: CreateHostInput) -> Result<SshHost, Rep
 pub async fn update(pool: DbPool, input: UpdateHostInput) -> Result<SshHost, RepositoryError> {
     run_db(pool, move |connection| {
         ensure_owner_scoped_key_exists(connection, &input.owner_id, input.ssh_key_id.as_deref())?;
+        ensure_owner_scoped_group_exists(connection, &input.owner_id, input.group_id.as_deref())?;
 
         let changes = UpdateSshHost {
             name: input.name,
             host: input.host,
             port: input.port,
             username: input.username,
-            ssh_key_id: input.ssh_key_id,
-            encrypted_password: input.encrypted_password,
+            ssh_key_id: Some(input.ssh_key_id),
+            encrypted_password: Some(input.encrypted_password),
             updated_at: Utc::now().naive_utc(),
+            group_id: Some(normalize_group_id(input.group_id)),
         };
 
         diesel::update(
@@ -165,4 +171,37 @@ fn ensure_owner_scoped_key_exists(
 
 fn internal_error(error: impl std::fmt::Display) -> RepositoryError {
     RepositoryError::Internal(format!("host repository error: {error}"))
+}
+
+fn ensure_owner_scoped_group_exists(
+    connection: &mut PgConnection,
+    owner_id: &str,
+    group_id: Option<&str>,
+) -> Result<(), RepositoryError> {
+    let Some(group_id) = group_id.filter(|value| !value.trim().is_empty()) else {
+        return Ok(());
+    };
+
+    let group_exists = host_groups::table
+        .filter(host_groups::owner_id.eq(owner_id))
+        .filter(host_groups::id.eq(group_id))
+        .select(host_groups::id)
+        .first::<String>(connection)
+        .optional()
+        .map_err(internal_error)?
+        .is_some();
+
+    if group_exists {
+        Ok(())
+    } else {
+        Err(RepositoryError::NotFound(
+            "host group not found".to_string(),
+        ))
+    }
+}
+
+fn normalize_group_id(group_id: Option<String>) -> Option<String> {
+    group_id
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }

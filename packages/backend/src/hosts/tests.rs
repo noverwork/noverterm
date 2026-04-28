@@ -42,6 +42,18 @@ async fn host_routes_are_owner_scoped_and_return_auth_material() {
     let alice_token = login_access_token(app.clone(), &alice, password).await;
     let bob_token = login_access_token(app.clone(), &bob, password).await;
 
+    let alice_group = authorized_json_request(
+        app.clone(),
+        Method::POST,
+        "/bootstrap/host-groups",
+        &alice_token,
+        json!({ "name": "Production" }),
+    )
+    .await;
+    assert_eq!(alice_group.status(), StatusCode::CREATED);
+    let alice_group = response_json(alice_group).await;
+    let alice_group_id = alice_group["id"].as_str().expect("group id should exist");
+
     let alice_create = authorized_json_request(
         app.clone(),
         Method::POST,
@@ -53,12 +65,14 @@ async fn host_routes_are_owner_scoped_and_return_auth_material() {
             "port": 22,
             "username": "deploy",
             "ssh_key_id": null,
-            "encrypted_password": "encrypted-alice-password"
+            "encrypted_password": "encrypted-alice-password",
+            "group_id": alice_group_id
         }),
     )
     .await;
     assert_eq!(alice_create.status(), StatusCode::CREATED);
     let alice_host = response_json(alice_create).await;
+    assert_eq!(alice_host["group_id"], alice_group_id);
     assert_eq!(alice_host["auth"]["kind"], "password");
     assert_eq!(alice_host["auth"]["password"], "encrypted-alice-password");
     assert!(alice_host.get("encrypted_password").is_none());
@@ -75,7 +89,8 @@ async fn host_routes_are_owner_scoped_and_return_auth_material() {
             "port": 2222,
             "username": "ops",
             "ssh_key_id": null,
-            "encrypted_password": "encrypted-bob-password"
+            "encrypted_password": "encrypted-bob-password",
+            "group_id": null
         }),
     )
     .await;
@@ -116,13 +131,15 @@ async fn host_routes_are_owner_scoped_and_return_auth_material() {
             "port": 2200,
             "username": "root",
             "ssh_key_id": null,
-            "encrypted_password": "encrypted-alice-password-v2"
+            "encrypted_password": "encrypted-alice-password-v2",
+            "group_id": null
         }),
     )
     .await;
     assert_eq!(alice_update.status(), StatusCode::OK);
     let alice_update = response_json(alice_update).await;
     assert_eq!(alice_update["host"], "alice-updated.example.com");
+    assert!(alice_update["group_id"].is_null());
     assert_eq!(alice_update["auth"]["kind"], "password");
     assert_eq!(
         alice_update["auth"]["password"],
