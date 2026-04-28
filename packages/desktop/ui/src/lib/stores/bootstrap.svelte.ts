@@ -1,9 +1,25 @@
 import type { AuthBootstrapStatus } from "$lib/api/auth-api.js";
-import type { BootstrapMetadata, KeyCreateRequest, KeyUpdateRequest, Setting, SshHostAuthMaterial, SshHostRecord, SshKeyRecord } from "$lib/api/types.js";
+import type {
+  BootstrapMetadata,
+  KeyCreateRequest,
+  KeyUpdateRequest,
+  Setting,
+  SshHostAuthMaterial,
+  SshHostRecord,
+  SshKeyRecord,
+} from "$lib/api/types.js";
 
-import { restoreBackendSession, registerToBackend, loginToBackend, logoutFromBackend } from "$lib/api/auth-api.js";
+import {
+  restoreBackendSession,
+  registerToBackend,
+  loginToBackend,
+  logoutFromBackend,
+} from "$lib/api/auth-api.js";
 import { loadBootstrapMetadataFromBackend } from "$lib/api/bootstrap-api.js";
-import { saveBackendConnection, deleteBackendConnection } from "$lib/api/connections-api.js";
+import {
+  saveBackendConnection,
+  deleteBackendConnection,
+} from "$lib/api/connections-api.js";
 import { upsertBackendSetting } from "$lib/api/settings-api.js";
 import { createSshKey, updateSshKey, deleteSshKey } from "$lib/api/keys-api.js";
 
@@ -35,7 +51,11 @@ const defaultApi: BootstrapApi = {
   deleteKey: deleteSshKey,
 };
 
-export type BootstrapPhase = "loading" | "authenticated" | "unauthenticated" | "error";
+export type BootstrapPhase =
+  | "loading"
+  | "authenticated"
+  | "unauthenticated"
+  | "error";
 
 export interface TerminalConfig {
   fontSize: number;
@@ -98,11 +118,22 @@ interface NovertermConfig {
 
 const DEFAULT_TERMINAL_CONFIG: TerminalConfig = {
   fontSize: 14,
-  fontFamily: "Sarasa Term TC SemiBold, Menlo, Monaco, 'Courier New', monospace",
+  fontFamily:
+    "Sarasa Term TC SemiBold, Menlo, Monaco, 'Courier New', monospace",
   cursorStyle: "block",
   cursorBlink: true,
   scrollback: 5000,
 };
+
+function normalizeTerminalConfig(
+  config?: Partial<TerminalConfig>,
+): TerminalConfig {
+  return {
+    ...DEFAULT_TERMINAL_CONFIG,
+    ...config,
+    fontFamily: DEFAULT_TERMINAL_CONFIG.fontFamily,
+  };
+}
 
 interface BootstrapState {
   phase: BootstrapPhase;
@@ -133,7 +164,9 @@ export function resetBootstrapState() {
 }
 
 function parseNovertermConfig(settings: Setting[]): NovertermConfig {
-  const configStr = settings.find((setting) => setting.key === "noverterm-config")?.value;
+  const configStr = settings.find(
+    (setting) => setting.key === "noverterm-config",
+  )?.value;
   if (configStr) {
     try {
       const parsed = JSON.parse(configStr) as NovertermConfig;
@@ -144,17 +177,18 @@ function parseNovertermConfig(settings: Setting[]): NovertermConfig {
           : [],
         ...(Array.isArray(parsed.savedPortForwards)
           ? {
-              savedPortForwards: parsed.savedPortForwards.filter((forward): forward is SavedPortForwardConfig => (
-              typeof forward === "object" &&
-              forward !== null &&
-              typeof forward.id === "string" &&
-              typeof forward.name === "string" &&
-              typeof forward.connectionId === "string" &&
-              typeof forward.bind_host === "string" &&
-              typeof forward.bind_port === "number" &&
-              typeof forward.target_host === "string" &&
-              typeof forward.target_port === "number"
-            )),
+              savedPortForwards: parsed.savedPortForwards.filter(
+                (forward): forward is SavedPortForwardConfig =>
+                  typeof forward === "object" &&
+                  forward !== null &&
+                  typeof forward.id === "string" &&
+                  typeof forward.name === "string" &&
+                  typeof forward.connectionId === "string" &&
+                  typeof forward.bind_host === "string" &&
+                  typeof forward.bind_port === "number" &&
+                  typeof forward.target_host === "string" &&
+                  typeof forward.target_port === "number",
+              ),
             }
           : {}),
       };
@@ -167,7 +201,7 @@ function parseNovertermConfig(settings: Setting[]): NovertermConfig {
 
 function parseTerminalConfig(settings: Setting[]): TerminalConfig {
   const config = parseNovertermConfig(settings);
-  return { ...DEFAULT_TERMINAL_CONFIG, ...config.terminal };
+  return normalizeTerminalConfig(config.terminal);
 }
 
 function parseRecentConnectionIds(settings: Setting[]): string[] {
@@ -175,16 +209,30 @@ function parseRecentConnectionIds(settings: Setting[]): string[] {
   return config.recentConnectionIds ?? [];
 }
 
-function buildNovertermConfig(settings: Setting[], updates: Partial<NovertermConfig>): string {
+function buildNovertermConfig(
+  settings: Setting[],
+  updates: Partial<NovertermConfig>,
+): string {
   return JSON.stringify({ ...parseNovertermConfig(settings), ...updates });
 }
 
-function uniqueRecentConnectionIds(connectionId: string, currentIds: string[]): string[] {
-  return [connectionId, ...currentIds.filter((id) => id !== connectionId)].slice(0, 12);
+function uniqueRecentConnectionIds(
+  connectionId: string,
+  currentIds: string[],
+): string[] {
+  return [
+    connectionId,
+    ...currentIds.filter((id) => id !== connectionId),
+  ].slice(0, 12);
 }
 
-function filterExistingConnectionIds(connectionIds: string[], connections: ConnectionConfig[]): string[] {
-  const existingConnectionIds = new Set(connections.map((connection) => connection.id));
+function filterExistingConnectionIds(
+  connectionIds: string[],
+  connections: ConnectionConfig[],
+): string[] {
+  const existingConnectionIds = new Set(
+    connections.map((connection) => connection.id),
+  );
   return connectionIds.filter((id) => existingConnectionIds.has(id));
 }
 
@@ -192,18 +240,27 @@ function filterExistingPortForwards(
   forwards: SavedPortForwardConfig[],
   connections: ConnectionConfig[],
 ): SavedPortForwardConfig[] {
-  const existingConnectionIds = new Set(connections.map((connection) => connection.id));
-  return forwards.filter((forward) => existingConnectionIds.has(forward.connectionId));
+  const existingConnectionIds = new Set(
+    connections.map((connection) => connection.id),
+  );
+  return forwards.filter((forward) =>
+    existingConnectionIds.has(forward.connectionId),
+  );
 }
 
 function createPortForwardId(): string {
   return `pf-${globalThis.crypto.randomUUID()}`;
 }
 
-function mapRecentConnections(connectionIds: string[], connections: ConnectionConfig[]): ConnectionConfig[] {
+function mapRecentConnections(
+  connectionIds: string[],
+  connections: ConnectionConfig[],
+): ConnectionConfig[] {
   return connectionIds
     .map((id) => connections.find((connection) => connection.id === id))
-    .filter((connection): connection is ConnectionConfig => connection !== undefined);
+    .filter(
+      (connection): connection is ConnectionConfig => connection !== undefined,
+    );
 }
 
 function mapHostsToConnections(hosts: SshHostRecord[]): ConnectionConfig[] {
@@ -214,7 +271,9 @@ function mapHostsToConnections(hosts: SshHostRecord[]): ConnectionConfig[] {
     port: host.port,
     username: host.username,
     sshKeyId: host.ssh_key_id,
-    hasPassword: host.auth?.kind === "password" || host.auth?.kind === "public_key_and_password",
+    hasPassword:
+      host.auth?.kind === "password" ||
+      host.auth?.kind === "public_key_and_password",
     auth: host.auth,
   }));
 }
@@ -307,7 +366,9 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
     await api.saveSetting({
       key: "noverterm-config",
       value: buildNovertermConfig(currentSettings, {
-        recentConnectionIds: parseRecentConnectionIds(currentSettings).filter((id) => id !== connection.id),
+        recentConnectionIds: parseRecentConnectionIds(currentSettings).filter(
+          (id) => id !== connection.id,
+        ),
       }),
     });
     await refreshMetadata();
@@ -332,7 +393,9 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
     const currentSettings = state.metadata?.settings ?? [];
     await api.saveSetting({
       key: "noverterm-config",
-      value: buildNovertermConfig(currentSettings, { terminal: config }),
+      value: buildNovertermConfig(currentSettings, {
+        terminal: normalizeTerminalConfig(config),
+      }),
     });
 
     await refreshMetadata();
@@ -343,7 +406,10 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
     await api.saveSetting({
       key: "noverterm-config",
       value: buildNovertermConfig(currentSettings, {
-        recentConnectionIds: uniqueRecentConnectionIds(connectionId, parseRecentConnectionIds(currentSettings)),
+        recentConnectionIds: uniqueRecentConnectionIds(
+          connectionId,
+          parseRecentConnectionIds(currentSettings),
+        ),
       }),
     });
 
@@ -352,7 +418,8 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
 
   async function savePortForward(input: SavePortForwardInput) {
     const currentSettings = state.metadata?.settings ?? [];
-    const existingForwards = parseNovertermConfig(currentSettings).savedPortForwards ?? [];
+    const existingForwards =
+      parseNovertermConfig(currentSettings).savedPortForwards ?? [];
     const savedForward: SavedPortForwardConfig = {
       id: input.id ?? createPortForwardId(),
       name: input.name,
@@ -378,9 +445,9 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
 
   async function deletePortForward(forwardId: string) {
     const currentSettings = state.metadata?.settings ?? [];
-    const savedPortForwards = (parseNovertermConfig(currentSettings).savedPortForwards ?? []).filter(
-      (forward) => forward.id !== forwardId,
-    );
+    const savedPortForwards = (
+      parseNovertermConfig(currentSettings).savedPortForwards ?? []
+    ).filter((forward) => forward.id !== forwardId);
 
     await api.saveSetting({
       key: "noverterm-config",

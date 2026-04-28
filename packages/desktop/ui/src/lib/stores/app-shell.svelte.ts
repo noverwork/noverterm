@@ -7,11 +7,13 @@ import type {
   SaveConnectionInput,
   SavePortForwardInput,
   SavedPortForwardConfig,
-  TerminalConfig,
 } from "$lib/stores/bootstrap.svelte.js";
 import { createBootstrapStore } from "$lib/stores/bootstrap.svelte.js";
 import { createPortForwardStore } from "$lib/stores/port-forward.svelte.js";
-import { createSessionStore, type Session } from "$lib/stores/session.svelte.js";
+import {
+  createSessionStore,
+  type Session,
+} from "$lib/stores/session.svelte.js";
 
 const APP_SHELL_CONTEXT = Symbol("app-shell");
 
@@ -31,7 +33,9 @@ export function createAppShellStore() {
   let startupError = $state<string | null>(null);
 
   const activeSession = $derived(
-    sessionStore.activeSessionId ? sessionStore.sessions.get(sessionStore.activeSessionId) : undefined,
+    sessionStore.activeSessionId
+      ? sessionStore.sessions.get(sessionStore.activeSessionId)
+      : undefined,
   );
 
   const activeSessions = $derived(
@@ -41,7 +45,9 @@ export function createAppShellStore() {
   );
 
   const mountedTerminalSessions = $derived(
-    activeSessions.filter((session) => session.status === "connected") as Session[],
+    activeSessions.filter(
+      (session) => session.status === "connected",
+    ) as Session[],
   );
 
   const terminalConfig = $derived(bootstrapStore.getTerminalConfig());
@@ -56,7 +62,12 @@ export function createAppShellStore() {
       return;
     }
 
-    if (visibleTerminalSessionId && mountedTerminalSessions.some((session) => session.id === visibleTerminalSessionId)) {
+    if (
+      visibleTerminalSessionId &&
+      mountedTerminalSessions.some(
+        (session) => session.id === visibleTerminalSessionId,
+      )
+    ) {
       return;
     }
 
@@ -98,10 +109,14 @@ export function createAppShellStore() {
     await bootstrapStore.logout();
   }
 
-  async function connectSavedConnection(connection: ConnectionConfig): Promise<boolean> {
+  async function connectSavedConnection(
+    connection: ConnectionConfig,
+  ): Promise<boolean> {
     try {
       await sessionStore.connectSavedConnection(connection, 80, 24);
-      void bootstrapStore.recordRecentConnection(connection.id).catch(() => undefined);
+      void bootstrapStore
+        .recordRecentConnection(connection.id)
+        .catch(() => undefined);
       return true;
     } catch {
       return false;
@@ -126,7 +141,9 @@ export function createAppShellStore() {
     connectionSaving = false;
   }
 
-  async function saveConnection(connection: SaveConnectionInput): Promise<boolean> {
+  async function saveConnection(
+    connection: SaveConnectionInput,
+  ): Promise<boolean> {
     connectionSaving = true;
     connectionFormError = null;
 
@@ -134,7 +151,8 @@ export function createAppShellStore() {
       await bootstrapStore.saveConnection(connection);
       return true;
     } catch (error) {
-      connectionFormError = error instanceof Error ? error.message : String(error);
+      connectionFormError =
+        error instanceof Error ? error.message : String(error);
       return false;
     } finally {
       connectionSaving = false;
@@ -155,7 +173,12 @@ export function createAppShellStore() {
     });
   }
 
-  async function updateKey(keyId: string, name: string, privateKey?: string, passphrase?: string) {
+  async function updateKey(
+    keyId: string,
+    name: string,
+    privateKey?: string,
+    passphrase?: string,
+  ) {
     await bootstrapStore.updateKey(keyId, {
       name,
       kind: "inline",
@@ -173,12 +196,19 @@ export function createAppShellStore() {
   }
 
   async function startSavedPortForward(forward: SavedPortForwardConfig) {
-    const connection = connections.find((candidate) => candidate.id === forward.connectionId);
+    const connection = connections.find(
+      (candidate) => candidate.id === forward.connectionId,
+    );
     if (!connection) {
-      throw new Error("Saved connection not found. Open Connections and verify this host still exists.");
+      throw new Error(
+        "Saved connection not found. Open Connections and verify this host still exists.",
+      );
     }
 
-    return await portForwardStore.startSavedForward({ preset: forward, connection });
+    return await portForwardStore.startSavedForward({
+      preset: forward,
+      connection,
+    });
   }
 
   async function stopPortForward(forwardId: string) {
@@ -197,18 +227,15 @@ export function createAppShellStore() {
     void sessionStore.disconnectSession(id);
   }
 
-  async function saveSettings(config: TerminalConfig) {
-    await bootstrapStore.saveTerminalConfig(config);
-    showSettings = false;
-  }
-
   async function retryActiveConnection(): Promise<boolean> {
     if (!activeSession) {
       return false;
     }
 
     if (activeSession.connectionId) {
-      const connection = connections.find((candidate) => candidate.id === activeSession.connectionId);
+      const connection = connections.find(
+        (candidate) => candidate.id === activeSession.connectionId,
+      );
       if (connection) {
         return await connectSavedConnection(connection);
       }
@@ -222,9 +249,12 @@ export function createAppShellStore() {
       return false;
     }
 
-    const connection = connections.find((candidate) => candidate.id === activeSession.connectionId);
+    const connection = connections.find(
+      (candidate) => candidate.id === activeSession.connectionId,
+    );
     if (!connection) {
-      trustError = "Saved connection not found. Open Connections and try again.";
+      trustError =
+        "Saved connection not found. Open Connections and try again.";
       return false;
     }
 
@@ -334,7 +364,6 @@ export function createAppShellStore() {
     deleteRuntimePortForward,
     deleteSavedPortForward,
     closeSession,
-    saveSettings,
     retryActiveConnection,
     trustActiveHost,
     toggleSidebar,

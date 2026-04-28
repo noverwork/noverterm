@@ -17,25 +17,43 @@ const createMockApi = () => ({
 import { createBootstrapStore } from "$lib/stores/bootstrap.svelte.js";
 
 const sampleMetadata = {
-  settings: [{ key: "noverterm-config", value: '{"terminal":{"fontSize":16},"recentConnectionIds":["h1"]}' }],
-  hosts: [{
-    id: "h1",
-    name: "prod",
-    host: "prod.example.com",
-    port: 22,
-    username: "deploy",
-    ssh_key_id: "k1",
-    auth: {
-      kind: "public_key_and_password",
-      private_key: "private-key",
-      passphrase: null,
-      password: "secret",
+  settings: [
+    {
+      key: "noverterm-config",
+      value:
+        '{"terminal":{"fontSize":16,"fontFamily":"JetBrains Mono, Fira Code, monospace"},"recentConnectionIds":["h1"]}',
     },
-  }],
-  keys: [{ id: "k1", name: "deploy-key", kind: "ed25519", fingerprint: "SHA256:abc" }],
+  ],
+  hosts: [
+    {
+      id: "h1",
+      name: "prod",
+      host: "prod.example.com",
+      port: 22,
+      username: "deploy",
+      ssh_key_id: "k1",
+      auth: {
+        kind: "public_key_and_password",
+        private_key: "private-key",
+        passphrase: null,
+        password: "secret",
+      },
+    },
+  ],
+  keys: [
+    {
+      id: "k1",
+      name: "deploy-key",
+      kind: "ed25519",
+      fingerprint: "SHA256:abc",
+    },
+  ],
 };
 
-const sampleAuthStatus = { email: "alice", bootstrap_message: "bootstrap ready" };
+const sampleAuthStatus = {
+  email: "alice",
+  bootstrap_message: "bootstrap ready",
+};
 
 describe("bootstrap store", () => {
   let mockApi: ReturnType<typeof createMockApi>;
@@ -70,14 +88,28 @@ describe("bootstrap store", () => {
     });
     expect(store.getRecentConnectionIds()).toEqual(["h1"]);
     expect(store.getRecentConnections()[0]).toMatchObject({ id: "h1" });
+    expect(store.getTerminalConfig()).toMatchObject({
+      fontSize: 16,
+      fontFamily:
+        "Sarasa Term TC SemiBold, Menlo, Monaco, 'Courier New', monospace",
+    });
   });
 
   it("records recent connections in backend settings", async () => {
     mockApi.restore.mockResolvedValue(sampleAuthStatus);
     mockApi.loadBootstrapMetadata
-      .mockResolvedValueOnce({ settings: [{ key: "noverterm-config", value: '{"terminal":{"fontSize":16}}' }], hosts: sampleMetadata.hosts, keys: [] })
+      .mockResolvedValueOnce({
+        settings: [
+          { key: "noverterm-config", value: '{"terminal":{"fontSize":16}}' },
+        ],
+        hosts: sampleMetadata.hosts,
+        keys: [],
+      })
       .mockResolvedValueOnce(sampleMetadata);
-    mockApi.saveSetting.mockResolvedValue({ key: "noverterm-config", value: "" });
+    mockApi.saveSetting.mockResolvedValue({
+      key: "noverterm-config",
+      value: "",
+    });
 
     const store = createBootstrapStore(mockApi);
     await store.init();

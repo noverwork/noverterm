@@ -485,12 +485,7 @@
         </div>
       </div>
 
-      <SettingsModal
-        open={app.showSettings}
-        config={app.terminalConfig}
-        onSave={app.saveSettings}
-        onClose={app.closeSettings}
-      />
+      <SettingsModal open={app.showSettings} onClose={app.closeSettings} />
     </div>
   {/if}
 </QueryClientProvider>
