@@ -98,6 +98,7 @@ fn owner_scoped_host_foreign_keys_reject_cross_user_key_references() {
             username: "deploy".to_string(),
             ssh_key_id: Some(key_id),
             encrypted_password: None,
+            group_id: None,
             created_at: now,
             updated_at: now,
         })
