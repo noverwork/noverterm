@@ -39,6 +39,12 @@ pub struct BackendHostUpsertInput {
     pub username: String,
     pub ssh_key_id: Option<String>,
     pub encrypted_password: Option<String>,
+    pub group_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BackendHostGroupUpsertInput {
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -205,6 +211,54 @@ impl BackendClient {
             .map_err(|error| BackendClientError::Transport(error.to_string()))?;
 
         parse_json_response(response).await
+    }
+
+    pub async fn list_host_groups(
+        &self,
+        access_token: &str,
+    ) -> Result<Vec<shared::HostGroupRecord>, BackendClientError> {
+        let response = self
+            .http
+            .get(format!("{}/bootstrap/host-groups", self.base_url))
+            .bearer_auth(access_token)
+            .send()
+            .await
+            .map_err(|error| BackendClientError::Transport(error.to_string()))?;
+
+        parse_json_response(response).await
+    }
+
+    pub async fn create_host_group(
+        &self,
+        access_token: &str,
+        input: &BackendHostGroupUpsertInput,
+    ) -> Result<shared::HostGroupRecord, BackendClientError> {
+        let response = self
+            .http
+            .post(format!("{}/bootstrap/host-groups", self.base_url))
+            .bearer_auth(access_token)
+            .json(input)
+            .send()
+            .await
+            .map_err(|error| BackendClientError::Transport(error.to_string()))?;
+
+        parse_json_response_with_statuses(response, &[StatusCode::CREATED]).await
+    }
+
+    pub async fn delete_host_group(
+        &self,
+        access_token: &str,
+        id: &str,
+    ) -> Result<(), BackendClientError> {
+        let response = self
+            .http
+            .delete(format!("{}/bootstrap/host-groups/{id}", self.base_url))
+            .bearer_auth(access_token)
+            .send()
+            .await
+            .map_err(|error| BackendClientError::Transport(error.to_string()))?;
+
+        parse_empty_response(response, &[StatusCode::NO_CONTENT]).await
     }
 
     pub async fn create_host(

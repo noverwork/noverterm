@@ -1,7 +1,8 @@
 use tokio::sync::RwLock;
 
 use super::backend_client::{
-    BackendClient, BackendClientError, BackendHostUpsertInput, BackendKeyUpsertInput,
+    BackendClient, BackendClientError, BackendHostGroupUpsertInput, BackendHostUpsertInput,
+    BackendKeyUpsertInput,
 };
 use std::path::PathBuf;
 
@@ -18,6 +19,7 @@ pub type DesktopAuthManager = AuthManager<JsonTokenStore>;
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct BootstrapMetadata {
     pub settings: Vec<shared::Setting>,
+    pub host_groups: Vec<shared::HostGroupRecord>,
     pub hosts: Vec<shared::SshHostRecord>,
     pub keys: Vec<shared::SshKeyRecord>,
 }
@@ -29,6 +31,8 @@ pub struct SaveConnectionInput {
     pub host: String,
     pub port: i32,
     pub username: String,
+    #[serde(default)]
+    pub group_id: Option<String>,
     pub password: Option<String>,
     pub private_key: Option<String>,
     pub passphrase: Option<String>,
@@ -294,6 +298,7 @@ impl<S: SecureTokenStore> AuthManager<S> {
             username: connection.username,
             ssh_key_id,
             encrypted_password: trimmed_password,
+            group_id: connection.group_id,
         };
 
         if let Some(id) = connection.id {
@@ -343,6 +348,30 @@ impl<S: SecureTokenStore> AuthManager<S> {
             .map_err(map_client_error)
     }
 
+    pub async fn load_host_groups(&self) -> Result<Vec<shared::HostGroupRecord>, String> {
+        let tokens = self.fresh_tokens().await?;
+        self.client
+            .list_host_groups(&tokens.access_token)
+            .await
+            .map_err(map_client_error)
+    }
+
+    pub async fn create_host_group(&self, name: String) -> Result<shared::HostGroupRecord, String> {
+        let tokens = self.fresh_tokens().await?;
+        self.client
+            .create_host_group(&tokens.access_token, &BackendHostGroupUpsertInput { name })
+            .await
+            .map_err(map_client_error)
+    }
+
+    pub async fn delete_host_group(&self, id: String) -> Result<(), String> {
+        let tokens = self.fresh_tokens().await?;
+        self.client
+            .delete_host_group(&tokens.access_token, &id)
+            .await
+            .map_err(map_client_error)
+    }
+
     pub async fn load_keys(&self) -> Result<Vec<shared::SshKeyRecord>, String> {
         let tokens = self.fresh_tokens().await?;
         self.client
@@ -352,11 +381,16 @@ impl<S: SecureTokenStore> AuthManager<S> {
     }
 
     pub async fn load_bootstrap_metadata(&self) -> Result<BootstrapMetadata, String> {
-        let (settings, hosts, keys) =
-            tokio::join!(self.load_settings(), self.load_hosts(), self.load_keys(),);
+        let (settings, host_groups, hosts, keys) = tokio::join!(
+            self.load_settings(),
+            self.load_host_groups(),
+            self.load_hosts(),
+            self.load_keys(),
+        );
 
         Ok(BootstrapMetadata {
             settings: settings?,
+            host_groups: host_groups?,
             hosts: hosts?,
             keys: keys?,
         })

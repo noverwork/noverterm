@@ -88,8 +88,11 @@ async fn bootstrap_metadata_loads_settings_hosts_and_keys() {
 
     assert_eq!(metadata.settings.len(), 1);
     assert_eq!(metadata.settings[0].key, "noverterm-config");
+    assert_eq!(metadata.host_groups.len(), 1);
+    assert_eq!(metadata.host_groups[0].name, "Production");
     assert_eq!(metadata.hosts.len(), 1);
     assert_eq!(metadata.hosts[0].name, "prod-server");
+    assert_eq!(metadata.hosts[0].group_id.as_deref(), Some("group-1"));
     assert_eq!(metadata.keys.len(), 1);
     assert_eq!(metadata.keys[0].name, "deploy-key");
 
@@ -129,6 +132,7 @@ fn test_auth_server() -> Router {
         .route("/auth/logout", post(logout_handler))
         .route("/bootstrap/smoke", get(smoke_handler))
         .route("/bootstrap/settings", get(settings_handler))
+        .route("/bootstrap/host-groups", get(host_groups_handler))
         .route("/bootstrap/hosts", get(hosts_handler))
         .route("/bootstrap/keys", get(keys_handler))
         .with_state(())
@@ -249,11 +253,39 @@ async fn hosts_handler(
                     "port": 22,
                     "username": "deploy",
                     "ssh_key_id": "key-1",
+                    "group_id": "group-1",
                     "auth": {
                         "kind": "public_key",
                         "private_key": "private-key",
                         "passphrase": null
                     }
+                }
+            ])),
+        )
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": "unauthorized" })),
+        )
+    }
+}
+
+async fn host_groups_handler(
+    State(()): State<()>,
+    headers: HeaderMap,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let token = headers
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default();
+
+    if token.starts_with("Bearer ") {
+        (
+            StatusCode::OK,
+            Json(json!([
+                {
+                    "id": "group-1",
+                    "name": "Production"
                 }
             ])),
         )
