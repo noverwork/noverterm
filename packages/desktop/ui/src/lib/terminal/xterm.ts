@@ -4,7 +4,10 @@ import "@xterm/xterm/css/xterm.css";
 import { invoke } from "@tauri-apps/api/core";
 import type { TerminalConfig } from "$lib/stores/bootstrap.svelte.js";
 
-import type { SessionType, TerminalOutputCallback } from "$lib/stores/session.svelte.js";
+import type {
+  SessionType,
+  TerminalOutputCallback,
+} from "$lib/stores/session.svelte.js";
 
 interface TerminalOptions {
   sessionId: string;
@@ -32,11 +35,11 @@ export interface TerminalController {
 
 function getTheme() {
   return {
-    background: "#0a0a0a",
+    background: "#080c13",
     foreground: "#e5e5e5",
     cursor: "#e5e5e5",
     selectionBackground: "#ffffff20",
-    black: "#0a0a0a",
+    black: "#080c13",
     red: "#ef4444",
     green: "#22c55e",
     yellow: "#eab308",
@@ -79,13 +82,20 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       cols: terminal.cols,
       rows: terminal.rows,
     });
-    invoke(resizeCmd, { sessionId, cols: terminal.cols, rows: terminal.rows }).catch(() => void 0);
+    invoke(resizeCmd, {
+      sessionId,
+      cols: terminal.cols,
+      rows: terminal.rows,
+    }).catch(() => void 0);
   }
 
   function init(container: HTMLElement) {
     if (terminal || disposed) return;
 
-    console.info("[xterm:init]", { sessionId, hasContainer: Boolean(container) });
+    console.info("[xterm:init]", {
+      sessionId,
+      hasContainer: Boolean(container),
+    });
 
     terminal = new Terminal({
       theme: getTheme(),
@@ -127,20 +137,20 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       selectionCallback?.();
     });
 
-    outputUnlisten = options.subscribeOutput?.((payload) => {
-      if (!terminal) return;
-      console.info("[xterm:output]", {
-        sessionId,
-        closed: payload.closed,
-        bytes: payload.output.length,
-      });
-      if (payload.closed) {
-        options.onClose?.();
-      } else {
-        terminal.write(payload.output);
-      }
-    }) ?? null;
-
+    outputUnlisten =
+      options.subscribeOutput?.((payload) => {
+        if (!terminal) return;
+        console.info("[xterm:output]", {
+          sessionId,
+          closed: payload.closed,
+          bytes: payload.output.length,
+        });
+        if (payload.closed) {
+          options.onClose?.();
+        } else {
+          terminal.write(payload.output);
+        }
+      }) ?? null;
   }
 
   function fit() {

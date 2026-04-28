@@ -12,7 +12,10 @@
   import Sidebar from "$lib/components/sidebar.svelte";
   import WelcomeView from "$lib/components/welcome-view.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
-  import { createAppShellStore, setAppShellContext } from "$lib/stores/app-shell.svelte.js";
+  import {
+    createAppShellStore,
+    setAppShellContext,
+  } from "$lib/stores/app-shell.svelte.js";
   import TerminalView from "$lib/terminal/terminal.svelte";
 
   interface Props {
@@ -139,26 +142,46 @@
       </div>
     </div>
   {:else if app.bootstrapStore.isUnauthenticated}
-    <AuthShell onLogin={app.login} onSignup={app.signup} isLoading={app.bootstrapStore.isLoading} error={app.bootstrapStore.error} />
+    <AuthShell
+      onLogin={app.login}
+      onSignup={app.signup}
+      isLoading={app.bootstrapStore.isLoading}
+      error={app.bootstrapStore.error}
+    />
   {:else if app.isError}
-    <div class="auth-shell flex min-h-screen items-center justify-center px-4 py-8">
-      <div class="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-slate-950/78 p-6 text-center shadow-2xl backdrop-blur-2xl sm:p-8">
-        <div class="mx-auto flex size-16 items-center justify-center rounded-[1.5rem] bg-destructive/10 text-destructive">
+    <div
+      class="auth-shell flex min-h-screen items-center justify-center px-4 py-8"
+    >
+      <div
+        class="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-slate-950/78 p-6 text-center shadow-2xl backdrop-blur-2xl sm:p-8"
+      >
+        <div
+          class="mx-auto flex size-16 items-center justify-center rounded-[1.5rem] bg-destructive/10 text-destructive"
+        >
           <AlertCircle class="size-8" />
         </div>
-        <h1 class="mt-5 text-2xl font-semibold text-white">Backend connection unavailable</h1>
+        <h1 class="mt-5 text-2xl font-semibold text-white">
+          Backend connection unavailable
+        </h1>
         <p class="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-300">
-          {app.error ?? "Unable to connect to the backend. Remote features are unavailable."}
+          {app.error ??
+            "Unable to connect to the backend. Remote features are unavailable."}
         </p>
         <div class="mt-8 flex flex-wrap justify-center gap-3">
-          <Button variant="outline" onclick={() => void app.init()} class="gap-2 border-white/10 bg-white/4 text-white hover:bg-white/8">
+          <Button
+            variant="outline"
+            onclick={() => void app.init()}
+            class="gap-2 border-white/10 bg-white/4 text-white hover:bg-white/8"
+          >
             Retry
           </Button>
         </div>
       </div>
     </div>
   {:else}
-    <div class="workspace-canvas flex h-screen w-screen overflow-hidden bg-background">
+    <div
+      class="workspace-canvas flex h-screen w-screen overflow-hidden bg-background"
+    >
       <Sidebar
         sessions={app.sessionStore.sessions}
         activeSessionId={app.sessionStore.activeSessionId}
@@ -180,10 +203,15 @@
       <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-[#080c13]/72">
         <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
           {#if app.mountedTerminalSessions.length > 0}
-            <div class={isTerminalRoute && app.activeSession?.status === "connected"
-              ? "relative z-0 flex h-full min-h-0 flex-1 flex-col overflow-hidden p-3"
-              : "pointer-events-none absolute inset-0 z-0 flex min-h-0 flex-col overflow-hidden p-3 opacity-0"}>
-              <div class="terminal-frame relative min-h-0 flex-1 overflow-hidden rounded-[1.35rem] border border-white/10 bg-black/50 shadow-2xl shadow-black/45">
+            <div
+              class={isTerminalRoute &&
+              app.activeSession?.status === "connected"
+                ? "relative z-0 flex h-full min-h-0 flex-1 flex-col overflow-hidden p-3"
+                : "pointer-events-none absolute inset-0 z-0 flex min-h-0 flex-col overflow-hidden p-3 opacity-0"}
+            >
+              <div
+                class="terminal-frame relative min-h-0 flex-1 overflow-hidden rounded-[1.35rem] border border-white/10 bg-[#080c13]/72 shadow-2xl shadow-black/45"
+              >
                 {#each app.mountedTerminalSessions as session (session.id)}
                   <div
                     class={session.id === app.visibleTerminalSessionId
@@ -193,10 +221,18 @@
                     <TerminalView
                       sessionId={session.id}
                       sessionType={session.type}
-                      active={isTerminalRoute && session.id === app.visibleTerminalSessionId}
+                      active={isTerminalRoute &&
+                        session.id === app.visibleTerminalSessionId}
                       config={app.terminalConfig}
-                      subscribeOutput={(callback) => app.sessionStore.subscribeSessionOutput(session.id, callback)}
-                      onClose={() => app.sessionStore.updateSession(session.id, { status: "disconnected" })}
+                      subscribeOutput={(callback) =>
+                        app.sessionStore.subscribeSessionOutput(
+                          session.id,
+                          callback,
+                        )}
+                      onClose={() =>
+                        app.sessionStore.updateSession(session.id, {
+                          status: "disconnected",
+                        })}
                     />
                   </div>
                 {/each}
@@ -213,7 +249,8 @@
                 sessions: app.sessionStore.sessions,
                 activeSessionId: app.sessionStore.activeSessionId,
                 setActiveSession: app.sessionStore.setActiveSession,
-                connectLocal: (name: string) => app.sessionStore.connectLocal(name),
+                connectLocal: (name: string) =>
+                  app.sessionStore.connectLocal(name),
                 subscribeSessionOutput: app.sessionStore.subscribeSessionOutput,
               }}
               terminalConfig={app.terminalConfig}
@@ -222,32 +259,51 @@
             />
           {:else if app.activeSession.status === "connecting"}
             <div class="flex h-full flex-col items-center justify-center p-8">
-              <div class="rounded-[2rem] border border-amber-300/15 bg-amber-300/8 p-8 text-center shadow-2xl shadow-black/30">
-                <Loader2 class="mx-auto mb-4 size-8 animate-spin text-amber-200" />
-                <p class="text-sm font-semibold text-white">Connecting to {app.activeSession.name}</p>
-                <p class="mt-2 text-xs text-slate-500">Negotiating terminal session…</p>
+              <div
+                class="rounded-[2rem] border border-amber-300/15 bg-amber-300/8 p-8 text-center shadow-2xl shadow-black/30"
+              >
+                <Loader2
+                  class="mx-auto mb-4 size-8 animate-spin text-amber-200"
+                />
+                <p class="text-sm font-semibold text-white">
+                  Connecting to {app.activeSession.name}
+                </p>
+                <p class="mt-2 text-xs text-slate-500">
+                  Negotiating terminal session…
+                </p>
               </div>
             </div>
           {:else if app.activeSession.status === "error" || app.activeSession.status === "trust_required"}
             <div class="flex h-full flex-col items-center justify-center p-8">
-              <div class={app.activeSession.status === "trust_required"
-                ? "w-full max-w-xl overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/88 text-left shadow-2xl shadow-black/40 ring-1 ring-amber-300/10 backdrop-blur-xl"
-                : "max-w-lg rounded-[2rem] border border-red-300/20 bg-red-400/8 p-8 shadow-2xl shadow-black/30"}>
+              <div
+                class={app.activeSession.status === "trust_required"
+                  ? "w-full max-w-xl overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/88 text-left shadow-2xl shadow-black/40 ring-1 ring-amber-300/10 backdrop-blur-xl"
+                  : "max-w-lg rounded-[2rem] border border-red-300/20 bg-red-400/8 p-8 shadow-2xl shadow-black/30"}
+              >
                 {#if app.activeSession.trustPrompt}
                   <div class="border-b border-white/10 px-6 py-5 sm:px-7">
                     <div class="flex items-start gap-4">
-                      <div class="grid size-11 shrink-0 place-items-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-amber-200 shadow-[0_0_24px_rgb(252_211_77/0.08)]">
+                      <div
+                        class="grid size-11 shrink-0 place-items-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-amber-200 shadow-[0_0_24px_rgb(252_211_77/0.08)]"
+                      >
                         <AlertCircle class="size-5" />
                       </div>
                       <div class="min-w-0 flex-1">
                         <div class="flex flex-wrap items-center gap-2">
-                          <span class="rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-amber-200">
+                          <span
+                            class="rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-amber-200"
+                          >
                             SSH host identity
                           </span>
                         </div>
-                        <h2 class="mt-3 text-xl font-semibold tracking-tight text-white">Verify SSH host identity</h2>
+                        <h2
+                          class="mt-3 text-xl font-semibold tracking-tight text-white"
+                        >
+                          Verify SSH host identity
+                        </h2>
                         <p class="mt-2 text-sm leading-6 text-slate-400">
-                          Confirm this fingerprint before opening a terminal session.
+                          Confirm this fingerprint before opening a terminal
+                          session.
                         </p>
                       </div>
                     </div>
@@ -255,30 +311,62 @@
 
                   <div class="px-6 py-5 sm:px-7">
                     <dl class="grid gap-3 text-sm">
-                      <div class="flex items-center justify-between gap-4 rounded-2xl border border-white/8 bg-white/[0.035] px-4 py-3">
-                        <dt class="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Host</dt>
-                        <dd class="truncate font-mono text-slate-100">{app.activeSession.trustPrompt.host}:{app.activeSession.trustPrompt.port}</dd>
+                      <div
+                        class="flex items-center justify-between gap-4 rounded-2xl border border-white/8 bg-white/[0.035] px-4 py-3"
+                      >
+                        <dt
+                          class="text-xs font-medium uppercase tracking-[0.16em] text-slate-500"
+                        >
+                          Host
+                        </dt>
+                        <dd class="truncate font-mono text-slate-100">
+                          {app.activeSession.trustPrompt.host}:{app
+                            .activeSession.trustPrompt.port}
+                        </dd>
                       </div>
-                      <div class="flex items-center justify-between gap-4 rounded-2xl border border-white/8 bg-white/[0.035] px-4 py-3">
-                        <dt class="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Algorithm</dt>
-                        <dd class="font-mono text-slate-100">{app.activeSession.trustPrompt.algorithm}</dd>
+                      <div
+                        class="flex items-center justify-between gap-4 rounded-2xl border border-white/8 bg-white/[0.035] px-4 py-3"
+                      >
+                        <dt
+                          class="text-xs font-medium uppercase tracking-[0.16em] text-slate-500"
+                        >
+                          Algorithm
+                        </dt>
+                        <dd class="font-mono text-slate-100">
+                          {app.activeSession.trustPrompt.algorithm}
+                        </dd>
                       </div>
-                      <div class="rounded-2xl border border-white/8 bg-black/25 p-4">
-                        <dt class="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Fingerprint</dt>
-                        <dd class="mt-3 break-all rounded-xl border border-amber-300/10 bg-amber-300/[0.06] px-3 py-2.5 font-mono text-sm leading-6 text-amber-100">
+                      <div
+                        class="rounded-2xl border border-white/8 bg-black/25 p-4"
+                      >
+                        <dt
+                          class="text-xs font-medium uppercase tracking-[0.16em] text-slate-500"
+                        >
+                          Fingerprint
+                        </dt>
+                        <dd
+                          class="mt-3 break-all rounded-xl border border-amber-300/10 bg-amber-300/[0.06] px-3 py-2.5 font-mono text-sm leading-6 text-amber-100"
+                        >
                           {app.activeSession.trustPrompt.fingerprint}
                         </dd>
                       </div>
                     </dl>
                     <p class="mt-4 text-xs leading-5 text-slate-500">
-                      Only continue if this fingerprint matches the server you expect. It will be saved locally in Tauri's trust JSON.
+                      Only continue if this fingerprint matches the server you
+                      expect. It will be saved locally in Tauri's trust JSON.
                     </p>
                   </div>
 
                   {#if app.trustError}
-                    <p class="mx-6 mb-4 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200 sm:mx-7">{app.trustError}</p>
+                    <p
+                      class="mx-6 mb-4 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200 sm:mx-7"
+                    >
+                      {app.trustError}
+                    </p>
                   {/if}
-                  <div class="flex flex-wrap items-center justify-end gap-3 border-t border-white/10 bg-white/[0.025] px-6 py-4 sm:px-7">
+                  <div
+                    class="flex flex-wrap items-center justify-end gap-3 border-t border-white/10 bg-white/[0.025] px-6 py-4 sm:px-7"
+                  >
                     {#if app.activeSession.connectionId}
                       <Button
                         onclick={trustActiveHost}
@@ -292,43 +380,89 @@
                       </Button>
                     {:else}
                       <p class="max-w-md text-sm leading-6 text-slate-400">
-                        Save this connection first to trust the host and retry automatically.
+                        Save this connection first to trust the host and retry
+                        automatically.
                       </p>
                     {/if}
-                    <Button variant="outline" onclick={() => app.sessionStore.removeSession(app.activeSession?.id ?? "")} class="rounded-2xl border-white/10 bg-white/4 px-4 text-white hover:bg-white/8">
+                    <Button
+                      variant="outline"
+                      onclick={() =>
+                        app.sessionStore.removeSession(
+                          app.activeSession?.id ?? "",
+                        )}
+                      class="rounded-2xl border-white/10 bg-white/4 px-4 text-white hover:bg-white/8"
+                    >
                       Cancel
                     </Button>
                   </div>
                 {:else if app.activeSession.trustMismatch}
-                  <div class="mx-auto grid size-14 place-items-center rounded-2xl bg-red-400/12 text-red-300">
+                  <div
+                    class="mx-auto grid size-14 place-items-center rounded-2xl bg-red-400/12 text-red-300"
+                  >
                     <AlertCircle class="size-7" />
                   </div>
-                  <h2 class="mt-5 text-center text-xl font-semibold text-white">Connection failed</h2>
-                  <p class="mx-auto mt-2 max-w-md text-center text-sm leading-6 text-slate-400">{app.activeSession.error ?? "Unknown error"}</p>
-                  <div class="mt-5 rounded-2xl border border-red-300/25 bg-red-300/8 p-4 text-left">
-                    <p class="text-sm font-semibold text-red-100">Saved fingerprint does not match.</p>
+                  <h2 class="mt-5 text-center text-xl font-semibold text-white">
+                    Connection failed
+                  </h2>
+                  <p
+                    class="mx-auto mt-2 max-w-md text-center text-sm leading-6 text-slate-400"
+                  >
+                    {app.activeSession.error ?? "Unknown error"}
+                  </p>
+                  <div
+                    class="mt-5 rounded-2xl border border-red-300/25 bg-red-300/8 p-4 text-left"
+                  >
+                    <p class="text-sm font-semibold text-red-100">
+                      Saved fingerprint does not match.
+                    </p>
                     <dl class="mt-3 grid gap-2 text-xs text-slate-300">
                       <div class="space-y-1">
                         <dt class="text-slate-500">Expected</dt>
-                        <dd class="break-all rounded-xl bg-black/30 px-3 py-2 font-mono">{app.activeSession.trustMismatch.expected_fingerprint}</dd>
+                        <dd
+                          class="break-all rounded-xl bg-black/30 px-3 py-2 font-mono"
+                        >
+                          {app.activeSession.trustMismatch.expected_fingerprint}
+                        </dd>
                       </div>
                       <div class="space-y-1">
                         <dt class="text-slate-500">Presented</dt>
-                        <dd class="break-all rounded-xl bg-black/30 px-3 py-2 font-mono text-red-100">{app.activeSession.trustMismatch.presented_fingerprint}</dd>
+                        <dd
+                          class="break-all rounded-xl bg-black/30 px-3 py-2 font-mono text-red-100"
+                        >
+                          {app.activeSession.trustMismatch
+                            .presented_fingerprint}
+                        </dd>
                       </div>
                     </dl>
-                    <p class="mt-3 text-xs leading-5 text-slate-400">This may indicate the server changed keys or a man-in-the-middle risk. Not updating trust automatically.</p>
+                    <p class="mt-3 text-xs leading-5 text-slate-400">
+                      This may indicate the server changed keys or a
+                      man-in-the-middle risk. Not updating trust automatically.
+                    </p>
                   </div>
-                  <Button onclick={retryActiveConnection} class="mt-6 gap-2 rounded-2xl bg-red-300 text-red-950 hover:bg-red-200">
+                  <Button
+                    onclick={retryActiveConnection}
+                    class="mt-6 gap-2 rounded-2xl bg-red-300 text-red-950 hover:bg-red-200"
+                  >
                     Retry session
                   </Button>
                 {:else}
-                  <div class="mx-auto grid size-14 place-items-center rounded-2xl bg-red-400/12 text-red-300">
+                  <div
+                    class="mx-auto grid size-14 place-items-center rounded-2xl bg-red-400/12 text-red-300"
+                  >
                     <AlertCircle class="size-7" />
                   </div>
-                  <h2 class="mt-5 text-center text-xl font-semibold text-white">Connection failed</h2>
-                  <p class="mx-auto mt-2 max-w-md text-center text-sm leading-6 text-slate-400">{app.activeSession.error ?? "Unknown error"}</p>
-                  <Button onclick={retryActiveConnection} class="mt-6 gap-2 rounded-2xl bg-red-300 text-red-950 hover:bg-red-200">
+                  <h2 class="mt-5 text-center text-xl font-semibold text-white">
+                    Connection failed
+                  </h2>
+                  <p
+                    class="mx-auto mt-2 max-w-md text-center text-sm leading-6 text-slate-400"
+                  >
+                    {app.activeSession.error ?? "Unknown error"}
+                  </p>
+                  <Button
+                    onclick={retryActiveConnection}
+                    class="mt-6 gap-2 rounded-2xl bg-red-300 text-red-950 hover:bg-red-200"
+                  >
                     Retry session
                   </Button>
                 {/if}
@@ -336,9 +470,15 @@
             </div>
           {:else if app.mountedTerminalSessions.length === 0}
             <div class="flex h-full flex-col items-center justify-center p-8">
-              <div class="rounded-[2rem] border border-white/10 bg-white/[0.035] p-8 text-center shadow-2xl shadow-black/30">
-                <p class="text-sm font-semibold text-white">No active terminal</p>
-                <p class="mt-2 text-xs text-slate-500">Open a local terminal or SSH connection to start.</p>
+              <div
+                class="rounded-[2rem] border border-white/10 bg-white/[0.035] p-8 text-center shadow-2xl shadow-black/30"
+              >
+                <p class="text-sm font-semibold text-white">
+                  No active terminal
+                </p>
+                <p class="mt-2 text-xs text-slate-500">
+                  Open a local terminal or SSH connection to start.
+                </p>
               </div>
             </div>
           {/if}
