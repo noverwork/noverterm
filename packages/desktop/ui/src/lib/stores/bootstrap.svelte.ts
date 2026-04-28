@@ -98,7 +98,7 @@ interface NovertermConfig {
 
 const DEFAULT_TERMINAL_CONFIG: TerminalConfig = {
   fontSize: 14,
-  fontFamily: "JetBrains Mono, Fira Code, monospace",
+  fontFamily: "Sarasa Term TC SemiBold, Menlo, Monaco, 'Courier New', monospace",
   cursorStyle: "block",
   cursorBlink: true,
   scrollback: 5000,
