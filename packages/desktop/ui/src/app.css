@@ -2,8 +2,12 @@
 @import "tw-animate-css";
 
 @font-face {
-  font-family: "Noverterm Sans";
-  src: local("IBM Plex Sans"), local("Inter"), local("SF Pro Display");
+  font-family: "Sarasa Term TC SemiBold";
+  src:
+    url("/fonts/SarasaTermTC-SemiBold.ttf") format("truetype"),
+    local("Sarasa Term TC SemiBold");
+  font-weight: 600;
+  font-style: normal;
   font-display: swap;
 }
 
@@ -95,7 +99,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: "Noverterm Sans", "IBM Plex Sans", Inter, "Segoe UI", sans-serif;
+    font-family: "Sarasa Term TC SemiBold", Menlo, Monaco, "Courier New", monospace;
     margin: 0;
     padding: 0;
     overflow: hidden;
