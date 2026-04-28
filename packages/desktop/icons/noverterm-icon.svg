@@ -1,0 +1,40 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="base" x1="182" y1="126" x2="842" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1B2A41" />
+      <stop offset="0.5" stop-color="#07111F" />
+      <stop offset="1" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="nStroke" x1="286" y1="342" x2="742" y2="694" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#CFFAFE" />
+      <stop offset="0.42" stop-color="#22D3EE" />
+      <stop offset="1" stop-color="#2563EB" />
+    </linearGradient>
+    <linearGradient id="nShadow" x1="288" y1="338" x2="740" y2="704" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0E7490" />
+      <stop offset="1" stop-color="#1D4ED8" />
+    </linearGradient>
+    <filter id="tileShadow" x="74" y="74" width="876" height="900" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="42" stdDeviation="46" flood-color="#000000" flood-opacity="0.52" />
+    </filter>
+    <filter id="cyanGlow" x="188" y="226" width="650" height="618" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="18" result="blur" />
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.133 0 0 0 0 0.827 0 0 0 0 0.933 0 0 0 0.7 0" />
+      <feBlend mode="screen" in2="SourceGraphic" />
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="228" fill="#020617" />
+  <rect x="136" y="120" width="752" height="784" rx="174" fill="url(#base)" filter="url(#tileShadow)" />
+  <rect x="164" y="148" width="696" height="728" rx="148" stroke="white" stroke-opacity="0.11" stroke-width="4" />
+
+  <g filter="url(#cyanGlow)">
+    <path d="M318 678V346" stroke="url(#nShadow)" stroke-width="106" stroke-linecap="round" />
+    <path d="M318 346L706 678" stroke="url(#nShadow)" stroke-width="106" stroke-linecap="round" />
+    <path d="M706 346V678" stroke="url(#nShadow)" stroke-width="106" stroke-linecap="round" />
+
+    <path d="M318 678V346" stroke="url(#nStroke)" stroke-width="78" stroke-linecap="round" />
+    <path d="M318 346L706 678" stroke="url(#nStroke)" stroke-width="78" stroke-linecap="round" />
+    <path d="M706 346V678" stroke="url(#nStroke)" stroke-width="78" stroke-linecap="round" />
+  </g>
+</svg>
