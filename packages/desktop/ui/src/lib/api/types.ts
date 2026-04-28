@@ -3,6 +3,11 @@ export interface Setting {
   value: string;
 }
 
+export interface HostGroupRecord {
+  id: string;
+  name: string;
+}
+
 export interface SshHostRecord {
   id: string;
   name: string;
@@ -10,6 +15,7 @@ export interface SshHostRecord {
   port: number;
   username: string;
   ssh_key_id: string | null;
+  group_id: string | null;
   auth: SshHostAuthMaterial | null;
 }
 
@@ -32,6 +38,7 @@ export interface SshKeyRecord {
 
 export interface BootstrapMetadata {
   settings: Setting[];
+  host_groups: HostGroupRecord[];
   hosts: SshHostRecord[];
   keys: SshKeyRecord[];
 }

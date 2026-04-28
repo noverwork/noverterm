@@ -127,6 +127,8 @@ describe("connection schema", () => {
     });
 
     expect(result.success).toBe(false);
-    expect(result.error?.flatten().fieldErrors.privateKey).toContain("Paste a private key or select a saved key");
+    expect(result.error?.flatten().fieldErrors.privateKey).toContain(
+      "Paste a private key or select a saved key",
+    );
   });
 });

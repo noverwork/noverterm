@@ -7,6 +7,8 @@ const createMockApi = () => ({
   logout: vi.fn(),
   loadBootstrapMetadata: vi.fn(),
   saveConnection: vi.fn(),
+  createHostGroup: vi.fn(),
+  deleteHostGroup: vi.fn(),
   deleteConnection: vi.fn(),
   saveSetting: vi.fn(),
   createKey: vi.fn(),
@@ -24,11 +26,18 @@ const sampleMetadata = {
         '{"terminal":{"fontSize":16,"fontFamily":"JetBrains Mono, Fira Code, monospace"},"recentConnectionIds":["h1"]}',
     },
   ],
+  host_groups: [
+    {
+      id: "g1",
+      name: "Production",
+    },
+  ],
   hosts: [
     {
       id: "h1",
       name: "prod",
       host: "prod.example.com",
+      group_id: "g1",
       port: 22,
       username: "deploy",
       ssh_key_id: "k1",
@@ -85,7 +94,9 @@ describe("bootstrap store", () => {
       hasPassword: true,
       sshKeyId: "k1",
       auth: expect.objectContaining({ kind: "public_key_and_password" }),
+      groupId: "g1",
     });
+    expect(store.getHostGroups()).toEqual([{ id: "g1", name: "Production" }]);
     expect(store.getRecentConnectionIds()).toEqual(["h1"]);
     expect(store.getRecentConnections()[0]).toMatchObject({ id: "h1" });
     expect(store.getTerminalConfig()).toMatchObject({
@@ -102,6 +113,7 @@ describe("bootstrap store", () => {
         settings: [
           { key: "noverterm-config", value: '{"terminal":{"fontSize":16}}' },
         ],
+        host_groups: sampleMetadata.host_groups,
         hosts: sampleMetadata.hosts,
         keys: [],
       })
@@ -132,7 +144,7 @@ describe("bootstrap store", () => {
   it("refreshes metadata after saving a connection", async () => {
     mockApi.restore.mockResolvedValue(sampleAuthStatus);
     mockApi.loadBootstrapMetadata
-      .mockResolvedValueOnce({ settings: [], hosts: [], keys: [] })
+      .mockResolvedValueOnce({ settings: [], host_groups: [], hosts: [], keys: [] })
       .mockResolvedValueOnce(sampleMetadata);
     mockApi.saveConnection.mockResolvedValue(sampleMetadata.hosts[0]);
 
@@ -140,6 +152,7 @@ describe("bootstrap store", () => {
     await store.init();
     await store.saveConnection({
       name: "prod",
+      groupId: "g1",
       host: "prod.example.com",
       port: 22,
       username: "deploy",
@@ -149,6 +162,7 @@ describe("bootstrap store", () => {
 
     expect(mockApi.saveConnection).toHaveBeenCalledWith({
       name: "prod",
+      groupId: "g1",
       host: "prod.example.com",
       port: 22,
       username: "deploy",
@@ -162,7 +176,7 @@ describe("bootstrap store", () => {
     mockApi.restore.mockResolvedValue(sampleAuthStatus);
     mockApi.loadBootstrapMetadata
       .mockResolvedValueOnce(sampleMetadata)
-      .mockResolvedValueOnce({ settings: [], hosts: [], keys: [] });
+      .mockResolvedValueOnce({ settings: [], host_groups: [], hosts: [], keys: [] });
     mockApi.deleteConnection.mockResolvedValue(undefined);
 
     const store = createBootstrapStore(mockApi);
@@ -173,5 +187,23 @@ describe("bootstrap store", () => {
       expect.objectContaining({ id: "h1", sshKeyId: "k1" }),
     );
     expect(store.getConnections()).toHaveLength(0);
+  });
+
+  it("passes host group deletion through and refreshes metadata", async () => {
+    mockApi.restore.mockResolvedValue(sampleAuthStatus);
+    mockApi.loadBootstrapMetadata
+      .mockResolvedValueOnce(sampleMetadata)
+      .mockResolvedValueOnce({ settings: [], host_groups: [], hosts: [], keys: [] });
+    mockApi.deleteHostGroup.mockResolvedValue(undefined);
+
+    const store = createBootstrapStore(mockApi);
+    await store.init();
+    await store.deleteHostGroup(store.getHostGroups()[0]);
+
+    expect(mockApi.deleteHostGroup).toHaveBeenCalledWith({
+      id: "g1",
+      name: "Production",
+    });
+    expect(store.getHostGroups()).toEqual([]);
   });
 });

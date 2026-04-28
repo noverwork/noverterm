@@ -5,9 +5,12 @@ import {
   withAuthorizedRetry,
 } from "./api-client.js";
 
-import type { SshHostRecord, SshKeyRecord } from "./types.js";
+import type { HostGroupRecord, SshHostRecord, SshKeyRecord } from "./types.js";
 import { encryptSecret } from "$lib/crypto/vault.js";
-import type { SaveConnectionInput, ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
+import type {
+  SaveConnectionInput,
+  ConnectionConfig,
+} from "$lib/stores/bootstrap.svelte.js";
 
 interface HostWriteRequest {
   name: string;
@@ -16,6 +19,11 @@ interface HostWriteRequest {
   username: string;
   ssh_key_id: string | null;
   encrypted_password: string | null;
+  group_id: string | null;
+}
+
+interface HostGroupWriteRequest {
+  name: string;
 }
 
 interface KeyWriteRequest {
@@ -44,9 +52,10 @@ export async function saveBackendConnection(
   const encryptedPassphrase = await encryptSecret(trimmedPassphrase);
 
   return withAuthorizedRetry(async (accessToken) => {
-    let sshKeyId = (connection.existingKeyId && connection.existingKeyId.trim())
-      ? connection.existingKeyId
-      : null;
+    let sshKeyId =
+      connection.existingKeyId && connection.existingKeyId.trim()
+        ? connection.existingKeyId
+        : null;
 
     if (encryptedPrivateKey) {
       const keyInput: KeyWriteRequest = {
@@ -78,13 +87,18 @@ export async function saveBackendConnection(
       username: connection.username,
       ssh_key_id: sshKeyId,
       encrypted_password: encryptedPassword,
+      group_id: trimOptional(connection.groupId),
     };
 
     return connection.id
-      ? requestWithAuth<SshHostRecord>(`/bootstrap/hosts/${connection.id}`, accessToken, {
-          method: "PUT",
-          body: JSON.stringify(hostInput),
-        })
+      ? requestWithAuth<SshHostRecord>(
+          `/bootstrap/hosts/${connection.id}`,
+          accessToken,
+          {
+            method: "PUT",
+            body: JSON.stringify(hostInput),
+          },
+        )
       : requestWithAuth<SshHostRecord>("/bootstrap/hosts", accessToken, {
           method: "POST",
           body: JSON.stringify(hostInput),
@@ -92,7 +106,29 @@ export async function saveBackendConnection(
   });
 }
 
-export async function deleteBackendConnection(connection: ConnectionConfig): Promise<void> {
+export async function createBackendHostGroup(name: string): Promise<HostGroupRecord> {
+  return withAuthorizedRetry(async (accessToken) => {
+    const input: HostGroupWriteRequest = { name };
+    return await requestWithAuth<HostGroupRecord>("/bootstrap/host-groups", accessToken, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  });
+}
+
+export async function deleteBackendHostGroup(group: HostGroupRecord): Promise<void> {
+  await withAuthorizedRetry(async (accessToken) => {
+    await requestNoContentWithAuth(
+      `/bootstrap/host-groups/${encodeURIComponent(group.id)}`,
+      accessToken,
+      { method: "DELETE" },
+    );
+  });
+}
+
+export async function deleteBackendConnection(
+  connection: ConnectionConfig,
+): Promise<void> {
   await withAuthorizedRetry(async (accessToken) => {
     await requestNoContentWithAuth(
       `/bootstrap/hosts/${encodeURIComponent(connection.id)}`,

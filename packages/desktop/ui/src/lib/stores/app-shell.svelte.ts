@@ -1,7 +1,7 @@
 import { getContext, setContext } from "svelte";
 
 import { loadAppSettings } from "$lib/api/api-client.js";
-import type { SshKeyRecord } from "$lib/api/types.js";
+import type { HostGroupRecord, SshKeyRecord } from "$lib/api/types.js";
 import type {
   ConnectionConfig,
   SaveConnectionInput,
@@ -52,6 +52,7 @@ export function createAppShellStore() {
 
   const terminalConfig = $derived(bootstrapStore.getTerminalConfig());
   const connections = $derived(bootstrapStore.getConnections());
+  const hostGroups = $derived(bootstrapStore.getHostGroups());
   const keys = $derived(bootstrapStore.getKeys());
 
   $effect(() => {
@@ -162,6 +163,29 @@ export function createAppShellStore() {
   async function deleteConnection(connection: ConnectionConfig) {
     await bootstrapStore.deleteConnection(connection);
     sessionStore.disconnectConnectionSessions(connection.id);
+  }
+
+  async function createHostGroup(name: string) {
+    return await bootstrapStore.createHostGroup(name);
+  }
+
+  async function deleteHostGroup(group: HostGroupRecord) {
+    await bootstrapStore.deleteHostGroup(group);
+  }
+
+  async function moveConnectionToGroup(connection: ConnectionConfig, groupId: string | null) {
+    await bootstrapStore.saveConnection({
+      id: connection.id,
+      name: connection.name,
+      groupId,
+      host: connection.host,
+      port: connection.port,
+      username: connection.username,
+      existingKeyId: connection.sshKeyId,
+      ...(connection.auth?.kind === "password" || connection.auth?.kind === "public_key_and_password"
+        ? { preservedEncryptedPassword: connection.auth.password }
+        : {}),
+    });
   }
 
   async function saveKey(name: string, privateKey: string, passphrase: string) {
@@ -341,6 +365,9 @@ export function createAppShellStore() {
     get connections() {
       return connections;
     },
+    get hostGroups() {
+      return hostGroups;
+    },
     get keys() {
       return keys;
     },
@@ -355,6 +382,9 @@ export function createAppShellStore() {
     resetConnectionFormError,
     saveConnection,
     deleteConnection,
+    createHostGroup,
+    deleteHostGroup,
+    moveConnectionToGroup,
     saveKey,
     updateKey,
     deleteKey,

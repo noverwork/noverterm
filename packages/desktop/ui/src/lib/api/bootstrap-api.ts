@@ -1,17 +1,18 @@
 import { requestWithAuth, withAuthorizedRetry, isAuthExpiredError } from "./api-client.js";
 
-import type { Setting, SshHostRecord, SshKeyRecord, BootstrapMetadata } from "./types.js";
+import type { Setting, HostGroupRecord, SshHostRecord, SshKeyRecord, BootstrapMetadata } from "./types.js";
 
 export async function loadBootstrapMetadataFromBackend(): Promise<BootstrapMetadata> {
   try {
     return await withAuthorizedRetry(async (accessToken) => {
-      const [settings, hosts, keys] = await Promise.all([
+      const [settings, hostGroups, hosts, keys] = await Promise.all([
         requestWithAuth<Setting[]>("/bootstrap/settings", accessToken),
+        requestWithAuth<HostGroupRecord[]>("/bootstrap/host-groups", accessToken),
         requestWithAuth<SshHostRecord[]>("/bootstrap/hosts", accessToken),
         requestWithAuth<SshKeyRecord[]>("/bootstrap/keys", accessToken),
       ]);
 
-      return { settings, hosts, keys };
+      return { settings, host_groups: hostGroups, hosts, keys };
     });
   } catch (error) {
     if (isAuthExpiredError(error)) {

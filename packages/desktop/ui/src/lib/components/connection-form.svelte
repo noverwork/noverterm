@@ -132,6 +132,7 @@
     await onSave({
       ...(connection?.id ? { id: connection.id } : {}),
       name: $formData.name.trim(),
+      groupId: connection?.groupId ?? null,
       host: $formData.host.trim(),
       port: $formData.port,
       username: $formData.username.trim(),
@@ -239,7 +240,10 @@
 
               <div class="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_7rem]">
                 <div class="space-y-2 sm:col-span-2">
-                  <label for="conn-name" class="text-sm font-medium text-slate-100">Name</label>
+                  <label
+                    for="conn-name"
+                    class="text-sm font-medium text-slate-100">Name</label
+                  >
                   <Input
                     id="conn-name"
                     bind:value={$formData.name}

@@ -25,8 +25,12 @@
 
 <ConnectionsView
   connections={app.connections}
+  hostGroups={app.hostGroups}
   onSelect={handleSelectConnection}
   onEdit={handleEditConnection}
   onNew={handleNewConnection}
   onDelete={app.deleteConnection}
+  onCreateGroup={app.createHostGroup}
+  onDeleteGroup={app.deleteHostGroup}
+  onMoveToGroup={app.moveConnectionToGroup}
 />

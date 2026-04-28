@@ -4,6 +4,7 @@ import type {
   KeyCreateRequest,
   KeyUpdateRequest,
   Setting,
+  HostGroupRecord,
   SshHostAuthMaterial,
   SshHostRecord,
   SshKeyRecord,
@@ -17,6 +18,8 @@ import {
 } from "$lib/api/auth-api.js";
 import { loadBootstrapMetadataFromBackend } from "$lib/api/bootstrap-api.js";
 import {
+  createBackendHostGroup,
+  deleteBackendHostGroup,
   saveBackendConnection,
   deleteBackendConnection,
 } from "$lib/api/connections-api.js";
@@ -30,6 +33,8 @@ export interface BootstrapApi {
   logout(): Promise<void>;
   loadBootstrapMetadata(): Promise<BootstrapMetadata>;
   saveConnection(connection: SaveConnectionInput): Promise<SshHostRecord>;
+  createHostGroup(name: string): Promise<HostGroupRecord>;
+  deleteHostGroup(group: HostGroupRecord): Promise<void>;
   deleteConnection(connection: ConnectionConfig): Promise<void>;
   saveSetting(setting: Setting): Promise<Setting>;
   createKey(key: KeyCreateRequest): Promise<SshKeyRecord>;
@@ -44,6 +49,8 @@ const defaultApi: BootstrapApi = {
   logout: logoutFromBackend,
   loadBootstrapMetadata: loadBootstrapMetadataFromBackend,
   saveConnection: saveBackendConnection,
+  createHostGroup: createBackendHostGroup,
+  deleteHostGroup: deleteBackendHostGroup,
   deleteConnection: deleteBackendConnection,
   saveSetting: upsertBackendSetting,
   createKey: createSshKey,
@@ -68,6 +75,7 @@ export interface TerminalConfig {
 export interface ConnectionConfig {
   id: string;
   name: string;
+  groupId: string | null;
   host: string;
   port: number;
   username: string;
@@ -99,6 +107,7 @@ export interface SavePortForwardInput {
 export interface SaveConnectionInput {
   id?: string;
   name: string;
+  groupId?: string | null;
   host: string;
   port: number;
   username: string;
@@ -267,6 +276,7 @@ function mapHostsToConnections(hosts: SshHostRecord[]): ConnectionConfig[] {
   return hosts.map((host) => ({
     id: host.id,
     name: host.name,
+    groupId: host.group_id,
     host: host.host,
     port: host.port,
     username: host.username,
@@ -358,6 +368,17 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
     const savedConnection = await api.saveConnection(connection);
     await refreshMetadata();
     return savedConnection;
+  }
+
+  async function createHostGroup(name: string) {
+    const group = await api.createHostGroup(name);
+    await refreshMetadata();
+    return group;
+  }
+
+  async function deleteHostGroup(group: HostGroupRecord) {
+    await api.deleteHostGroup(group);
+    await refreshMetadata();
   }
 
   async function deleteConnection(connection: ConnectionConfig) {
@@ -471,6 +492,10 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
     return [];
   }
 
+  function getHostGroups(): HostGroupRecord[] {
+    return state.metadata?.host_groups ?? [];
+  }
+
   function getRecentConnectionIds(): string[] {
     if (!state.metadata) {
       return [];
@@ -536,6 +561,8 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
     logout,
     refreshMetadata,
     saveConnection,
+    createHostGroup,
+    deleteHostGroup,
     deleteConnection,
     saveKey,
     updateKey,
@@ -546,6 +573,7 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
     deletePortForward,
     getTerminalConfig,
     getConnections,
+    getHostGroups,
     getRecentConnectionIds,
     getRecentConnections,
     getSavedPortForwards,
