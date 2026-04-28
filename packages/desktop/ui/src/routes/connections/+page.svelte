@@ -25,8 +25,6 @@
 
 <ConnectionsView
   connections={app.connections}
-  sessions={app.sessionStore.sessions}
-  activeSessionId={app.sessionStore.activeSessionId}
   onSelect={handleSelectConnection}
   onEdit={handleEditConnection}
   onNew={handleNewConnection}
