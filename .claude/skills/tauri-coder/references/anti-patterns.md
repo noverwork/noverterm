@@ -1,182 +1,81 @@
-# Tauri Anti-Patterns Reference
+# Anti-Patterns
 
-## Forbidden Patterns
+Each item is labeled as **Official**, **Project**, or **Common**.
 
-### ❌ Direct `invoke()` Without Type Safety
-
-```typescript
-// ❌ BAD — no type checking, error-prone
-const result = await invoke('some_command', { data: input });
-```
-
-```typescript
-// ✅ GOOD — use generated bindings
-const result = await commands.some_command({ data: input });
-```
-
-**Why:** Manual `invoke` calls lose type safety. `tauri-specta` generates typed wrappers.
-
----
-
-### ❌ Using `generate_handler![]` Instead of `tauri-specta`
+## 1. Command Missing From Builder (Project)
 
 ```rust
-// ❌ BAD — no type export, no frontend type safety
-.invoke_handler(tauri::generate_handler![my_command])
-```
-
-```rust
-// ✅ GOOD — specta builder handles both invoke + type export
-let builder = command_builder();
-.invoke_handler(builder.invoke_handler())
-```
-
-**Why:** This project requires TypeScript bindings. `tauri-specta` is the single source of truth.
-
----
-
-### ❌ Custom Error Types Without `Serialize`
-
-```rust
-// ❌ BAD — won't serialize to frontend
-#[tauri::command]
-async fn do_thing() -> Result<Data, MyError> { ... }
-```
-
-```rust
-// ✅ GOOD — String error serializes cleanly
-#[tauri::command]
-async fn do_thing() -> Result<Data, String> {
-    inner().await.map_err(|e| format!("operation failed: {e}"))
-}
-```
-
-**Why:** Tauri serializes command results to JSON. Custom errors must impl `Serialize` or use `String`.
-
----
-
-### ❌ Missing `#[specta::specta]` Decorator
-
-```rust
-// ❌ BAD — command won't be included in type export
-#[tauri::command]
-pub async fn my_command() -> Result<(), String> { ... }
-```
-
-```rust
-// ✅ GOOD — both decorators present
+// ❌ ANTI-PATTERN
 #[tauri::command]
 #[specta::specta]
-pub async fn my_command() -> Result<(), String> { ... }
-```
+fn new_command() -> String { "ok".to_string() }
 
-**Why:** Without `#[specta::specta]`, the command won't appear in generated TypeScript bindings.
-
----
-
-### ❌ Implicit State Lifetime
-
-```rust
-// ❌ BAD — missing explicit lifetime
-#[tauri::command]
-async fn cmd(state: tauri::State<MyManager>) -> Result<(), String> { ... }
+// command_builder() does not include new_command
 ```
 
 ```rust
-// ✅ GOOD — explicit lifetime
-#[tauri::command]
-async fn cmd(state: tauri::State<'_, MyManager>) -> Result<(), String> { ... }
-```
-
-**Why:** Explicit lifetimes make borrow semantics clear and satisfy Clippy.
-
----
-
-### ❌ Unbounded HTTP Permissions
-
-```json
-// ❌ BAD — allows any URL
-{
-  "identifier": "http:default",
-  "allow": [{ "url": "*" }]
+// ✅ CORRECT
+fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
+    tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
+        new_command,
+    ])
 }
 ```
 
-```json
-// ✅ GOOD — scoped to specific domains
-{
-  "identifier": "http:default",
-  "allow": [
-    { "url": "https://api.example.com/*" },
-    { "url": "http://localhost:3000/*" }
-  ]
-}
-```
-
-**Why:** Unrestricted HTTP access is a security risk. Scope to known endpoints.
-
----
-
-### ❌ Not Cleaning Up Event Listeners
-
-```typescript
-// ❌ BAD — listener leaks on every mount
-onMount(async () => {
-  await listen('event', handler);
-});
-```
-
-```typescript
-// ✅ GOOD — cleanup on destroy
-let unlisten: (() => void) | undefined;
-
-onMount(async () => {
-  unlisten = await listen('event', handler);
-});
-
-onDestroy(() => {
-  unlisten?.();
-});
-```
-
-**Why:** Uncleaned listeners accumulate and cause memory leaks + duplicate handlers.
-
----
-
-### ❌ Using `unwrap()` in Commands
+## 2. Missing Specta Annotation (Project)
 
 ```rust
-// ❌ BAD — panics crash the entire app
+// ❌ ANTI-PATTERN for frontend-callable command
 #[tauri::command]
-async fn cmd() -> Result<(), String> {
-    do_thing().unwrap();
-    Ok(())
-}
+fn get_value() -> String { "value".to_string() }
+
+// ✅ CORRECT
+#[tauri::command]
+#[specta::specta]
+fn get_value() -> String { "value".to_string() }
 ```
+
+## 3. Raw Invoke Drift (Project)
+
+```ts
+// ❌ ANTI-PATTERN in app code
+await invoke("scan_companies", { basePath, periodFolder });
+
+// ✅ CORRECT
+await commands.scanCompanies(basePath, periodFolder);
+```
+
+## 4. Missing Capability Permission (Official + Project)
 
 ```rust
-// ✅ GOOD — errors propagate to frontend
+// ❌ ANTI-PATTERN
+tauri::Builder::default().plugin(tauri_plugin_fs::init());
+```
+
+If the frontend uses the plugin, add the needed permission to `capabilities/default.json`.
+
+## 5. Trusting Frontend Paths (Project)
+
+```rust
+// ❌ ANTI-PATTERN
+tokio::fs::read(pdf_path).await.map_err(|e| e.to_string())
+```
+
+Validate path intent, extension, and domain constraints before reading.
+
+## 6. Blocking Work in Commands (Common + Project)
+
+```rust
+// ❌ ANTI-PATTERN for heavy work
 #[tauri::command]
-async fn cmd() -> Result<(), String> {
-    do_thing().await.map_err(|e| e.to_string())?;
-    Ok(())
+fn scan_large_tree(path: String) -> Result<Vec<String>, String> {
+    std::fs::read_dir(path).map_err(|e| e.to_string())?;
+    Ok(Vec::new())
 }
 ```
 
-**Why:** `unwrap()` panics crash the Tauri app. Commands should return errors gracefully.
+Prefer async I/O or explicit blocking-task handling for expensive filesystem/network work.
 
----
+## 7. Forgetting to Regenerate Bindings (Project)
 
-### ❌ Mixing SvelteKit Adapters
-
-```javascript
-// ❌ BAD — node adapter doesn't work with Tauri
-import adapter from '@sveltejs/adapter-node';
-```
-
-```javascript
-// ✅ GOOD — static adapter for Tauri
-import adapter from '@sveltejs/adapter-static';
-```
-
-**Why:** Tauri serves static files. Node adapter produces a server, which Tauri can't use.
+After changing command signatures or Specta types, always run `cargo run --bin export-types`.

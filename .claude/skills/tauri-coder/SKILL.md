@@ -1,188 +1,137 @@
 ---
 name: tauri-coder
-description: Tauri v2 development guide for this monorepo. Use when writing Tauri commands, events, capabilities, plugin integration, or frontend-backend communication. Combines Tauri official docs with clearly marked project-specific patterns for the desktop package.
+description: Tauri 2 desktop coding guide for this monorepo. Use when adding or changing Tauri commands, invoke handlers, tauri-specta bindings, capabilities/permissions, plugins, app state, events, tauri.conf.json, desktop filesystem/dialog/http access, or Svelte-to-Rust IPC.
 ---
 
 # Tauri Coder - Convention Guide
 
-Tauri v2 patterns for this monorepo.
+Tauri conventions for this monorepo.
 
-- **Official** = Tauri v2 documentation / official API
-- **Project** = local rules for this repo's desktop package
+- **Official** = Tauri 2 docs / tauri.app examples / docs.rs API
+- **Project** = local rules for `packages/desktop`
 - **Common** = widespread Tauri practice, not a strict official requirement
 
 ## Forbidden Patterns
 
 ```rust
-// ❌ NEVER (Project)
-fn my_command() -> String { ... }
-// Commands MUST be async if they do any I/O or state access
-
-// ❌ NEVER (Project)
-app.manage(MyState::new()).invoke_handler(generate_handler![cmd]);
-// MUST use tauri-specta Builder for command registration + type export
-
-// ❌ NEVER (Project)
+// ❌ NEVER expose a command without registering it in command_builder() (Project)
 #[tauri::command]
-fn cmd(state: State<MyState>) { ... }
-// MUST use tauri::State<'_, MyState> with explicit lifetime
+async fn new_command() -> Result<String, String> { Ok("ok".to_string()) }
+
+// ❌ NEVER skip specta when command is used from Svelte (Project)
+#[tauri::command]
+fn get_value() -> String { "value".to_string() }
+
+// ❌ NEVER read arbitrary file types when command scope should be narrow (Project)
+tokio::fs::read(user_path).await?;
+
+// ❌ NEVER use frontend invoke strings directly when generated bindings exist (Project)
+invoke("scan_companies", { basePath, periodFolder });
+
+// ❌ NEVER add plugin use without checking capabilities/permissions (Official/Project)
+tauri::Builder::default().plugin(tauri_plugin_fs::init());
 ```
 
 ## Quick Reference
 
-### Naming
+### Project Stack
 
-| Type | Convention | Example | Source |
-|---|---|---|---|
-| Command functions | `snake_case` with module prefix | `bootstrap_restore`, `ssh_connect_direct` | Project |
-| Event names | `kebab-case` | `download-started`, `session-closed` | Official |
-| Capability files | `kebab-case.json` | `default.json`, `ssh-access.json` | Official |
-| State structs | `PascalCase` + `Manager` suffix | `SettingsManager`, `SshSessionManager` | Project |
+| Layer | Technology | Location |
+| --- | --- | --- |
+| Desktop shell | Tauri 2 | `packages/desktop` |
+| Rust commands | `#[tauri::command]` + `#[specta::specta]` | `packages/desktop/src/lib.rs` |
+| Type bindings | `tauri-specta` + `specta-typescript` | `packages/desktop/ui/src/bindings.ts` |
+| Frontend | SvelteKit/Svelte 5 | `packages/desktop/ui` |
+| Permissions | Tauri 2 capabilities | `packages/desktop/capabilities/default.json` |
 
 ### Key Rules
 
-1. **[Project]** All commands MUST use `#[tauri::command]` + `#[specta::specta]` dual decorators
-2. **[Project]** Commands MUST be registered via `tauri-specta` `Builder` with `collect_commands![]` macro
-3. **[Project]** Command return type MUST be `Result<T, String>` — errors as `String`, never custom error types that don't impl `Serialize`
-4. **[Project]** State injection uses `tauri::State<'_, ManagerType>` with explicit lifetime
-5. **[Project]** State is registered in `Builder::setup()` via `app.manage(instance)`
-6. **[Official]** Plugin initialization uses `tauri::Builder::plugin(tauri_plugin_xxx::init())`
-7. **[Official]** Capabilities defined in `capabilities/*.json` control permission scope per window
-8. **[Official]** Events use `app.emit()` (backend) and `listen()`/`emit()` (frontend) from `@tauri-apps/api/event`
-9. **[Official]** Commands invoked from frontend via `invoke('command_name', { args })` from `@tauri-apps/api/core`
-10. **[Common]** Use `AppHandle` parameter in commands when you need to emit events or access app-level APIs
-11. **[Project]** Frontend uses generated TypeScript bindings from `tauri-specta` export — never manually type `invoke` calls
-12. **[Official]** `tauri.conf.json` `"build"` section must have `frontendDist` pointing to the built output directory
+1. **[Official]** Tauri 2 commands use `#[tauri::command]` and are registered with an invoke handler.
+2. **[Project]** Svelte-callable commands also need `#[specta::specta]` and registration in `command_builder()`.
+3. **[Project]** Regenerate `ui/src/bindings.ts` after changing command signatures or Specta types.
+4. **[Project]** Use generated `commands.*` from `ui/src/bindings.ts`; avoid raw `invoke(...)` in app code.
+5. **[Official]** Register shared state with `.manage(...)`; access it via `tauri::State<'_, T>`.
+6. **[Official]** Tauri 2 plugins and IPC features are gated by capabilities/permissions.
+7. **[Project]** Update `capabilities/default.json` when adding frontend plugin APIs or custom permissions.
+8. **[Project]** Keep command errors serializable and user-readable, usually `Result<T, String>`.
+9. **[Project]** Use Tokio async I/O inside async commands; avoid blocking the UI thread.
+10. **[Project]** Validate filesystem paths and file extensions before reading user-selected files.
 
 ### Command Pattern
 
 ```rust
+#[derive(Debug, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanResult {
+    pub file_paths: Vec<String>,
+}
+
 #[tauri::command]
 #[specta::specta]
-pub async fn bootstrap_restore(
-    auth_manager: tauri::State<'_, DesktopAuthManager>,
-) -> Result<Option<crate::auth::AuthBootstrapStatus>, String> {
-    auth_manager.restore().await
+async fn scan_files(base_path: String) -> Result<ScanResult, String> {
+    if base_path.trim().is_empty() {
+        return Err("base_path is required".to_string());
+    }
+
+    Ok(ScanResult { file_paths: Vec::new() })
 }
 ```
 
-### Command Registration (tauri-specta)
+### Registration Pattern
 
 ```rust
-fn command_builder() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new().commands(collect_commands![
-        greet,
-        crate::connect::ssh_connect_direct,
-        crate::connect::ssh_write,
+fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
+    tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
+        scan_files,
+        get_setting,
+        set_setting,
     ])
 }
+```
 
-// In run():
-let specta_builder = command_builder();
+### App Setup Pattern
+
+```rust
 tauri::Builder::default()
-    .invoke_handler(specta_builder.invoke_handler())
-    .run(tauri::generate_context!())
-```
-
-### State Management
-
-```rust
-// In setup():
-.setup(|app| {
-    let manager = SettingsManager::new(settings_path);
-    app.manage(manager);
-    Ok(())
-})
-
-// In command:
-#[tauri::command]
-async fn get_settings(
-    settings: tauri::State<'_, SettingsManager>,
-) -> Result<Setting, String> {
-    settings.load().await
-}
-```
-
-### Event Emission (Backend)
-
-```rust
-use tauri::{AppHandle, Emitter};
-
-#[tauri::command]
-fn notify_progress(app: AppHandle, session_id: String, percent: u8) {
-    app.emit("session-progress", (session_id, percent)).unwrap();
-}
-```
-
-### Event Listening (Frontend - TypeScript)
-
-```typescript
-import { listen } from '@tauri-apps/api/event';
-
-const unlisten = await listen('session-progress', (event) => {
-  const [sessionId, percent] = event.payload as [string, number];
-  console.log(`Session ${sessionId}: ${percent}%`);
-});
-
-// Cleanup:
-unlisten();
-```
-
-### Plugin Usage
-
-```rust
-// In run() - register plugins:
-tauri::Builder::default()
-    .plugin(tauri_plugin_http::init())
     .plugin(tauri_plugin_opener::init())
-    .plugin(tauri_plugin_store::Builder::default().build())
+    .plugin(tauri_plugin_dialog::init())
+    .setup(|app| -> Result<(), Box<dyn std::error::Error>> {
+        let app_data_dir = app.path().app_data_dir()?;
+        std::fs::create_dir_all(&app_data_dir)?;
+        app.manage(SettingsManager::new(app_data_dir.join("settings.json")));
+        Ok(())
+    })
+    .invoke_handler(command_builder().invoke_handler())
+    .run(tauri::generate_context!())
+    .expect("error while running tauri application");
 ```
 
-### Capability Configuration
+### Frontend Pattern
 
-```json
-{
-  "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": ["main"],
-  "permissions": [
-    "core:default",
-    "opener:default",
-    "store:default",
-    {
-      "identifier": "http:default",
-      "allow": [{ "url": "http://*" }, { "url": "https://*" }]
-    }
-  ]
+```ts
+import { commands } from "../../bindings";
+
+const result = await commands.scanCompanies(basePath, periodFolder);
+if (result.status === "error") {
+  throw new Error(result.error);
 }
-```
-
-## Project Structure
-
-```
-packages/desktop/
-├── src/
-│   ├── lib.rs              # Module declarations + feature boundaries
-│   ├── main.rs             # Binary entrypoint → desktop_lib::run()
-│   ├── bootstrap/mod.rs    # Commands + run() + specta setup
-│   ├── auth/               # Auth module (commands + managers)
-│   ├── connect/            # SSH/Local connection commands
-│   ├── runtime/            # Session runtime (ssh/, local/)
-│   ├── settings/           # Settings manager
-│   └── trust/              # SSH host trust store
-├── capabilities/
-│   └── default.json        # Window permission capabilities
-├── tauri.conf.json         # Tauri app config (v2 schema)
-├── Cargo.toml              # Rust dependencies
-└── ui/                     # SvelteKit frontend
 ```
 
 ## Detailed References
 
-- **Commands** (definition, registration, specta integration, error handling) → `references/commands.md`
-- **Events** (emit, listen, payload types, cleanup) → `references/events.md`
-- **State Management** (app.manage, State injection, singleton patterns) → `references/state.md`
-- **Plugins** (http, opener, store, dialog, fs) → `references/plugins.md`
-- **Capabilities** (permission model, window scoping, custom permissions) → `references/capabilities.md`
-- **Frontend Integration** (invoke, bindings, SvelteKit adapter, vite config) → `references/frontend.md`
-- **Anti-patterns** (official + project anti-patterns, clearly labeled) → `references/anti-patterns.md`
+- **Commands & bindings** (Tauri commands, tauri-specta, generated TS usage) → `references/commands-bindings.md`
+- **Capabilities & plugins** (Tauri 2 permissions, default capability, plugin APIs) → `references/capabilities-plugins.md`
+- **State & setup** (`manage`, `State`, setup hook, app data paths) → `references/state-setup.md`
+- **Filesystem & security** (path validation, dialog-selected files, CSP, scoped access) → `references/filesystem-security.md`
+- **Events & IPC** (frontend/Rust events, when to use commands vs events) → `references/events-ipc.md`
+- **Testing & verification** (bindings export, cargo check, svelte-check, dev/build) → `references/testing-verification.md`
+- **Anti-patterns** (unregistered commands, raw invoke, missing permissions, unsafe file reads) → `references/anti-patterns.md`
+
+## Official Sources
+
+- Tauri 2 docs: https://v2.tauri.app/
+- Calling Rust from frontend: https://v2.tauri.app/develop/calling-rust/
+- Security permissions: https://v2.tauri.app/learn/security/
+- Capabilities config reference: https://v2.tauri.app/reference/config/#capability
+- Plugin permissions: https://v2.tauri.app/learn/security/using-plugin-permissions/
+- Tauri Rust docs: https://docs.rs/tauri/2/
