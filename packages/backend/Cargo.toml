@@ -19,6 +19,10 @@ tower-http = { version = "0.6", features = ["cors"] }
 aes-gcm = "0.10"
 argon2 = { version = "0.5", features = ["std"] }
 jsonwebtoken = "9"
+lettre = { version = "0.11", default-features = false, features = ["builder", "pool", "smtp-transport", "tokio1-rustls-tls"] }
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
