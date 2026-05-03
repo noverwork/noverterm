@@ -120,10 +120,6 @@
     contextMenu = { connection, x: event.clientX, y: event.clientY };
   }
 
-  function closeContextMenu() {
-    contextMenu = null;
-  }
-
   async function handleChangeGroup(connection: ConnectionConfig, groupId: string | null) {
     openGroupMenuId = null;
     if (connection.groupId === groupId) {
