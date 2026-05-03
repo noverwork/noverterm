@@ -127,14 +127,14 @@ async fn bootstrap_metadata_fails_when_not_authenticated() {
 
 fn test_auth_server() -> Router {
     Router::new()
-        .route("/auth/login", post(login_handler))
-        .route("/auth/refresh", post(refresh_handler))
-        .route("/auth/logout", post(logout_handler))
-        .route("/bootstrap/smoke", get(smoke_handler))
-        .route("/bootstrap/settings", get(settings_handler))
-        .route("/bootstrap/host-groups", get(host_groups_handler))
-        .route("/bootstrap/hosts", get(hosts_handler))
-        .route("/bootstrap/keys", get(keys_handler))
+        .route("/api/auth/login", post(login_handler))
+        .route("/api/auth/refresh", post(refresh_handler))
+        .route("/api/auth/logout", post(logout_handler))
+        .route("/api/bootstrap/smoke", get(smoke_handler))
+        .route("/api/bootstrap/settings", get(settings_handler))
+        .route("/api/bootstrap/host-groups", get(host_groups_handler))
+        .route("/api/bootstrap/hosts", get(hosts_handler))
+        .route("/api/bootstrap/keys", get(keys_handler))
         .with_state(())
 }
 

@@ -87,7 +87,7 @@ impl BackendClient {
     ) -> Result<BackendAuthResponse, BackendClientError> {
         let response = self
             .http
-            .post(format!("{}/auth/login", self.base_url))
+            .post(format!("{}/api/auth/login", self.base_url))
             .json(&LoginPayload { email, password })
             .send()
             .await
@@ -102,7 +102,7 @@ impl BackendClient {
     ) -> Result<BackendAuthResponse, BackendClientError> {
         let response = self
             .http
-            .post(format!("{}/auth/refresh", self.base_url))
+            .post(format!("{}/api/auth/refresh", self.base_url))
             .json(&RefreshPayload { refresh_token })
             .send()
             .await
@@ -114,7 +114,7 @@ impl BackendClient {
     pub async fn logout(&self, refresh_token: &str) -> Result<(), BackendClientError> {
         let response = self
             .http
-            .post(format!("{}/auth/logout", self.base_url))
+            .post(format!("{}/api/auth/logout", self.base_url))
             .json(&LogoutPayload { refresh_token })
             .send()
             .await
@@ -137,7 +137,7 @@ impl BackendClient {
     ) -> Result<BootstrapSmokeResponse, BackendClientError> {
         let response = self
             .http
-            .get(format!("{}/bootstrap/smoke", self.base_url))
+            .get(format!("{}/api/bootstrap/smoke", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
@@ -152,7 +152,7 @@ impl BackendClient {
     ) -> Result<Vec<shared::Setting>, BackendClientError> {
         let response = self
             .http
-            .get(format!("{}/bootstrap/settings", self.base_url))
+            .get(format!("{}/api/bootstrap/settings", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
@@ -168,7 +168,7 @@ impl BackendClient {
     ) -> Result<shared::Setting, BackendClientError> {
         let response = self
             .http
-            .post(format!("{}/bootstrap/settings", self.base_url))
+            .post(format!("{}/api/bootstrap/settings", self.base_url))
             .bearer_auth(access_token)
             .json(setting)
             .send()
@@ -186,7 +186,7 @@ impl BackendClient {
         let response = self
             .http
             .put(format!(
-                "{}/bootstrap/settings/{}",
+                "{}/api/bootstrap/settings/{}",
                 self.base_url, setting.key
             ))
             .bearer_auth(access_token)
@@ -204,7 +204,7 @@ impl BackendClient {
     ) -> Result<Vec<shared::SshHostRecord>, BackendClientError> {
         let response = self
             .http
-            .get(format!("{}/bootstrap/hosts", self.base_url))
+            .get(format!("{}/api/bootstrap/hosts", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
@@ -219,7 +219,7 @@ impl BackendClient {
     ) -> Result<Vec<shared::HostGroupRecord>, BackendClientError> {
         let response = self
             .http
-            .get(format!("{}/bootstrap/host-groups", self.base_url))
+            .get(format!("{}/api/bootstrap/host-groups", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
@@ -235,7 +235,7 @@ impl BackendClient {
     ) -> Result<shared::HostGroupRecord, BackendClientError> {
         let response = self
             .http
-            .post(format!("{}/bootstrap/host-groups", self.base_url))
+            .post(format!("{}/api/bootstrap/host-groups", self.base_url))
             .bearer_auth(access_token)
             .json(input)
             .send()
@@ -252,7 +252,7 @@ impl BackendClient {
     ) -> Result<(), BackendClientError> {
         let response = self
             .http
-            .delete(format!("{}/bootstrap/host-groups/{id}", self.base_url))
+            .delete(format!("{}/api/bootstrap/host-groups/{id}", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
@@ -268,7 +268,7 @@ impl BackendClient {
     ) -> Result<shared::SshHostRecord, BackendClientError> {
         let response = self
             .http
-            .post(format!("{}/bootstrap/hosts", self.base_url))
+            .post(format!("{}/api/bootstrap/hosts", self.base_url))
             .bearer_auth(access_token)
             .json(input)
             .send()
@@ -286,7 +286,7 @@ impl BackendClient {
     ) -> Result<shared::SshHostRecord, BackendClientError> {
         let response = self
             .http
-            .put(format!("{}/bootstrap/hosts/{id}", self.base_url))
+            .put(format!("{}/api/bootstrap/hosts/{id}", self.base_url))
             .bearer_auth(access_token)
             .json(input)
             .send()
@@ -303,7 +303,7 @@ impl BackendClient {
     ) -> Result<(), BackendClientError> {
         let response = self
             .http
-            .delete(format!("{}/bootstrap/hosts/{id}", self.base_url))
+            .delete(format!("{}/api/bootstrap/hosts/{id}", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
@@ -318,7 +318,7 @@ impl BackendClient {
     ) -> Result<Vec<shared::SshKeyRecord>, BackendClientError> {
         let response = self
             .http
-            .get(format!("{}/bootstrap/keys", self.base_url))
+            .get(format!("{}/api/bootstrap/keys", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
@@ -334,7 +334,7 @@ impl BackendClient {
     ) -> Result<shared::SshKeyRecord, BackendClientError> {
         let response = self
             .http
-            .post(format!("{}/bootstrap/keys", self.base_url))
+            .post(format!("{}/api/bootstrap/keys", self.base_url))
             .bearer_auth(access_token)
             .json(input)
             .send()
@@ -352,7 +352,7 @@ impl BackendClient {
     ) -> Result<shared::SshKeyRecord, BackendClientError> {
         let response = self
             .http
-            .put(format!("{}/bootstrap/keys/{id}", self.base_url))
+            .put(format!("{}/api/bootstrap/keys/{id}", self.base_url))
             .bearer_auth(access_token)
             .json(input)
             .send()
@@ -365,7 +365,7 @@ impl BackendClient {
     pub async fn delete_key(&self, access_token: &str, id: &str) -> Result<(), BackendClientError> {
         let response = self
             .http
-            .delete(format!("{}/bootstrap/keys/{id}", self.base_url))
+            .delete(format!("{}/api/bootstrap/keys/{id}", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
