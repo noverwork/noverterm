@@ -1,22 +1,32 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use chrono::Utc;
 use diesel::prelude::*;
 use orm::models::{NewUser, User};
 use orm::schema::users;
 use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use super::token::{hash_password, verify_password, TokenService};
 use crate::db::{run_db, DbPool};
+use crate::email::{PasswordResetEmailConfig, PasswordResetMailer};
 
 #[derive(Clone)]
 pub struct AuthConfig {
     token_service: TokenService,
+    password_reset_ttl: chrono::Duration,
+    password_reset_throttle: chrono::Duration,
+    password_reset_url: String,
+    password_reset_mailer: Option<PasswordResetMailer>,
 }
 
 #[derive(Clone)]
 pub struct AuthService {
     config: AuthConfig,
     pool: DbPool,
+    password_reset_attempts: Arc<Mutex<HashMap<String, chrono::DateTime<Utc>>>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,6 +58,17 @@ pub struct LogoutRequest {
     pub refresh_token: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct ForgotPasswordRequest {
+    pub email: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ResetPasswordRequest {
+    pub token: String,
+    pub password: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthResponse {
     pub access_token: String,
@@ -64,13 +85,31 @@ impl AuthConfig {
                 chrono::Duration::minutes(15),
                 chrono::Duration::days(30),
             ),
+            password_reset_ttl: chrono::Duration::hours(1),
+            password_reset_throttle: chrono::Duration::minutes(5),
+            password_reset_url: "http://localhost:1420/reset-password".to_string(),
+            password_reset_mailer: None,
         }
+    }
+
+    pub fn with_password_reset_url(mut self, password_reset_url: String) -> Self {
+        self.password_reset_url = password_reset_url;
+        self
+    }
+
+    pub fn with_password_reset_email(mut self, config: PasswordResetEmailConfig) -> Self {
+        self.password_reset_mailer = Some(PasswordResetMailer::new(config));
+        self
     }
 }
 
 impl AuthService {
     pub fn new(config: AuthConfig, pool: DbPool) -> Self {
-        Self { config, pool }
+        Self {
+            config,
+            pool,
+            password_reset_attempts: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 
     pub async fn register(&self, request: RegisterRequest) -> Result<AuthResponse, String> {
@@ -141,6 +180,7 @@ impl AuthService {
 
         let email = claims.sub;
         let session_id = claims.sid;
+        self.ensure_token_is_current(&email, claims.iat).await?;
 
         let access_token = self
             .config
@@ -163,6 +203,96 @@ impl AuthService {
         Ok(())
     }
 
+    pub async fn request_password_reset(
+        &self,
+        request: ForgotPasswordRequest,
+    ) -> Result<(), String> {
+        let email = request.email.trim().to_string();
+        if email.is_empty() {
+            return Ok(());
+        }
+
+        if self.is_password_reset_throttled(&email).await {
+            return Ok(());
+        }
+
+        let check_email = email.clone();
+        let user: Option<User> = run_db(self.pool.clone(), move |conn| {
+            users::table
+                .filter(users::email.eq(&check_email))
+                .first::<User>(conn)
+                .optional()
+                .map_err(|e| format!("database error: {e}"))
+        })
+        .await?;
+
+        let Some(user) = user else {
+            return Ok(());
+        };
+
+        let reset_token = self.config.token_service.issue_password_reset_token(
+            &user.email,
+            &user.password_hash,
+            self.config.password_reset_ttl,
+        )?;
+        let reset_link = self.password_reset_link(&reset_token.token);
+        if let Some(mailer) = self.config.password_reset_mailer.as_ref() {
+            if let Err(error) = mailer.send_reset_link(&user.email, &reset_link).await {
+                tracing::error!(%error, email = %user.email, "failed to send password reset email");
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn reset_password(&self, request: ResetPasswordRequest) -> Result<(), String> {
+        if request.password.len() < 6 {
+            return Err("password must be at least 6 characters".to_string());
+        }
+
+        let claims = self
+            .config
+            .token_service
+            .decode_password_reset_token(&request.token)?;
+        let email = claims.sub.clone();
+        let user: Option<User> = run_db(self.pool.clone(), move |conn| {
+            users::table
+                .filter(users::email.eq(&email))
+                .first::<User>(conn)
+                .optional()
+                .map_err(|e| format!("database error: {e}"))
+        })
+        .await?;
+
+        let Some(user) = user else {
+            return Err("invalid password reset token".to_string());
+        };
+
+        let expected_fingerprint = self
+            .config
+            .token_service
+            .password_fingerprint(&user.password_hash);
+        if claims.pwd != expected_fingerprint {
+            return Err("invalid password reset token".to_string());
+        }
+
+        let password_hash = hash_password(&request.password);
+        let user_id = user.id;
+        let updated_at = Utc::now().naive_utc();
+        run_db(self.pool.clone(), move |conn| {
+            diesel::update(users::table.filter(users::id.eq(&user_id)))
+                .set((
+                    users::password_hash.eq(password_hash),
+                    users::updated_at.eq(updated_at),
+                ))
+                .execute(conn)
+                .map_err(|e| format!("database error: {e}"))
+        })
+        .await?;
+
+        Ok(())
+    }
+
     pub async fn authenticate_access_token(
         &self,
         token: &str,
@@ -170,6 +300,8 @@ impl AuthService {
         let claims = self.config.token_service.decode_access_token(token)?;
 
         let user_id = self.lookup_user_id(&claims.sub).await?;
+        self.ensure_token_is_current(&claims.sub, claims.iat)
+            .await?;
 
         Ok(AuthenticatedUser {
             user_id,
@@ -190,6 +322,23 @@ impl AuthService {
         .await
     }
 
+    async fn ensure_token_is_current(&self, email: &str, issued_at: usize) -> Result<(), String> {
+        let email = email.to_string();
+        let user: User = run_db(self.pool.clone(), move |conn| {
+            users::table
+                .filter(users::email.eq(&email))
+                .first::<User>(conn)
+                .map_err(|e| format!("user lookup failed: {e}"))
+        })
+        .await?;
+
+        if (issued_at as i64) < user.updated_at.and_utc().timestamp() {
+            return Err("token expired after password change".to_string());
+        }
+
+        Ok(())
+    }
+
     async fn create_session(&self, email: &str) -> Result<AuthResponse, String> {
         let session_id = Uuid::new_v4().to_string();
         let access_token = self
@@ -207,5 +356,33 @@ impl AuthService {
             access_token_expires_at: access_token.expires_at,
             email: email.to_string(),
         })
+    }
+
+    fn password_reset_link(&self, token: &str) -> String {
+        let separator = if self.config.password_reset_url.contains('?') {
+            '&'
+        } else {
+            '?'
+        };
+        format!("{}{separator}token={token}", self.config.password_reset_url)
+    }
+
+    async fn is_password_reset_throttled(&self, email: &str) -> bool {
+        let now = Utc::now();
+        let key = email.trim().to_lowercase();
+        let mut attempts = self.password_reset_attempts.lock().await;
+
+        attempts.retain(|_, last_attempt| {
+            now.signed_duration_since(*last_attempt) < self.config.password_reset_throttle
+        });
+
+        if let Some(last_attempt) = attempts.get(&key) {
+            if now.signed_duration_since(*last_attempt) < self.config.password_reset_throttle {
+                return true;
+            }
+        }
+
+        attempts.insert(key, now);
+        false
     }
 }

@@ -2,7 +2,10 @@ use axum::{routing::post, Json, Router};
 
 use crate::bootstrap::AppState;
 
-use super::service::{AuthResponse, LoginRequest, LogoutRequest, RefreshRequest, RegisterRequest};
+use super::service::{
+    AuthResponse, ForgotPasswordRequest, LoginRequest, LogoutRequest, RefreshRequest,
+    RegisterRequest, ResetPasswordRequest,
+};
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -10,6 +13,8 @@ pub fn router() -> Router<AppState> {
         .route("/login", post(login))
         .route("/refresh", post(refresh))
         .route("/logout", post(logout))
+        .route("/forgot-password", post(forgot_password))
+        .route("/reset-password", post(reset_password))
 }
 
 async fn register(
@@ -55,6 +60,30 @@ async fn logout(
     state
         .auth_service
         .logout(request)
+        .await
+        .map(|_| axum::http::StatusCode::NO_CONTENT)
+        .map_err(|error| (axum::http::StatusCode::BAD_REQUEST, error))
+}
+
+async fn forgot_password(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(request): Json<ForgotPasswordRequest>,
+) -> Result<axum::http::StatusCode, (axum::http::StatusCode, String)> {
+    state
+        .auth_service
+        .request_password_reset(request)
+        .await
+        .map(|_| axum::http::StatusCode::NO_CONTENT)
+        .map_err(|error| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, error))
+}
+
+async fn reset_password(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(request): Json<ResetPasswordRequest>,
+) -> Result<axum::http::StatusCode, (axum::http::StatusCode, String)> {
+    state
+        .auth_service
+        .reset_password(request)
         .await
         .map(|_| axum::http::StatusCode::NO_CONTENT)
         .map_err(|error| (axum::http::StatusCode::BAD_REQUEST, error))
