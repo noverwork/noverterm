@@ -23,10 +23,7 @@ pub fn build_router(state: AppState) -> Router {
         .nest("/auth", crate::auth::router())
         .merge(protected_routes);
 
-    Router::new()
-        .route("/api", get(crate::healthcheck))
-        .nest("/api", api_routes)
-        .with_state(state)
+    Router::new().nest("/api", api_routes).with_state(state)
 }
 
 #[cfg(test)]
