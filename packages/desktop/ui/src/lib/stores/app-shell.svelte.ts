@@ -215,6 +215,10 @@ export function createAppShellStore() {
     await bootstrapStore.deleteKey(key);
   }
 
+  async function revealKeySecret(keyId: string) {
+    return await bootstrapStore.revealKeySecret(keyId);
+  }
+
   async function savePortForward(input: SavePortForwardInput) {
     return await bootstrapStore.savePortForward(input);
   }
@@ -388,6 +392,7 @@ export function createAppShellStore() {
     saveKey,
     updateKey,
     deleteKey,
+    revealKeySecret,
     savePortForward,
     startSavedPortForward,
     stopPortForward,

@@ -14,6 +14,7 @@ const createMockApi = () => ({
   createKey: vi.fn(),
   updateKey: vi.fn(),
   deleteKey: vi.fn(),
+  revealKeySecret: vi.fn(),
 });
 
 import { createBootstrapStore } from "$lib/stores/bootstrap.svelte.js";

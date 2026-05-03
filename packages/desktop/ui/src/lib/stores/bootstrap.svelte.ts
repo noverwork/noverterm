@@ -8,6 +8,7 @@ import type {
   SshHostAuthMaterial,
   SshHostRecord,
   SshKeyRecord,
+  SshKeySecret,
 } from "$lib/api/types.js";
 
 import {
@@ -24,7 +25,7 @@ import {
   deleteBackendConnection,
 } from "$lib/api/connections-api.js";
 import { upsertBackendSetting } from "$lib/api/settings-api.js";
-import { createSshKey, updateSshKey, deleteSshKey } from "$lib/api/keys-api.js";
+import { createSshKey, updateSshKey, deleteSshKey, revealSshKeySecret } from "$lib/api/keys-api.js";
 
 export interface BootstrapApi {
   restore(): Promise<AuthBootstrapStatus | null>;
@@ -40,6 +41,7 @@ export interface BootstrapApi {
   createKey(key: KeyCreateRequest): Promise<SshKeyRecord>;
   updateKey(keyId: string, key: KeyUpdateRequest): Promise<SshKeyRecord>;
   deleteKey(keyId: string): Promise<void>;
+  revealKeySecret(keyId: string): Promise<SshKeySecret>;
 }
 
 const defaultApi: BootstrapApi = {
@@ -56,6 +58,7 @@ const defaultApi: BootstrapApi = {
   createKey: createSshKey,
   updateKey: updateSshKey,
   deleteKey: deleteSshKey,
+  revealKeySecret: revealSshKeySecret,
 };
 
 export type BootstrapPhase =
@@ -410,6 +413,10 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
     await refreshMetadata();
   }
 
+  async function revealKeySecret(keyId: string) {
+    return await api.revealKeySecret(keyId);
+  }
+
   async function saveTerminalConfig(config: TerminalConfig) {
     const currentSettings = state.metadata?.settings ?? [];
     await api.saveSetting({
@@ -567,6 +574,7 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
     saveKey,
     updateKey,
     deleteKey,
+    revealKeySecret,
     saveTerminalConfig,
     recordRecentConnection,
     savePortForward,
