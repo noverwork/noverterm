@@ -147,7 +147,7 @@ async fn protected_bootstrap_route_requires_valid_access_token() {
     let unauthorized = app
         .clone()
         .oneshot(
-            Request::get("/bootstrap/smoke")
+            Request::get("/api/bootstrap/smoke")
                 .body(Body::empty())
                 .expect("request should build"),
         )
@@ -157,7 +157,7 @@ async fn protected_bootstrap_route_requires_valid_access_token() {
 
     let authorized = app
         .oneshot(
-            Request::get("/bootstrap/smoke")
+            Request::get("/api/bootstrap/smoke")
                 .header("authorization", format!("Bearer {access_token}"))
                 .body(Body::empty())
                 .expect("request should build"),

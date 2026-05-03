@@ -58,7 +58,7 @@ pub fn build_test_app() -> Router {
 pub async fn login_access_token(app: Router, email: &str, password: &str) -> String {
     let response = app
         .oneshot(
-            Request::post("/auth/login")
+            Request::post("/api/auth/login")
                 .header("content-type", "application/json")
                 .body(Body::from(format!(
                     r#"{{"email":"{email}","password":"{password}"}}"#

@@ -19,9 +19,9 @@ pub fn build_router(state: AppState) -> Router {
         ));
 
     Router::new()
-        .route("/", get(crate::healthcheck))
-        .nest("/auth", crate::auth::router())
-        .nest("/bootstrap", protected_routes)
+        .route("/api", get(crate::healthcheck))
+        .nest("/api/auth", crate::auth::router())
+        .nest("/api/bootstrap", protected_routes)
         .with_state(state)
 }
 
@@ -72,7 +72,7 @@ mod tests {
 
         let response = app
             .oneshot(
-                Request::get("/")
+                Request::get("/api")
                     .body(Body::empty())
                     .expect("request should build"),
             )
