@@ -9,10 +9,12 @@
 
   let {
     onLogin,
+    onForgotPassword,
     isLoading,
     error,
   }: {
     onLogin: (email: string, password: string) => void;
+    onForgotPassword: () => void;
     isLoading: boolean;
     error: string | null;
   } = $props();
@@ -66,7 +68,10 @@
       </div>
 
       <div class="space-y-2">
-        <label for="login-password" class="text-sm font-medium text-slate-100">Password</label>
+        <div class="flex items-center justify-between gap-3">
+          <label for="login-password" class="text-sm font-medium text-slate-100">Password</label>
+          <button type="button" class="text-xs font-medium text-cyan-200 transition hover:text-cyan-100" onclick={onForgotPassword}>Forgot password?</button>
+        </div>
         <div class="relative">
           <LockKeyhole class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
           <Input
