@@ -49,3 +49,9 @@ pub struct SshKeyRecord {
     pub kind: String,
     pub fingerprint: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct SshKeySecret {
+    pub private_key: String,
+    pub passphrase: Option<String>,
+}
