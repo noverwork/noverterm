@@ -2,12 +2,16 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
+use crate::email::PasswordResetEmailConfig;
+
 #[derive(Clone)]
 pub struct AppConfig {
     pub host: String,
     pub port: u16,
     pub database_url: String,
     pub auth_secret: String,
+    pub backend_url: String,
+    pub password_reset_email: PasswordResetEmailConfig,
 }
 
 impl AppConfig {
@@ -21,11 +25,22 @@ impl AppConfig {
             database_url: required_env_value("DATABASE_URL")?,
             auth_secret: env_value("NOVERTERM_AUTH_SECRET")
                 .unwrap_or_else(|| "development-only-noverterm-auth-secret".to_string()),
+            backend_url: required_env_value("BACKEND_URL")?,
+            password_reset_email: password_reset_email_config()?,
         })
     }
 
     pub fn bind_address(&self) -> String {
         format!("{}:{}", self.host, self.port)
+    }
+
+    pub fn password_reset_url(&self) -> String {
+        let base_url = self
+            .backend_url
+            .trim_end_matches('/')
+            .strip_suffix("/api")
+            .unwrap_or_else(|| self.backend_url.trim_end_matches('/'));
+        format!("{base_url}/reset-password")
     }
 }
 
@@ -42,7 +57,22 @@ pub fn env_value(key: &str) -> Option<String> {
 }
 
 fn required_env_value(key: &str) -> Result<String, String> {
-    env_value(key).ok_or_else(|| format!("{key} must be set in environment or backend env file"))
+    env_value(key)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| format!("{key} must be set in environment or backend env file"))
+}
+
+fn password_reset_email_config() -> Result<PasswordResetEmailConfig, String> {
+    Ok(PasswordResetEmailConfig {
+        smtp_host: required_env_value("SMTP_HOST")?,
+        smtp_port: required_env_value("SMTP_PORT")?
+            .parse()
+            .map_err(|error| format!("invalid SMTP_PORT: {error}"))?,
+        smtp_username: required_env_value("SMTP_USERNAME")?,
+        smtp_password: required_env_value("SMTP_PASSWORD")?,
+        from: required_env_value("SMTP_FROM")?,
+    })
 }
 
 fn env_file_value(key: &str) -> Option<String> {
@@ -62,6 +92,8 @@ fn env_file_value(key: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use crate::email::PasswordResetEmailConfig;
+
     use super::{env_candidates, env_value, AppConfig};
 
     #[test]
@@ -84,7 +116,24 @@ mod tests {
 
     #[test]
     fn config_bind_address_matches_repo_env_defaults() {
-        let config = AppConfig::from_env().expect("config should load");
+        let config = AppConfig {
+            host: "127.0.0.1".to_string(),
+            port: 3000,
+            database_url: "postgres://postgres:postgres@localhost:5432/app".to_string(),
+            auth_secret: "backend-test-secret".to_string(),
+            backend_url: "https://noverterm.noverwork.com".to_string(),
+            password_reset_email: PasswordResetEmailConfig {
+                smtp_host: "smtp.example.com".to_string(),
+                smtp_port: 587,
+                smtp_username: "user".to_string(),
+                smtp_password: "password".to_string(),
+                from: "Noverterm <noreply@example.com>".to_string(),
+            },
+        };
         assert_eq!(config.bind_address(), "127.0.0.1:3000");
+        assert_eq!(
+            config.password_reset_url(),
+            "https://noverterm.noverwork.com/reset-password"
+        );
     }
 }
