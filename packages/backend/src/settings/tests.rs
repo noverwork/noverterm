@@ -37,7 +37,7 @@ async fn settings_routes_are_owner_scoped() {
     let alice_create = authorized_json_request(
         app.clone(),
         Method::POST,
-        "/api/bootstrap/settings",
+        "/api/settings",
         &alice_token,
         json!({
             "key": alice_setting_key,
@@ -54,7 +54,7 @@ async fn settings_routes_are_owner_scoped() {
     let bob_create = authorized_json_request(
         app.clone(),
         Method::POST,
-        "/api/bootstrap/settings",
+        "/api/settings",
         &bob_token,
         json!({
             "key": bob_setting_key,
@@ -64,13 +64,8 @@ async fn settings_routes_are_owner_scoped() {
     .await;
     assert_eq!(bob_create.status(), StatusCode::CREATED);
 
-    let alice_list = authorized_empty_request(
-        app.clone(),
-        Method::GET,
-        "/api/bootstrap/settings",
-        &alice_token,
-    )
-    .await;
+    let alice_list =
+        authorized_empty_request(app.clone(), Method::GET, "/api/settings", &alice_token).await;
     assert_eq!(alice_list.status(), StatusCode::OK);
     let alice_list = response_json(alice_list).await;
     let alice_settings = alice_list
@@ -82,7 +77,7 @@ async fn settings_routes_are_owner_scoped() {
     let bob_get_alice = authorized_empty_request(
         app.clone(),
         Method::GET,
-        &format!("/api/bootstrap/settings/{alice_setting_key}"),
+        &format!("/api/settings/{alice_setting_key}"),
         &bob_token,
     )
     .await;
@@ -91,7 +86,7 @@ async fn settings_routes_are_owner_scoped() {
     let bob_get_own = authorized_empty_request(
         app.clone(),
         Method::GET,
-        &format!("/api/bootstrap/settings/{bob_setting_key}"),
+        &format!("/api/settings/{bob_setting_key}"),
         &bob_token,
     )
     .await;
@@ -102,7 +97,7 @@ async fn settings_routes_are_owner_scoped() {
     let alice_update = authorized_json_request(
         app.clone(),
         Method::PUT,
-        &format!("/api/bootstrap/settings/{alice_setting_key}"),
+        &format!("/api/settings/{alice_setting_key}"),
         &alice_token,
         json!({
             "key": alice_setting_key,
@@ -117,7 +112,7 @@ async fn settings_routes_are_owner_scoped() {
     let bob_delete_alice = authorized_empty_request(
         app.clone(),
         Method::DELETE,
-        &format!("/api/bootstrap/settings/{alice_setting_key}"),
+        &format!("/api/settings/{alice_setting_key}"),
         &bob_token,
     )
     .await;
@@ -126,7 +121,7 @@ async fn settings_routes_are_owner_scoped() {
     let alice_delete = authorized_empty_request(
         app.clone(),
         Method::DELETE,
-        &format!("/api/bootstrap/settings/{alice_setting_key}"),
+        &format!("/api/settings/{alice_setting_key}"),
         &alice_token,
     )
     .await;
@@ -135,7 +130,7 @@ async fn settings_routes_are_owner_scoped() {
     let bob_delete_own = authorized_empty_request(
         app.clone(),
         Method::DELETE,
-        &format!("/api/bootstrap/settings/{bob_setting_key}"),
+        &format!("/api/settings/{bob_setting_key}"),
         &bob_token,
     )
     .await;

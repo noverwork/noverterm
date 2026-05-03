@@ -45,7 +45,7 @@ async fn host_routes_are_owner_scoped_and_return_auth_material() {
     let alice_group = authorized_json_request(
         app.clone(),
         Method::POST,
-        "/api/bootstrap/host-groups",
+        "/api/host-groups",
         &alice_token,
         json!({ "name": "Production" }),
     )
@@ -57,7 +57,7 @@ async fn host_routes_are_owner_scoped_and_return_auth_material() {
     let alice_create = authorized_json_request(
         app.clone(),
         Method::POST,
-        "/api/bootstrap/hosts",
+        "/api/hosts",
         &alice_token,
         json!({
             "name": "Alice host",
@@ -81,7 +81,7 @@ async fn host_routes_are_owner_scoped_and_return_auth_material() {
     let bob_create = authorized_json_request(
         app.clone(),
         Method::POST,
-        "/api/bootstrap/hosts",
+        "/api/hosts",
         &bob_token,
         json!({
             "name": "Bob host",
@@ -98,13 +98,8 @@ async fn host_routes_are_owner_scoped_and_return_auth_material() {
     let bob_host = response_json(bob_create).await;
     let bob_host_id = bob_host["id"].as_str().expect("host id should exist");
 
-    let alice_list = authorized_empty_request(
-        app.clone(),
-        Method::GET,
-        "/api/bootstrap/hosts",
-        &alice_token,
-    )
-    .await;
+    let alice_list =
+        authorized_empty_request(app.clone(), Method::GET, "/api/hosts", &alice_token).await;
     assert_eq!(alice_list.status(), StatusCode::OK);
     let alice_list = response_json(alice_list).await;
     let alice_hosts = alice_list
@@ -119,7 +114,7 @@ async fn host_routes_are_owner_scoped_and_return_auth_material() {
     let bob_get_alice = authorized_empty_request(
         app.clone(),
         Method::GET,
-        &format!("/api/bootstrap/hosts/{alice_host_id}"),
+        &format!("/api/hosts/{alice_host_id}"),
         &bob_token,
     )
     .await;
@@ -128,7 +123,7 @@ async fn host_routes_are_owner_scoped_and_return_auth_material() {
     let alice_update = authorized_json_request(
         app.clone(),
         Method::PUT,
-        &format!("/api/bootstrap/hosts/{alice_host_id}"),
+        &format!("/api/hosts/{alice_host_id}"),
         &alice_token,
         json!({
             "name": "Alice host updated",
@@ -155,7 +150,7 @@ async fn host_routes_are_owner_scoped_and_return_auth_material() {
     let bob_delete_alice = authorized_empty_request(
         app.clone(),
         Method::DELETE,
-        &format!("/api/bootstrap/hosts/{alice_host_id}"),
+        &format!("/api/hosts/{alice_host_id}"),
         &bob_token,
     )
     .await;
@@ -164,7 +159,7 @@ async fn host_routes_are_owner_scoped_and_return_auth_material() {
     let alice_delete = authorized_empty_request(
         app.clone(),
         Method::DELETE,
-        &format!("/api/bootstrap/hosts/{alice_host_id}"),
+        &format!("/api/hosts/{alice_host_id}"),
         &alice_token,
     )
     .await;
