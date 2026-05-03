@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Pencil, Plus, Trash2 } from "@lucide/svelte";
+  import { ChevronDown, FolderInput, Pencil, Plus, Trash2 } from "@lucide/svelte";
 
   import DeleteConfirmDialog from "$lib/components/delete-confirm-dialog.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -42,7 +42,12 @@
   let isCreatingGroup = $state(false);
   let newGroupName = $state("");
   let isSavingGroup = $state(false);
-  let draggingConnectionId = $state<string | null>(null);
+  let openGroupMenuId = $state<string | null>(null);
+  let contextMenu = $state<{
+    connection: ConnectionConfig;
+    x: number;
+    y: number;
+  } | null>(null);
 
   let sortedConnections = $derived(
     [...connections].sort((a, b) => a.name.localeCompare(b.name)),
@@ -81,8 +86,8 @@
   function tabClass(groupId: string | null | "all"): string {
     const active = activeGroupId === groupId;
     return active
-      ? "flex shrink-0 items-center gap-2 rounded-2xl border border-cyan-300/24 bg-cyan-300/10 px-3 py-2 text-sm font-medium text-cyan-100 shadow-[0_10px_30px_rgb(34_211_238/0.10)]"
-      : "flex shrink-0 items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.025] px-3 py-2 text-sm font-medium text-slate-400 transition hover:border-white/14 hover:bg-white/[0.055] hover:text-white";
+      ? "border-b-2 border-cyan-300 px-1 pb-2 pt-2 text-sm font-medium text-white"
+      : "border-b-2 border-transparent px-1 pb-2 pt-2 text-sm font-medium text-slate-400 transition hover:text-white";
   }
 
   async function handleCreateGroup() {
@@ -105,38 +110,25 @@
     }
   }
 
-  function handleDragStart(event: DragEvent, connection: ConnectionConfig) {
-    draggingConnectionId = connection.id;
-    event.dataTransfer?.setData("text/plain", connection.id);
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = "move";
-    }
+  function toggleGroupMenu(event: Event, connectionId: string) {
+    event.stopPropagation();
+    openGroupMenuId = openGroupMenuId === connectionId ? null : connectionId;
   }
 
-  function handleDragEnd() {
-    draggingConnectionId = null;
-  }
-
-  function handleDragOver(event: DragEvent) {
+  function handleContextMenu(event: MouseEvent, connection: ConnectionConfig) {
     event.preventDefault();
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = "move";
-    }
+    contextMenu = { connection, x: event.clientX, y: event.clientY };
   }
 
-  async function handleDrop(event: DragEvent, groupId: string | null) {
-    event.preventDefault();
-    const connectionId =
-      event.dataTransfer?.getData("text/plain") || draggingConnectionId;
-    const connection = connections.find(
-      (candidate) => candidate.id === connectionId,
-    );
-    draggingConnectionId = null;
+  function closeContextMenu() {
+    contextMenu = null;
+  }
 
-    if (!connection || connection.groupId === groupId) {
+  async function handleChangeGroup(connection: ConnectionConfig, groupId: string | null) {
+    openGroupMenuId = null;
+    if (connection.groupId === groupId) {
       return;
     }
-
     error = null;
     try {
       await onMoveToGroup(connection, groupId);
@@ -144,6 +136,12 @@
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Failed to move host";
     }
+  }
+
+  function groupNameLabel(groupId: string | null): string {
+    if (groupId === null) return "Ungrouped";
+    const group = hostGroups.find((g) => g.id === groupId);
+    return group ? group.name : "Unknown";
   }
 
   function requestDeleteGroup(group: HostGroupRecord) {
@@ -208,6 +206,14 @@
   }
 </script>
 
+<svelte:window
+  onclick={() => {
+    openGroupMenuId = null;
+    contextMenu = null;
+  }}
+  oncontextmenu={() => (contextMenu = null)}
+/>
+
 <div
   class="workspace-canvas flex h-full flex-col overflow-y-auto px-5 py-6 lg:px-8"
 >
@@ -253,7 +259,7 @@
           No saved connections yet
         </div>
       {:else}
-        <div class="mb-5 flex items-center gap-2 overflow-x-auto pb-1">
+        <div class="mb-0 flex items-center gap-4 border-b border-white/10">
           <button
             type="button"
             class={tabClass("all")}
@@ -261,7 +267,7 @@
           >
             All
             <span
-              class="rounded-full bg-white/8 px-1.5 py-0.5 text-[10px] text-slate-400"
+              class="ml-1.5 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] text-slate-400"
               >{connections.length}</span
             >
           </button>
@@ -269,12 +275,10 @@
             type="button"
             class={tabClass(null)}
             onclick={() => (activeGroupId = null)}
-            ondragover={handleDragOver}
-            ondrop={(event) => handleDrop(event, null)}
           >
             Ungrouped
             <span
-              class="rounded-full bg-white/8 px-1.5 py-0.5 text-[10px] text-slate-400"
+              class="ml-1.5 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] text-slate-400"
               >{ungroupedConnections.length}</span
             >
           </button>
@@ -283,12 +287,10 @@
               type="button"
               class={tabClass(hostGroup.id)}
               onclick={() => (activeGroupId = hostGroup.id)}
-              ondragover={handleDragOver}
-              ondrop={(event) => handleDrop(event, hostGroup.id)}
             >
               {hostGroup.name}
               <span
-                class="rounded-full bg-white/8 px-1.5 py-0.5 text-[10px] text-slate-400"
+                class="ml-1.5 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] text-slate-400"
                 >{getGroupCount(hostGroup.id)}</span
               >
             </button>
@@ -296,7 +298,7 @@
 
           {#if isCreatingGroup}
             <form
-              class="flex shrink-0 items-center gap-2"
+              class="flex items-center gap-2 pb-2 pl-3"
               onsubmit={(event) => {
                 event.preventDefault();
                 void handleCreateGroup();
@@ -305,20 +307,20 @@
               <input
                 bind:value={newGroupName}
                 placeholder="Group name"
-                class="h-9 w-36 rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white placeholder:text-slate-500 focus:border-cyan-300/40 focus:outline-none"
+                class="h-7 w-36 rounded border border-white/10 bg-black/20 px-2 text-sm text-white placeholder:text-slate-500 focus:border-cyan-300/40 focus:outline-none"
                 disabled={isSavingGroup}
               />
               <Button
                 type="submit"
                 size="sm"
-                class="rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                class="rounded bg-cyan-300 text-slate-950 hover:bg-cyan-200"
                 disabled={isSavingGroup}>Add</Button
               >
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                class="rounded-2xl text-slate-400 hover:bg-white/8 hover:text-white"
+                class="rounded text-slate-400 hover:bg-white/8 hover:text-white"
                 onclick={() => {
                   isCreatingGroup = false;
                   newGroupName = "";
@@ -327,57 +329,47 @@
               >
             </form>
           {:else}
-            <Button
-              variant="ghost"
-              size="sm"
-              class="shrink-0 gap-1.5 rounded-2xl text-slate-300 hover:bg-white/8 hover:text-white"
+            <button
+              type="button"
+              class="flex items-center gap-1.5 border-b-2 border-transparent pb-2 pl-1 pt-2 text-sm font-medium text-slate-400 transition hover:text-white"
               onclick={() => (isCreatingGroup = true)}
             >
               <Plus class="size-3.5" />
               Group
-            </Button>
+            </button>
           {/if}
 
           {#if activeHostGroup}
-            <Button
-              variant="ghost"
-              size="sm"
-              class="shrink-0 gap-1.5 rounded-2xl text-red-300 hover:bg-red-400/10 hover:text-red-200"
+            <button
+              type="button"
+              class="flex items-center gap-1.5 border-b-2 border-transparent pb-2 pl-1 pt-2 text-sm font-medium text-red-400 transition hover:text-red-300"
               onclick={() => requestDeleteGroup(activeHostGroup)}
               disabled={deletingHostGroupId === activeHostGroup.id}
             >
               <Trash2 class="size-3.5" />
               Delete group
-            </Button>
+            </button>
           {/if}
         </div>
 
         <div
           role="list"
           aria-label="SSH connections"
-          class="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
-          ondragover={activeGroupId === "all" ? undefined : handleDragOver}
-          ondrop={activeGroupId === "all"
-            ? undefined
-            : (event) => handleDrop(event, activeGroupId)}
+          class="grid gap-3 px-1 py-5 md:grid-cols-2 xl:grid-cols-3"
         >
           {#if visibleConnections.length === 0}
             <div
               class="rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground md:col-span-2 xl:col-span-3"
             >
-              Drop a host here or onto a group tab to organize it.
+              No connections in this group yet.
             </div>
           {/if}
 
           {#each visibleConnections as connection (connection.id)}
             <article
               role="listitem"
-              draggable="true"
-              ondragstart={(event) => handleDragStart(event, connection)}
-              ondragend={handleDragEnd}
-              class={draggingConnectionId === connection.id
-                ? "group rounded-[1.35rem] border border-cyan-300/20 bg-cyan-300/8 px-4 py-4 opacity-60 transition"
-                : "group rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055]"}
+              oncontextmenu={(event) => handleContextMenu(event, connection)}
+              class="group rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055]"
             >
               <div class="flex items-start gap-3">
                 <div class="min-w-0 flex-1">
@@ -385,6 +377,43 @@
                     <span class="truncate text-sm font-medium text-white"
                       >{connection.name}</span
                     >
+                    <div class="relative">
+                      <button
+                        type="button"
+                        class="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-1.5 py-0.5 text-[11px] text-slate-400 transition hover:border-white/20 hover:text-slate-300"
+                        onclick={(event) => toggleGroupMenu(event, connection.id)}
+                      >
+                        {groupNameLabel(connection.groupId)}
+                        <ChevronDown class="size-2.5" />
+                      </button>
+
+                      {#if openGroupMenuId === connection.id}
+                        <div
+                          class="absolute top-full left-0 z-50 mt-1 min-w-[12rem] rounded-xl border border-white/12 bg-[#0d1117] p-1 shadow-2xl shadow-black/50"
+                        >
+                          <button
+                            type="button"
+                            class={connection.groupId === null
+                              ? "flex w-full items-center gap-2 rounded-lg bg-cyan-300/10 px-3 py-1.5 text-xs text-cyan-100"
+                              : "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-slate-300 transition hover:bg-white/6"}
+                            onclick={() => void handleChangeGroup(connection, null)}
+                          >
+                            Ungrouped
+                          </button>
+                          {#each sortedHostGroups as group (group.id)}
+                            <button
+                              type="button"
+                              class={connection.groupId === group.id
+                                ? "flex w-full items-center gap-2 rounded-lg bg-cyan-300/10 px-3 py-1.5 text-xs text-cyan-100"
+                                : "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-slate-300 transition hover:bg-white/6"}
+                              onclick={() => void handleChangeGroup(connection, group.id)}
+                            >
+                              {group.name}
+                            </button>
+                          {/each}
+                        </div>
+                      {/if}
+                    </div>
                   </div>
 
                   <p class="mt-2 truncate font-mono text-xs text-slate-400">
@@ -432,6 +461,39 @@
     </div>
   </section>
 </div>
+
+{#if contextMenu}
+  {@const conn = contextMenu.connection}
+  <div
+    class="fixed z-[9999] min-w-[14rem] rounded-xl border border-white/12 bg-[#0d1117] p-1 shadow-2xl shadow-black/50"
+    style="left: {contextMenu.x}px; top: {contextMenu.y}px;"
+  >
+    <div class="px-3 py-2 text-xs font-medium text-slate-500">
+      Move to group
+    </div>
+    <button
+      type="button"
+      class={conn.groupId === null
+        ? "flex w-full items-center gap-2 rounded-lg bg-cyan-300/10 px-3 py-1.5 text-xs text-cyan-100"
+        : "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-slate-300 transition hover:bg-white/6"}
+      onclick={() => void handleChangeGroup(conn, null)}
+    >
+      Ungrouped
+    </button>
+    {#each sortedHostGroups as group (group.id)}
+      <button
+        type="button"
+        class={conn.groupId === group.id
+          ? "flex w-full items-center gap-2 rounded-lg bg-cyan-300/10 px-3 py-1.5 text-xs text-cyan-100"
+          : "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-slate-300 transition hover:bg-white/6"}
+        onclick={() => void handleChangeGroup(conn, group.id)}
+      >
+        <FolderInput class="size-3" />
+        {group.name}
+      </button>
+    {/each}
+  </div>
+{/if}
 
 <DeleteConfirmDialog
   open={pendingDeleteConnection !== null}
