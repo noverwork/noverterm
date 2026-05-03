@@ -40,7 +40,7 @@ async function decryptRevealedSecret(secret: SshKeySecret): Promise<SshKeySecret
 export async function createSshKey(key: KeyCreateRequest): Promise<SshKeyRecord> {
   const encryptedKey = await encryptCreateRequest(key);
   return withAuthorizedRetry(async (accessToken) =>
-    requestWithAuth<SshKeyRecord>("/bootstrap/keys", accessToken, {
+    requestWithAuth<SshKeyRecord>("/keys", accessToken, {
       method: "POST",
       body: JSON.stringify(encryptedKey),
     }),
@@ -50,7 +50,7 @@ export async function createSshKey(key: KeyCreateRequest): Promise<SshKeyRecord>
 export async function updateSshKey(keyId: string, key: KeyUpdateRequest): Promise<SshKeyRecord> {
   const encryptedKey = await encryptUpdateRequest(key);
   return withAuthorizedRetry(async (accessToken) =>
-    requestWithAuth<SshKeyRecord>(`/bootstrap/keys/${encodeURIComponent(keyId)}`, accessToken, {
+    requestWithAuth<SshKeyRecord>(`/keys/${encodeURIComponent(keyId)}`, accessToken, {
       method: "PUT",
       body: JSON.stringify(encryptedKey),
     }),
@@ -59,7 +59,7 @@ export async function updateSshKey(keyId: string, key: KeyUpdateRequest): Promis
 
 export async function deleteSshKey(keyId: string): Promise<void> {
   await withAuthorizedRetry(async (accessToken) =>
-    requestNoContentWithAuth(`/bootstrap/keys/${encodeURIComponent(keyId)}`, accessToken, {
+    requestNoContentWithAuth(`/keys/${encodeURIComponent(keyId)}`, accessToken, {
       method: "DELETE",
     }),
   );
@@ -67,7 +67,7 @@ export async function deleteSshKey(keyId: string): Promise<void> {
 
 export async function revealSshKeySecret(keyId: string): Promise<SshKeySecret> {
   const secret = await withAuthorizedRetry(async (accessToken) =>
-    requestWithAuth<SshKeySecret>(`/bootstrap/keys/${encodeURIComponent(keyId)}/secret`, accessToken),
+    requestWithAuth<SshKeySecret>(`/keys/${encodeURIComponent(keyId)}/secret`, accessToken),
   );
   return await decryptRevealedSecret(secret);
 }

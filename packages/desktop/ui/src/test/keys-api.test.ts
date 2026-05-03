@@ -49,13 +49,13 @@ describe("keys API", () => {
   });
 
   describe("createSshKey", () => {
-    it("posts to /bootstrap/keys with correct payload", async () => {
+    it("posts to /keys with correct payload", async () => {
       mockRequestWithAuth.mockResolvedValue(sampleKey);
 
       const result = await createSshKey(sampleCreateRequest);
 
       expect(mockWithAuthorizedRetry).toHaveBeenCalledOnce();
-      expect(mockRequestWithAuth).toHaveBeenCalledWith("/bootstrap/keys", "test-access-token", {
+      expect(mockRequestWithAuth).toHaveBeenCalledWith("/keys", "test-access-token", {
         method: "POST",
         body: expect.any(String),
       });
@@ -69,13 +69,13 @@ describe("keys API", () => {
   });
 
   describe("updateSshKey", () => {
-    it("puts to /bootstrap/keys/:id with correct payload", async () => {
+    it("puts to /keys/:id with correct payload", async () => {
       mockRequestWithAuth.mockResolvedValue({ ...sampleKey, name: "updated-key" });
 
       const result = await updateSshKey("k1", sampleUpdateRequest);
 
       expect(mockWithAuthorizedRetry).toHaveBeenCalledOnce();
-      expect(mockRequestWithAuth).toHaveBeenCalledWith("/bootstrap/keys/k1", "test-access-token", {
+      expect(mockRequestWithAuth).toHaveBeenCalledWith("/keys/k1", "test-access-token", {
         method: "PUT",
         body: expect.any(String),
       });
@@ -91,7 +91,7 @@ describe("keys API", () => {
       await updateSshKey("k/1+special", sampleUpdateRequest);
 
       expect(mockRequestWithAuth).toHaveBeenCalledWith(
-        "/bootstrap/keys/k%2F1%2Bspecial",
+        "/keys/k%2F1%2Bspecial",
         "test-access-token",
         expect.any(Object),
       );
@@ -107,7 +107,7 @@ describe("keys API", () => {
       const result = await updateSshKey("k1", nameOnlyRequest);
 
       expect(mockRequestWithAuth).toHaveBeenCalledWith(
-        "/bootstrap/keys/k1",
+        "/keys/k1",
         "test-access-token",
         {
           method: "PUT",
@@ -119,14 +119,14 @@ describe("keys API", () => {
   });
 
   describe("deleteSshKey", () => {
-    it("deletes from /bootstrap/keys/:id", async () => {
+    it("deletes from /keys/:id", async () => {
       mockRequestNoContentWithAuth.mockResolvedValue(undefined);
 
       await deleteSshKey("k1");
 
       expect(mockWithAuthorizedRetry).toHaveBeenCalledOnce();
       expect(mockRequestNoContentWithAuth).toHaveBeenCalledWith(
-        "/bootstrap/keys/k1",
+        "/keys/k1",
         "test-access-token",
         { method: "DELETE" },
       );
@@ -138,7 +138,7 @@ describe("keys API", () => {
       await deleteSshKey("k/1+special");
 
       expect(mockRequestNoContentWithAuth).toHaveBeenCalledWith(
-        "/bootstrap/keys/k%2F1%2Bspecial",
+        "/keys/k%2F1%2Bspecial",
         "test-access-token",
         { method: "DELETE" },
       );
@@ -157,7 +157,7 @@ describe("keys API", () => {
       const result = await revealSshKeySecret("k1");
 
       expect(mockRequestWithAuth).toHaveBeenCalledWith(
-        "/bootstrap/keys/k1/secret",
+        "/keys/k1/secret",
         "test-access-token",
       );
       expect(result).toEqual({
@@ -175,7 +175,7 @@ describe("keys API", () => {
       await revealSshKeySecret("k/1+special");
 
       expect(mockRequestWithAuth).toHaveBeenCalledWith(
-        "/bootstrap/keys/k%2F1%2Bspecial/secret",
+        "/keys/k%2F1%2Bspecial/secret",
         "test-access-token",
       );
     });

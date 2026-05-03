@@ -167,7 +167,7 @@ describe("connections API", () => {
     await deleteBackendHostGroup({ id: "g1", name: "Production" });
 
     expect(mockRequestNoContentWithAuth).toHaveBeenCalledWith(
-      "/bootstrap/host-groups/g1",
+      "/host-groups/g1",
       "test-access-token",
       { method: "DELETE" },
     );
