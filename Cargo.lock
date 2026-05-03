@@ -1203,6 +1203,7 @@ dependencies = [
  "axum",
  "portable-pty",
  "reqwest 0.12.28",
+ "rsa",
  "russh",
  "serde",
  "serde_json",
