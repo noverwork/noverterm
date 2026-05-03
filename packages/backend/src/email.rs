@@ -1,14 +1,41 @@
 use lettre::message::{header::ContentType, MultiPart, SinglePart};
-use lettre::transport::smtp::authentication::Credentials;
+use lettre::transport::smtp::{authentication::Credentials, AsyncSmtpTransportBuilder};
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 
 #[derive(Clone)]
 pub struct PasswordResetEmailConfig {
     pub smtp_host: String,
     pub smtp_port: u16,
+    pub tls_mode: PasswordResetSmtpTlsMode,
     pub smtp_username: String,
     pub smtp_password: String,
     pub from: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PasswordResetSmtpTlsMode {
+    ImplicitTls,
+    StartTls,
+    Plain,
+}
+
+impl PasswordResetSmtpTlsMode {
+    pub fn inferred_from_port(smtp_port: u16) -> Self {
+        if smtp_port == 465 {
+            Self::ImplicitTls
+        } else {
+            Self::StartTls
+        }
+    }
+
+    pub fn from_env_value(value: &str) -> Result<Self, String> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "tls" | "implicit-tls" | "implicit_tls" => Ok(Self::ImplicitTls),
+            "starttls" | "start-tls" | "start_tls" => Ok(Self::StartTls),
+            "plain" | "none" | "insecure" => Ok(Self::Plain),
+            _ => Err("invalid SMTP_TLS_MODE: expected one of tls, starttls, plain".to_string()),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -52,8 +79,8 @@ impl PasswordResetMailer {
             self.config.smtp_username.clone(),
             self.config.smtp_password.clone(),
         );
-        let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&self.config.smtp_host)
-            .map_err(|error| format!("failed to configure SMTP relay: {error}"))?
+        let mailer = self
+            .smtp_transport_builder()?
             .port(self.config.smtp_port)
             .credentials(credentials)
             .build();
@@ -64,6 +91,22 @@ impl PasswordResetMailer {
             .map_err(|error| format!("failed to send password reset email: {error}"))?;
 
         Ok(())
+    }
+
+    fn smtp_transport_builder(&self) -> Result<AsyncSmtpTransportBuilder, String> {
+        match self.config.tls_mode {
+            PasswordResetSmtpTlsMode::ImplicitTls => {
+                AsyncSmtpTransport::<Tokio1Executor>::relay(&self.config.smtp_host)
+                    .map_err(|error| format!("failed to configure SMTP TLS relay: {error}"))
+            }
+            PasswordResetSmtpTlsMode::StartTls => {
+                AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&self.config.smtp_host)
+                    .map_err(|error| format!("failed to configure SMTP STARTTLS relay: {error}"))
+            }
+            PasswordResetSmtpTlsMode::Plain => Ok(
+                AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&self.config.smtp_host),
+            ),
+        }
     }
 }
 
@@ -116,4 +159,37 @@ fn password_reset_html_body(reset_link: &str) -> String {
   </body>
 </html>"##
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PasswordResetSmtpTlsMode;
+
+    #[test]
+    fn smtp_tls_mode_infers_secure_defaults_from_port() {
+        assert_eq!(
+            PasswordResetSmtpTlsMode::inferred_from_port(465),
+            PasswordResetSmtpTlsMode::ImplicitTls
+        );
+        assert_eq!(
+            PasswordResetSmtpTlsMode::inferred_from_port(587),
+            PasswordResetSmtpTlsMode::StartTls
+        );
+    }
+
+    #[test]
+    fn smtp_tls_mode_parses_env_aliases() {
+        assert_eq!(
+            PasswordResetSmtpTlsMode::from_env_value("tls"),
+            Ok(PasswordResetSmtpTlsMode::ImplicitTls)
+        );
+        assert_eq!(
+            PasswordResetSmtpTlsMode::from_env_value("START_TLS"),
+            Ok(PasswordResetSmtpTlsMode::StartTls)
+        );
+        assert_eq!(
+            PasswordResetSmtpTlsMode::from_env_value("plain"),
+            Ok(PasswordResetSmtpTlsMode::Plain)
+        );
+    }
 }

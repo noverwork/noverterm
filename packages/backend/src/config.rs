@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-use crate::email::PasswordResetEmailConfig;
+use crate::email::{PasswordResetEmailConfig, PasswordResetSmtpTlsMode};
 
 #[derive(Clone)]
 pub struct AppConfig {
@@ -64,11 +64,19 @@ fn required_env_value(key: &str) -> Result<String, String> {
 }
 
 fn password_reset_email_config() -> Result<PasswordResetEmailConfig, String> {
+    let smtp_port = required_env_value("SMTP_PORT")?
+        .parse()
+        .map_err(|error| format!("invalid SMTP_PORT: {error}"))?;
+    let tls_mode = env_value("SMTP_TLS_MODE")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(|value| PasswordResetSmtpTlsMode::from_env_value(&value))
+        .unwrap_or_else(|| Ok(PasswordResetSmtpTlsMode::inferred_from_port(smtp_port)))?;
+
     Ok(PasswordResetEmailConfig {
         smtp_host: required_env_value("SMTP_HOST")?,
-        smtp_port: required_env_value("SMTP_PORT")?
-            .parse()
-            .map_err(|error| format!("invalid SMTP_PORT: {error}"))?,
+        smtp_port,
+        tls_mode,
         smtp_username: required_env_value("SMTP_USERNAME")?,
         smtp_password: required_env_value("SMTP_PASSWORD")?,
         from: required_env_value("SMTP_FROM")?,
@@ -92,7 +100,7 @@ fn env_file_value(key: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::email::PasswordResetEmailConfig;
+    use crate::email::{PasswordResetEmailConfig, PasswordResetSmtpTlsMode};
 
     use super::{env_candidates, env_value, AppConfig};
 
@@ -125,6 +133,7 @@ mod tests {
             password_reset_email: PasswordResetEmailConfig {
                 smtp_host: "smtp.example.com".to_string(),
                 smtp_port: 587,
+                tls_mode: PasswordResetSmtpTlsMode::StartTls,
                 smtp_username: "user".to_string(),
                 smtp_password: "password".to_string(),
                 from: "Noverterm <noreply@example.com>".to_string(),
