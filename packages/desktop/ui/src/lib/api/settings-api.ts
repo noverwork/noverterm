@@ -6,7 +6,7 @@ export async function upsertBackendSetting(setting: Setting): Promise<Setting> {
   return withAuthorizedRetry(async (accessToken) => {
     try {
       return await requestWithAuth<Setting>(
-        `/bootstrap/settings/${encodeURIComponent(setting.key)}`,
+        `/settings/${encodeURIComponent(setting.key)}`,
         accessToken,
         { method: "PUT", body: JSON.stringify(setting) },
       );
@@ -15,7 +15,7 @@ export async function upsertBackendSetting(setting: Setting): Promise<Setting> {
         throw error;
       }
 
-      return requestWithAuth<Setting>("/bootstrap/settings", accessToken, {
+      return requestWithAuth<Setting>("/settings", accessToken, {
         method: "POST",
         body: JSON.stringify(setting),
       });

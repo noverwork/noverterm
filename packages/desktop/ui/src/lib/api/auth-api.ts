@@ -17,7 +17,7 @@ export interface AuthBootstrapStatus {
 }
 
 async function bootstrapSmoke(accessToken: string): Promise<AuthBootstrapStatus> {
-  return requestWithAuth<AuthBootstrapStatus>("/bootstrap/smoke", accessToken);
+  return requestWithAuth<AuthBootstrapStatus>("/smoke", accessToken);
 }
 
 export async function registerToBackend(

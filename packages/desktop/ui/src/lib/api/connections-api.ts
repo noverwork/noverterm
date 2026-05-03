@@ -68,11 +68,11 @@ export async function saveBackendConnection(
 
       const key = connection.existingKeyId
         ? await requestWithAuth<SshKeyRecord>(
-            `/bootstrap/keys/${connection.existingKeyId}`,
+            `/keys/${connection.existingKeyId}`,
             accessToken,
             { method: "PUT", body: JSON.stringify(keyInput) },
           )
-        : await requestWithAuth<SshKeyRecord>("/bootstrap/keys", accessToken, {
+        : await requestWithAuth<SshKeyRecord>("/keys", accessToken, {
             method: "POST",
             body: JSON.stringify(keyInput),
           });
@@ -92,14 +92,14 @@ export async function saveBackendConnection(
 
     return connection.id
       ? requestWithAuth<SshHostRecord>(
-          `/bootstrap/hosts/${connection.id}`,
+          `/hosts/${connection.id}`,
           accessToken,
           {
             method: "PUT",
             body: JSON.stringify(hostInput),
           },
         )
-      : requestWithAuth<SshHostRecord>("/bootstrap/hosts", accessToken, {
+      : requestWithAuth<SshHostRecord>("/hosts", accessToken, {
           method: "POST",
           body: JSON.stringify(hostInput),
         });
@@ -109,7 +109,7 @@ export async function saveBackendConnection(
 export async function createBackendHostGroup(name: string): Promise<HostGroupRecord> {
   return withAuthorizedRetry(async (accessToken) => {
     const input: HostGroupWriteRequest = { name };
-    return await requestWithAuth<HostGroupRecord>("/bootstrap/host-groups", accessToken, {
+    return await requestWithAuth<HostGroupRecord>("/host-groups", accessToken, {
       method: "POST",
       body: JSON.stringify(input),
     });
@@ -119,7 +119,7 @@ export async function createBackendHostGroup(name: string): Promise<HostGroupRec
 export async function deleteBackendHostGroup(group: HostGroupRecord): Promise<void> {
   await withAuthorizedRetry(async (accessToken) => {
     await requestNoContentWithAuth(
-      `/bootstrap/host-groups/${encodeURIComponent(group.id)}`,
+      `/host-groups/${encodeURIComponent(group.id)}`,
       accessToken,
       { method: "DELETE" },
     );
@@ -131,7 +131,7 @@ export async function deleteBackendConnection(
 ): Promise<void> {
   await withAuthorizedRetry(async (accessToken) => {
     await requestNoContentWithAuth(
-      `/bootstrap/hosts/${encodeURIComponent(connection.id)}`,
+      `/hosts/${encodeURIComponent(connection.id)}`,
       accessToken,
       { method: "DELETE" },
     );
@@ -139,7 +139,7 @@ export async function deleteBackendConnection(
     if (connection.sshKeyId) {
       try {
         await requestNoContentWithAuth(
-          `/bootstrap/keys/${encodeURIComponent(connection.sshKeyId)}`,
+          `/keys/${encodeURIComponent(connection.sshKeyId)}`,
           accessToken,
           { method: "DELETE" },
         );
