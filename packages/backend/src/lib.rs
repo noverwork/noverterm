@@ -2,6 +2,7 @@ pub mod auth;
 pub mod bootstrap;
 pub mod config;
 pub mod db;
+pub mod email;
 pub mod host_groups;
 pub mod hosts;
 pub mod keys;
