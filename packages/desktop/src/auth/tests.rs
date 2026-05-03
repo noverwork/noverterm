@@ -130,11 +130,11 @@ fn test_auth_server() -> Router {
         .route("/api/auth/login", post(login_handler))
         .route("/api/auth/refresh", post(refresh_handler))
         .route("/api/auth/logout", post(logout_handler))
-        .route("/api/bootstrap/smoke", get(smoke_handler))
-        .route("/api/bootstrap/settings", get(settings_handler))
-        .route("/api/bootstrap/host-groups", get(host_groups_handler))
-        .route("/api/bootstrap/hosts", get(hosts_handler))
-        .route("/api/bootstrap/keys", get(keys_handler))
+        .route("/api/smoke", get(smoke_handler))
+        .route("/api/settings", get(settings_handler))
+        .route("/api/host-groups", get(host_groups_handler))
+        .route("/api/hosts", get(hosts_handler))
+        .route("/api/keys", get(keys_handler))
         .with_state(())
 }
 

@@ -137,7 +137,7 @@ impl BackendClient {
     ) -> Result<BootstrapSmokeResponse, BackendClientError> {
         let response = self
             .http
-            .get(format!("{}/api/bootstrap/smoke", self.base_url))
+            .get(format!("{}/api/smoke", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
@@ -152,7 +152,7 @@ impl BackendClient {
     ) -> Result<Vec<shared::Setting>, BackendClientError> {
         let response = self
             .http
-            .get(format!("{}/api/bootstrap/settings", self.base_url))
+            .get(format!("{}/api/settings", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
@@ -168,7 +168,7 @@ impl BackendClient {
     ) -> Result<shared::Setting, BackendClientError> {
         let response = self
             .http
-            .post(format!("{}/api/bootstrap/settings", self.base_url))
+            .post(format!("{}/api/settings", self.base_url))
             .bearer_auth(access_token)
             .json(setting)
             .send()
@@ -185,10 +185,7 @@ impl BackendClient {
     ) -> Result<shared::Setting, BackendClientError> {
         let response = self
             .http
-            .put(format!(
-                "{}/api/bootstrap/settings/{}",
-                self.base_url, setting.key
-            ))
+            .put(format!("{}/api/settings/{}", self.base_url, setting.key))
             .bearer_auth(access_token)
             .json(setting)
             .send()
@@ -204,7 +201,7 @@ impl BackendClient {
     ) -> Result<Vec<shared::SshHostRecord>, BackendClientError> {
         let response = self
             .http
-            .get(format!("{}/api/bootstrap/hosts", self.base_url))
+            .get(format!("{}/api/hosts", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
@@ -219,7 +216,7 @@ impl BackendClient {
     ) -> Result<Vec<shared::HostGroupRecord>, BackendClientError> {
         let response = self
             .http
-            .get(format!("{}/api/bootstrap/host-groups", self.base_url))
+            .get(format!("{}/api/host-groups", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
@@ -235,7 +232,7 @@ impl BackendClient {
     ) -> Result<shared::HostGroupRecord, BackendClientError> {
         let response = self
             .http
-            .post(format!("{}/api/bootstrap/host-groups", self.base_url))
+            .post(format!("{}/api/host-groups", self.base_url))
             .bearer_auth(access_token)
             .json(input)
             .send()
@@ -252,7 +249,7 @@ impl BackendClient {
     ) -> Result<(), BackendClientError> {
         let response = self
             .http
-            .delete(format!("{}/api/bootstrap/host-groups/{id}", self.base_url))
+            .delete(format!("{}/api/host-groups/{id}", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
@@ -268,7 +265,7 @@ impl BackendClient {
     ) -> Result<shared::SshHostRecord, BackendClientError> {
         let response = self
             .http
-            .post(format!("{}/api/bootstrap/hosts", self.base_url))
+            .post(format!("{}/api/hosts", self.base_url))
             .bearer_auth(access_token)
             .json(input)
             .send()
@@ -286,7 +283,7 @@ impl BackendClient {
     ) -> Result<shared::SshHostRecord, BackendClientError> {
         let response = self
             .http
-            .put(format!("{}/api/bootstrap/hosts/{id}", self.base_url))
+            .put(format!("{}/api/hosts/{id}", self.base_url))
             .bearer_auth(access_token)
             .json(input)
             .send()
@@ -303,7 +300,7 @@ impl BackendClient {
     ) -> Result<(), BackendClientError> {
         let response = self
             .http
-            .delete(format!("{}/api/bootstrap/hosts/{id}", self.base_url))
+            .delete(format!("{}/api/hosts/{id}", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
@@ -318,7 +315,7 @@ impl BackendClient {
     ) -> Result<Vec<shared::SshKeyRecord>, BackendClientError> {
         let response = self
             .http
-            .get(format!("{}/api/bootstrap/keys", self.base_url))
+            .get(format!("{}/api/keys", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
@@ -334,7 +331,7 @@ impl BackendClient {
     ) -> Result<shared::SshKeyRecord, BackendClientError> {
         let response = self
             .http
-            .post(format!("{}/api/bootstrap/keys", self.base_url))
+            .post(format!("{}/api/keys", self.base_url))
             .bearer_auth(access_token)
             .json(input)
             .send()
@@ -352,7 +349,7 @@ impl BackendClient {
     ) -> Result<shared::SshKeyRecord, BackendClientError> {
         let response = self
             .http
-            .put(format!("{}/api/bootstrap/keys/{id}", self.base_url))
+            .put(format!("{}/api/keys/{id}", self.base_url))
             .bearer_auth(access_token)
             .json(input)
             .send()
@@ -365,7 +362,7 @@ impl BackendClient {
     pub async fn delete_key(&self, access_token: &str, id: &str) -> Result<(), BackendClientError> {
         let response = self
             .http
-            .delete(format!("{}/api/bootstrap/keys/{id}", self.base_url))
+            .delete(format!("{}/api/keys/{id}", self.base_url))
             .bearer_auth(access_token)
             .send()
             .await
