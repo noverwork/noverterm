@@ -19,9 +19,7 @@ pub struct AppSettings {
 #[specta::specta]
 pub fn get_app_settings() -> Result<AppSettings, String> {
     Ok(AppSettings {
-        api_url: option_env!("API_URL")
-            .expect("API_URL must be set at build time")
-            .to_string(),
+        api_url: env!("API_URL").to_string(),
     })
 }
 
@@ -133,9 +131,7 @@ pub fn run() {
         .init();
 
     let specta_builder = command_builder();
-    let api_url = option_env!("API_URL")
-        .expect("API_URL must be set at build time (see .env.example)")
-        .to_string();
+    let api_url = env!("API_URL").to_string();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
