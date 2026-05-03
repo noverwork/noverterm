@@ -38,7 +38,11 @@ function buildUrl(path: string): string {
   if (!backendBaseUrl) {
     throw new Error("backend URL not initialized. Call loadAppSettings() first.");
   }
-  return `${backendBaseUrl.replace(/\/$/, "")}${path}`;
+
+  const baseUrl = backendBaseUrl.replace(/\/$/, "");
+  const apiBaseUrl = baseUrl.endsWith("/api") ? baseUrl : `${baseUrl}/api`;
+  const apiPath = path.startsWith("/api/") || path === "/api" ? path.slice(4) || "/" : path;
+  return `${apiBaseUrl}${apiPath}`;
 }
 
 async function readErrorMessage(response: Response): Promise<string> {
