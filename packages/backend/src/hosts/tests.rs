@@ -98,8 +98,13 @@ async fn host_routes_are_owner_scoped_and_return_auth_material() {
     let bob_host = response_json(bob_create).await;
     let bob_host_id = bob_host["id"].as_str().expect("host id should exist");
 
-    let alice_list =
-        authorized_empty_request(app.clone(), Method::GET, "/api/bootstrap/hosts", &alice_token).await;
+    let alice_list = authorized_empty_request(
+        app.clone(),
+        Method::GET,
+        "/api/bootstrap/hosts",
+        &alice_token,
+    )
+    .await;
     assert_eq!(alice_list.status(), StatusCode::OK);
     let alice_list = response_json(alice_list).await;
     let alice_hosts = alice_list
