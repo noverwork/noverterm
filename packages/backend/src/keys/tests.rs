@@ -70,8 +70,13 @@ async fn key_routes_are_owner_scoped_and_redact_secret_fields() {
     let bob_key = response_json(bob_create).await;
     let bob_key_id = bob_key["id"].as_str().expect("key id should exist");
 
-    let alice_list =
-        authorized_empty_request(app.clone(), Method::GET, "/api/bootstrap/keys", &alice_token).await;
+    let alice_list = authorized_empty_request(
+        app.clone(),
+        Method::GET,
+        "/api/bootstrap/keys",
+        &alice_token,
+    )
+    .await;
     assert_eq!(alice_list.status(), StatusCode::OK);
     let alice_list = response_json(alice_list).await;
     let alice_keys = alice_list.as_array().expect("keys list should be an array");
@@ -92,6 +97,40 @@ async fn key_routes_are_owner_scoped_and_redact_secret_fields() {
     )
     .await;
     assert_eq!(bob_get_alice.status(), StatusCode::NOT_FOUND);
+
+    let alice_get = authorized_empty_request(
+        app.clone(),
+        Method::GET,
+        &format!("/api/bootstrap/keys/{alice_key_id}"),
+        &alice_token,
+    )
+    .await;
+    assert_eq!(alice_get.status(), StatusCode::OK);
+    let alice_get = response_json(alice_get).await;
+    assert_eq!(alice_get["id"], alice_key_id);
+    assert!(alice_get.get("encrypted_private_key").is_none());
+    assert!(alice_get.get("encrypted_passphrase").is_none());
+
+    let alice_reveal_secret = authorized_empty_request(
+        app.clone(),
+        Method::GET,
+        &format!("/api/bootstrap/keys/{alice_key_id}/secret"),
+        &alice_token,
+    )
+    .await;
+    assert_eq!(alice_reveal_secret.status(), StatusCode::OK);
+    let alice_secret = response_json(alice_reveal_secret).await;
+    assert_eq!(alice_secret["private_key"], "encrypted-alice-private-key");
+    assert_eq!(alice_secret["passphrase"], "encrypted-alice-passphrase");
+
+    let bob_reveal_alice_secret = authorized_empty_request(
+        app.clone(),
+        Method::GET,
+        &format!("/api/bootstrap/keys/{alice_key_id}/secret"),
+        &bob_token,
+    )
+    .await;
+    assert_eq!(bob_reveal_alice_secret.status(), StatusCode::NOT_FOUND);
 
     let alice_update = authorized_json_request(
         app.clone(),

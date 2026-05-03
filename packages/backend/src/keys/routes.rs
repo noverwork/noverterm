@@ -3,7 +3,7 @@ use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
 use serde::Deserialize;
-use shared::SshKeyRecord;
+use shared::{SshKeyRecord, SshKeySecret};
 
 use crate::auth::AuthenticatedUser;
 use crate::bootstrap::AppState;
@@ -13,6 +13,7 @@ use super::repository::{self, CreateKeyInput, RepositoryError, UpdateKeyInput};
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_keys).post(create_key))
+        .route("/{id}/secret", get(reveal_key_secret))
         .route("/{id}", get(get_key).put(update_key).delete(delete_key))
 }
 
@@ -61,6 +62,20 @@ async fn get_key(
         .ok_or_else(|| (StatusCode::NOT_FOUND, "ssh key not found".to_string()))?;
 
     Ok(Json(to_record(key)))
+}
+
+async fn reveal_key_secret(
+    State(state): State<AppState>,
+    Extension(authenticated_user): Extension<AuthenticatedUser>,
+    Path(id): Path<String>,
+) -> Result<Json<SshKeySecret>, (StatusCode, String)> {
+    let pool = state.require_db_pool().map_err(internal_error)?;
+    let key = repository::get(pool, authenticated_user.user_id, id)
+        .await
+        .map_err(into_http_error)?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "ssh key not found".to_string()))?;
+
+    Ok(Json(to_secret(key)))
 }
 
 async fn create_key(
@@ -134,6 +149,13 @@ fn to_record(key: orm::models::SshKey) -> SshKeyRecord {
         name: key.name,
         kind: key.kind,
         fingerprint: key.fingerprint,
+    }
+}
+
+fn to_secret(key: orm::models::SshKey) -> SshKeySecret {
+    SshKeySecret {
+        private_key: key.encrypted_private_key,
+        passphrase: key.encrypted_passphrase,
     }
 }
 
