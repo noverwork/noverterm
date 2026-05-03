@@ -76,10 +76,10 @@
   const formTitle = $derived(connection ? "Edit connection" : "New connection");
   const submitLabel = $derived.by(() => {
     if (isSaving) {
-      return connection ? "Saving…" : "Creating…";
+      return "Saving…";
     }
 
-    return connection ? "Save changes" : "Create connection";
+    return connection ? "Save changes" : "Save";
   });
 
   const selectedKeyWillBeUsed = $derived(
