@@ -6,8 +6,8 @@ use crate::runtime::port_forward::{
     PortForwardStatus,
 };
 use crate::runtime::ssh::{
-    AuthMethod, SshConnectResponse, SshLocalPortForwardInput, SshPortForwardStatus,
-    SshSessionManager,
+    AuthMethod, SshConnectRequest, SshConnectResponse, SshLocalPortForwardInput,
+    SshPortForwardStatus, SshSessionManager,
 };
 use crate::trust::{HostTrustConfirmation, SshTrustStore};
 
@@ -34,16 +34,16 @@ pub async fn ssh_connect_direct(
     let auth_method = direct_auth_method(input.password, input.private_key, input.passphrase)?;
 
     ssh_manager
-        .connect(
+        .connect(SshConnectRequest {
             app,
-            trust_store.inner().clone(),
-            input.host,
-            input.port,
-            input.username,
-            auth_method,
+            trust_store: trust_store.inner().clone(),
+            host: input.host,
+            port: input.port,
+            user: input.username,
+            auth: auth_method,
             cols,
             rows,
-        )
+        })
         .await
 }
 

@@ -17,6 +17,8 @@ use uuid::Uuid;
 
 use crate::trust::{SshTrustStore, TrustCheck};
 
+use super::keys::load_key_pair;
+
 struct ClientHandler {
     host: String,
     port: u16,
@@ -122,15 +124,14 @@ struct PortForwardEntry {
     ssh_task: JoinHandle<()>,
 }
 
+#[derive(Default)]
 pub struct PortForwardManager {
     forwards: Arc<Mutex<HashMap<String, PortForwardEntry>>>,
 }
 
 impl PortForwardManager {
     pub fn new() -> Self {
-        Self {
-            forwards: Arc::new(Mutex::new(HashMap::new())),
-        }
+        Self::default()
     }
 
     pub async fn start(
@@ -495,23 +496,6 @@ async fn authenticate(
         }
     }
     Ok(())
-}
-
-fn load_key_pair(
-    private_key: &str,
-    passphrase: Option<&str>,
-) -> Result<russh::keys::PrivateKey, String> {
-    let key = russh::keys::PrivateKey::from_openssh(private_key)
-        .map_err(|error| format!("Failed to parse SSH key: {error}"))?;
-
-    if key.is_encrypted() {
-        let passphrase = passphrase
-            .ok_or_else(|| "SSH key requires a passphrase, but none was provided".to_string())?;
-        key.decrypt(passphrase)
-            .map_err(|error| format!("Failed to decrypt SSH key: {error}"))
-    } else {
-        Ok(key)
-    }
 }
 
 fn normalize_input(input: PortForwardCreateInput) -> Result<PortForwardCreateInput, String> {

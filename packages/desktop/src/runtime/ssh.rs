@@ -16,6 +16,8 @@ use uuid::Uuid;
 
 use crate::trust::{HostTrustMismatch, HostTrustPrompt, SshTrustStore, TrustCheck};
 
+use super::keys::load_key_pair;
+
 pub(crate) struct ClientHandler {
     host: String,
     port: u16,
@@ -80,22 +82,33 @@ pub struct SshSessionManager {
     sessions: Arc<Mutex<HashMap<String, SshSession>>>,
 }
 
+pub struct SshConnectRequest {
+    pub app: AppHandle,
+    pub trust_store: SshTrustStore,
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub auth: AuthMethod,
+    pub cols: u32,
+    pub rows: u32,
+}
+
 impl SshSessionManager {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub async fn connect(
-        &self,
-        app: AppHandle,
-        trust_store: SshTrustStore,
-        host: String,
-        port: u16,
-        user: String,
-        auth: AuthMethod,
-        cols: u32,
-        rows: u32,
-    ) -> Result<SshConnectResponse, String> {
+    pub async fn connect(&self, request: SshConnectRequest) -> Result<SshConnectResponse, String> {
+        let SshConnectRequest {
+            app,
+            trust_store,
+            host,
+            port,
+            user,
+            auth,
+            cols,
+            rows,
+        } = request;
         let session_id = Uuid::new_v4().to_string();
         info!(session_id, host, port, user, "Starting SSH connection flow");
 
@@ -720,23 +733,6 @@ fn emit_port_forward_event(app: &AppHandle, status: &SshPortForwardStatus) {
             "Failed to emit ssh_port_forward: {}",
             e
         );
-    }
-}
-
-fn load_key_pair(
-    private_key: &str,
-    passphrase: Option<&str>,
-) -> Result<russh::keys::PrivateKey, String> {
-    let key = russh::keys::PrivateKey::from_openssh(private_key)
-        .map_err(|error| format!("Failed to parse SSH key: {error}"))?;
-
-    if key.is_encrypted() {
-        let passphrase = passphrase
-            .ok_or_else(|| "SSH key requires a passphrase, but none was provided".to_string())?;
-        key.decrypt(passphrase)
-            .map_err(|error| format!("Failed to decrypt SSH key: {error}"))
-    } else {
-        Ok(key)
     }
 }
 
