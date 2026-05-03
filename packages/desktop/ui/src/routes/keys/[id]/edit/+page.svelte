@@ -21,6 +21,7 @@
     {keyRecord}
     onSave={app.saveKey}
     onUpdate={handleUpdate}
+    onReveal={app.revealKeySecret}
     onCancel={() => goto("/keys")}
   />
 {:else}

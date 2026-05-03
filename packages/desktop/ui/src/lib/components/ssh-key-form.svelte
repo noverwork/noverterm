@@ -1,7 +1,7 @@
 <script lang="ts">
   import { KeyRound } from "@lucide/svelte";
 
-  import type { SshKeyRecord } from "$lib/api/types.js";
+  import type { SshKeyRecord, SshKeySecret } from "$lib/api/types.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
 
@@ -9,16 +9,18 @@
     keyRecord?: SshKeyRecord | null;
     onSave: (name: string, privateKey: string, passphrase: string) => Promise<void>;
     onUpdate: (keyId: string, name: string, privateKey?: string, passphrase?: string) => Promise<void>;
+    onReveal?: (keyId: string) => Promise<SshKeySecret>;
     onCancel: () => void;
   }
 
-  let { keyRecord = null, onSave, onUpdate, onCancel }: Props = $props();
+  let { keyRecord = null, onSave, onUpdate, onReveal, onCancel }: Props = $props();
 
   let keyName = $state("");
   let privateKey = $state("");
   let passphrase = $state("");
   let error = $state<string | null>(null);
   let isSaving = $state(false);
+  let isLoadingSecret = $state(false);
   let initializedKeyId = $state<string | null>(null);
 
   $effect(() => {
@@ -32,11 +34,19 @@
     privateKey = "";
     passphrase = "";
     error = null;
+
+    if (keyRecord && onReveal) {
+      void loadSavedSecret(keyRecord.id);
+    }
   });
 
   const isEditing = $derived(keyRecord !== null);
   const formTitle = $derived(isEditing ? "Edit SSH key" : "New SSH key");
   const submitLabel = $derived.by(() => {
+    if (isLoadingSecret) {
+      return "Loading key…";
+    }
+
     if (isSaving) {
       return isEditing ? "Updating…" : "Saving…";
     }
@@ -82,6 +92,32 @@
       isSaving = false;
     }
   }
+
+  async function loadSavedSecret(keyId: string) {
+    if (!onReveal) {
+      return;
+    }
+
+    isLoadingSecret = true;
+    error = null;
+
+    try {
+      const secret = await onReveal(keyId);
+      if (initializedKeyId !== keyId) {
+        return;
+      }
+      privateKey = secret.private_key;
+      passphrase = secret.passphrase ?? "";
+    } catch (cause) {
+      if (initializedKeyId === keyId) {
+        error = cause instanceof Error ? cause.message : "Failed to load key secret";
+      }
+    } finally {
+      if (initializedKeyId === keyId) {
+        isLoadingSecret = false;
+      }
+    }
+  }
 </script>
 
 <div class="workspace-canvas flex h-full min-h-0 flex-col overflow-hidden px-5 py-6 lg:px-8">
@@ -92,9 +128,9 @@
         <h1 class="mt-2 text-2xl font-semibold tracking-tight">{formTitle}</h1>
         <p class="mt-2 text-sm text-slate-500">
           {#if isEditing}
-            Rename this key or paste a replacement private key to rotate it.
+            The saved private key is loaded automatically so you can inspect or replace it.
           {:else}
-            Save an encrypted SSH private key for connection profiles.
+            Save an SSH private key for connection profiles.
           {/if}
         </p>
       </div>
@@ -142,7 +178,7 @@
                 bind:value={keyName}
                 placeholder="My GitHub key"
                 class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                disabled={isSaving}
+                disabled={isSaving || isLoadingSecret}
               />
             </div>
 
@@ -152,14 +188,14 @@
                 id="ssh-key-passphrase"
                 type="password"
                 bind:value={passphrase}
-                placeholder={isEditing ? "Only used when replacing private key" : "Optional passphrase"}
+                placeholder={isEditing ? "Loading saved passphrase if present" : "Optional passphrase"}
                 class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                disabled={isSaving}
+                disabled={isSaving || isLoadingSecret}
               />
             </div>
 
             <div class="flex flex-wrap items-center gap-2 pt-1">
-              <Button type="submit" class="rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200" disabled={isSaving}>
+              <Button type="submit" class="rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200" disabled={isSaving || isLoadingSecret}>
                 {submitLabel}
               </Button>
               <Button type="button" variant="ghost" size="sm" class="rounded-2xl text-slate-300 hover:bg-white/8 hover:text-white" onclick={onCancel} disabled={isSaving}>
@@ -173,13 +209,13 @@
             <textarea
               id="ssh-key-private"
               bind:value={privateKey}
-              placeholder={isEditing ? "Leave blank to keep the existing private key" : "-----BEGIN OPENSSH PRIVATE KEY-----"}
+              placeholder={isEditing ? "Loading saved private key…" : "-----BEGIN OPENSSH PRIVATE KEY-----"}
               rows="10"
               class="flex min-h-[15rem] w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 font-mono text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300/20"
-              disabled={isSaving}
+              disabled={isSaving || isLoadingSecret}
             ></textarea>
             {#if isEditing}
-              <p class="text-xs leading-5 text-slate-500">Private keys are not loaded back from the backend. Leave this blank to keep the current key, or paste a replacement key to rotate it.</p>
+              <p class="text-xs leading-5 text-slate-500">This field shows the saved raw private key after vault decryption. Editing it will rotate the stored key on update.</p>
             {/if}
           </div>
         </div>
