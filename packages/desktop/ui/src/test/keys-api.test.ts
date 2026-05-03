@@ -10,7 +10,13 @@ vi.mock("$lib/api/api-client.js", () => ({
   withAuthorizedRetry: (fn: (token: string) => unknown) => mockWithAuthorizedRetry(fn),
 }));
 
-import { createSshKey, updateSshKey, deleteSshKey } from "$lib/api/keys-api.js";
+import { createSshKey, updateSshKey, deleteSshKey, revealSshKeySecret } from "$lib/api/keys-api.js";
+import {
+  decryptSecret,
+  encryptSecret,
+  isVaultCiphertext,
+  unlockVaultWithPassword,
+} from "$lib/crypto/vault.js";
 import type { KeyCreateRequest, KeyUpdateRequest, SshKeyRecord } from "$lib/api/types.js";
 
 const sampleKey: SshKeyRecord = {
@@ -35,9 +41,11 @@ const sampleUpdateRequest: KeyUpdateRequest = {
 };
 
 describe("keys API", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    localStorage.clear();
     mockWithAuthorizedRetry.mockImplementation((fn) => fn("test-access-token"));
+    await unlockVaultWithPassword("alice@example.com", "wonderland");
   });
 
   describe("createSshKey", () => {
@@ -47,13 +55,14 @@ describe("keys API", () => {
       const result = await createSshKey(sampleCreateRequest);
 
       expect(mockWithAuthorizedRetry).toHaveBeenCalledOnce();
-      expect(mockRequestWithAuth).toHaveBeenCalledWith(
-        "/bootstrap/keys",
-        "test-access-token",
-        {
-          method: "POST",
-          body: JSON.stringify(sampleCreateRequest),
-        },
+      expect(mockRequestWithAuth).toHaveBeenCalledWith("/bootstrap/keys", "test-access-token", {
+        method: "POST",
+        body: expect.any(String),
+      });
+      const body = JSON.parse(mockRequestWithAuth.mock.calls[0][2].body as string) as KeyCreateRequest;
+      expect(isVaultCiphertext(body.encrypted_private_key)).toBe(true);
+      await expect(decryptSecret(body.encrypted_private_key)).resolves.toBe(
+        sampleCreateRequest.encrypted_private_key,
       );
       expect(result).toEqual(sampleKey);
     });
@@ -66,14 +75,13 @@ describe("keys API", () => {
       const result = await updateSshKey("k1", sampleUpdateRequest);
 
       expect(mockWithAuthorizedRetry).toHaveBeenCalledOnce();
-      expect(mockRequestWithAuth).toHaveBeenCalledWith(
-        "/bootstrap/keys/k1",
-        "test-access-token",
-        {
-          method: "PUT",
-          body: JSON.stringify(sampleUpdateRequest),
-        },
-      );
+      expect(mockRequestWithAuth).toHaveBeenCalledWith("/bootstrap/keys/k1", "test-access-token", {
+        method: "PUT",
+        body: expect.any(String),
+      });
+      const body = JSON.parse(mockRequestWithAuth.mock.calls[0][2].body as string) as KeyUpdateRequest;
+      expect(isVaultCiphertext(body.encrypted_private_key)).toBe(true);
+      expect(isVaultCiphertext(body.encrypted_passphrase)).toBe(true);
       expect(result.name).toBe("updated-key");
     });
 
@@ -133,6 +141,42 @@ describe("keys API", () => {
         "/bootstrap/keys/k%2F1%2Bspecial",
         "test-access-token",
         { method: "DELETE" },
+      );
+    });
+  });
+
+  describe("revealSshKeySecret", () => {
+    it("fetches and decrypts the saved key secret", async () => {
+      const encryptedPrivateKey = await encryptSecret("raw-private-key");
+      const encryptedPassphrase = await encryptSecret("raw-passphrase");
+      mockRequestWithAuth.mockResolvedValue({
+        private_key: encryptedPrivateKey,
+        passphrase: encryptedPassphrase,
+      });
+
+      const result = await revealSshKeySecret("k1");
+
+      expect(mockRequestWithAuth).toHaveBeenCalledWith(
+        "/bootstrap/keys/k1/secret",
+        "test-access-token",
+      );
+      expect(result).toEqual({
+        private_key: "raw-private-key",
+        passphrase: "raw-passphrase",
+      });
+    });
+
+    it("URL-encodes the key ID", async () => {
+      mockRequestWithAuth.mockResolvedValue({
+        private_key: "raw-private-key",
+        passphrase: null,
+      });
+
+      await revealSshKeySecret("k/1+special");
+
+      expect(mockRequestWithAuth).toHaveBeenCalledWith(
+        "/bootstrap/keys/k%2F1%2Bspecial/secret",
+        "test-access-token",
       );
     });
   });

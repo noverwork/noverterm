@@ -36,6 +36,11 @@ export interface SshKeyRecord {
   fingerprint: string | null;
 }
 
+export interface SshKeySecret {
+  private_key: string;
+  passphrase: string | null;
+}
+
 export interface BootstrapMetadata {
   settings: Setting[];
   host_groups: HostGroupRecord[];
