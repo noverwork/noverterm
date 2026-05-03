@@ -142,12 +142,14 @@
       </div>
     </div>
   {:else if app.bootstrapStore.isUnauthenticated}
-    <AuthShell
-      onLogin={app.login}
-      onSignup={app.signup}
-      isLoading={app.bootstrapStore.isLoading}
-      error={app.bootstrapStore.error}
-    />
+      <AuthShell
+        onLogin={app.login}
+        onSignup={app.signup}
+        onForgotPassword={app.forgotPassword}
+        onResetPassword={app.resetAccountPassword}
+        isLoading={app.bootstrapStore.isLoading}
+        error={app.bootstrapStore.error}
+      />
   {:else if app.isError}
     <div
       class="auth-shell flex min-h-screen items-center justify-center px-4 py-8"

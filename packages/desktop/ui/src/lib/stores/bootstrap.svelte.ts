@@ -16,6 +16,8 @@ import {
   registerToBackend,
   loginToBackend,
   logoutFromBackend,
+  requestPasswordReset,
+  resetPassword,
 } from "$lib/api/auth-api.js";
 import { loadBootstrapMetadataFromBackend } from "$lib/api/bootstrap-api.js";
 import {
@@ -32,6 +34,8 @@ export interface BootstrapApi {
   register(email: string, password: string): Promise<AuthBootstrapStatus>;
   login(email: string, password: string): Promise<AuthBootstrapStatus>;
   logout(): Promise<void>;
+  requestPasswordReset(email: string): Promise<void>;
+  resetPassword(token: string, password: string): Promise<void>;
   loadBootstrapMetadata(): Promise<BootstrapMetadata>;
   saveConnection(connection: SaveConnectionInput): Promise<SshHostRecord>;
   createHostGroup(name: string): Promise<HostGroupRecord>;
@@ -49,6 +53,8 @@ const defaultApi: BootstrapApi = {
   register: registerToBackend,
   login: loginToBackend,
   logout: logoutFromBackend,
+  requestPasswordReset,
+  resetPassword,
   loadBootstrapMetadata: loadBootstrapMetadataFromBackend,
   saveConnection: saveBackendConnection,
   createHostGroup: createBackendHostGroup,
@@ -367,6 +373,14 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
     commit();
   }
 
+  async function forgotPassword(email: string) {
+    await api.requestPasswordReset(email);
+  }
+
+  async function resetAccountPassword(token: string, password: string) {
+    await api.resetPassword(token, password);
+  }
+
   async function saveConnection(connection: SaveConnectionInput) {
     const savedConnection = await api.saveConnection(connection);
     await refreshMetadata();
@@ -566,6 +580,8 @@ export function createBootstrapStore(api: BootstrapApi = defaultApi) {
     login,
     register,
     logout,
+    forgotPassword,
+    resetAccountPassword,
     refreshMetadata,
     saveConnection,
     createHostGroup,

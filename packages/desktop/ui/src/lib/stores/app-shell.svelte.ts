@@ -106,6 +106,14 @@ export function createAppShellStore() {
     await bootstrapStore.register(email, password);
   }
 
+  async function forgotPassword(email: string) {
+    await bootstrapStore.forgotPassword(email);
+  }
+
+  async function resetAccountPassword(token: string, password: string) {
+    await bootstrapStore.resetAccountPassword(token, password);
+  }
+
   async function logout() {
     await bootstrapStore.logout();
   }
@@ -379,6 +387,8 @@ export function createAppShellStore() {
     cleanup,
     login,
     signup,
+    forgotPassword,
+    resetAccountPassword,
     logout,
     connectSavedConnection,
     connectLocalTerminal,

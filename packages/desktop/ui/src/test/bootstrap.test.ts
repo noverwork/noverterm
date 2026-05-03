@@ -5,6 +5,8 @@ const createMockApi = () => ({
   register: vi.fn(),
   login: vi.fn(),
   logout: vi.fn(),
+  requestPasswordReset: vi.fn(),
+  resetPassword: vi.fn(),
   loadBootstrapMetadata: vi.fn(),
   saveConnection: vi.fn(),
   createHostGroup: vi.fn(),
