@@ -18,7 +18,7 @@ async fn host_group_routes_are_owner_scoped() {
     for email in [&alice, &bob] {
         app.clone()
             .oneshot(
-                Request::post("/auth/register")
+                Request::post("/api/auth/register")
                     .header("content-type", "application/json")
                     .body(Body::from(format!(
                         r#"{{"email":"{email}","password":"{password}"}}"#
@@ -35,7 +35,7 @@ async fn host_group_routes_are_owner_scoped() {
     let alice_create = authorized_json_request(
         app.clone(),
         Method::POST,
-        "/bootstrap/host-groups",
+        "/api/bootstrap/host-groups",
         &alice_token,
         json!({ "name": " Production " }),
     )
@@ -48,7 +48,7 @@ async fn host_group_routes_are_owner_scoped() {
     let bob_get_alice = authorized_empty_request(
         app.clone(),
         Method::GET,
-        &format!("/bootstrap/host-groups/{alice_group_id}"),
+        &format!("/api/bootstrap/host-groups/{alice_group_id}"),
         &bob_token,
     )
     .await;
@@ -57,7 +57,7 @@ async fn host_group_routes_are_owner_scoped() {
     let alice_duplicate = authorized_json_request(
         app.clone(),
         Method::POST,
-        "/bootstrap/host-groups",
+        "/api/bootstrap/host-groups",
         &alice_token,
         json!({ "name": "Production" }),
     )
@@ -67,7 +67,7 @@ async fn host_group_routes_are_owner_scoped() {
     let alice_host = authorized_json_request(
         app.clone(),
         Method::POST,
-        "/bootstrap/hosts",
+        "/api/bootstrap/hosts",
         &alice_token,
         json!({
             "name": "prod",
@@ -87,7 +87,7 @@ async fn host_group_routes_are_owner_scoped() {
     let bob_delete_alice = authorized_empty_request(
         app.clone(),
         Method::DELETE,
-        &format!("/bootstrap/host-groups/{alice_group_id}"),
+        &format!("/api/bootstrap/host-groups/{alice_group_id}"),
         &bob_token,
     )
     .await;
@@ -96,7 +96,7 @@ async fn host_group_routes_are_owner_scoped() {
     let alice_delete = authorized_empty_request(
         app.clone(),
         Method::DELETE,
-        &format!("/bootstrap/host-groups/{alice_group_id}"),
+        &format!("/api/bootstrap/host-groups/{alice_group_id}"),
         &alice_token,
     )
     .await;
@@ -105,7 +105,7 @@ async fn host_group_routes_are_owner_scoped() {
     let alice_host_after_delete = authorized_empty_request(
         app.clone(),
         Method::GET,
-        &format!("/bootstrap/hosts/{alice_host_id}"),
+        &format!("/api/bootstrap/hosts/{alice_host_id}"),
         &alice_token,
     )
     .await;

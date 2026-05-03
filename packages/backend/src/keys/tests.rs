@@ -18,7 +18,7 @@ async fn key_routes_are_owner_scoped_and_redact_secret_fields() {
     for user in [&alice, &bob] {
         app.clone()
             .oneshot(
-                Request::post("/auth/register")
+                Request::post("/api/auth/register")
                     .header("content-type", "application/json")
                     .body(Body::from(format!(
                         r#"{{"email":"{user}","password":"{password}"}}"#
@@ -35,7 +35,7 @@ async fn key_routes_are_owner_scoped_and_redact_secret_fields() {
     let alice_create = authorized_json_request(
         app.clone(),
         Method::POST,
-        "/bootstrap/keys",
+        "/api/bootstrap/keys",
         &alice_token,
         json!({
             "name": "Alice key",
@@ -55,7 +55,7 @@ async fn key_routes_are_owner_scoped_and_redact_secret_fields() {
     let bob_create = authorized_json_request(
         app.clone(),
         Method::POST,
-        "/bootstrap/keys",
+        "/api/bootstrap/keys",
         &bob_token,
         json!({
             "name": "Bob key",
@@ -71,7 +71,7 @@ async fn key_routes_are_owner_scoped_and_redact_secret_fields() {
     let bob_key_id = bob_key["id"].as_str().expect("key id should exist");
 
     let alice_list =
-        authorized_empty_request(app.clone(), Method::GET, "/bootstrap/keys", &alice_token).await;
+        authorized_empty_request(app.clone(), Method::GET, "/api/bootstrap/keys", &alice_token).await;
     assert_eq!(alice_list.status(), StatusCode::OK);
     let alice_list = response_json(alice_list).await;
     let alice_keys = alice_list.as_array().expect("keys list should be an array");
@@ -87,7 +87,7 @@ async fn key_routes_are_owner_scoped_and_redact_secret_fields() {
     let bob_get_alice = authorized_empty_request(
         app.clone(),
         Method::GET,
-        &format!("/bootstrap/keys/{alice_key_id}"),
+        &format!("/api/bootstrap/keys/{alice_key_id}"),
         &bob_token,
     )
     .await;
@@ -96,7 +96,7 @@ async fn key_routes_are_owner_scoped_and_redact_secret_fields() {
     let alice_update = authorized_json_request(
         app.clone(),
         Method::PUT,
-        &format!("/bootstrap/keys/{alice_key_id}"),
+        &format!("/api/bootstrap/keys/{alice_key_id}"),
         &alice_token,
         json!({
             "name": "Alice key updated",
@@ -115,7 +115,7 @@ async fn key_routes_are_owner_scoped_and_redact_secret_fields() {
     let alice_name_only_update = authorized_json_request(
         app.clone(),
         Method::PUT,
-        &format!("/bootstrap/keys/{alice_key_id}"),
+        &format!("/api/bootstrap/keys/{alice_key_id}"),
         &alice_token,
         json!({
             "name": "Alice key renamed",
@@ -137,7 +137,7 @@ async fn key_routes_are_owner_scoped_and_redact_secret_fields() {
     let bob_delete_alice = authorized_empty_request(
         app.clone(),
         Method::DELETE,
-        &format!("/bootstrap/keys/{alice_key_id}"),
+        &format!("/api/bootstrap/keys/{alice_key_id}"),
         &bob_token,
     )
     .await;
@@ -146,7 +146,7 @@ async fn key_routes_are_owner_scoped_and_redact_secret_fields() {
     let alice_delete = authorized_empty_request(
         app.clone(),
         Method::DELETE,
-        &format!("/bootstrap/keys/{alice_key_id}"),
+        &format!("/api/bootstrap/keys/{alice_key_id}"),
         &alice_token,
     )
     .await;
