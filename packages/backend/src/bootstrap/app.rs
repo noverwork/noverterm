@@ -18,10 +18,14 @@ pub fn build_router(state: AppState) -> Router {
             crate::auth::require_authenticated_user,
         ));
 
+    let api_routes = Router::new()
+        .route("/", get(crate::healthcheck))
+        .nest("/auth", crate::auth::router())
+        .merge(protected_routes);
+
     Router::new()
         .route("/api", get(crate::healthcheck))
-        .nest("/api/auth", crate::auth::router())
-        .nest("/api/bootstrap", protected_routes)
+        .nest("/api", api_routes)
         .with_state(state)
 }
 
