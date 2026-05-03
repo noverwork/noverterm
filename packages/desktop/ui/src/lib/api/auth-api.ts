@@ -60,6 +60,20 @@ export async function loginToBackend(
   }
 }
 
+export async function requestPasswordReset(email: string): Promise<void> {
+  await requestNoContent("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function resetPassword(token: string, password: string): Promise<void> {
+  await requestNoContent("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, password }),
+  });
+}
+
 export async function restoreBackendSession(): Promise<AuthBootstrapStatus | null> {
   const { loadStoredAuthTokens } = await import("$lib/stores/auth-token-store.js");
   const storedTokens = await loadStoredAuthTokens();
