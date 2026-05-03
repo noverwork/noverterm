@@ -3,13 +3,18 @@ use argon2::{
     Argon2,
 };
 use chrono::{DateTime, Duration, Utc};
+use hmac::{Hmac, Mac};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
+
+type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Clone)]
 pub struct TokenService {
     encoding_key: EncodingKey,
     decoding_key: DecodingKey,
+    fingerprint_key: Vec<u8>,
     access_ttl: Duration,
     refresh_ttl: Duration,
 }
@@ -43,6 +48,20 @@ pub struct RefreshToken {
     pub token: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PasswordResetClaims {
+    pub sub: String,
+    pub pwd: String,
+    pub exp: usize,
+    pub iat: usize,
+    pub typ: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct PasswordResetToken {
+    pub token: String,
+}
+
 impl TokenService {
     pub fn new(secret: impl AsRef<[u8]>, access_ttl: Duration, refresh_ttl: Duration) -> Self {
         let secret = secret.as_ref().to_vec();
@@ -50,6 +69,7 @@ impl TokenService {
         Self {
             encoding_key: EncodingKey::from_secret(&secret),
             decoding_key: DecodingKey::from_secret(&secret),
+            fingerprint_key: secret,
             access_ttl,
             refresh_ttl,
         }
@@ -119,6 +139,49 @@ impl TokenService {
         }
 
         Ok(data.claims)
+    }
+
+    pub fn issue_password_reset_token(
+        &self,
+        email: &str,
+        password_hash: &str,
+        ttl: Duration,
+    ) -> Result<PasswordResetToken, String> {
+        let issued_at = Utc::now();
+        let expires_at = issued_at + ttl;
+        let claims = PasswordResetClaims {
+            sub: email.to_string(),
+            pwd: self.password_fingerprint(password_hash),
+            exp: expires_at.timestamp() as usize,
+            iat: issued_at.timestamp() as usize,
+            typ: "password_reset".to_string(),
+        };
+
+        let token = encode(&Header::new(Algorithm::HS256), &claims, &self.encoding_key)
+            .map_err(|error| format!("failed to encode password reset token: {error}"))?;
+
+        Ok(PasswordResetToken { token })
+    }
+
+    pub fn decode_password_reset_token(&self, token: &str) -> Result<PasswordResetClaims, String> {
+        let mut validation = Validation::new(Algorithm::HS256);
+        validation.validate_exp = true;
+
+        let data = decode::<PasswordResetClaims>(token, &self.decoding_key, &validation)
+            .map_err(|error| format!("invalid password reset token: {error}"))?;
+
+        if data.claims.typ != "password_reset" {
+            return Err("invalid password reset token type".to_string());
+        }
+
+        Ok(data.claims)
+    }
+
+    pub fn password_fingerprint(&self, password_hash: &str) -> String {
+        let mut mac = HmacSha256::new_from_slice(&self.fingerprint_key)
+            .expect("HMAC accepts keys of any length");
+        mac.update(password_hash.as_bytes());
+        hex::encode(mac.finalize().into_bytes())
     }
 }
 
