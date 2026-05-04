@@ -123,6 +123,49 @@ async fn register_duplicate_email_fails() {
 }
 
 #[tokio::test]
+async fn password_reset_throttle_is_recorded_only_for_existing_accounts() {
+    let auth_service = auth_service();
+    let unknown_email = unique_name("missing-reset-account");
+
+    auth_service
+        .request_password_reset(super::service::ForgotPasswordRequest {
+            email: unknown_email.clone(),
+        })
+        .await
+        .expect("unknown account reset request should return uniformly");
+
+    assert!(
+        !auth_service
+            .has_password_reset_attempt_for_test(&unknown_email)
+            .await,
+        "unknown accounts should not create throttle entries before lookup"
+    );
+
+    let existing_email = unique_name("reset-account");
+    auth_service
+        .register(super::service::RegisterRequest {
+            email: existing_email.clone(),
+            password: "pass1".to_string(),
+        })
+        .await
+        .expect("register should succeed");
+
+    auth_service
+        .request_password_reset(super::service::ForgotPasswordRequest {
+            email: existing_email.clone(),
+        })
+        .await
+        .expect("existing account reset request should succeed");
+
+    assert!(
+        auth_service
+            .has_password_reset_attempt_for_test(&existing_email)
+            .await,
+        "existing accounts should create throttle entries after lookup"
+    );
+}
+
+#[tokio::test]
 async fn protected_bootstrap_route_requires_valid_access_token() {
     let pool = test_db_pool();
     let auth_service = AuthService::new(

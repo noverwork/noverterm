@@ -209,12 +209,11 @@ impl AuthService {
     ) -> Result<(), String> {
         let email = request.email.trim().to_string();
         if email.is_empty() {
+            tracing::info!("password reset requested with empty email; no email sent");
             return Ok(());
         }
 
-        if self.is_password_reset_throttled(&email).await {
-            return Ok(());
-        }
+        tracing::info!(email = %email, "password reset requested");
 
         let check_email = email.clone();
         let user: Option<User> = run_db(self.pool.clone(), move |conn| {
@@ -227,9 +226,17 @@ impl AuthService {
         .await?;
 
         let Some(user) = user else {
+            tracing::info!(email = %email, "password reset requested for unknown account; no email sent");
             return Ok(());
         };
 
+        tracing::info!(email = %user.email, "password reset account matched; checking throttle");
+        if self.is_password_reset_throttled(&user.email).await {
+            tracing::info!(email = %user.email, "password reset request throttled for existing account; no email sent");
+            return Ok(());
+        }
+
+        tracing::info!(email = %user.email, "issuing password reset token");
         let reset_token = self.config.token_service.issue_password_reset_token(
             &user.email,
             &user.password_hash,
@@ -237,9 +244,14 @@ impl AuthService {
         )?;
         let reset_link = self.password_reset_link(&reset_token.token);
         if let Some(mailer) = self.config.password_reset_mailer.as_ref() {
+            tracing::info!(email = %user.email, "sending password reset email");
             if let Err(error) = mailer.send_reset_link(&user.email, &reset_link).await {
                 tracing::error!(%error, email = %user.email, "failed to send password reset email");
+            } else {
+                tracing::info!(email = %user.email, "password reset email sent");
             }
+        } else {
+            tracing::warn!(email = %user.email, "password reset mailer is not configured; no email sent");
         }
 
         Ok(())
@@ -384,5 +396,11 @@ impl AuthService {
 
         attempts.insert(key, now);
         false
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn has_password_reset_attempt_for_test(&self, email: &str) -> bool {
+        let key = email.trim().to_lowercase();
+        self.password_reset_attempts.lock().await.contains_key(&key)
     }
 }

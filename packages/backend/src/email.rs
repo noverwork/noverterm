@@ -49,6 +49,15 @@ impl PasswordResetMailer {
     }
 
     pub async fn send_reset_link(&self, to: &str, reset_link: &str) -> Result<(), String> {
+        tracing::info!(
+            recipient = %to,
+            smtp_host = %self.config.smtp_host,
+            smtp_port = self.config.smtp_port,
+            smtp_tls_mode = ?self.config.tls_mode,
+            smtp_from = %self.config.from,
+            "preparing password reset email"
+        );
+
         let email = Message::builder()
             .from(
                 self.config
@@ -85,10 +94,25 @@ impl PasswordResetMailer {
             .credentials(credentials)
             .build();
 
+        tracing::info!(
+            recipient = %to,
+            smtp_host = %self.config.smtp_host,
+            smtp_port = self.config.smtp_port,
+            smtp_tls_mode = ?self.config.tls_mode,
+            "submitting password reset email to SMTP server"
+        );
+
         mailer
             .send(email)
             .await
             .map_err(|error| format!("failed to send password reset email: {error}"))?;
+
+        tracing::info!(
+            recipient = %to,
+            smtp_host = %self.config.smtp_host,
+            smtp_port = self.config.smtp_port,
+            "SMTP server accepted password reset email"
+        );
 
         Ok(())
     }
