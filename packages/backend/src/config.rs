@@ -1,6 +1,8 @@
 use std::env;
+use std::fmt::Display;
 use std::fs;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use crate::email::{PasswordResetEmailConfig, PasswordResetSmtpTlsMode};
 
@@ -9,7 +11,7 @@ pub struct AppConfig {
     pub host: String,
     pub port: u16,
     pub database_url: String,
-    pub auth_secret: String,
+    pub jwt_secret: String,
     pub backend_url: String,
     pub password_reset_email: PasswordResetEmailConfig,
 }
@@ -17,15 +19,11 @@ pub struct AppConfig {
 impl AppConfig {
     pub fn from_env() -> Result<Self, String> {
         Ok(Self {
-            host: env_value("APP_HOST").unwrap_or_else(|| "127.0.0.1".to_string()),
-            port: env_value("APP_PORT")
-                .unwrap_or_else(|| "3000".to_string())
-                .parse()
-                .map_err(|e| format!("invalid APP_PORT: {e}"))?,
-            database_url: required_env_value("DATABASE_URL")?,
-            auth_secret: env_value("NOVERTERM_AUTH_SECRET")
-                .unwrap_or_else(|| "development-only-noverterm-auth-secret".to_string()),
-            backend_url: required_env_value("BACKEND_URL")?,
+            host: required_string_env("APP_HOST")?,
+            port: required_number_env("APP_PORT")?,
+            database_url: required_string_env("DATABASE_URL")?,
+            jwt_secret: required_string_env("JWT_SECRET")?,
+            backend_url: required_string_env("BACKEND_URL")?,
             password_reset_email: password_reset_email_config()?,
         })
     }
@@ -56,30 +54,43 @@ pub fn env_value(key: &str) -> Option<String> {
     env::var(key).ok().or_else(|| env_file_value(key))
 }
 
-fn required_env_value(key: &str) -> Result<String, String> {
+pub fn required_string_env(key: &str) -> Result<String, String> {
     env_value(key)
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .ok_or_else(|| format!("{key} must be set in environment or backend env file"))
 }
 
-fn password_reset_email_config() -> Result<PasswordResetEmailConfig, String> {
-    let smtp_port = required_env_value("SMTP_PORT")?
+pub fn required_number_env<T>(key: &str) -> Result<T, String>
+where
+    T: FromStr,
+    T::Err: Display,
+{
+    required_string_env(key)?
         .parse()
-        .map_err(|error| format!("invalid SMTP_PORT: {error}"))?;
-    let tls_mode = env_value("SMTP_TLS_MODE")
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .map(|value| PasswordResetSmtpTlsMode::from_env_value(&value))
-        .unwrap_or_else(|| Ok(PasswordResetSmtpTlsMode::inferred_from_port(smtp_port)))?;
+        .map_err(|error| format!("invalid {key}: {error}"))
+}
+
+pub fn required_boolean_env(key: &str) -> Result<bool, String> {
+    match required_string_env(key)?.to_ascii_lowercase().as_str() {
+        "true" | "1" | "yes" | "on" => Ok(true),
+        "false" | "0" | "no" | "off" => Ok(false),
+        _ => Err(format!("invalid {key}: expected boolean true or false")),
+    }
+}
+
+fn password_reset_email_config() -> Result<PasswordResetEmailConfig, String> {
+    let smtp_port: u16 = required_number_env("SMTP_PORT")?;
+    let tls_mode =
+        PasswordResetSmtpTlsMode::from_env_value(&required_string_env("SMTP_TLS_MODE")?)?;
 
     Ok(PasswordResetEmailConfig {
-        smtp_host: required_env_value("SMTP_HOST")?,
+        smtp_host: required_string_env("SMTP_HOST")?,
         smtp_port,
         tls_mode,
-        smtp_username: required_env_value("SMTP_USERNAME")?,
-        smtp_password: required_env_value("SMTP_PASSWORD")?,
-        from: required_env_value("SMTP_FROM")?,
+        smtp_username: required_string_env("SMTP_USERNAME")?,
+        smtp_password: required_string_env("SMTP_PASSWORD")?,
+        from: required_string_env("SMTP_FROM")?,
     })
 }
 
@@ -128,7 +139,7 @@ mod tests {
             host: "127.0.0.1".to_string(),
             port: 3000,
             database_url: "postgres://postgres:postgres@localhost:5432/app".to_string(),
-            auth_secret: "backend-test-secret".to_string(),
+            jwt_secret: "backend-test-secret".to_string(),
             backend_url: "https://noverterm.noverwork.com".to_string(),
             password_reset_email: PasswordResetEmailConfig {
                 smtp_host: "smtp.example.com".to_string(),

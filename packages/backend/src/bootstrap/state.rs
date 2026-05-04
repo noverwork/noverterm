@@ -10,7 +10,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(config: &AppConfig, db_pool: DbPool) -> Self {
-        let mut auth_config = AuthConfig::new(config.auth_secret.clone())
+        let mut auth_config = AuthConfig::new(config.jwt_secret.clone())
             .with_password_reset_url(config.password_reset_url());
         auth_config = auth_config.with_password_reset_email(config.password_reset_email.clone());
 
