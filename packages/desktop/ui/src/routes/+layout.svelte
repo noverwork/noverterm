@@ -187,8 +187,6 @@
       <Sidebar
         sessions={app.sessionStore.sessions}
         activeSessionId={app.sessionStore.activeSessionId}
-        collapsed={app.sidebarCollapsed}
-        onToggle={app.toggleSidebar}
         onActivateSession={activateSession}
         onCloseSession={app.closeSession}
         onLocalTerminal={openLocalTerminal}
@@ -198,7 +196,9 @@
         authEmail={app.bootstrapStore.authStatus?.email ?? ""}
         onOpenSettings={app.openSettings}
         onLogout={app.logout}
+        connectionCount={app.bootstrapStore.getConnections().length}
         keyCount={app.bootstrapStore.getKeys().length}
+        forwardCount={app.bootstrapStore.getSavedPortForwards().length}
         activeSection={activeSidebarSection}
       />
 

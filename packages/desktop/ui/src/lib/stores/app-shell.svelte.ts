@@ -22,7 +22,6 @@ export function createAppShellStore() {
   const sessionStore = createSessionStore();
   const portForwardStore = createPortForwardStore();
 
-  let sidebarCollapsed = $state(false);
   let showSettings = $state(false);
   let connectionFormError = $state<string | null>(null);
   let connectionSaving = $state(false);
@@ -316,10 +315,6 @@ export function createAppShellStore() {
     }
   }
 
-  function toggleSidebar() {
-    sidebarCollapsed = !sidebarCollapsed;
-  }
-
   function openSettings() {
     showSettings = true;
   }
@@ -332,9 +327,6 @@ export function createAppShellStore() {
     bootstrapStore,
     sessionStore,
     portForwardStore,
-    get sidebarCollapsed() {
-      return sidebarCollapsed;
-    },
     get showSettings() {
       return showSettings;
     },
@@ -411,7 +403,6 @@ export function createAppShellStore() {
     closeSession,
     retryActiveConnection,
     trustActiveHost,
-    toggleSidebar,
     openSettings,
     closeSettings,
   };

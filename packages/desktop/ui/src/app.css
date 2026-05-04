@@ -252,17 +252,29 @@
   .sidebar {
     scrollbar-width: thin;
     scrollbar-color: var(--sidebar-border) transparent;
+    background:
+      radial-gradient(
+        circle at 22% 0%,
+        rgb(34 211 238 / 0.08),
+        transparent 13rem
+      ),
+      linear-gradient(180deg, rgb(7 11 18 / 0.98), rgb(5 9 15 / 0.98));
   }
 
-  .sidebar::-webkit-scrollbar {
+  .sidebar [data-sidebar-scroll] {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sidebar-border) transparent;
+  }
+
+  .sidebar [data-sidebar-scroll]::-webkit-scrollbar {
     width: 4px;
   }
 
-  .sidebar::-webkit-scrollbar-track {
+  .sidebar [data-sidebar-scroll]::-webkit-scrollbar-track {
     background: transparent;
   }
 
-  .sidebar::-webkit-scrollbar-thumb {
+  .sidebar [data-sidebar-scroll]::-webkit-scrollbar-thumb {
     background: var(--sidebar-border);
     border-radius: 2px;
   }
@@ -283,5 +295,15 @@
 
   .terminal-tabs [data-tab-scroller]::-webkit-scrollbar {
     display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar,
+    .sidebar * {
+      transition-duration: 1ms !important;
+      transition-delay: 0ms !important;
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+    }
   }
 }
