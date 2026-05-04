@@ -3,6 +3,7 @@ import { load } from "@tauri-apps/plugin-store";
 export interface AuthSessionTokens {
   access_token: string;
   refresh_token: string;
+  access_token_expires_at: string;
   email: string;
 }
 
