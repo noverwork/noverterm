@@ -29,10 +29,10 @@ export async function registerToBackend(
     body: JSON.stringify({ email, password }),
   });
   const tokens = toSessionTokens(authResponse);
-  await persistFrontendTokens(tokens);
-  await unlockVaultWithPassword(email, password);
 
   try {
+    await persistFrontendTokens(tokens);
+    await unlockVaultWithPassword(email, password);
     return await withAuthorizedRetry(async (accessToken) => bootstrapSmoke(accessToken));
   } catch (error) {
     await clearFrontendTokens();
@@ -49,10 +49,10 @@ export async function loginToBackend(
     body: JSON.stringify({ email, password }),
   });
   const tokens = toSessionTokens(authResponse);
-  await persistFrontendTokens(tokens);
-  await unlockVaultWithPassword(email, password);
 
   try {
+    await persistFrontendTokens(tokens);
+    await unlockVaultWithPassword(email, password);
     return await withAuthorizedRetry(async (accessToken) => bootstrapSmoke(accessToken));
   } catch (error) {
     await clearFrontendTokens();
