@@ -9,11 +9,16 @@ import type {
   SshConnectResponse,
   SshPortForwardStatus,
 } from "../../bindings.js";
-import { decryptSecret } from "$lib/crypto/vault.js";
+import { createDirectSshConnectInput } from "$lib/services/ssh-connection-input.js";
 import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
 
 export type SessionType = "ssh" | "local";
-export type SessionStatus = "connecting" | "connected" | "trust_required" | "disconnected" | "error";
+export type SessionStatus =
+  | "connecting"
+  | "connected"
+  | "trust_required"
+  | "disconnected"
+  | "error";
 
 export interface TerminalOutputPayload {
   session_id: string;
@@ -75,7 +80,10 @@ let portForwardEventUnlisten: UnlistenFn | null = null;
 let initPromise: Promise<void> | null = null;
 
 const pendingOutput = new SvelteMap<string, TerminalOutputPayload[]>();
-const outputSubscribers = new SvelteMap<string, SvelteSet<TerminalOutputCallback>>();
+const outputSubscribers = new SvelteMap<
+  string,
+  SvelteSet<TerminalOutputCallback>
+>();
 
 function updatePortForward(status: LocalPortForward) {
   state.portForwards.set(status.forward_id, status);
@@ -106,50 +114,25 @@ function handleTerminalOutput(payload: TerminalOutputPayload) {
   }
 }
 
-  function sessionName(host: string, port: number, username: string) {
-    return `${username}@${host}:${port}`;
+function sessionName(host: string, port: number, username: string) {
+  return `${username}@${host}:${port}`;
+}
+
+function savedConnectionSessionName(
+  connection: Pick<ConnectionConfig, "id" | "name">,
+) {
+  const matchingSessions = Array.from(state.sessions.values()).filter(
+    (session) =>
+      session.connectionId === connection.id &&
+      session.status !== "disconnected",
+  );
+
+  if (matchingSessions.length === 0) {
+    return connection.name;
   }
 
-  function savedConnectionSessionName(connection: Pick<ConnectionConfig, "id" | "name">) {
-    const matchingSessions = Array.from(state.sessions.values()).filter(
-      (session) => session.connectionId === connection.id && session.status !== "disconnected",
-    );
-
-    if (matchingSessions.length === 0) {
-      return connection.name;
-    }
-
-    return `${connection.name} #${matchingSessions.length + 1}`;
-  }
-
-  async function connectionAuthInput(connection: ConnectionConfig): Promise<{
-    password: string | null;
-    privateKey: string | null;
-    passphrase: string | null;
-  }> {
-    switch (connection.auth?.kind) {
-      case "password":
-        return {
-          password: await decryptSecret(connection.auth.password),
-          privateKey: null,
-          passphrase: null,
-        };
-      case "public_key":
-        return {
-          password: null,
-          privateKey: await decryptSecret(connection.auth.private_key),
-          passphrase: await decryptSecret(connection.auth.passphrase),
-        };
-      case "public_key_and_password":
-        return {
-          password: await decryptSecret(connection.auth.password),
-          privateKey: await decryptSecret(connection.auth.private_key),
-          passphrase: await decryptSecret(connection.auth.passphrase),
-        };
-      default:
-        throw new Error("host has no connectable authentication material");
-    }
-  }
+  return `${connection.name} #${matchingSessions.length + 1}`;
+}
 
 function connectResponseError(response: SshConnectResponse) {
   if (response.status === "trust_required" && response.prompt) {
@@ -253,7 +236,8 @@ export function createSessionStore() {
     }
 
     if (state.activeSessionId === id) {
-      state.activeSessionId = state.sessions.size > 0 ? Array.from(state.sessions.keys())[0] : null;
+      state.activeSessionId =
+        state.sessions.size > 0 ? Array.from(state.sessions.keys())[0] : null;
     }
   }
 
@@ -276,8 +260,13 @@ export function createSessionStore() {
     );
   }
 
-  function subscribeSessionOutput(sessionId: string, callback: TerminalOutputCallback) {
-    const subscribers = outputSubscribers.get(sessionId) ?? new SvelteSet<TerminalOutputCallback>();
+  function subscribeSessionOutput(
+    sessionId: string,
+    callback: TerminalOutputCallback,
+  ) {
+    const subscribers =
+      outputSubscribers.get(sessionId) ??
+      new SvelteSet<TerminalOutputCallback>();
     subscribers.add(callback);
     outputSubscribers.set(sessionId, subscribers);
 
@@ -317,37 +306,78 @@ export function createSessionStore() {
       connectionId: connection.id,
     });
 
-    const auth = await connectionAuthInput(connection);
+    return await connectSavedConnectionInSession(
+      tempId,
+      connection,
+      cols,
+      rows,
+    );
+  }
+
+  async function retrySavedConnection(
+    sessionId: string,
+    connection: ConnectionConfig,
+    cols: number = 80,
+    rows: number = 24,
+  ): Promise<string> {
+    await init();
+
+    const session = state.sessions.get(sessionId);
+    if (!session) {
+      throw new Error("Session not found");
+    }
+
+    state.activeSessionId = sessionId;
+    updateSession(sessionId, {
+      name: session.name,
+      host: connection.host,
+      port: connection.port,
+      username: connection.username,
+      type: "ssh",
+      status: "connecting",
+      error: undefined,
+      trustPrompt: undefined,
+      trustMismatch: undefined,
+      connectionId: connection.id,
+    });
+
+    return await connectSavedConnectionInSession(
+      sessionId,
+      connection,
+      cols,
+      rows,
+    );
+  }
+
+  async function connectSavedConnectionInSession(
+    pendingSessionId: string,
+    connection: ConnectionConfig,
+    cols: number,
+    rows: number,
+  ): Promise<string> {
     const result = await tauriCommands.sshConnectDirect(
-      {
-        host: connection.host,
-        port: connection.port,
-        username: connection.username,
-        password: auth.password,
-        private_key: auth.privateKey,
-        passphrase: auth.passphrase,
-      },
+      await createDirectSshConnectInput(connection),
       cols,
       rows,
     );
     if (result.status === "error") {
-      updateSession(tempId, { status: "error", error: result.error });
+      updateSession(pendingSessionId, { status: "error", error: result.error });
       throw new Error(result.error);
     }
 
     if (result.data.status !== "connected") {
       const updates = connectResponseSessionUpdates(result.data);
-      updateSession(tempId, updates);
+      updateSession(pendingSessionId, updates);
       throw new Error(updates.error ?? "SSH connection failed");
     }
 
     const sessionId = result.data.session_id;
-    const session = state.sessions.get(tempId);
+    const session = state.sessions.get(pendingSessionId);
     if (!session) {
       return sessionId;
     }
 
-    state.sessions.delete(tempId);
+    state.sessions.delete(pendingSessionId);
     state.sessions.set(sessionId, {
       ...session,
       id: sessionId,
@@ -532,7 +562,9 @@ export function createSessionStore() {
     return result.data;
   }
 
-  async function confirmHostTrust(confirmation: HostTrustConfirmation): Promise<void> {
+  async function confirmHostTrust(
+    confirmation: HostTrustConfirmation,
+  ): Promise<void> {
     const result = await tauriCommands.sshConfirmHostTrust(confirmation);
 
     if (result.status === "error") {
@@ -545,7 +577,9 @@ export function createSessionStore() {
       .filter((session) => session.connectionId === connectionId)
       .map((session) => session.id);
 
-    void Promise.all(sessionIds.map((sessionId) => disconnectSession(sessionId)));
+    void Promise.all(
+      sessionIds.map((sessionId) => disconnectSession(sessionId)),
+    );
   }
 
   function cleanup() {
@@ -586,6 +620,7 @@ export function createSessionStore() {
     getPortForwardsForSession,
     subscribeSessionOutput,
     connectSavedConnection,
+    retrySavedConnection,
     connectDirect,
     connectLocal,
     disconnectSession,
