@@ -3,7 +3,6 @@
     KeyRound,
     LogOut,
     Network,
-    Search,
     Server,
     Settings,
     Terminal,
@@ -11,7 +10,6 @@
   } from "@lucide/svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
-  import { Input } from "$lib/components/ui/input/index.js";
   import type { Session, SessionStatus } from "$lib/stores/session.svelte.js";
 
   type SidebarSection = "terminal" | "hosts" | "keys" | "forwards";
@@ -25,6 +23,7 @@
     onManageKeys,
     onPortForwards,
     onNewConnection,
+    onGoHome,
     authEmail,
     onOpenSettings,
     onLogout,
@@ -41,6 +40,7 @@
     onManageKeys?: () => void;
     onPortForwards?: () => void;
     onNewConnection?: () => void;
+    onGoHome?: () => void;
     authEmail?: string;
     onOpenSettings?: () => void;
     onLogout?: () => void;
@@ -50,23 +50,10 @@
     activeSection?: SidebarSection;
   } = $props();
 
-  let searchQuery = $state("");
-
   const activeSessions = $derived(
     Array.from(sessions.values()).filter(
       (session) => session.status !== "disconnected",
     ),
-  );
-
-  const filteredSessions = $derived(
-    activeSessions.filter((session) => {
-      const query = searchQuery.toLowerCase();
-      return (
-        session.name.toLowerCase().includes(query) ||
-        session.host.toLowerCase().includes(query) ||
-        session.username.toLowerCase().includes(query)
-      );
-    }),
   );
 
   function statusBadge(status?: SessionStatus) {
@@ -134,14 +121,19 @@
 </script>
 
 <aside
-  class="sidebar relative flex w-[20.5rem] shrink-0 flex-col overflow-hidden border-r border-white/10 shadow-[18px_0_60px_rgb(0_0_0/0.28)] backdrop-blur-2xl"
+  class="sidebar relative flex w-[18rem] shrink-0 flex-col overflow-hidden border-r border-white/10 shadow-[18px_0_60px_rgb(0_0_0/0.28)] backdrop-blur-2xl"
 >
   <div
     class="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-cyan-300/25 to-transparent"
   ></div>
 
   <div class="flex items-center justify-between px-4 py-4">
-    <div class="flex min-w-0 items-center gap-3">
+    <button
+      type="button"
+      class="flex min-w-0 cursor-pointer items-center gap-3 rounded-2xl text-left transition-colors hover:bg-white/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/30"
+      onclick={onGoHome}
+      aria-label="Go to Home"
+    >
       <div
         class="grid size-10 shrink-0 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-300/12 text-cyan-100 shadow-[0_0_24px_rgb(34_211_238/0.14)] ring-1 ring-cyan-200/5"
       >
@@ -154,23 +146,12 @@
           NOVERTERM
         </p>
       </div>
-    </div>
+    </button>
   </div>
 
   <div class="flex min-h-0 flex-1 flex-col">
     <div class="px-4 pb-4">
-      <div class="relative">
-        <Search
-          class="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-500"
-        />
-        <Input
-          bind:value={searchQuery}
-          placeholder="Search host, user, label"
-          class="h-10 rounded-2xl border-white/10 bg-white/[0.045] pl-9 text-sm text-slate-100 placeholder:text-slate-600 focus-visible:border-cyan-300/40 focus-visible:ring-cyan-300/20"
-        />
-      </div>
-
-      <div class="mt-3 grid gap-2">
+      <div class="grid gap-2">
         {#if onLocalTerminal}
           <Button
             onclick={onLocalTerminal}
@@ -234,7 +215,7 @@
             >
           </div>
           <div class="mt-2 space-y-1.5">
-            {#each filteredSessions as session (session.id)}
+            {#each activeSessions as session (session.id)}
               {@const status = statusBadge(session.status)}
               <div
                 class={session.id === activeSessionId
@@ -274,13 +255,6 @@
                 </Button>
               </div>
             {/each}
-            {#if filteredSessions.length === 0}
-              <div
-                class="rounded-3xl border border-dashed border-white/10 bg-white/[0.025] px-4 py-7 text-center text-sm leading-6 text-slate-500"
-              >
-                No active sessions match “{searchQuery}”.
-              </div>
-            {/if}
           </div>
         </div>
       {/if}
