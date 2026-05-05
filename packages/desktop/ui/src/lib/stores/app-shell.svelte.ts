@@ -9,6 +9,7 @@ import type {
   SavedPortForwardConfig,
 } from "$lib/stores/bootstrap.svelte.js";
 import { createBootstrapStore } from "$lib/stores/bootstrap.svelte.js";
+import { createHostInfoStore } from "$lib/stores/host-info.svelte.js";
 import { createPortForwardStore } from "$lib/stores/port-forward.svelte.js";
 import {
   createSessionStore,
@@ -21,6 +22,7 @@ export function createAppShellStore() {
   const bootstrapStore = createBootstrapStore();
   const sessionStore = createSessionStore();
   const portForwardStore = createPortForwardStore();
+  const hostInfoStore = createHostInfoStore();
 
   let showSettings = $state(false);
   let connectionFormError = $state<string | null>(null);
@@ -180,7 +182,10 @@ export function createAppShellStore() {
     await bootstrapStore.deleteHostGroup(group);
   }
 
-  async function moveConnectionToGroup(connection: ConnectionConfig, groupId: string | null) {
+  async function moveConnectionToGroup(
+    connection: ConnectionConfig,
+    groupId: string | null,
+  ) {
     await bootstrapStore.saveConnection({
       id: connection.id,
       name: connection.name,
@@ -189,7 +194,8 @@ export function createAppShellStore() {
       port: connection.port,
       username: connection.username,
       existingKeyId: connection.sshKeyId,
-      ...(connection.auth?.kind === "password" || connection.auth?.kind === "public_key_and_password"
+      ...(connection.auth?.kind === "password" ||
+      connection.auth?.kind === "public_key_and_password"
         ? { preservedEncryptedPassword: connection.auth.password }
         : {}),
     });
@@ -272,7 +278,20 @@ export function createAppShellStore() {
         (candidate) => candidate.id === activeSession.connectionId,
       );
       if (connection) {
-        return await connectSavedConnection(connection);
+        try {
+          await sessionStore.retrySavedConnection(
+            activeSession.id,
+            connection,
+            80,
+            24,
+          );
+          void bootstrapStore
+            .recordRecentConnection(connection.id)
+            .catch(() => undefined);
+          return true;
+        } catch {
+          return false;
+        }
       }
     }
 
@@ -305,8 +324,16 @@ export function createAppShellStore() {
         algorithm: prompt.algorithm,
         fingerprint: prompt.fingerprint,
       });
-      sessionStore.removeSession(failedSessionId);
-      return await connectSavedConnection(connection);
+      await sessionStore.retrySavedConnection(
+        failedSessionId,
+        connection,
+        80,
+        24,
+      );
+      void bootstrapStore
+        .recordRecentConnection(connection.id)
+        .catch(() => undefined);
+      return true;
     } catch (error) {
       trustError = error instanceof Error ? error.message : String(error);
       return false;
@@ -327,6 +354,7 @@ export function createAppShellStore() {
     bootstrapStore,
     sessionStore,
     portForwardStore,
+    hostInfoStore,
     get showSettings() {
       return showSettings;
     },

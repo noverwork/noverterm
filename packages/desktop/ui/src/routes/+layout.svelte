@@ -76,13 +76,21 @@
     await goto("/connections");
   }
 
-  async function manageKeysFromWelcome() {
-    await goto("/keys");
+  async function goHome() {
+    app.sessionStore.setActiveSession(null);
+    await goto("/");
+  }
+
+  async function connectDashboardConnection(
+    connection: Parameters<typeof app.connectSavedConnection>[0],
+  ) {
+    await goto("/");
+    await app.connectSavedConnection(connection);
   }
 
   async function retryActiveConnection() {
-    const retried = await app.retryActiveConnection();
-    await goto(retried ? "/" : "/connections");
+    await app.retryActiveConnection();
+    await goto("/");
   }
 
   async function trustActiveHost() {
@@ -142,14 +150,14 @@
       </div>
     </div>
   {:else if app.bootstrapStore.isUnauthenticated}
-      <AuthShell
-        onLogin={app.login}
-        onSignup={app.signup}
-        onForgotPassword={app.forgotPassword}
-        onResetPassword={app.resetAccountPassword}
-        isLoading={app.bootstrapStore.isLoading}
-        error={app.bootstrapStore.error}
-      />
+    <AuthShell
+      onLogin={app.login}
+      onSignup={app.signup}
+      onForgotPassword={app.forgotPassword}
+      onResetPassword={app.resetAccountPassword}
+      isLoading={app.bootstrapStore.isLoading}
+      error={app.bootstrapStore.error}
+    />
   {:else if app.isError}
     <div
       class="auth-shell flex min-h-screen items-center justify-center px-4 py-8"
@@ -193,6 +201,7 @@
         onManageKeys={() => goto("/keys")}
         onPortForwards={() => goto("/forwards")}
         onNewConnection={() => goto("/connections")}
+        onGoHome={goHome}
         authEmail={app.bootstrapStore.authStatus?.email ?? ""}
         onOpenSettings={app.openSettings}
         onLogout={app.logout}
@@ -256,8 +265,10 @@
                 subscribeSessionOutput: app.sessionStore.subscribeSessionOutput,
               }}
               terminalConfig={app.terminalConfig}
+              connections={app.connections}
+              hostInfoStore={app.hostInfoStore}
               onOpenConnectionManager={connectFromWelcome}
-              onManageKeys={manageKeysFromWelcome}
+              onConnectConnection={connectDashboardConnection}
             />
           {:else if app.activeSession.status === "connecting"}
             <div class="flex h-full flex-col items-center justify-center p-8">
@@ -441,12 +452,14 @@
                       man-in-the-middle risk. Not updating trust automatically.
                     </p>
                   </div>
-                  <Button
-                    onclick={retryActiveConnection}
-                    class="mt-6 gap-2 rounded-2xl bg-red-300 text-red-950 hover:bg-red-200"
-                  >
-                    Retry session
-                  </Button>
+                  <div class="mt-6 flex justify-center">
+                    <Button
+                      onclick={retryActiveConnection}
+                      class="gap-2 rounded-2xl bg-red-300 px-5 text-red-950 hover:bg-red-200"
+                    >
+                      Retry session
+                    </Button>
+                  </div>
                 {:else}
                   <div
                     class="mx-auto grid size-14 place-items-center rounded-2xl bg-red-400/12 text-red-300"
@@ -461,12 +474,14 @@
                   >
                     {app.activeSession.error ?? "Unknown error"}
                   </p>
-                  <Button
-                    onclick={retryActiveConnection}
-                    class="mt-6 gap-2 rounded-2xl bg-red-300 text-red-950 hover:bg-red-200"
-                  >
-                    Retry session
-                  </Button>
+                  <div class="mt-6 flex justify-center">
+                    <Button
+                      onclick={retryActiveConnection}
+                      class="gap-2 rounded-2xl bg-red-300 px-5 text-red-950 hover:bg-red-200"
+                    >
+                      Retry session
+                    </Button>
+                  </div>
                 {/if}
               </div>
             </div>
