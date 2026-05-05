@@ -85,6 +85,7 @@ fn command_builder() -> Builder<tauri::Wry> {
         get_app_settings,
         crate::connect::ssh_connect_direct,
         crate::connect::ssh_confirm_host_trust,
+        crate::connect::ssh_probe_host_info,
         crate::connect::ssh_write,
         crate::connect::ssh_resize,
         crate::connect::ssh_disconnect,

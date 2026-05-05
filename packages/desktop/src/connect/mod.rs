@@ -7,7 +7,7 @@ use crate::runtime::port_forward::{
 };
 use crate::runtime::ssh::{
     AuthMethod, SshConnectRequest, SshConnectResponse, SshLocalPortForwardInput,
-    SshPortForwardStatus, SshSessionManager,
+    SshPortForwardStatus, SshProbeHostInfoResponse, SshSessionManager,
 };
 use crate::trust::{HostTrustConfirmation, SshTrustStore};
 
@@ -54,6 +54,26 @@ pub async fn ssh_confirm_host_trust(
     trust_store: State<'_, SshTrustStore>,
 ) -> Result<(), String> {
     trust_store.confirm(confirmation).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn ssh_probe_host_info(
+    input: DirectSshConnectInput,
+    ssh_manager: State<'_, SshSessionManager>,
+    trust_store: State<'_, SshTrustStore>,
+) -> Result<SshProbeHostInfoResponse, String> {
+    let auth_method = direct_auth_method(input.password, input.private_key, input.passphrase)?;
+
+    ssh_manager
+        .probe_host_info(
+            trust_store.inner().clone(),
+            input.host,
+            input.port,
+            input.username,
+            auth_method,
+        )
+        .await
 }
 
 #[tauri::command]

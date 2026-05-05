@@ -1,4 +1,4 @@
-use russh::client::{self, Handle, Msg};
+use russh::client::{self, AuthResult, Handle, Msg};
 use russh::keys::ssh_key::HashAlg;
 use russh::keys::ssh_key::PublicKey;
 use russh::{ChannelMsg, ChannelReadHalf, ChannelWriteHalf, Disconnect};
@@ -6,17 +6,66 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::io::copy_bidirectional;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 use tokio::task::{JoinHandle, JoinSet};
+use tokio::time::timeout;
 use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::trust::{HostTrustMismatch, HostTrustPrompt, SshTrustStore, TrustCheck};
 
-use super::keys::load_key_pair;
+use super::keys::{is_rsa_key, load_key_pair, rsa_hash_candidates};
+
+const SSH_PROBE_TIMEOUT: Duration = Duration::from_secs(8);
+const SSH_PROBE_OUTPUT_LIMIT: usize = 16 * 1024;
+
+const HOST_INFO_PROBE_COMMAND: &str = r#"sh -lc '
+hostname_value=$(hostname 2>/dev/null || uname -n 2>/dev/null || true)
+os_value=$(uname -s 2>/dev/null || true)
+cpu_usage_percent_value=""
+memory_total_bytes_value=""
+memory_used_bytes_value=""
+memory_usage_percent_value=""
+if [ -r /proc/stat ] && [ -r /proc/meminfo ]; then
+  cpu_line_1=$(awk "/^cpu / {print}" /proc/stat)
+  sleep 1
+  cpu_line_2=$(awk "/^cpu / {print}" /proc/stat)
+  cpu_usage_percent_value=$(awk -v first="$cpu_line_1" -v second="$cpu_line_2" '\''
+    BEGIN {
+      split(first, a, " "); n = split(second, b, " ");
+      idle1=a[5]+a[6]; idle2=b[5]+b[6];
+      total1=0; total2=0;
+      for (i=2; i<=n; i++) { total1 += a[i]; total2 += b[i]; }
+      total_delta=total2-total1; idle_delta=idle2-idle1;
+      if (total_delta > 0) printf "%.1f", (100 * (total_delta - idle_delta) / total_delta);
+    }
+  '\'')
+  memory_total_kb=$(awk "/MemTotal/ {print \$2; exit}" /proc/meminfo)
+  memory_available_kb=$(awk "/MemAvailable/ {print \$2; exit}" /proc/meminfo)
+  memory_total_bytes_value=$(awk -v value="$memory_total_kb" "BEGIN {if (value > 0) printf \"%.0f\", value * 1024}")
+  memory_used_bytes_value=$(awk -v total="$memory_total_kb" -v available="$memory_available_kb" "BEGIN {if (total > 0 && available >= 0) printf \"%.0f\", (total - available) * 1024}")
+  memory_usage_percent_value=$(awk -v total="$memory_total_kb" -v available="$memory_available_kb" "BEGIN {if (total > 0 && available >= 0) printf \"%.1f\", 100 * (total - available) / total}")
+elif command -v vm_stat >/dev/null 2>&1; then
+  cpu_usage_percent_value=$(top -l 1 -n 0 2>/dev/null | awk -F"," "/CPU usage/ {gsub(/[^0-9.]/, \"\", \$1); print \$1; exit}")
+  memory_total_bytes_value=$(sysctl -n hw.memsize 2>/dev/null || true)
+  page_size=$(pagesize 2>/dev/null || echo 4096)
+  pages_active=$(vm_stat 2>/dev/null | awk "/Pages active/ {gsub(/[^0-9]/, \"\", \$3); print \$3}")
+  pages_wired=$(vm_stat 2>/dev/null | awk "/Pages wired down/ {gsub(/[^0-9]/, \"\", \$4); print \$4}")
+  pages_compressed=$(vm_stat 2>/dev/null | awk "/Pages occupied by compressor/ {gsub(/[^0-9]/, \"\", \$5); print \$5}")
+  memory_used_bytes_value=$(awk -v active="$pages_active" -v wired="$pages_wired" -v compressed="$pages_compressed" -v size="$page_size" "BEGIN {printf \"%.0f\", (active + wired + compressed) * size}")
+  memory_usage_percent_value=$(awk -v used="$memory_used_bytes_value" -v total="$memory_total_bytes_value" "BEGIN {if (total > 0) printf \"%.1f\", 100 * used / total}")
+fi
+printf "hostname=%s\n" "$hostname_value"
+printf "os=%s\n" "$os_value"
+printf "cpu_usage_percent=%s\n" "$cpu_usage_percent_value"
+printf "memory_total_bytes=%s\n" "$memory_total_bytes_value"
+printf "memory_used_bytes=%s\n" "$memory_used_bytes_value"
+printf "memory_usage_percent=%s\n" "$memory_usage_percent_value"
+'"#;
 
 pub(crate) struct ClientHandler {
     host: String,
@@ -127,78 +176,7 @@ impl SshSessionManager {
         };
         info!(session_id, "TCP/SSH transport established");
 
-        match auth {
-            AuthMethod::Password(password) => {
-                info!(session_id, user, "Authenticating with password");
-                let auth_res = session
-                    .authenticate_password(user.clone(), password)
-                    .await
-                    .map_err(|e| format!("Password authentication failed: {}", e))?;
-                if !auth_res.success() {
-                    return Err("Password authentication rejected".to_string());
-                }
-                info!(session_id, user, "Password authentication succeeded");
-            }
-            AuthMethod::PublicKey {
-                private_key,
-                passphrase,
-            } => {
-                info!(session_id, user, "Authenticating with key material");
-                let key = load_key_pair(&private_key, passphrase.as_deref())?;
-                let hash_alg = session
-                    .best_supported_rsa_hash()
-                    .await
-                    .map_err(|e| format!("Failed to get supported RSA hash: {}", e))?
-                    .flatten();
-                let auth_res = session
-                    .authenticate_publickey(
-                        user.clone(),
-                        russh::keys::PrivateKeyWithHashAlg::new(Arc::new(key), hash_alg),
-                    )
-                    .await
-                    .map_err(|e| format!("Key authentication failed: {}", e))?;
-                if !auth_res.success() {
-                    return Err("Key authentication rejected".to_string());
-                }
-                info!(session_id, user, "Key authentication succeeded");
-            }
-            AuthMethod::PublicKeyAndPassword {
-                private_key,
-                passphrase,
-                password,
-            } => {
-                info!(
-                    session_id,
-                    user, "Authenticating with key + password material"
-                );
-                let key = load_key_pair(&private_key, passphrase.as_deref())?;
-                let hash_alg = session
-                    .best_supported_rsa_hash()
-                    .await
-                    .map_err(|e| format!("Failed to get supported RSA hash: {}", e))?
-                    .flatten();
-                let auth_res = session
-                    .authenticate_publickey(
-                        user.clone(),
-                        russh::keys::PrivateKeyWithHashAlg::new(Arc::new(key), hash_alg),
-                    )
-                    .await
-                    .map_err(|e| format!("Key authentication failed: {}", e))?;
-                if auth_res.success() {
-                    info!(session_id, user, "Key authentication succeeded");
-                } else {
-                    info!(session_id, user, "Key auth partial, trying password");
-                    let auth_res2 = session
-                        .authenticate_password(user.clone(), password)
-                        .await
-                        .map_err(|e| format!("Password authentication failed: {}", e))?;
-                    if !auth_res2.success() {
-                        return Err("Key + password authentication rejected".to_string());
-                    }
-                    info!(session_id, user, "Key + password authentication succeeded");
-                }
-            }
-        }
+        authenticate_session(&mut session, &user, auth, &session_id).await?;
 
         info!(session_id, "Opening SSH session channel");
         let channel = session
@@ -242,6 +220,60 @@ impl SshSessionManager {
 
         info!(session_id, "SSH session established");
         Ok(SshConnectResponse::Connected { session_id })
+    }
+
+    pub async fn probe_host_info(
+        &self,
+        trust_store: SshTrustStore,
+        host: String,
+        port: u16,
+        user: String,
+        auth: AuthMethod,
+    ) -> Result<SshProbeHostInfoResponse, String> {
+        let probe_id = Uuid::new_v4().to_string();
+        info!(probe_id, host, port, user, "Starting SSH host info probe");
+
+        let config = client::Config {
+            inactivity_timeout: Some(SSH_PROBE_TIMEOUT),
+            ..<_>::default()
+        };
+        let config = Arc::new(config);
+        let trust_check = Arc::new(Mutex::new(None));
+        let handler = ClientHandler::new(host.clone(), port, trust_store, trust_check.clone());
+
+        let connect_result = timeout(
+            SSH_PROBE_TIMEOUT,
+            client::connect(config, (host.clone(), port), handler),
+        )
+        .await
+        .map_err(|_| "SSH probe timed out while connecting".to_string())?;
+
+        let mut session = match connect_result {
+            Ok(session) => session,
+            Err(error) => return map_probe_connect_error(error, trust_check).await,
+        };
+
+        authenticate_session(&mut session, &user, auth, &probe_id).await?;
+
+        let mut channel = timeout(SSH_PROBE_TIMEOUT, session.channel_open_session())
+            .await
+            .map_err(|_| "SSH probe timed out while opening channel".to_string())?
+            .map_err(|error| format!("Failed to open probe channel: {error}"))?;
+
+        timeout(
+            SSH_PROBE_TIMEOUT,
+            channel.exec(true, HOST_INFO_PROBE_COMMAND.to_string()),
+        )
+        .await
+        .map_err(|_| "SSH probe timed out while starting command".to_string())?
+        .map_err(|error| format!("Failed to start host info probe: {error}"))?;
+
+        let output = collect_probe_output(&mut channel).await?;
+        let _ = channel.close().await;
+
+        Ok(SshProbeHostInfoResponse::Success {
+            info: parse_host_system_info(&output),
+        })
     }
 
     pub async fn write(&self, session_id: &str, data: Vec<u8>) -> Result<(), String> {
@@ -411,6 +443,127 @@ impl SshSession {
             })
             .collect()
     }
+}
+
+enum PublicKeyAuthOutcome {
+    Success,
+    PartialSuccess,
+    Rejected,
+}
+
+async fn authenticate_session(
+    session: &mut Handle<ClientHandler>,
+    user: &str,
+    auth: AuthMethod,
+    session_id: &str,
+) -> Result<(), String> {
+    match auth {
+        AuthMethod::Password(password) => {
+            info!(session_id, user, "Authenticating with password");
+            let auth_res = session
+                .authenticate_password(user.to_string(), password)
+                .await
+                .map_err(|error| format!("Password authentication failed: {error}"))?;
+            if !auth_res.success() {
+                return Err("Password authentication rejected".to_string());
+            }
+            info!(session_id, user, "Password authentication succeeded");
+        }
+        AuthMethod::PublicKey {
+            private_key,
+            passphrase,
+        } => {
+            info!(session_id, user, "Authenticating with key material");
+            let key = load_key_pair(&private_key, passphrase.as_deref())?;
+            match authenticate_public_key(session, user, key, session_id).await? {
+                PublicKeyAuthOutcome::Success => {
+                    info!(session_id, user, "Key authentication succeeded");
+                }
+                PublicKeyAuthOutcome::PartialSuccess => {
+                    return Err(
+                        "Key authentication accepted but requires additional authentication"
+                            .to_string(),
+                    );
+                }
+                PublicKeyAuthOutcome::Rejected => {
+                    return Err("Key authentication rejected".to_string());
+                }
+            }
+        }
+        AuthMethod::PublicKeyAndPassword {
+            private_key,
+            passphrase,
+            password,
+        } => {
+            info!(
+                session_id,
+                user, "Authenticating with key + password material"
+            );
+            let key = load_key_pair(&private_key, passphrase.as_deref())?;
+            match authenticate_public_key(session, user, key, session_id).await? {
+                PublicKeyAuthOutcome::Success => {
+                    info!(session_id, user, "Key authentication succeeded");
+                }
+                PublicKeyAuthOutcome::PartialSuccess | PublicKeyAuthOutcome::Rejected => {
+                    info!(session_id, user, "Trying password after key authentication");
+                    let auth_res = session
+                        .authenticate_password(user.to_string(), password)
+                        .await
+                        .map_err(|error| format!("Password authentication failed: {error}"))?;
+                    if !auth_res.success() {
+                        return Err("Key + password authentication rejected".to_string());
+                    }
+                    info!(session_id, user, "Key + password authentication succeeded");
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn authenticate_public_key(
+    session: &mut Handle<ClientHandler>,
+    user: &str,
+    key: russh::keys::PrivateKey,
+    session_id: &str,
+) -> Result<PublicKeyAuthOutcome, String> {
+    let hash_candidates = if is_rsa_key(&key) {
+        let server_best = session
+            .best_supported_rsa_hash()
+            .await
+            .map_err(|error| format!("Failed to get supported RSA hash: {error}"))?;
+        rsa_hash_candidates(server_best)
+    } else {
+        vec![None]
+    };
+    let key = Arc::new(key);
+
+    for hash_alg in hash_candidates {
+        info!(
+            session_id,
+            user,
+            rsa_hash_alg = ?hash_alg,
+            "Trying public key authentication"
+        );
+        let auth_res = session
+            .authenticate_publickey(
+                user.to_string(),
+                russh::keys::PrivateKeyWithHashAlg::new(key.clone(), hash_alg),
+            )
+            .await
+            .map_err(|error| format!("Key authentication failed: {error}"))?;
+        match auth_res {
+            AuthResult::Success => return Ok(PublicKeyAuthOutcome::Success),
+            AuthResult::Failure {
+                partial_success: true,
+                ..
+            } => return Ok(PublicKeyAuthOutcome::PartialSuccess),
+            AuthResult::Failure { .. } => {}
+        }
+    }
+
+    Ok(PublicKeyAuthOutcome::Rejected)
 }
 
 async fn read_loop(
@@ -642,6 +795,24 @@ pub enum SshConnectResponse {
     TrustMismatch { mismatch: HostTrustMismatch },
 }
 
+#[derive(Debug, Clone, Serialize, specta::Type)]
+pub struct HostSystemInfo {
+    pub hostname: Option<String>,
+    pub os: Option<String>,
+    pub cpu_usage_percent: Option<f64>,
+    pub memory_total_bytes: Option<f64>,
+    pub memory_used_bytes: Option<f64>,
+    pub memory_usage_percent: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum SshProbeHostInfoResponse {
+    Success { info: HostSystemInfo },
+    TrustRequired { prompt: HostTrustPrompt },
+    TrustMismatch { mismatch: HostTrustMismatch },
+}
+
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 pub struct SshLocalPortForwardInput {
     pub session_id: String,
@@ -733,6 +904,103 @@ fn emit_port_forward_event(app: &AppHandle, status: &SshPortForwardStatus) {
             "Failed to emit ssh_port_forward: {}",
             e
         );
+    }
+}
+
+async fn collect_probe_output(channel: &mut russh::Channel<Msg>) -> Result<String, String> {
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+    let mut exit_status: Option<u32> = None;
+
+    let collect = async {
+        while let Some(message) = channel.wait().await {
+            match message {
+                ChannelMsg::Data { data } => {
+                    if stdout.len() + data.len() > SSH_PROBE_OUTPUT_LIMIT {
+                        return Err("SSH probe output exceeded limit".to_string());
+                    }
+                    stdout.extend_from_slice(&data);
+                }
+                ChannelMsg::ExtendedData { data, .. } => {
+                    if stderr.len() + data.len() > SSH_PROBE_OUTPUT_LIMIT {
+                        return Err("SSH probe error output exceeded limit".to_string());
+                    }
+                    stderr.extend_from_slice(&data);
+                }
+                ChannelMsg::ExitStatus {
+                    exit_status: status,
+                } => {
+                    exit_status = Some(status);
+                }
+                ChannelMsg::Eof | ChannelMsg::Close => break,
+                _ => {}
+            }
+        }
+
+        Ok::<(), String>(())
+    };
+
+    timeout(SSH_PROBE_TIMEOUT, collect)
+        .await
+        .map_err(|_| "SSH probe timed out while reading output".to_string())??;
+
+    if !matches!(exit_status, None | Some(0)) {
+        let stderr = String::from_utf8_lossy(&stderr).trim().to_string();
+        if stderr.is_empty() {
+            return Err(format!(
+                "SSH probe exited with status {}",
+                exit_status.unwrap_or(1)
+            ));
+        }
+        return Err(format!(
+            "SSH probe exited with status {}: {stderr}",
+            exit_status.unwrap_or(1)
+        ));
+    }
+
+    Ok(String::from_utf8_lossy(&stdout).to_string())
+}
+
+fn parse_host_system_info(output: &str) -> HostSystemInfo {
+    let value = |key: &str| {
+        output.lines().find_map(|line| {
+            let (candidate_key, candidate_value) = line.split_once('=')?;
+            if candidate_key == key {
+                let value = candidate_value.trim();
+                if value.is_empty() {
+                    None
+                } else {
+                    Some(value.to_string())
+                }
+            } else {
+                None
+            }
+        })
+    };
+
+    HostSystemInfo {
+        hostname: value("hostname"),
+        os: value("os"),
+        cpu_usage_percent: value("cpu_usage_percent").and_then(|value| value.parse::<f64>().ok()),
+        memory_total_bytes: value("memory_total_bytes").and_then(|value| value.parse::<f64>().ok()),
+        memory_used_bytes: value("memory_used_bytes").and_then(|value| value.parse::<f64>().ok()),
+        memory_usage_percent: value("memory_usage_percent")
+            .and_then(|value| value.parse::<f64>().ok()),
+    }
+}
+
+async fn map_probe_connect_error(
+    error: russh::Error,
+    trust_check: Arc<Mutex<Option<TrustCheck>>>,
+) -> Result<SshProbeHostInfoResponse, String> {
+    match trust_check.lock().await.clone() {
+        Some(TrustCheck::TrustRequired(prompt)) => {
+            Ok(SshProbeHostInfoResponse::TrustRequired { prompt })
+        }
+        Some(TrustCheck::TrustMismatch(mismatch)) => {
+            Ok(SshProbeHostInfoResponse::TrustMismatch { mismatch })
+        }
+        Some(TrustCheck::Trusted) | None => Err(format!("Failed to connect: {error}")),
     }
 }
 
