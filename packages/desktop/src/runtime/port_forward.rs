@@ -1,4 +1,4 @@
-use russh::client::{self, Handle};
+use russh::client::{self, AuthResult, Handle};
 use russh::keys::ssh_key::HashAlg;
 use russh::keys::ssh_key::PublicKey;
 use russh::Disconnect;
@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::trust::{SshTrustStore, TrustCheck};
 
-use super::keys::load_key_pair;
+use super::keys::{is_rsa_key, load_key_pair, rsa_hash_candidates};
 
 struct ClientHandler {
     host: String,
@@ -447,20 +447,17 @@ async fn authenticate(
             passphrase,
         } => {
             let key = load_key_pair(private_key, passphrase.as_deref())?;
-            let hash_alg = session
-                .best_supported_rsa_hash()
-                .await
-                .map_err(|e| format!("Failed to get supported RSA hash: {}", e))?
-                .flatten();
-            let auth_res = session
-                .authenticate_publickey(
-                    input.username.clone(),
-                    russh::keys::PrivateKeyWithHashAlg::new(Arc::new(key), hash_alg),
-                )
-                .await
-                .map_err(|e| format!("Key authentication failed: {}", e))?;
-            if !auth_res.success() {
-                return Err("Key authentication rejected".to_string());
+            match authenticate_public_key(session, &input.username, key).await? {
+                PublicKeyAuthOutcome::Success => {}
+                PublicKeyAuthOutcome::PartialSuccess => {
+                    return Err(
+                        "Key authentication accepted but requires additional authentication"
+                            .to_string(),
+                    );
+                }
+                PublicKeyAuthOutcome::Rejected => {
+                    return Err("Key authentication rejected".to_string());
+                }
             }
         }
         PortForwardAuth::PublicKeyAndPassword {
@@ -469,33 +466,68 @@ async fn authenticate(
             password,
         } => {
             let key = load_key_pair(private_key, passphrase.as_deref())?;
-            let hash_alg = session
-                .best_supported_rsa_hash()
-                .await
-                .map_err(|e| format!("Failed to get supported RSA hash: {}", e))?
-                .flatten();
-            let auth_res = session
-                .authenticate_publickey(
-                    input.username.clone(),
-                    russh::keys::PrivateKeyWithHashAlg::new(Arc::new(key), hash_alg),
-                )
-                .await
-                .map_err(|e| format!("Key authentication failed: {}", e))?;
-            if auth_res.success() {
-                info!("Key authentication succeeded");
-            } else {
-                info!("Key auth partial, trying password");
-                let auth_res2 = session
-                    .authenticate_password(input.username.clone(), password)
-                    .await
-                    .map_err(|e| format!("Password authentication failed: {}", e))?;
-                if !auth_res2.success() {
-                    return Err("Key + password authentication rejected".to_string());
+            match authenticate_public_key(session, &input.username, key).await? {
+                PublicKeyAuthOutcome::Success => {
+                    info!("Key authentication succeeded");
+                }
+                PublicKeyAuthOutcome::PartialSuccess | PublicKeyAuthOutcome::Rejected => {
+                    info!("Trying password after key authentication");
+                    let auth_res2 = session
+                        .authenticate_password(input.username.clone(), password)
+                        .await
+                        .map_err(|e| format!("Password authentication failed: {}", e))?;
+                    if !auth_res2.success() {
+                        return Err("Key + password authentication rejected".to_string());
+                    }
                 }
             }
         }
     }
     Ok(())
+}
+
+enum PublicKeyAuthOutcome {
+    Success,
+    PartialSuccess,
+    Rejected,
+}
+
+async fn authenticate_public_key(
+    session: &mut Handle<ClientHandler>,
+    username: &str,
+    key: russh::keys::PrivateKey,
+) -> Result<PublicKeyAuthOutcome, String> {
+    let hash_candidates = if is_rsa_key(&key) {
+        let server_best = session
+            .best_supported_rsa_hash()
+            .await
+            .map_err(|error| format!("Failed to get supported RSA hash: {error}"))?;
+        rsa_hash_candidates(server_best)
+    } else {
+        vec![None]
+    };
+    let key = Arc::new(key);
+
+    for hash_alg in hash_candidates {
+        info!(username, rsa_hash_alg = ?hash_alg, "Trying port-forward public key authentication");
+        let auth_res = session
+            .authenticate_publickey(
+                username.to_string(),
+                russh::keys::PrivateKeyWithHashAlg::new(key.clone(), hash_alg),
+            )
+            .await
+            .map_err(|error| format!("Key authentication failed: {error}"))?;
+        match auth_res {
+            AuthResult::Success => return Ok(PublicKeyAuthOutcome::Success),
+            AuthResult::Failure {
+                partial_success: true,
+                ..
+            } => return Ok(PublicKeyAuthOutcome::PartialSuccess),
+            AuthResult::Failure { .. } => {}
+        }
+    }
+
+    Ok(PublicKeyAuthOutcome::Rejected)
 }
 
 fn normalize_input(input: PortForwardCreateInput) -> Result<PortForwardCreateInput, String> {
