@@ -108,11 +108,32 @@
 
     const gib = bytes / 1024 / 1024 / 1024;
     if (gib >= 1) {
-      return `${gib.toFixed(gib >= 10 ? 0 : 1)} GB`;
+      return `${gib.toFixed(gib >= 10 ? 0 : 1)} GiB`;
     }
 
     const mib = bytes / 1024 / 1024;
-    return `${mib.toFixed(0)} MB`;
+    return `${mib.toFixed(0)} MiB`;
+  }
+
+  function formatBytesPerSecond(bytes?: number | null): string {
+    if (bytes === undefined || bytes === null || bytes < 0) {
+      return "--";
+    }
+
+    const units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"] as const;
+    let value = bytes;
+    let unitIndex = 0;
+
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex += 1;
+    }
+
+    if (unitIndex === 0) {
+      return `${Math.round(value)} ${units[unitIndex]}/s`;
+    }
+
+    return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}/s`;
   }
 
   function formatPercent(value?: number | null): string {
@@ -213,12 +234,12 @@
     class="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between"
   >
     <div>
-      <p class="section-title text-cyan-200/70">Home</p>
+      <p class="section-title text-cyan-200/70">Dashboard</p>
       <h1 class="mt-2 text-xl font-semibold tracking-tight text-white">
         Machines
       </h1>
       <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-        CPU and RAM usage from short SSH probes. No terminal session is opened.
+        CPU, RAM, disk, and network activity from short SSH probes.
       </p>
     </div>
     <Button
@@ -302,6 +323,60 @@
                 )}
               </p>
             </div>
+            <div class="rounded-2xl border border-white/8 bg-black/15 p-3">
+              <div class="flex items-center justify-between text-slate-500">
+                <span
+                  class="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em]"
+                >
+                  <HardDrive class="size-3.5" />Disk I/O
+                </span>
+              </div>
+              <div class="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+                <div class="min-w-0">
+                  <p class="uppercase tracking-[0.16em] text-slate-600">Read</p>
+                  <p class="truncate font-semibold text-blue-100">
+                    {formatBytesPerSecond(
+                      entry.info?.disk_read_bytes_per_second,
+                    )}
+                  </p>
+                </div>
+                <div class="min-w-0">
+                  <p class="uppercase tracking-[0.16em] text-slate-600">Write</p>
+                  <p class="truncate font-semibold text-violet-100">
+                    {formatBytesPerSecond(
+                      entry.info?.disk_write_bytes_per_second,
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="rounded-2xl border border-white/8 bg-black/15 p-3">
+              <div class="flex items-center justify-between text-slate-500">
+                <span
+                  class="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em]"
+                >
+                  <Server class="size-3.5" />Network I/O
+                </span>
+              </div>
+              <div class="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+                <div class="min-w-0">
+                  <p class="uppercase tracking-[0.16em] text-slate-600">RX</p>
+                  <p class="truncate font-semibold text-sky-100">
+                    {formatBytesPerSecond(
+                      entry.info?.network_rx_bytes_per_second,
+                    )}
+                  </p>
+                </div>
+                <div class="min-w-0">
+                  <p class="uppercase tracking-[0.16em] text-slate-600">TX</p>
+                  <p class="truncate font-semibold text-fuchsia-100">
+                    {formatBytesPerSecond(
+                      entry.info?.network_tx_bytes_per_second,
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {#if entry.status === "trust_required" && entry.prompt}
@@ -378,7 +453,7 @@
       <Server class="mx-auto size-8 text-cyan-200/80" />
       <h2 class="mt-4 text-lg font-semibold text-white">No machines yet</h2>
       <p class="mt-2 text-sm text-slate-500">
-        Add a saved SSH connection to show machine details on Home.
+        Add a saved SSH connection to show machine details on Dashboard.
       </p>
       <Button class="mt-5 rounded-2xl" onclick={onOpenConnectionManager}>
         Add connection

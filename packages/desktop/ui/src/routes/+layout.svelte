@@ -38,6 +38,9 @@
 
   const routePath = $derived($page.url.pathname);
   const isTerminalRoute = $derived(routePath === "/");
+  const isTerminalVisible = $derived(
+    isTerminalRoute && app.activeSession?.status === "connected",
+  );
   const activeSidebarSection = $derived.by(() => {
     if (routePath.startsWith("/connections")) {
       return "hosts";
@@ -215,8 +218,7 @@
         <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
           {#if app.mountedTerminalSessions.length > 0}
             <div
-              class={isTerminalRoute &&
-              app.activeSession?.status === "connected"
+              class={isTerminalVisible
                 ? "relative z-0 flex h-full min-h-0 flex-1 flex-col overflow-hidden p-3"
                 : "pointer-events-none absolute inset-0 z-0 flex min-h-0 flex-col overflow-hidden p-3 opacity-0"}
             >
@@ -225,14 +227,15 @@
               >
                 {#each app.mountedTerminalSessions as session (session.id)}
                   <div
-                    class={session.id === app.visibleTerminalSessionId
+                    class={isTerminalVisible &&
+                    session.id === app.visibleTerminalSessionId
                       ? "absolute inset-0 z-10 min-h-0 overflow-hidden opacity-100 pointer-events-auto"
                       : "absolute inset-0 z-0 min-h-0 overflow-hidden opacity-0 pointer-events-none"}
                   >
                     <TerminalView
                       sessionId={session.id}
                       sessionType={session.type}
-                      active={isTerminalRoute &&
+                      active={isTerminalVisible &&
                         session.id === app.visibleTerminalSessionId}
                       config={app.terminalConfig}
                       subscribeOutput={(callback) =>
