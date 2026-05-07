@@ -221,16 +221,6 @@
         <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
           {#if isTerminalRoute}
             <WelcomeView
-              sessions={app.sessionStore.sessions}
-              sessionStore={{
-                sessions: app.sessionStore.sessions,
-                activeSessionId: app.sessionStore.activeSessionId,
-                setActiveSession: app.sessionStore.setActiveSession,
-                connectLocal: (name: string) =>
-                  app.sessionStore.connectLocal(name),
-                subscribeSessionOutput: app.sessionStore.subscribeSessionOutput,
-              }}
-              terminalConfig={app.terminalConfig}
               connections={app.connections}
               hostInfoStore={app.hostInfoStore}
               onOpenConnectionManager={connectFromWelcome}

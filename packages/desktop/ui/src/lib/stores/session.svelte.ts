@@ -28,6 +28,11 @@ export interface TerminalOutputPayload {
 
 export type TerminalOutputCallback = (payload: TerminalOutputPayload) => void;
 
+interface TerminalTranscript {
+  chunks: number[][];
+  byteLength: number;
+}
+
 export interface DirectConnectionInput {
   host: string;
   port: number;
@@ -80,22 +85,52 @@ let portForwardEventUnlisten: UnlistenFn | null = null;
 let initPromise: Promise<void> | null = null;
 
 const pendingOutput = new SvelteMap<string, TerminalOutputPayload[]>();
+const terminalTranscripts = new SvelteMap<string, TerminalTranscript>();
 const outputSubscribers = new SvelteMap<
   string,
   SvelteSet<TerminalOutputCallback>
 >();
+
+const MAX_TRANSCRIPT_BYTES_PER_SESSION = 10 * 1024 * 1024;
+
+function appendTerminalTranscript(payload: TerminalOutputPayload) {
+  if (payload.output.length === 0) {
+    return;
+  }
+
+  const transcript = terminalTranscripts.get(payload.session_id) ?? {
+    chunks: [],
+    byteLength: 0,
+  };
+  transcript.chunks.push(payload.output);
+  transcript.byteLength += payload.output.length;
+
+  while (
+    transcript.byteLength > MAX_TRANSCRIPT_BYTES_PER_SESSION &&
+    transcript.chunks.length > 0
+  ) {
+    const [removedChunk] = transcript.chunks.splice(0, 1);
+    transcript.byteLength -= removedChunk.length;
+  }
+
+  terminalTranscripts.set(payload.session_id, transcript);
+}
 
 function updatePortForward(status: LocalPortForward) {
   state.portForwards.set(status.forward_id, status);
 }
 
 function handleTerminalOutput(payload: TerminalOutputPayload) {
+  if (!payload.closed) {
+    appendTerminalTranscript(payload);
+  }
+
   const subscribers = outputSubscribers.get(payload.session_id);
   if (subscribers && subscribers.size > 0) {
     for (const subscriber of subscribers) {
       subscriber(payload);
     }
-  } else {
+  } else if (payload.closed) {
     const output = pendingOutput.get(payload.session_id) ?? [];
     output.push(payload);
     pendingOutput.set(payload.session_id, output);
@@ -228,6 +263,7 @@ export function createSessionStore() {
   function removeSession(id: string) {
     state.sessions.delete(id);
     pendingOutput.delete(id);
+    terminalTranscripts.delete(id);
     outputSubscribers.delete(id);
     for (const [forwardId, forward] of state.portForwards.entries()) {
       if (forward.session_id === id) {
@@ -269,6 +305,13 @@ export function createSessionStore() {
       new SvelteSet<TerminalOutputCallback>();
     subscribers.add(callback);
     outputSubscribers.set(sessionId, subscribers);
+
+    const transcript = terminalTranscripts.get(sessionId);
+    if (transcript) {
+      for (const output of transcript.chunks) {
+        callback({ session_id: sessionId, output, closed: false });
+      }
+    }
 
     const buffered = pendingOutput.get(sessionId);
     if (buffered) {
@@ -597,6 +640,7 @@ export function createSessionStore() {
     }
     initPromise = null;
     pendingOutput.clear();
+    terminalTranscripts.clear();
     outputSubscribers.clear();
   }
 

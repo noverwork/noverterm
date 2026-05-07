@@ -182,10 +182,6 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       revealFrame = null;
       if (!terminal || disposed) return;
 
-      if (terminal.buffer.active.type !== "alternate") {
-        terminal.scrollToBottom();
-      }
-
       refresh();
       terminal.focus();
     });
