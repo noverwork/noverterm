@@ -37,7 +37,8 @@
   setAppShellContext(app);
 
   const routePath = $derived($page.url.pathname);
-  const isTerminalRoute = $derived(routePath === "/");
+  const dashboardPath = "/dashboard";
+  const isTerminalRoute = $derived(routePath === dashboardPath);
   const isTerminalVisible = $derived(
     isTerminalRoute && app.activeSession?.status === "connected",
   );
@@ -67,12 +68,12 @@
 
   async function activateSession(id: string) {
     app.activateSession(id);
-    await goto("/");
+    await goto(dashboardPath);
   }
 
   async function openLocalTerminal() {
     await app.connectLocalTerminal();
-    await goto("/");
+    await goto(dashboardPath);
   }
 
   async function connectFromWelcome() {
@@ -81,25 +82,25 @@
 
   async function goHome() {
     app.sessionStore.setActiveSession(null);
-    await goto("/");
+    await goto(dashboardPath);
   }
 
   async function connectDashboardConnection(
     connection: Parameters<typeof app.connectSavedConnection>[0],
   ) {
-    await goto("/");
+    await goto(dashboardPath);
     await app.connectSavedConnection(connection);
   }
 
   async function retryActiveConnection() {
     await app.retryActiveConnection();
-    await goto("/");
+    await goto(dashboardPath);
   }
 
   async function trustActiveHost() {
     const trusted = await app.trustActiveHost();
     if (trusted) {
-      await goto("/");
+      await goto(dashboardPath);
     }
   }
 
@@ -120,7 +121,7 @@
 
     if (mod && (event.key === "t" || event.key === "T") && !isInput) {
       event.preventDefault();
-      void goto("/");
+      void goto(dashboardPath);
       return;
     }
 
