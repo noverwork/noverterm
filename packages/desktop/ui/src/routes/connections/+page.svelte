@@ -8,7 +8,7 @@
   const app = getAppShellContext();
 
   async function handleSelectConnection(connection: ConnectionConfig) {
-    await goto("/");
+    await goto("/terminal");
     await app.connectSavedConnection(connection);
   }
 

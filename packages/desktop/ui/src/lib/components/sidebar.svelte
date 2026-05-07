@@ -132,7 +132,7 @@
       type="button"
       class="flex min-w-0 cursor-pointer items-center gap-3 rounded-2xl text-left transition-colors hover:bg-white/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/30"
       onclick={onGoHome}
-      aria-label="Go to Dashboard"
+      aria-label="Go to Connections"
     >
       <div
         class="grid size-10 shrink-0 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-300/12 text-cyan-100 shadow-[0_0_24px_rgb(34_211_238/0.14)] ring-1 ring-cyan-200/5"

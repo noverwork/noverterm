@@ -10,7 +10,6 @@
   import AuthShell from "$lib/components/auth-shell.svelte";
   import SettingsModal from "$lib/components/settings-modal.svelte";
   import Sidebar from "$lib/components/sidebar.svelte";
-  import WelcomeView from "$lib/components/welcome-view.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import {
     createAppShellStore,
@@ -37,8 +36,9 @@
   setAppShellContext(app);
 
   const routePath = $derived($page.url.pathname);
-  const dashboardPath = "/dashboard";
-  const isTerminalRoute = $derived(routePath === dashboardPath);
+  const connectionsPath = "/connections";
+  const terminalPath = "/terminal";
+  const isTerminalRoute = $derived(routePath === terminalPath);
   const isTerminalVisible = $derived(
     isTerminalRoute &&
       (app.activeSession?.status === "connected" ||
@@ -70,39 +70,28 @@
 
   async function activateSession(id: string) {
     app.activateSession(id);
-    await goto(dashboardPath);
+    await goto(terminalPath);
   }
 
   async function openLocalTerminal() {
     await app.connectLocalTerminal();
-    await goto(dashboardPath);
-  }
-
-  async function connectFromWelcome() {
-    await goto("/connections");
+    await goto(terminalPath);
   }
 
   async function goHome() {
     app.sessionStore.setActiveSession(null);
-    await goto(dashboardPath);
-  }
-
-  async function connectDashboardConnection(
-    connection: Parameters<typeof app.connectSavedConnection>[0],
-  ) {
-    await goto(dashboardPath);
-    await app.connectSavedConnection(connection);
+    await goto(connectionsPath);
   }
 
   async function retryActiveConnection() {
     await app.retryActiveConnection();
-    await goto(dashboardPath);
+    await goto(terminalPath);
   }
 
   async function trustActiveHost() {
     const trusted = await app.trustActiveHost();
     if (trusted) {
-      await goto(dashboardPath);
+      await goto(terminalPath);
     }
   }
 
@@ -123,7 +112,7 @@
 
     if (mod && (event.key === "t" || event.key === "T") && !isInput) {
       event.preventDefault();
-      void goto(dashboardPath);
+      void goto(terminalPath);
       return;
     }
 
@@ -219,16 +208,7 @@
 
       <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-[#080c13]/72">
         <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-          {#if isTerminalRoute}
-            <WelcomeView
-              connections={app.connections}
-              hostInfoStore={app.hostInfoStore}
-              onOpenConnectionManager={connectFromWelcome}
-              onConnectConnection={connectDashboardConnection}
-            />
-          {:else}
-            {@render children()}
-          {/if}
+          {@render children()}
 
           {#if isTerminalRoute && app.mountedTerminalSessions.length > 0}
             <div
