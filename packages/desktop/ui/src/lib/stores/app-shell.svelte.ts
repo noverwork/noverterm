@@ -47,7 +47,7 @@ export function createAppShellStore() {
 
   const mountedTerminalSessions = $derived(
     activeSessions.filter(
-      (session) => session.status === "connected",
+      (session) => session.status === "connected" || session.status === "connecting",
     ) as Session[],
   );
 
@@ -57,7 +57,10 @@ export function createAppShellStore() {
   const keys = $derived(bootstrapStore.getKeys());
 
   $effect(() => {
-    if (activeSession?.status === "connected") {
+    if (
+      activeSession?.status === "connected" ||
+      activeSession?.status === "connecting"
+    ) {
       if (visibleTerminalSessionId !== activeSession.id) {
         visibleTerminalSessionId = activeSession.id;
       }

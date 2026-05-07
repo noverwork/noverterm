@@ -72,6 +72,11 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   const writeCmd = sessionType === "local" ? "local_write" : "ssh_write";
   const resizeCmd = sessionType === "local" ? "local_resize" : "ssh_resize";
 
+  function sendInput(data: string) {
+    options.onOutput?.(data);
+    invoke(writeCmd, { sessionId, data }).catch(() => void 0);
+  }
+
   function syncInitialSize() {
     if (!terminal || !fitAddon || initialSizeSynced || disposed) return;
 
@@ -129,8 +134,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
 
     terminal.onData((data) => {
       console.info("[xterm:input]", { sessionId, bytes: data.length });
-      options.onOutput?.(data);
-      invoke(writeCmd, { sessionId, data }).catch(() => void 0);
+      sendInput(data);
     });
 
     terminal.onSelectionChange(() => {
@@ -148,7 +152,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
         if (payload.closed) {
           options.onClose?.();
         } else {
-          terminal.write(payload.output);
+          terminal.write(new Uint8Array(payload.output));
         }
       }) ?? null;
   }

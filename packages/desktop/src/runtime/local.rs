@@ -79,14 +79,14 @@ impl LocalSessionManager {
                             "local_output",
                             LocalOutputEvent {
                                 session_id: sid.clone(),
-                                output: String::new(),
+                                output: Vec::new(),
                                 closed: true,
                             },
                         );
                         break;
                     }
                     Ok(n) => {
-                        let output = String::from_utf8_lossy(&buf[..n]).to_string();
+                        let output = buf[..n].to_vec();
                         if let Err(e) = app_clone.emit(
                             "local_output",
                             LocalOutputEvent {
@@ -104,7 +104,7 @@ impl LocalSessionManager {
                             "local_output",
                             LocalOutputEvent {
                                 session_id: sid.clone(),
-                                output: String::new(),
+                                output: Vec::new(),
                                 closed: true,
                             },
                         );
@@ -182,7 +182,7 @@ impl LocalSessionManager {
 #[derive(Clone, Serialize)]
 pub struct LocalOutputEvent {
     pub session_id: String,
-    pub output: String,
+    pub output: Vec<u8>,
     pub closed: bool,
 }
 

@@ -40,7 +40,9 @@
   const dashboardPath = "/dashboard";
   const isTerminalRoute = $derived(routePath === dashboardPath);
   const isTerminalVisible = $derived(
-    isTerminalRoute && app.activeSession?.status === "connected",
+    isTerminalRoute &&
+      (app.activeSession?.status === "connected" ||
+        app.activeSession?.status === "connecting"),
   );
   const activeSidebarSection = $derived.by(() => {
     if (routePath.startsWith("/connections")) {
@@ -270,26 +272,21 @@
                           status: "disconnected",
                         })}
                     />
+                    {#if session.status === "connecting"}
+                      <div class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#080c13]/90">
+                        <Loader2
+                          class="mb-4 size-8 animate-spin text-amber-200"
+                        />
+                        <p class="text-sm font-semibold text-white">
+                          Connecting to {session.name}
+                        </p>
+                        <p class="mt-2 text-xs text-slate-500">
+                          Negotiating terminal session…
+                        </p>
+                      </div>
+                    {/if}
                   </div>
                 {/each}
-              </div>
-            </div>
-          {/if}
-
-          {#if isTerminalRoute && app.activeSession?.status === "connecting"}
-            <div class="absolute inset-0 z-20 flex h-full flex-col items-center justify-center p-8">
-              <div
-                class="rounded-[2rem] border border-amber-300/15 bg-amber-300/8 p-8 text-center shadow-2xl shadow-black/30"
-              >
-                <Loader2
-                  class="mx-auto mb-4 size-8 animate-spin text-amber-200"
-                />
-                <p class="text-sm font-semibold text-white">
-                  Connecting to {app.activeSession.name}
-                </p>
-                <p class="mt-2 text-xs text-slate-500">
-                  Negotiating terminal session…
-                </p>
               </div>
             </div>
           {/if}

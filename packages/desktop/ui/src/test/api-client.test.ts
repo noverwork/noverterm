@@ -205,6 +205,7 @@ describe("api client URL composition", () => {
 
   it("does not refresh after tokens are cleared during an authorized request", async () => {
     vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-04T11:00:00Z"));
     mockInvoke.mockResolvedValue({ api_url: "https://noverterm.noverwork.com" });
     mockLoadStoredAuthTokens.mockResolvedValue({
       access_token: "valid-access.jwt",

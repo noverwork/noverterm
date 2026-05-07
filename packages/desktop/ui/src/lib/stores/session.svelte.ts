@@ -22,7 +22,7 @@ export type SessionStatus =
 
 export interface TerminalOutputPayload {
   session_id: string;
-  output: string;
+  output: number[];
   closed: boolean;
 }
 

@@ -679,7 +679,7 @@ async fn read_loop(
             Some(msg) => match msg {
                 ChannelMsg::Data { ref data } => {
                     info!(session_id, bytes = data.len(), "Received SSH output chunk");
-                    let output = String::from_utf8_lossy(data).to_string();
+                    let output = data.to_vec();
                     let event = SshOutputEvent {
                         session_id: session_id.clone(),
                         output,
@@ -693,7 +693,7 @@ async fn read_loop(
                     info!(session_id, "Channel EOF received");
                     let event = SshOutputEvent {
                         session_id: session_id.clone(),
-                        output: String::new(),
+                        output: Vec::new(),
                         closed: true,
                     };
                     let _ = app.emit("ssh_output", event);
@@ -710,7 +710,7 @@ async fn read_loop(
                     info!(session_id, "Channel closed");
                     let event = SshOutputEvent {
                         session_id: session_id.clone(),
-                        output: String::new(),
+                        output: Vec::new(),
                         closed: true,
                     };
                     let _ = app.emit("ssh_output", event);
@@ -738,7 +738,7 @@ async fn read_loop(
                 info!(session_id, "Channel stream ended");
                 let event = SshOutputEvent {
                     session_id: session_id.clone(),
-                    output: String::new(),
+                    output: Vec::new(),
                     closed: true,
                 };
                 let _ = app.emit("ssh_output", event);
@@ -1134,7 +1134,7 @@ async fn map_connect_error(
 #[derive(Clone, Serialize)]
 pub struct SshOutputEvent {
     pub session_id: String,
-    pub output: String,
+    pub output: Vec<u8>,
     pub closed: bool,
 }
 
