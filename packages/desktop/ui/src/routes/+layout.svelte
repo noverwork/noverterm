@@ -216,11 +216,32 @@
 
       <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-[#080c13]/72">
         <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-          {#if app.mountedTerminalSessions.length > 0}
+          {#if isTerminalRoute}
+            <WelcomeView
+              sessions={app.sessionStore.sessions}
+              sessionStore={{
+                sessions: app.sessionStore.sessions,
+                activeSessionId: app.sessionStore.activeSessionId,
+                setActiveSession: app.sessionStore.setActiveSession,
+                connectLocal: (name: string) =>
+                  app.sessionStore.connectLocal(name),
+                subscribeSessionOutput: app.sessionStore.subscribeSessionOutput,
+              }}
+              terminalConfig={app.terminalConfig}
+              connections={app.connections}
+              hostInfoStore={app.hostInfoStore}
+              onOpenConnectionManager={connectFromWelcome}
+              onConnectConnection={connectDashboardConnection}
+            />
+          {:else}
+            {@render children()}
+          {/if}
+
+          {#if isTerminalRoute && app.mountedTerminalSessions.length > 0}
             <div
               class={isTerminalVisible
-                ? "relative z-0 flex h-full min-h-0 flex-1 flex-col overflow-hidden p-3"
-                : "pointer-events-none absolute inset-0 z-0 flex min-h-0 flex-col overflow-hidden p-3 opacity-0"}
+                ? "absolute inset-0 z-10 flex h-full min-h-0 flex-col overflow-hidden p-3"
+                : "pointer-events-none absolute inset-0 z-10 flex h-full min-h-0 flex-col overflow-hidden p-3 opacity-0"}
             >
               <div
                 class="terminal-frame relative min-h-0 flex-1 overflow-hidden rounded-[1.35rem] border border-white/10 bg-[#080c13]/72 shadow-2xl shadow-black/45"
@@ -254,27 +275,8 @@
             </div>
           {/if}
 
-          {#if !isTerminalRoute}
-            {@render children()}
-          {:else if !app.activeSession}
-            <WelcomeView
-              sessions={app.sessionStore.sessions}
-              sessionStore={{
-                sessions: app.sessionStore.sessions,
-                activeSessionId: app.sessionStore.activeSessionId,
-                setActiveSession: app.sessionStore.setActiveSession,
-                connectLocal: (name: string) =>
-                  app.sessionStore.connectLocal(name),
-                subscribeSessionOutput: app.sessionStore.subscribeSessionOutput,
-              }}
-              terminalConfig={app.terminalConfig}
-              connections={app.connections}
-              hostInfoStore={app.hostInfoStore}
-              onOpenConnectionManager={connectFromWelcome}
-              onConnectConnection={connectDashboardConnection}
-            />
-          {:else if app.activeSession.status === "connecting"}
-            <div class="flex h-full flex-col items-center justify-center p-8">
+          {#if isTerminalRoute && app.activeSession?.status === "connecting"}
+            <div class="absolute inset-0 z-20 flex h-full flex-col items-center justify-center p-8">
               <div
                 class="rounded-[2rem] border border-amber-300/15 bg-amber-300/8 p-8 text-center shadow-2xl shadow-black/30"
               >
@@ -289,8 +291,10 @@
                 </p>
               </div>
             </div>
-          {:else if app.activeSession.status === "error" || app.activeSession.status === "trust_required"}
-            <div class="flex h-full flex-col items-center justify-center p-8">
+          {/if}
+
+          {#if isTerminalRoute && (app.activeSession?.status === "error" || app.activeSession?.status === "trust_required")}
+            <div class="absolute inset-0 z-20 flex h-full flex-col items-center justify-center p-8">
               <div
                 class={app.activeSession.status === "trust_required"
                   ? "w-full max-w-xl overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/88 text-left shadow-2xl shadow-black/40 ring-1 ring-amber-300/10 backdrop-blur-xl"
@@ -486,19 +490,6 @@
                     </Button>
                   </div>
                 {/if}
-              </div>
-            </div>
-          {:else if app.mountedTerminalSessions.length === 0}
-            <div class="flex h-full flex-col items-center justify-center p-8">
-              <div
-                class="rounded-[2rem] border border-white/10 bg-white/[0.035] p-8 text-center shadow-2xl shadow-black/30"
-              >
-                <p class="text-sm font-semibold text-white">
-                  No active terminal
-                </p>
-                <p class="mt-2 text-xs text-slate-500">
-                  Open a local terminal or SSH connection to start.
-                </p>
               </div>
             </div>
           {/if}
