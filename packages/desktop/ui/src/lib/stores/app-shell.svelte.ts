@@ -9,7 +9,6 @@ import type {
   SavedPortForwardConfig,
 } from "$lib/stores/bootstrap.svelte.js";
 import { createBootstrapStore } from "$lib/stores/bootstrap.svelte.js";
-import { createHostInfoStore } from "$lib/stores/host-info.svelte.js";
 import { createPortForwardStore } from "$lib/stores/port-forward.svelte.js";
 import {
   createSessionStore,
@@ -22,7 +21,6 @@ export function createAppShellStore() {
   const bootstrapStore = createBootstrapStore();
   const sessionStore = createSessionStore();
   const portForwardStore = createPortForwardStore();
-  const hostInfoStore = createHostInfoStore();
 
   let showSettings = $state(false);
   let connectionFormError = $state<string | null>(null);
@@ -357,7 +355,6 @@ export function createAppShellStore() {
     bootstrapStore,
     sessionStore,
     portForwardStore,
-    hostInfoStore,
     get showSettings() {
       return showSettings;
     },
