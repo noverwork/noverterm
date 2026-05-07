@@ -39,7 +39,7 @@ function getTheme() {
     foreground: "#e5e5e5",
     cursor: "#e5e5e5",
     selectionBackground: "#ffffff20",
-    black: "#080c13",
+    black: "#1f2937",
     red: "#ef4444",
     green: "#22c55e",
     yellow: "#eab308",
@@ -160,7 +160,6 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   function refresh() {
     if (!terminal) return;
 
-    terminal.clearTextureAtlas();
     if (terminal.rows > 0) {
       terminal.refresh(0, terminal.rows - 1);
     }
@@ -179,7 +178,10 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       revealFrame = null;
       if (!terminal || disposed) return;
 
-      terminal.scrollToBottom();
+      if (terminal.buffer.active.type !== "alternate") {
+        terminal.scrollToBottom();
+      }
+
       refresh();
       terminal.focus();
     });
