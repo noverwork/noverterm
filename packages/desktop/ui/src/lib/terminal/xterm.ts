@@ -1,8 +1,11 @@
 import { Terminal } from "@xterm/xterm";
 import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { FitAddon } from "@xterm/addon-fit";
+import { SearchAddon } from "@xterm/addon-search";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type { TerminalConfig } from "$lib/stores/bootstrap.svelte.js";
 
 import type {
@@ -26,6 +29,9 @@ export interface TerminalController {
   copySelection(): string | null;
   paste(text: string): void;
   clear(): void;
+  findNext(term: string): boolean;
+  findPrevious(term: string): boolean;
+  clearSearch(): void;
   focus(): void;
   fit(): void;
   refresh(): void;
@@ -65,11 +71,13 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   let currentConfig = options.config;
   let terminal: Terminal | null = null;
   let fitAddon: FitAddon | null = null;
+  let searchAddon: SearchAddon | null = null;
   let outputUnlisten: (() => void) | null = null;
   let disposed = false;
   let selectionCallback: (() => void) | null = null;
   let initialSizeSynced = false;
   let revealFrame: number | null = null;
+  let lastSearchTerm = "";
 
   const writeCmd = sessionType === "local" ? "local_write" : "ssh_write";
   const resizeCmd = sessionType === "local" ? "local_resize" : "ssh_resize";
@@ -77,6 +85,83 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   function sendInput(data: string) {
     options.onOutput?.(data);
     invoke(writeCmd, { sessionId, data }).catch(() => void 0);
+  }
+
+  async function openExternalUrl(uri: string) {
+    try {
+      await openUrl(uri);
+    } catch {
+      window.open(uri, "_blank", "noopener,noreferrer");
+    }
+  }
+
+  function searchPrompt() {
+    const term = window.prompt("Search terminal buffer", lastSearchTerm);
+    if (term === null) return;
+
+    lastSearchTerm = term;
+    if (term.length === 0) {
+      searchAddon?.clearDecorations();
+      return;
+    }
+
+    searchAddon?.findNext(term, {
+      decorations: {
+        matchBackground: "#164e63",
+        matchOverviewRuler: "#22d3ee",
+        activeMatchBackground: "#facc15",
+        activeMatchColorOverviewRuler: "#facc15",
+      },
+    });
+  }
+
+  function repeatSearch(backwards: boolean) {
+    if (!lastSearchTerm) {
+      searchPrompt();
+      return;
+    }
+
+    if (backwards) {
+      searchAddon?.findPrevious(lastSearchTerm);
+    } else {
+      searchAddon?.findNext(lastSearchTerm);
+    }
+  }
+
+  function handleTerminalKey(event: KeyboardEvent) {
+    if (!terminal || event.type !== "keydown") return true;
+
+    const mod = event.metaKey || event.ctrlKey;
+    if (!mod) return true;
+
+    const key = event.key.toLowerCase();
+    if (key === "c") {
+      if (!terminal.hasSelection()) return true;
+
+      const selection = terminal.getSelection();
+      if (!selection) return true;
+
+      event.preventDefault();
+      event.stopPropagation();
+      void navigator.clipboard.writeText(selection).catch(() => undefined);
+      return false;
+    }
+
+    if (key === "f") {
+      event.preventDefault();
+      event.stopPropagation();
+      searchPrompt();
+      return false;
+    }
+
+    if (key === "g") {
+      event.preventDefault();
+      event.stopPropagation();
+      repeatSearch(event.shiftKey);
+      return false;
+    }
+
+    return true;
   }
 
   function syncInitialSize() {
@@ -117,22 +202,18 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     });
 
     fitAddon = new FitAddon();
+    searchAddon = new SearchAddon();
     terminal.loadAddon(fitAddon);
+    terminal.loadAddon(searchAddon);
     terminal.loadAddon(new ClipboardAddon());
+    terminal.loadAddon(
+      new WebLinksAddon((event, uri) => {
+        event.preventDefault();
+        void openExternalUrl(uri);
+      }),
+    );
 
-    terminal.attachCustomKeyEventHandler((event) => {
-      const isCopyShortcut = (event.metaKey || event.ctrlKey) && event.key === "c";
-      if (!terminal || event.type !== "keydown" || !isCopyShortcut) return true;
-      if (!terminal.hasSelection()) return true;
-
-      const selection = terminal.getSelection();
-      if (!selection) return true;
-
-      event.preventDefault();
-      event.stopPropagation();
-      void navigator.clipboard.writeText(selection).catch(() => undefined);
-      return false;
-    });
+    terminal.attachCustomKeyEventHandler(handleTerminalKey);
 
     terminal.onResize(({ cols, rows }) => {
       console.info("[xterm:resize]", { sessionId, cols, rows });
@@ -222,6 +303,21 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     terminal?.clear();
   }
 
+  function findNext(term: string) {
+    lastSearchTerm = term;
+    return searchAddon?.findNext(term) ?? false;
+  }
+
+  function findPrevious(term: string) {
+    lastSearchTerm = term;
+    return searchAddon?.findPrevious(term) ?? false;
+  }
+
+  function clearSearch() {
+    lastSearchTerm = "";
+    searchAddon?.clearDecorations();
+  }
+
   function focus() {
     terminal?.focus();
   }
@@ -260,6 +356,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     terminal?.dispose();
     terminal = null;
     fitAddon = null;
+    searchAddon = null;
   }
 
   return {
@@ -271,6 +368,9 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     copySelection,
     paste,
     clear,
+    findNext,
+    findPrevious,
+    clearSearch,
     focus,
     fit,
     refresh,
