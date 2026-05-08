@@ -26,6 +26,8 @@ function createTarget(selection = ""): TerminalKeyboardTarget {
 function createActions(): TerminalKeyboardActions {
   return {
     writeClipboard: vi.fn(),
+    openSearchPrompt: vi.fn(),
+    repeatSearch: vi.fn(),
   };
 }
 
@@ -38,23 +40,28 @@ describe("terminal keyboard shortcuts", () => {
 
     expect(handler(ctrlF)).toBe(true);
     expect(handler(ctrlG)).toBe(true);
+    expect(actions.openSearchPrompt).not.toHaveBeenCalled();
+    expect(actions.repeatSearch).not.toHaveBeenCalled();
     expect(ctrlF.preventDefault).not.toHaveBeenCalled();
     expect(ctrlG.preventDefault).not.toHaveBeenCalled();
   });
 
-  it("passes Cmd+F and Cmd+G through instead of shadowing terminal apps", () => {
+  it("uses Cmd+F and Cmd+G for terminal search", () => {
     const actions = createActions();
     const handler = createTerminalKeyHandler(() => createTarget(), actions);
     const metaF = createKeyEvent("f", { metaKey: true });
     const metaG = createKeyEvent("g", { metaKey: true });
     const shiftMetaG = createKeyEvent("g", { metaKey: true, shiftKey: true });
 
-    expect(handler(metaF)).toBe(true);
-    expect(handler(metaG)).toBe(true);
-    expect(handler(shiftMetaG)).toBe(true);
-    expect(metaF.preventDefault).not.toHaveBeenCalled();
-    expect(metaG.preventDefault).not.toHaveBeenCalled();
-    expect(shiftMetaG.preventDefault).not.toHaveBeenCalled();
+    expect(handler(metaF)).toBe(false);
+    expect(handler(metaG)).toBe(false);
+    expect(handler(shiftMetaG)).toBe(false);
+    expect(actions.openSearchPrompt).toHaveBeenCalledTimes(1);
+    expect(actions.repeatSearch).toHaveBeenNthCalledWith(1, false);
+    expect(actions.repeatSearch).toHaveBeenNthCalledWith(2, true);
+    expect(metaF.preventDefault).toHaveBeenCalledTimes(1);
+    expect(metaG.preventDefault).toHaveBeenCalledTimes(1);
+    expect(shiftMetaG.preventDefault).toHaveBeenCalledTimes(1);
   });
 
   it("copies selected text on Ctrl+C or Cmd+C", () => {

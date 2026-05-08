@@ -1,8 +1,11 @@
 import { Terminal } from "@xterm/xterm";
 import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { FitAddon } from "@xterm/addon-fit";
+import { SearchAddon } from "@xterm/addon-search";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type { TerminalConfig } from "$lib/stores/bootstrap.svelte.js";
 import { createTerminalKeyHandler } from "./keyboard-shortcuts.js";
 
@@ -23,10 +26,12 @@ interface TerminalOptions {
 export interface TerminalController {
   readonly terminal: Terminal | null;
   init(container: HTMLElement): void;
-  hasSelection(): boolean;
   copySelection(): string | null;
   paste(text: string): void;
   clear(): void;
+  findNext(term: string): boolean;
+  findPrevious(term: string): boolean;
+  clearSearch(): void;
   focus(): void;
   fit(): void;
   refresh(): void;
@@ -66,11 +71,13 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   let currentConfig = options.config;
   let terminal: Terminal | null = null;
   let fitAddon: FitAddon | null = null;
+  let searchAddon: SearchAddon | null = null;
   let outputUnlisten: (() => void) | null = null;
   let disposed = false;
   let selectionCallback: (() => void) | null = null;
   let initialSizeSynced = false;
   let revealFrame: number | null = null;
+  let lastSearchTerm = "";
 
   const writeCmd = sessionType === "local" ? "local_write" : "ssh_write";
   const resizeCmd = sessionType === "local" ? "local_resize" : "ssh_resize";
@@ -80,12 +87,48 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     invoke(writeCmd, { sessionId, data }).catch(() => void 0);
   }
 
+  async function openExternalUrl(uri: string) {
+    try {
+      await openUrl(uri);
+    } catch {
+      window.open(uri, "_blank", "noopener,noreferrer");
+    }
+  }
+
+  function searchPrompt() {
+    const term = window.prompt("Search terminal buffer", lastSearchTerm);
+    if (term === null) return;
+
+    lastSearchTerm = term;
+    if (term.length === 0) {
+      searchAddon?.clearDecorations();
+      return;
+    }
+
+    searchAddon?.findNext(term);
+  }
+
+  function repeatSearch(backwards: boolean) {
+    if (!lastSearchTerm) {
+      searchPrompt();
+      return;
+    }
+
+    if (backwards) {
+      searchAddon?.findPrevious(lastSearchTerm);
+    } else {
+      searchAddon?.findNext(lastSearchTerm);
+    }
+  }
+
   const handleTerminalKey = createTerminalKeyHandler(
     () => terminal,
     {
       writeClipboard(selection) {
         void navigator.clipboard.writeText(selection).catch(() => undefined);
       },
+      openSearchPrompt: searchPrompt,
+      repeatSearch,
     },
   );
 
@@ -122,13 +165,19 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       cursorBlink: currentConfig.cursorBlink,
       scrollback: currentConfig.scrollback,
       allowProposedApi: true,
-      macOptionClickForcesSelection: true,
-      rightClickSelectsWord: true,
     });
 
     fitAddon = new FitAddon();
+    searchAddon = new SearchAddon();
     terminal.loadAddon(fitAddon);
+    terminal.loadAddon(searchAddon);
     terminal.loadAddon(new ClipboardAddon());
+    terminal.loadAddon(
+      new WebLinksAddon((event, uri) => {
+        event.preventDefault();
+        void openExternalUrl(uri);
+      }),
+    );
 
     terminal.attachCustomKeyEventHandler(handleTerminalKey);
 
@@ -199,13 +248,13 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       revealFrame = null;
       if (!terminal || disposed) return;
 
+      if (terminal.buffer.active.type !== "alternate") {
+        terminal.scrollToBottom();
+      }
+
       refresh();
       terminal.focus();
     });
-  }
-
-  function hasSelection() {
-    return terminal?.hasSelection() ?? false;
   }
 
   function copySelection() {
@@ -218,6 +267,21 @@ export function createTerminal(options: TerminalOptions): TerminalController {
 
   function clear() {
     terminal?.clear();
+  }
+
+  function findNext(term: string) {
+    lastSearchTerm = term;
+    return searchAddon?.findNext(term) ?? false;
+  }
+
+  function findPrevious(term: string) {
+    lastSearchTerm = term;
+    return searchAddon?.findPrevious(term) ?? false;
+  }
+
+  function clearSearch() {
+    lastSearchTerm = "";
+    searchAddon?.clearDecorations();
   }
 
   function focus() {
@@ -258,6 +322,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     terminal?.dispose();
     terminal = null;
     fitAddon = null;
+    searchAddon = null;
   }
 
   return {
@@ -265,10 +330,12 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       return terminal;
     },
     init,
-    hasSelection,
     copySelection,
     paste,
     clear,
+    findNext,
+    findPrevious,
+    clearSearch,
     focus,
     fit,
     refresh,

@@ -5,6 +5,8 @@ export interface TerminalKeyboardTarget {
 
 export interface TerminalKeyboardActions {
   writeClipboard(selection: string): void;
+  openSearchPrompt(): void;
+  repeatSearch(backwards: boolean): void;
 }
 
 export function createTerminalKeyHandler(
@@ -27,6 +29,22 @@ export function createTerminalKeyHandler(
       event.preventDefault();
       event.stopPropagation();
       actions.writeClipboard(selection);
+      return false;
+    }
+
+    if (!event.metaKey) return true;
+
+    if (key === "f") {
+      event.preventDefault();
+      event.stopPropagation();
+      actions.openSearchPrompt();
+      return false;
+    }
+
+    if (key === "g") {
+      event.preventDefault();
+      event.stopPropagation();
+      actions.repeatSearch(event.shiftKey);
       return false;
     }
 
