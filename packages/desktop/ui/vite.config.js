@@ -36,5 +36,6 @@ export default defineConfig(async () => ({
   },
   build: {
     minify: false,
+    cssMinify: false,
   },
 }));
