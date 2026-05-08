@@ -34,4 +34,7 @@ export default defineConfig(async () => ({
         }
       : undefined,
   },
+  build: {
+    minify: false,
+  },
 }));
