@@ -1,4 +1,5 @@
 import { Terminal } from "@xterm/xterm";
+import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { invoke } from "@tauri-apps/api/core";
@@ -21,6 +22,7 @@ interface TerminalOptions {
 export interface TerminalController {
   readonly terminal: Terminal | null;
   init(container: HTMLElement): void;
+  hasSelection(): boolean;
   copySelection(): string | null;
   paste(text: string): void;
   clear(): void;
@@ -110,10 +112,27 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       cursorBlink: currentConfig.cursorBlink,
       scrollback: currentConfig.scrollback,
       allowProposedApi: true,
+      macOptionClickForcesSelection: true,
+      rightClickSelectsWord: true,
     });
 
     fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
+    terminal.loadAddon(new ClipboardAddon());
+
+    terminal.attachCustomKeyEventHandler((event) => {
+      const isCopyShortcut = (event.metaKey || event.ctrlKey) && event.key === "c";
+      if (!terminal || event.type !== "keydown" || !isCopyShortcut) return true;
+      if (!terminal.hasSelection()) return true;
+
+      const selection = terminal.getSelection();
+      if (!selection) return true;
+
+      event.preventDefault();
+      event.stopPropagation();
+      void navigator.clipboard.writeText(selection).catch(() => undefined);
+      return false;
+    });
 
     terminal.onResize(({ cols, rows }) => {
       console.info("[xterm:resize]", { sessionId, cols, rows });
@@ -187,6 +206,10 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     });
   }
 
+  function hasSelection() {
+    return terminal?.hasSelection() ?? false;
+  }
+
   function copySelection() {
     return terminal?.getSelection() || null;
   }
@@ -244,6 +267,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       return terminal;
     },
     init,
+    hasSelection,
     copySelection,
     paste,
     clear,
