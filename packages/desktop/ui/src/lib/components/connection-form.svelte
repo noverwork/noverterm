@@ -5,9 +5,9 @@
 
   import { connectionSchema, type ConnectionForm } from "$lib/schemas/index.js";
   import type {
-    ConnectionConfig,
-    SaveConnectionInput,
-  } from "$lib/stores/bootstrap.svelte.js";
+  ConnectionConfig,
+  SaveConnectionInput,
+} from "$lib/app-data-types.js";
   import type { SshKeyRecord } from "$lib/api/types.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";

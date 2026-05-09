@@ -4,7 +4,7 @@
   import DeleteConfirmDialog from "$lib/components/delete-confirm-dialog.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import type { HostGroupRecord } from "$lib/api/types.js";
-  import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
+import type { ConnectionConfig } from "$lib/app-data-types.js";
 
   interface Props {
     connections: ConnectionConfig[];

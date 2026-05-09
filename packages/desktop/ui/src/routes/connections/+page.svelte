@@ -3,7 +3,7 @@
 
   import ConnectionsView from "$lib/components/connections-view.svelte";
   import { getAppShellContext } from "$lib/stores/app-shell.svelte.js";
-  import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
+import type { ConnectionConfig } from "$lib/app-data-types.js";
 
   const app = getAppShellContext();
 

@@ -7,7 +7,7 @@
   import ConnectionForm from "$lib/components/connection-form.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { getAppShellContext } from "$lib/stores/app-shell.svelte.js";
-  import type { SaveConnectionInput } from "$lib/stores/bootstrap.svelte.js";
+import type { SaveConnectionInput } from "$lib/app-data-types.js";
 
   const app = getAppShellContext();
   const connection = $derived(app.connections.find((candidate) => candidate.id === $page.params.id) ?? null);

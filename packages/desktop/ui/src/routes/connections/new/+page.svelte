@@ -4,7 +4,7 @@
 
   import ConnectionForm from "$lib/components/connection-form.svelte";
   import { getAppShellContext } from "$lib/stores/app-shell.svelte.js";
-  import type { SaveConnectionInput } from "$lib/stores/bootstrap.svelte.js";
+import type { SaveConnectionInput } from "$lib/app-data-types.js";
 
   const app = getAppShellContext();
 
