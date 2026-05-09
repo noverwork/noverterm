@@ -41,7 +41,7 @@ export interface SshKeySecret {
   passphrase: string | null;
 }
 
-export interface BootstrapMetadata {
+export interface AppDataMetadata {
   settings: Setting[];
   host_groups: HostGroupRecord[];
   hosts: SshHostRecord[];
