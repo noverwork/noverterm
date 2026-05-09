@@ -11,19 +11,18 @@ import {
 } from "./api-client.js";
 import { setActiveVaultEmail, unlockVaultWithPassword } from "$lib/crypto/vault.js";
 
-export interface AuthBootstrapStatus {
+export interface AuthSessionStatus {
   email: string;
-  bootstrap_message: string;
 }
 
-async function bootstrapSmoke(accessToken: string): Promise<AuthBootstrapStatus> {
-  return requestWithAuth<AuthBootstrapStatus>("/smoke", accessToken);
+async function checkSession(accessToken: string): Promise<AuthSessionStatus> {
+  return requestWithAuth<AuthSessionStatus>("/smoke", accessToken);
 }
 
 export async function registerToBackend(
   email: string,
   password: string,
-): Promise<AuthBootstrapStatus> {
+): Promise<AuthSessionStatus> {
   const authResponse = await requestJson<BackendAuthResponse>("/auth/register", {
     method: "POST",
     body: JSON.stringify({ email, password }),
@@ -33,7 +32,7 @@ export async function registerToBackend(
   try {
     await persistFrontendTokens(tokens);
     await unlockVaultWithPassword(email, password);
-    return await withAuthorizedRetry(async (accessToken) => bootstrapSmoke(accessToken));
+    return await withAuthorizedRetry(async (accessToken) => checkSession(accessToken));
   } catch (error) {
     await clearFrontendTokens();
     throw error;
@@ -43,7 +42,7 @@ export async function registerToBackend(
 export async function loginToBackend(
   email: string,
   password: string,
-): Promise<AuthBootstrapStatus> {
+): Promise<AuthSessionStatus> {
   const authResponse = await requestJson<BackendAuthResponse>("/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
@@ -53,7 +52,7 @@ export async function loginToBackend(
   try {
     await persistFrontendTokens(tokens);
     await unlockVaultWithPassword(email, password);
-    return await withAuthorizedRetry(async (accessToken) => bootstrapSmoke(accessToken));
+    return await withAuthorizedRetry(async (accessToken) => checkSession(accessToken));
   } catch (error) {
     await clearFrontendTokens();
     throw error;
@@ -74,7 +73,7 @@ export async function resetPassword(token: string, password: string): Promise<vo
   });
 }
 
-export async function restoreBackendSession(): Promise<AuthBootstrapStatus | null> {
+export async function restoreBackendSession(): Promise<AuthSessionStatus | null> {
   const { loadStoredAuthTokens } = await import("$lib/stores/auth-token-store.js");
   const storedTokens = await loadStoredAuthTokens();
   if (!storedTokens) {
@@ -82,7 +81,7 @@ export async function restoreBackendSession(): Promise<AuthBootstrapStatus | nul
   }
 
   try {
-    const status = await withAuthorizedRetry(async (accessToken) => bootstrapSmoke(accessToken));
+    const status = await withAuthorizedRetry(async (accessToken) => checkSession(accessToken));
     setActiveVaultEmail(status.email);
     return status;
   } catch {

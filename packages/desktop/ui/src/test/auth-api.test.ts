@@ -57,7 +57,7 @@ describe("auth API token cleanup", () => {
     mockPersistFrontendTokens.mockResolvedValue(undefined);
     mockWithAuthorizedRetry.mockResolvedValue({
       email: "alice@example.com",
-      bootstrap_message: "ok",
+        status: "ok",
     });
   });
 

@@ -10,7 +10,7 @@ import { encryptSecret } from "$lib/crypto/vault.js";
 import type {
   SaveConnectionInput,
   ConnectionConfig,
-} from "$lib/stores/bootstrap.svelte.js";
+} from "$lib/app-data-types.js";
 
 interface HostWriteRequest {
   name: string;
