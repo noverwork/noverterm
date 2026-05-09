@@ -1,14 +1,49 @@
 import { getContext, setContext } from "svelte";
+import {
+  createMutation,
+  createQuery,
+  type QueryClient,
+} from "@tanstack/svelte-query";
 
 import { loadAppSettings } from "$lib/api/api-client.js";
+import type { AuthSessionStatus } from "$lib/api/auth-api.js";
 import type { HostGroupRecord, SshKeyRecord } from "$lib/api/types.js";
+import {
+  buildNovertermConfig,
+  createPortForwardId,
+  parseNovertermConfig,
+  parseRecentConnectionIds,
+  selectConnections,
+  selectSavedPortForwards,
+  selectTerminalConfig,
+  uniqueRecentConnectionIds,
+} from "$lib/app-data-mappers.js";
 import type {
+  AppDataPhase,
   ConnectionConfig,
   SaveConnectionInput,
   SavePortForwardInput,
   SavedPortForwardConfig,
-} from "$lib/stores/bootstrap.svelte.js";
-import { createBootstrapStore } from "$lib/stores/bootstrap.svelte.js";
+} from "$lib/app-data-types.js";
+import {
+  appDataMetadataQueryOptions,
+  createHostGroupMutationOptions,
+  createKeyMutationOptions,
+  deleteConnectionMutationOptions,
+  deleteHostGroupMutationOptions,
+  deleteKeyMutationOptions,
+  forgotPasswordMutationOptions,
+  loginMutationOptions,
+  logoutMutationOptions,
+  queryKeys,
+  registerMutationOptions,
+  resetPasswordMutationOptions,
+  restoreSessionMutationOptions,
+  revealKeySecretMutationOptions,
+  saveConnectionMutationOptions,
+  updateKeyMutationOptions,
+  upsertSettingMutationOptions,
+} from "$lib/queries/index.js";
 import { createPortForwardStore } from "$lib/stores/port-forward.svelte.js";
 import {
   createSessionStore,
@@ -17,11 +52,17 @@ import {
 
 const APP_SHELL_CONTEXT = Symbol("app-shell");
 
-export function createAppShellStore() {
-  const bootstrapStore = createBootstrapStore();
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function createAppShellStore(queryClient: QueryClient) {
   const sessionStore = createSessionStore();
   const portForwardStore = createPortForwardStore();
 
+  let authPhase = $state<AppDataPhase>("loading");
+  let authStatus = $state<AuthSessionStatus | null>(null);
+  let authError = $state<string | null>(null);
   let showSettings = $state(false);
   let connectionFormError = $state<string | null>(null);
   let connectionSaving = $state(false);
@@ -30,6 +71,82 @@ export function createAppShellStore() {
   let visibleTerminalSessionId = $state<string | null>(null);
   let startupLoading = $state(true);
   let startupError = $state<string | null>(null);
+
+  const metadataQuery = createQuery(
+    () => ({
+      ...appDataMetadataQueryOptions(),
+      enabled: authPhase === "authenticated",
+    }),
+    () => queryClient,
+  );
+
+  const restoreSessionMutation = createMutation(
+    () => restoreSessionMutationOptions(),
+    () => queryClient,
+  );
+  const loginMutation = createMutation(
+    () => loginMutationOptions(),
+    () => queryClient,
+  );
+  const registerMutation = createMutation(
+    () => registerMutationOptions(),
+    () => queryClient,
+  );
+  const logoutMutation = createMutation(
+    () => logoutMutationOptions(),
+    () => queryClient,
+  );
+  const forgotPasswordMutation = createMutation(
+    () => forgotPasswordMutationOptions(),
+    () => queryClient,
+  );
+  const resetPasswordMutation = createMutation(
+    () => resetPasswordMutationOptions(),
+    () => queryClient,
+  );
+  const saveConnectionMutation = createMutation(
+    () => saveConnectionMutationOptions(),
+    () => queryClient,
+  );
+  const deleteConnectionMutation = createMutation(
+    () => deleteConnectionMutationOptions(),
+    () => queryClient,
+  );
+  const createHostGroupMutation = createMutation(
+    () => createHostGroupMutationOptions(),
+    () => queryClient,
+  );
+  const deleteHostGroupMutation = createMutation(
+    () => deleteHostGroupMutationOptions(),
+    () => queryClient,
+  );
+  const createKeyMutation = createMutation(
+    () => createKeyMutationOptions(),
+    () => queryClient,
+  );
+  const updateKeyMutation = createMutation(
+    () => updateKeyMutationOptions(),
+    () => queryClient,
+  );
+  const deleteKeyMutation = createMutation(
+    () => deleteKeyMutationOptions(),
+    () => queryClient,
+  );
+  const revealKeySecretMutation = createMutation(
+    () => revealKeySecretMutationOptions(),
+    () => queryClient,
+  );
+  const upsertSettingMutation = createMutation(
+    () => upsertSettingMutationOptions(),
+    () => queryClient,
+  );
+
+  const metadata = $derived(metadataQuery.data ?? null);
+  const terminalConfig = $derived(selectTerminalConfig(metadata));
+  const connections = $derived(selectConnections(metadata));
+  const hostGroups = $derived(metadata?.host_groups ?? []);
+  const keys = $derived(metadata?.keys ?? []);
+  const savedPortForwards = $derived(selectSavedPortForwards(metadata));
 
   const activeSession = $derived(
     sessionStore.activeSessionId
@@ -48,11 +165,6 @@ export function createAppShellStore() {
       (session) => session.status === "connected" || session.status === "connecting",
     ) as Session[],
   );
-
-  const terminalConfig = $derived(bootstrapStore.getTerminalConfig());
-  const connections = $derived(bootstrapStore.getConnections());
-  const hostGroups = $derived(bootstrapStore.getHostGroups());
-  const keys = $derived(bootstrapStore.getKeys());
 
   $effect(() => {
     if (
@@ -80,16 +192,49 @@ export function createAppShellStore() {
     }
   });
 
+  async function fetchAppDataMetadata() {
+    return await queryClient.fetchQuery(appDataMetadataQueryOptions());
+  }
+
+  async function refreshMetadata() {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.metadata() });
+    return await fetchAppDataMetadata();
+  }
+
+  async function clearAppDataCache() {
+    await queryClient.cancelQueries({ queryKey: queryKeys.appData });
+    queryClient.removeQueries({ queryKey: queryKeys.appData });
+  }
+
+  function currentSettings() {
+    return metadata?.settings ?? [];
+  }
+
   async function init() {
     startupLoading = true;
     startupError = null;
+    authPhase = "loading";
+    authError = null;
 
     try {
       await loadAppSettings();
       await sessionStore.init();
-      await bootstrapStore.init();
+      const restoredAuthStatus = await restoreSessionMutation.mutateAsync();
+
+      if (restoredAuthStatus === null) {
+        authPhase = "unauthenticated";
+        authStatus = null;
+        await clearAppDataCache();
+        return;
+      }
+
+      authStatus = restoredAuthStatus;
+      authPhase = "authenticated";
+      await fetchAppDataMetadata();
     } catch (error) {
-      startupError = error instanceof Error ? error.message : String(error);
+      authPhase = "error";
+      authError = errorMessage(error);
+      startupError = authError;
     } finally {
       startupLoading = false;
     }
@@ -101,23 +246,51 @@ export function createAppShellStore() {
   }
 
   async function login(email: string, password: string) {
-    await bootstrapStore.login(email, password);
+    authPhase = "loading";
+    authError = null;
+
+    try {
+      authStatus = await loginMutation.mutateAsync({ email, password });
+      authPhase = "authenticated";
+      await fetchAppDataMetadata();
+    } catch (error) {
+      authPhase = "unauthenticated";
+      authStatus = null;
+      authError = errorMessage(error);
+      await clearAppDataCache();
+    }
   }
 
   async function signup(email: string, password: string) {
-    await bootstrapStore.register(email, password);
+    authPhase = "loading";
+    authError = null;
+
+    try {
+      authStatus = await registerMutation.mutateAsync({ email, password });
+      authPhase = "authenticated";
+      await fetchAppDataMetadata();
+    } catch (error) {
+      authPhase = "unauthenticated";
+      authStatus = null;
+      authError = errorMessage(error);
+      await clearAppDataCache();
+    }
   }
 
   async function forgotPassword(email: string) {
-    await bootstrapStore.forgotPassword(email);
+    await forgotPasswordMutation.mutateAsync(email);
   }
 
   async function resetAccountPassword(token: string, password: string) {
-    await bootstrapStore.resetAccountPassword(token, password);
+    await resetPasswordMutation.mutateAsync({ token, password });
   }
 
   async function logout() {
-    await bootstrapStore.logout();
+    await logoutMutation.mutateAsync();
+    authPhase = "unauthenticated";
+    authStatus = null;
+    authError = null;
+    await clearAppDataCache();
   }
 
   async function connectSavedConnection(
@@ -125,9 +298,7 @@ export function createAppShellStore() {
   ): Promise<boolean> {
     try {
       await sessionStore.connectSavedConnection(connection, 80, 24);
-      void bootstrapStore
-        .recordRecentConnection(connection.id)
-        .catch(() => undefined);
+      void recordRecentConnection(connection.id).catch(() => undefined);
       return true;
     } catch {
       return false;
@@ -159,11 +330,11 @@ export function createAppShellStore() {
     connectionFormError = null;
 
     try {
-      await bootstrapStore.saveConnection(connection);
+      await saveConnectionMutation.mutateAsync(connection);
+      await refreshMetadata();
       return true;
     } catch (error) {
-      connectionFormError =
-        error instanceof Error ? error.message : String(error);
+      connectionFormError = errorMessage(error);
       return false;
     } finally {
       connectionSaving = false;
@@ -171,23 +342,36 @@ export function createAppShellStore() {
   }
 
   async function deleteConnection(connection: ConnectionConfig) {
-    await bootstrapStore.deleteConnection(connection);
+    const settings = currentSettings();
+    await deleteConnectionMutation.mutateAsync(connection);
+    await upsertSettingMutation.mutateAsync({
+      key: "noverterm-config",
+      value: buildNovertermConfig(settings, {
+        recentConnectionIds: parseRecentConnectionIds(settings).filter(
+          (id) => id !== connection.id,
+        ),
+      }),
+    });
+    await refreshMetadata();
     sessionStore.disconnectConnectionSessions(connection.id);
   }
 
   async function createHostGroup(name: string) {
-    return await bootstrapStore.createHostGroup(name);
+    const group = await createHostGroupMutation.mutateAsync(name);
+    await refreshMetadata();
+    return group;
   }
 
   async function deleteHostGroup(group: HostGroupRecord) {
-    await bootstrapStore.deleteHostGroup(group);
+    await deleteHostGroupMutation.mutateAsync(group);
+    await refreshMetadata();
   }
 
   async function moveConnectionToGroup(
     connection: ConnectionConfig,
     groupId: string | null,
   ) {
-    await bootstrapStore.saveConnection({
+    await saveConnection({
       id: connection.id,
       name: connection.name,
       groupId,
@@ -203,12 +387,13 @@ export function createAppShellStore() {
   }
 
   async function saveKey(name: string, privateKey: string, passphrase: string) {
-    await bootstrapStore.saveKey({
+    await createKeyMutation.mutateAsync({
       name,
       kind: "inline",
       encrypted_private_key: privateKey,
       encrypted_passphrase: passphrase || null,
     });
+    await refreshMetadata();
   }
 
   async function updateKey(
@@ -217,24 +402,65 @@ export function createAppShellStore() {
     privateKey?: string,
     passphrase?: string,
   ) {
-    await bootstrapStore.updateKey(keyId, {
-      name,
-      kind: "inline",
-      ...(privateKey ? { encrypted_private_key: privateKey } : {}),
-      ...(privateKey ? { encrypted_passphrase: passphrase || null } : {}),
+    await updateKeyMutation.mutateAsync({
+      keyId,
+      key: {
+        name,
+        kind: "inline",
+        ...(privateKey ? { encrypted_private_key: privateKey } : {}),
+        ...(privateKey ? { encrypted_passphrase: passphrase || null } : {}),
+      },
     });
+    await refreshMetadata();
   }
 
   async function deleteKey(key: SshKeyRecord) {
-    await bootstrapStore.deleteKey(key);
+    await deleteKeyMutation.mutateAsync(key.id);
+    await refreshMetadata();
   }
 
   async function revealKeySecret(keyId: string) {
-    return await bootstrapStore.revealKeySecret(keyId);
+    return await revealKeySecretMutation.mutateAsync(keyId);
+  }
+
+  async function recordRecentConnection(connectionId: string) {
+    const settings = currentSettings();
+    await upsertSettingMutation.mutateAsync({
+      key: "noverterm-config",
+      value: buildNovertermConfig(settings, {
+        recentConnectionIds: uniqueRecentConnectionIds(
+          connectionId,
+          parseRecentConnectionIds(settings),
+        ),
+      }),
+    });
+    await refreshMetadata();
   }
 
   async function savePortForward(input: SavePortForwardInput) {
-    return await bootstrapStore.savePortForward(input);
+    const settings = currentSettings();
+    const existingForwards =
+      parseNovertermConfig(settings).savedPortForwards ?? [];
+    const savedForward: SavedPortForwardConfig = {
+      id: input.id ?? createPortForwardId(),
+      name: input.name,
+      connectionId: input.connectionId,
+      bind_host: input.bind_host,
+      bind_port: input.bind_port,
+      target_host: input.target_host,
+      target_port: input.target_port,
+    };
+    const nextForwards = [
+      savedForward,
+      ...existingForwards.filter((forward) => forward.id !== savedForward.id),
+    ];
+
+    await upsertSettingMutation.mutateAsync({
+      key: "noverterm-config",
+      value: buildNovertermConfig(settings, { savedPortForwards: nextForwards }),
+    });
+    await refreshMetadata();
+    return savedForward;
   }
 
   async function startSavedPortForward(forward: SavedPortForwardConfig) {
@@ -262,7 +488,16 @@ export function createAppShellStore() {
   }
 
   async function deleteSavedPortForward(forwardId: string) {
-    await bootstrapStore.deletePortForward(forwardId);
+    const settings = currentSettings();
+    const nextForwards = (
+      parseNovertermConfig(settings).savedPortForwards ?? []
+    ).filter((forward) => forward.id !== forwardId);
+
+    await upsertSettingMutation.mutateAsync({
+      key: "noverterm-config",
+      value: buildNovertermConfig(settings, { savedPortForwards: nextForwards }),
+    });
+    await refreshMetadata();
   }
 
   function closeSession(id: string) {
@@ -286,9 +521,7 @@ export function createAppShellStore() {
             80,
             24,
           );
-          void bootstrapStore
-            .recordRecentConnection(connection.id)
-            .catch(() => undefined);
+          void recordRecentConnection(connection.id).catch(() => undefined);
           return true;
         } catch {
           return false;
@@ -331,12 +564,10 @@ export function createAppShellStore() {
         80,
         24,
       );
-      void bootstrapStore
-        .recordRecentConnection(connection.id)
-        .catch(() => undefined);
+      void recordRecentConnection(connection.id).catch(() => undefined);
       return true;
     } catch (error) {
-      trustError = error instanceof Error ? error.message : String(error);
+      trustError = errorMessage(error);
       return false;
     } finally {
       trustConfirming = false;
@@ -352,9 +583,11 @@ export function createAppShellStore() {
   }
 
   return {
-    bootstrapStore,
     sessionStore,
     portForwardStore,
+    get authStatus() {
+      return authStatus;
+    },
     get showSettings() {
       return showSettings;
     },
@@ -374,13 +607,24 @@ export function createAppShellStore() {
       return visibleTerminalSessionId;
     },
     get isLoading() {
-      return startupLoading || (!startupError && bootstrapStore.isLoading);
+      return (
+        startupLoading ||
+        authPhase === "loading" ||
+        (authPhase === "authenticated" && metadataQuery.isPending)
+      );
+    },
+    get isUnauthenticated() {
+      return authPhase === "unauthenticated";
     },
     get isError() {
-      return startupError !== null || bootstrapStore.isError;
+      return (
+        startupError !== null ||
+        authPhase === "error" ||
+        metadataQuery.isError
+      );
     },
     get error() {
-      return startupError ?? bootstrapStore.error;
+      return startupError ?? authError ?? metadataQuery.error?.message ?? null;
     },
     get activeSession() {
       return activeSession;
@@ -402,6 +646,9 @@ export function createAppShellStore() {
     },
     get keys() {
       return keys;
+    },
+    get savedPortForwards() {
+      return savedPortForwards;
     },
     init,
     cleanup,

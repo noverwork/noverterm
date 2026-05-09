@@ -32,7 +32,7 @@
     },
   });
 
-  const app = createAppShellStore();
+  const app = createAppShellStore(queryClient);
   setAppShellContext(app);
 
   const routePath = $derived($page.url.pathname);
@@ -144,14 +144,14 @@
         <p class="text-sm text-muted-foreground">Restoring session...</p>
       </div>
     </div>
-  {:else if app.bootstrapStore.isUnauthenticated}
+  {:else if app.isUnauthenticated}
     <AuthShell
       onLogin={app.login}
       onSignup={app.signup}
       onForgotPassword={app.forgotPassword}
       onResetPassword={app.resetAccountPassword}
-      isLoading={app.bootstrapStore.isLoading}
-      error={app.bootstrapStore.error}
+      isLoading={app.isLoading}
+      error={app.error}
     />
   {:else if app.isError}
     <div
@@ -197,12 +197,12 @@
         onPortForwards={() => goto("/forwards")}
         onNewConnection={() => goto("/connections")}
         onGoHome={goHome}
-        authEmail={app.bootstrapStore.authStatus?.email ?? ""}
+        authEmail={app.authStatus?.email ?? ""}
         onOpenSettings={app.openSettings}
         onLogout={app.logout}
-        connectionCount={app.bootstrapStore.getConnections().length}
-        keyCount={app.bootstrapStore.getKeys().length}
-        forwardCount={app.bootstrapStore.getSavedPortForwards().length}
+        connectionCount={app.connections.length}
+        keyCount={app.keys.length}
+        forwardCount={app.savedPortForwards.length}
         activeSection={activeSidebarSection}
       />
 

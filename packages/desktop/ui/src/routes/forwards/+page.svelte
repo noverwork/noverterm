@@ -13,7 +13,7 @@
 
 <PortForwardView
   connections={app.connections}
-  savedForwards={app.bootstrapStore.getSavedPortForwards()}
+  savedForwards={app.savedPortForwards}
   forwards={app.portForwardStore.getPortForwards()}
   onSave={app.savePortForward}
   onForward={app.startSavedPortForward}
