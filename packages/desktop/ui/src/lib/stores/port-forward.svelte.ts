@@ -3,7 +3,7 @@ import { SvelteMap } from "svelte/reactivity";
 
 import { commands as tauriCommands } from "../../bindings.js";
 import { decryptSecret } from "$lib/crypto/vault.js";
-import type { ConnectionConfig, SavedPortForwardConfig } from "$lib/stores/bootstrap.svelte.js";
+import type { ConnectionConfig, SavedPortForwardConfig } from "$lib/app-data-types.js";
 
 export interface PortForward {
   id: string;

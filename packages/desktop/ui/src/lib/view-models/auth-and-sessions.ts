@@ -1,4 +1,4 @@
-import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
+import type { ConnectionConfig } from "$lib/app-data-types.js";
 import type { SessionStatus } from "$lib/stores/session.svelte.js";
 
 export interface SessionLookup {

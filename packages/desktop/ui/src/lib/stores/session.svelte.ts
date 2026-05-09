@@ -10,7 +10,7 @@ import type {
   SshPortForwardStatus,
 } from "../../bindings.js";
 import { createDirectSshConnectInput } from "$lib/services/ssh-connection-input.js";
-import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
+import type { ConnectionConfig } from "$lib/app-data-types.js";
 
 export type SessionType = "ssh" | "local";
 export type SessionStatus =

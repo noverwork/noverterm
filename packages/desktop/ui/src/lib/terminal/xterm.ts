@@ -6,7 +6,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { TerminalConfig } from "$lib/stores/bootstrap.svelte.js";
+import type { TerminalConfig } from "$lib/app-data-types.js";
 import { createTerminalKeyHandler } from "./keyboard-shortcuts.js";
 
 import type {

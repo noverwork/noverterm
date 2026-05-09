@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { createTerminal } from "./xterm.js";
-  import type { TerminalConfig } from "$lib/stores/bootstrap.svelte.js";
+import type { TerminalConfig } from "$lib/app-data-types.js";
   import type { SessionType, TerminalOutputCallback } from "$lib/stores/session.svelte.js";
 
   let {

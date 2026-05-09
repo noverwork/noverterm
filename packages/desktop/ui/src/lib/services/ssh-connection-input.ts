@@ -1,6 +1,6 @@
 import type { DirectSshConnectInput } from "../../bindings.js";
 import { decryptSecret } from "$lib/crypto/vault.js";
-import type { ConnectionConfig } from "$lib/stores/bootstrap.svelte.js";
+import type { ConnectionConfig } from "$lib/app-data-types.js";
 
 interface ConnectionAuthInput {
   password: string | null;
