@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { fetch } from "@tauri-apps/plugin-http";
 
+import type { AuthResponse, RefreshRequest } from "./types.js";
+
 import {
   clearStoredAuthTokens,
   loadStoredAuthTokens,
@@ -159,9 +161,10 @@ async function requestTokenRefresh(
   refreshToken: string,
   startedAtVersion: number,
 ): Promise<AuthSessionTokens> {
+  const request: RefreshRequest = { refresh_token: refreshToken };
   const response = await requestJson<BackendAuthResponse>("/auth/refresh", {
     method: "POST",
-    body: JSON.stringify({ refresh_token: refreshToken }),
+    body: JSON.stringify(request),
   });
   const refreshedTokens = toSessionTokens(response);
   if (authSessionVersion !== startedAtVersion) {
@@ -230,12 +233,7 @@ async function freshStoredTokens(
   }
 }
 
-interface BackendAuthResponse {
-  access_token: string;
-  refresh_token: string;
-  access_token_expires_at: string;
-  email: string;
-}
+type BackendAuthResponse = AuthResponse;
 
 function toSessionTokens(response: BackendAuthResponse): AuthSessionTokens {
   return {

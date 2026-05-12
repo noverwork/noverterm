@@ -9,6 +9,13 @@ import {
   withAuthorizedRetry,
   type BackendAuthResponse,
 } from "./api-client.js";
+import type {
+  ForgotPasswordRequest,
+  LoginRequest,
+  LogoutRequest,
+  RegisterRequest,
+  ResetPasswordRequest,
+} from "./types.js";
 import { setActiveVaultEmail, unlockVaultWithPassword } from "$lib/crypto/vault.js";
 
 export interface AuthSessionStatus {
@@ -23,9 +30,10 @@ export async function registerToBackend(
   email: string,
   password: string,
 ): Promise<AuthSessionStatus> {
+  const request: RegisterRequest = { email, password };
   const authResponse = await requestJson<BackendAuthResponse>("/auth/register", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(request),
   });
   const tokens = toSessionTokens(authResponse);
 
@@ -43,9 +51,10 @@ export async function loginToBackend(
   email: string,
   password: string,
 ): Promise<AuthSessionStatus> {
+  const request: LoginRequest = { email, password };
   const authResponse = await requestJson<BackendAuthResponse>("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(request),
   });
   const tokens = toSessionTokens(authResponse);
 
@@ -60,16 +69,18 @@ export async function loginToBackend(
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
+  const request: ForgotPasswordRequest = { email };
   await requestNoContent("/auth/forgot-password", {
     method: "POST",
-    body: JSON.stringify({ email }),
+    body: JSON.stringify(request),
   });
 }
 
 export async function resetPassword(token: string, password: string): Promise<void> {
+  const request: ResetPasswordRequest = { token, password };
   await requestNoContent("/auth/reset-password", {
     method: "POST",
-    body: JSON.stringify({ token, password }),
+    body: JSON.stringify(request),
   });
 }
 
@@ -95,9 +106,10 @@ export async function logoutFromBackend(): Promise<void> {
 
   try {
     if (storedTokens) {
+      const request: LogoutRequest = { refresh_token: storedTokens.refresh_token };
       await requestNoContent("/auth/logout", {
         method: "POST",
-        body: JSON.stringify({ refresh_token: storedTokens.refresh_token }),
+        body: JSON.stringify(request),
       });
     }
   } catch (error) {

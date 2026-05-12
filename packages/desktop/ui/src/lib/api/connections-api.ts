@@ -5,34 +5,19 @@ import {
   withAuthorizedRetry,
 } from "./api-client.js";
 
-import type { HostGroupRecord, SshHostRecord, SshKeyRecord } from "./types.js";
+import type {
+  HostGroupRecord,
+  HostGroupWriteRequest,
+  HostWriteRequest,
+  KeyWriteRequest,
+  SshHostRecord,
+  SshKeyRecord,
+} from "./types.js";
 import { encryptSecret } from "$lib/crypto/vault.js";
 import type {
   SaveConnectionInput,
   ConnectionConfig,
 } from "$lib/app-data-types.js";
-
-interface HostWriteRequest {
-  name: string;
-  host: string;
-  port: number;
-  username: string;
-  ssh_key_id: string | null;
-  encrypted_password: string | null;
-  group_id: string | null;
-}
-
-interface HostGroupWriteRequest {
-  name: string;
-}
-
-interface KeyWriteRequest {
-  name: string;
-  kind: string;
-  fingerprint: string | null;
-  encrypted_private_key: string;
-  encrypted_passphrase: string | null;
-}
 
 function trimOptional(value: string | null | undefined): string | null {
   const trimmed = value?.trim();

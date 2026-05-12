@@ -1,45 +1,26 @@
-export interface Setting {
-  key: string;
-  value: string;
-}
+import type { HostGroupRecord } from "../../bindings/host-group-record.js";
+import type { KeyWriteRequest } from "../../bindings/key-write-request.js";
+import type { Setting } from "../../bindings/setting.js";
+import type { SshHostRecord } from "../../bindings/ssh-host-record.js";
+import type { SshKeyRecord } from "../../bindings/ssh-key-record.js";
 
-export interface HostGroupRecord {
-  id: string;
-  name: string;
-}
-
-export interface SshHostRecord {
-  id: string;
-  name: string;
-  host: string;
-  port: number;
-  username: string;
-  ssh_key_id: string | null;
-  group_id: string | null;
-  auth: SshHostAuthMaterial | null;
-}
-
-export type SshHostAuthMaterial =
-  | { kind: "password"; password: string }
-  | { kind: "public_key"; private_key: string; passphrase: string | null }
-  | {
-      kind: "public_key_and_password";
-      private_key: string;
-      passphrase: string | null;
-      password: string;
-    };
-
-export interface SshKeyRecord {
-  id: string;
-  name: string;
-  kind: string;
-  fingerprint: string | null;
-}
-
-export interface SshKeySecret {
-  private_key: string;
-  passphrase: string | null;
-}
+export type { AuthResponse } from "../../bindings/auth-response.js";
+export type { ForgotPasswordRequest } from "../../bindings/forgot-password-request.js";
+export type { HostGroupRecord } from "../../bindings/host-group-record.js";
+export type { HostGroupWriteRequest } from "../../bindings/host-group-write-request.js";
+export type { HostWriteRequest } from "../../bindings/host-write-request.js";
+export type { KeyUpdateRequest } from "../../bindings/key-update-request.js";
+export type { KeyWriteRequest } from "../../bindings/key-write-request.js";
+export type { LoginRequest } from "../../bindings/login-request.js";
+export type { LogoutRequest } from "../../bindings/logout-request.js";
+export type { RefreshRequest } from "../../bindings/refresh-request.js";
+export type { RegisterRequest } from "../../bindings/register-request.js";
+export type { ResetPasswordRequest } from "../../bindings/reset-password-request.js";
+export type { Setting } from "../../bindings/setting.js";
+export type { SshHostAuthMaterial } from "../../bindings/ssh-host-auth-material.js";
+export type { SshHostRecord } from "../../bindings/ssh-host-record.js";
+export type { SshKeyRecord } from "../../bindings/ssh-key-record.js";
+export type { SshKeySecret } from "../../bindings/ssh-key-secret.js";
 
 export interface AppDataMetadata {
   settings: Setting[];
@@ -48,16 +29,4 @@ export interface AppDataMetadata {
   keys: SshKeyRecord[];
 }
 
-export interface KeyCreateRequest {
-  name: string;
-  kind: string;
-  encrypted_private_key: string;
-  encrypted_passphrase: string | null;
-}
-
-export interface KeyUpdateRequest {
-  name: string;
-  kind: string;
-  encrypted_private_key?: string;
-  encrypted_passphrase?: string | null;
-}
+export type KeyCreateRequest = KeyWriteRequest;
