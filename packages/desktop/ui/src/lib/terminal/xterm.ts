@@ -3,6 +3,7 @@ import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -172,6 +173,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(searchAddon);
     terminal.loadAddon(new ClipboardAddon());
+    terminal.loadAddon(new WebglAddon());
     terminal.loadAddon(
       new WebLinksAddon((event, uri) => {
         event.preventDefault();
