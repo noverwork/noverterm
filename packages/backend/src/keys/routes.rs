@@ -2,8 +2,7 @@ use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use serde::Deserialize;
-use shared::{SshKeyRecord, SshKeySecret};
+use shared::{KeyUpdateRequest, KeyWriteRequest, SshKeyRecord, SshKeySecret};
 
 use crate::auth::AuthenticatedUser;
 use crate::bootstrap::AppState;
@@ -15,27 +14,6 @@ pub fn router() -> Router<AppState> {
         .route("/", get(list_keys).post(create_key))
         .route("/{id}/secret", get(reveal_key_secret))
         .route("/{id}", get(get_key).put(update_key).delete(delete_key))
-}
-
-#[derive(Debug, Deserialize)]
-struct KeyWriteRequest {
-    name: String,
-    kind: String,
-    fingerprint: Option<String>,
-    encrypted_private_key: String,
-    encrypted_passphrase: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct KeyUpdateRequest {
-    name: String,
-    kind: String,
-    #[serde(default)]
-    fingerprint: Option<String>,
-    #[serde(default)]
-    encrypted_private_key: Option<String>,
-    #[serde(default)]
-    encrypted_passphrase: Option<String>,
 }
 
 async fn list_keys(

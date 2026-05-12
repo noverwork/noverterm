@@ -5,7 +5,7 @@ use chrono::Utc;
 use diesel::prelude::*;
 use orm::models::{NewUser, User};
 use orm::schema::users;
-use serde::{Deserialize, Serialize};
+use shared::{AuthResponse, ForgotPasswordRequest, LoginRequest, LogoutRequest, RefreshRequest, RegisterRequest, ResetPasswordRequest};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -34,47 +34,6 @@ pub struct AuthenticatedUser {
     pub user_id: String,
     pub email: String,
     pub session_id: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct LoginRequest {
-    pub email: String,
-    pub password: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct RegisterRequest {
-    pub email: String,
-    pub password: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct RefreshRequest {
-    pub refresh_token: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct LogoutRequest {
-    pub refresh_token: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct ForgotPasswordRequest {
-    pub email: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct ResetPasswordRequest {
-    pub token: String,
-    pub password: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuthResponse {
-    pub access_token: String,
-    pub refresh_token: String,
-    pub access_token_expires_at: chrono::DateTime<Utc>,
-    pub email: String,
 }
 
 impl AuthConfig {

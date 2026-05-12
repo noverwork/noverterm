@@ -2,8 +2,7 @@ use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use serde::Deserialize;
-use shared::HostGroupRecord;
+use shared::{HostGroupRecord, HostGroupWriteRequest};
 
 use crate::auth::AuthenticatedUser;
 use crate::bootstrap::AppState;
@@ -19,11 +18,6 @@ pub fn router() -> Router<AppState> {
                 .put(update_host_group)
                 .delete(delete_host_group),
         )
-}
-
-#[derive(Debug, Deserialize)]
-struct HostGroupWriteRequest {
-    name: String,
 }
 
 async fn list_host_groups(

@@ -1,11 +1,7 @@
 use axum::{routing::post, Json, Router};
+use shared::{AuthResponse, ForgotPasswordRequest, LoginRequest, LogoutRequest, RefreshRequest, RegisterRequest, ResetPasswordRequest};
 
 use crate::bootstrap::AppState;
-
-use super::service::{
-    AuthResponse, ForgotPasswordRequest, LoginRequest, LogoutRequest, RefreshRequest,
-    RegisterRequest, ResetPasswordRequest,
-};
 
 pub fn router() -> Router<AppState> {
     Router::new()

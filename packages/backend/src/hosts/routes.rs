@@ -2,8 +2,7 @@ use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use serde::Deserialize;
-use shared::{SshHostAuthMaterial, SshHostRecord};
+use shared::{HostWriteRequest, SshHostAuthMaterial, SshHostRecord};
 
 use crate::auth::AuthenticatedUser;
 use crate::bootstrap::AppState;
@@ -15,18 +14,6 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_hosts).post(create_host))
         .route("/{id}", get(get_host).put(update_host).delete(delete_host))
-}
-
-#[derive(Debug, Deserialize)]
-struct HostWriteRequest {
-    name: String,
-    host: String,
-    port: i32,
-    username: String,
-    ssh_key_id: Option<String>,
-    encrypted_password: Option<String>,
-    #[serde(default)]
-    group_id: Option<String>,
 }
 
 async fn list_hosts(
