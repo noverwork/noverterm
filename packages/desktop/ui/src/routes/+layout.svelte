@@ -44,6 +44,11 @@
       (app.activeSession?.status === "connected" ||
         app.activeSession?.status === "connecting"),
   );
+  const hasTerminalErrorOverlay = $derived(
+    isTerminalRoute &&
+      (app.activeSession?.status === "error" ||
+        app.activeSession?.status === "trust_required"),
+  );
   const activeSidebarSection = $derived.by(() => {
     if (routePath.startsWith("/connections")) {
       return "hosts";
@@ -76,6 +81,14 @@
   async function openLocalTerminal() {
     await app.connectLocalTerminal();
     await goto(terminalPath);
+  }
+
+  async function closeSessionAndNavigate(id: string) {
+    const isLastSession = app.sessionStore.sessions.size === 1;
+    app.closeSession(id);
+    if (isLastSession && routePath === terminalPath) {
+      await goto(connectionsPath);
+    }
   }
 
   async function goHome() {
@@ -119,7 +132,7 @@
     if (mod && (event.key === "w" || event.key === "W") && !isInput) {
       event.preventDefault();
       if (app.sessionStore.activeSessionId) {
-        app.closeSession(app.sessionStore.activeSessionId);
+        void closeSessionAndNavigate(app.sessionStore.activeSessionId);
       }
       return;
     }
@@ -191,7 +204,7 @@
         sessions={app.sessionStore.sessions}
         activeSessionId={app.sessionStore.activeSessionId}
         onActivateSession={activateSession}
-        onCloseSession={app.closeSession}
+        onCloseSession={closeSessionAndNavigate}
         onLocalTerminal={openLocalTerminal}
         onManageKeys={() => goto("/keys")}
         onPortForwards={() => goto("/forwards")}
@@ -208,7 +221,9 @@
 
       <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-[#080c13]/72">
         <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-          {@render children()}
+          {#if !hasTerminalErrorOverlay}
+            {@render children()}
+          {/if}
 
           {#if isTerminalRoute && app.mountedTerminalSessions.length > 0}
             <div
