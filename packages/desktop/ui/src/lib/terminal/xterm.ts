@@ -47,7 +47,7 @@ function getTheme() {
     background: "#080c13",
     foreground: "#e5e5e5",
     cursor: "#e5e5e5",
-    selectionBackground: "#ffffff20",
+    selectionBackground: "#2563eb",
     black: "#1f2937",
     red: "#ef4444",
     green: "#22c55e",
