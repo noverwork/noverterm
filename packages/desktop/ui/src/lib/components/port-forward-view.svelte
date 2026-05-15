@@ -2,28 +2,27 @@
   import {
     Loader2,
     Network,
+    Pencil,
     Play,
     Plus,
-    Server,
     Square,
     Trash2,
   } from "@lucide/svelte";
 
   import DeleteConfirmDialog from "$lib/components/delete-confirm-dialog.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
-  import { Input } from "$lib/components/ui/input/index.js";
   import type {
-  ConnectionConfig,
-  SavePortForwardInput,
-  SavedPortForwardConfig,
-} from "$lib/app-data-types.js";
+    ConnectionConfig,
+    SavedPortForwardConfig,
+  } from "$lib/app-data-types.js";
   import type { PortForward } from "$lib/stores/port-forward.svelte.js";
 
   interface Props {
     connections: ConnectionConfig[];
     savedForwards: SavedPortForwardConfig[];
     forwards: PortForward[];
-    onSave: (input: SavePortForwardInput) => Promise<SavedPortForwardConfig>;
+    onNew: () => void | Promise<void>;
+    onEdit: (forward: SavedPortForwardConfig) => void | Promise<void>;
     onForward: (forward: SavedPortForwardConfig) => Promise<PortForward>;
     onStop: (forwardId: string) => Promise<PortForward>;
     onDeleteSaved: (forwardId: string) => Promise<void>;
@@ -34,68 +33,25 @@
     connections,
     savedForwards,
     forwards,
-    onSave,
+    onNew,
+    onEdit,
     onForward,
     onStop,
     onDeleteSaved,
     onDeleteRuntime,
   }: Props = $props();
 
-  let showForm = $state(false);
   let error = $state<string | null>(null);
-  let isSaving = $state(false);
   let forwardingPresetIds = $state<string[]>([]);
   let deletingSavedForwardIds = $state<string[]>([]);
   let deletingRuntimeForwardIds = $state<string[]>([]);
   let pendingDeleteTarget = $state<SavedPortForwardConfig | null>(null);
-
-  let selectedConnectionId = $state<string | null>(null);
-  let selectedConnection = $derived(
-    selectedConnectionId
-      ? (connections.find(
-          (connection) => connection.id === selectedConnectionId,
-        ) ?? null)
-      : null,
-  );
-
-  let formName = $state("");
-  let formBindHost = $state("127.0.0.1");
-  let formBindPort = $state("");
-  let formTargetHost = $state("127.0.0.1");
-  let formTargetPort = $state("");
-  let autoFilledTargetPort = $state(false);
-
-  $effect(() => {
-    if (formBindPort && autoFilledTargetPort) {
-      formTargetPort = String(formBindPort);
-    }
-  });
-
-  function onBindPortInput() {
-    autoFilledTargetPort = true;
-    formTargetPort = String(formBindPort);
-  }
-
-  let sortedConnections = $derived(
-    [...connections].sort((left, right) => left.name.localeCompare(right.name)),
-  );
 
   let sortedSavedForwards = $derived(
     [...savedForwards].sort((left, right) =>
       left.name.localeCompare(right.name),
     ),
   );
-
-  function getAuthLabel(connection: ConnectionConfig): string {
-    switch (connection.auth?.kind) {
-      case "public_key_and_password":
-        return "Key + Password";
-      case "public_key":
-        return "SSH Key";
-      default:
-        return "Password";
-    }
-  }
 
   function connectionForForward(
     forward: SavedPortForwardConfig,
@@ -107,83 +63,42 @@
     );
   }
 
-  function resetForm() {
-    selectedConnectionId = null;
-    formName = "";
-    formBindHost = "127.0.0.1";
-    formBindPort = "";
-    formTargetHost = "127.0.0.1";
-    formTargetPort = "";
-    autoFilledTargetPort = false;
-    error = null;
+  function runtimeForwardFor(
+    savedForward: SavedPortForwardConfig,
+    connection: ConnectionConfig | null,
+  ): PortForward | null {
+    if (!connection) {
+      return null;
+    }
+
+    return (
+      forwards.find(
+        (forward) =>
+          forward.name === savedForward.name &&
+          forward.host === connection.host &&
+          forward.port === connection.port &&
+          forward.username === connection.username &&
+          forward.bind_host === savedForward.bind_host &&
+          forward.bind_port === savedForward.bind_port &&
+          forward.target_host === savedForward.target_host &&
+          forward.target_port === savedForward.target_port,
+      ) ?? null
+    );
   }
 
-  function openNewForm() {
-    resetForm();
-    showForm = true;
-  }
+  function cardClass(runtimeForward: PortForward | null): string {
+    const base =
+      "group rounded-[1.35rem] border bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055]";
 
-  function closeForm() {
-    showForm = false;
-    resetForm();
-  }
-
-  function parsePort(value: string, label: string): number {
-    const trimmedValue = value.trim();
-    if (!/^\d+$/.test(trimmedValue)) {
-      throw new Error(`${label} must be a number from 1 to 65535`);
-    }
-
-    const port = Number.parseInt(trimmedValue, 10);
-    if (!Number.isInteger(port) || port < 1 || port > 65535) {
-      throw new Error(`${label} must be a number from 1 to 65535`);
-    }
-    return port;
-  }
-
-  async function handleSubmit(event: SubmitEvent) {
-    event.preventDefault();
-    error = null;
-
-    if (!selectedConnection) {
-      error = "Select a saved connection to continue";
-      return;
-    }
-
-    if (!formName.trim()) {
-      error = "Name is required";
-      return;
-    }
-
-    if (!String(formBindPort).trim()) {
-      error = "Bind port is required";
-      return;
-    }
-
-    if (!String(formTargetPort).trim()) {
-      error = "Target port is required";
-      return;
-    }
-
-    isSaving = true;
-
-    try {
-      const input: SavePortForwardInput = {
-        name: formName.trim(),
-        connectionId: selectedConnection.id,
-        bind_host: formBindHost.trim(),
-        bind_port: parsePort(String(formBindPort), "Bind port"),
-        target_host: formTargetHost.trim(),
-        target_port: parsePort(String(formTargetPort), "Target port"),
-      };
-
-      await onSave(input);
-      closeForm();
-    } catch (cause) {
-      error =
-        cause instanceof Error ? cause.message : "Failed to save port forward";
-    } finally {
-      isSaving = false;
+    switch (runtimeForward?.state) {
+      case "listening":
+        return `${base} forward-card--listening border-emerald-300/55`;
+      case "connecting":
+        return `${base} forward-card--connecting border-amber-300/55`;
+      case "error":
+        return `${base} forward-card--error border-red-300/55`;
+      default:
+        return `${base} border-white/8`;
     }
   }
 
@@ -203,7 +118,7 @@
     }
   }
 
-  async function handleRemoveRuntime(forward: PortForward) {
+  async function handleStopRuntime(forward: PortForward) {
     error = null;
     deletingRuntimeForwardIds = [...deletingRuntimeForwardIds, forward.id];
 
@@ -214,7 +129,7 @@
       await onDeleteRuntime(forward.id);
     } catch (cause) {
       error =
-        cause instanceof Error ? cause.message : "Failed to remove port forward";
+        cause instanceof Error ? cause.message : "Failed to stop port forward";
     } finally {
       deletingRuntimeForwardIds = deletingRuntimeForwardIds.filter(
         (id) => id !== forward.id,
@@ -263,7 +178,7 @@
         };
       case "connecting":
         return {
-          tone: "bg-amber-300 shadow-[0_0_14px_rgb(252_211_77/0.55)] animate-pulse",
+          tone: "bg-amber-300 shadow-[0_0_14px_rgb(252_211_77/0.55)]",
           label: "Connecting",
           text: "text-amber-300",
         };
@@ -320,17 +235,15 @@
         </p>
       </div>
 
-      {#if !showForm}
-        <Button
-          onclick={openNewForm}
-          variant="default"
-          size="sm"
-          class="gap-2 self-start rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200"
-        >
-          <Plus class="size-3.5" />
-          Save Forward
-        </Button>
-      {/if}
+      <Button
+        onclick={onNew}
+        variant="default"
+        size="sm"
+        class="gap-2 self-start rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+      >
+        <Plus class="size-3.5" />
+        New Forward
+      </Button>
     </div>
 
     {#if error}
@@ -342,226 +255,8 @@
       </div>
     {/if}
 
-    {#if showForm}
-      <form
-        class="mt-5 rounded-[1.35rem] border border-cyan-300/24 bg-cyan-300/8 p-5 shadow-[0_16px_42px_rgb(34_211_238/0.08)]"
-        onsubmit={handleSubmit}
-      >
-        <div class="flex items-center justify-between gap-3">
-          <h2 class="text-sm font-semibold text-cyan-100">Save Port Forward</h2>
-          <button
-            type="button"
-            class="cursor-pointer text-xs text-slate-400 transition-colors hover:text-white"
-            onclick={closeForm}
-          >
-            Cancel
-          </button>
-        </div>
-
-        <div class="mt-4 space-y-3">
-          <p class="text-sm font-medium text-slate-100">
-            Select a Saved Connection
-          </p>
-
-          {#if sortedConnections.length === 0}
-            <div
-              class="rounded-2xl border border-dashed border-white/10 bg-white/[0.025] px-4 py-6 text-center"
-            >
-              <Server class="mx-auto mb-3 size-8 text-slate-600" />
-              <p class="text-sm text-slate-400">No saved connections yet.</p>
-              <p class="mt-1 text-xs text-slate-500">
-                Create a Host in <span class="text-cyan-300/80"
-                  >Connections</span
-                > first, then return here to save a tunnel.
-              </p>
-            </div>
-          {:else}
-            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {#each sortedConnections as connection (connection.id)}
-                <button
-                  type="button"
-                  class="cursor-pointer rounded-xl border px-3 py-3 text-left transition-all {selectedConnectionId ===
-                  connection.id
-                    ? 'border-cyan-300/30 bg-cyan-300/10 shadow-[0_0_20px_rgb(34_211_238/0.08)]'
-                    : 'border-white/8 bg-white/[0.03] hover:border-white/14 hover:bg-white/[0.055]'}"
-                  onclick={() => (selectedConnectionId = connection.id)}
-                >
-                  <div class="flex items-start gap-2.5">
-                    <div
-                      class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
-                    >
-                      <Server class="size-4" />
-                    </div>
-                    <div class="min-w-0 flex-1">
-                      <p class="truncate text-sm font-medium text-white">
-                        {connection.name}
-                      </p>
-                      <p
-                        class="mt-0.5 truncate font-mono text-[11px] text-slate-400"
-                      >
-                        {connection.username}@{connection.host}:{connection.port}
-                      </p>
-                      <p class="mt-0.5 text-[11px] text-slate-500">
-                        {getAuthLabel(connection)}
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
-
-        {#if selectedConnection}
-          <div
-            class="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
-          >
-            <div class="space-y-4">
-              <div class="space-y-2">
-                <label for="pf-name" class="text-sm font-medium text-slate-100"
-                  >Name</label
-                >
-                <Input
-                  id="pf-name"
-                  bind:value={formName}
-                  placeholder="My tunnel"
-                  class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                  disabled={isSaving}
-                />
-              </div>
-
-              <div
-                class="rounded-2xl border border-white/8 bg-white/[0.035] p-3"
-              >
-                <p
-                  class="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500"
-                >
-                  Using Connection
-                </p>
-                <p class="mt-1 font-mono text-sm text-cyan-100">
-                  {selectedConnection.username}@{selectedConnection.host}:{selectedConnection.port}
-                </p>
-                <p class="mt-0.5 text-xs text-slate-400">
-                  {selectedConnection.name}
-                </p>
-              </div>
-            </div>
-
-            <div class="space-y-4">
-              <div
-                class="rounded-2xl border border-white/8 bg-white/[0.035] p-4"
-              >
-                <h3
-                  class="text-xs font-medium uppercase tracking-[0.16em] text-slate-500"
-                >
-                  Forward Route
-                </h3>
-
-                <div class="mt-3 grid gap-3">
-                  <div class="grid grid-cols-[1fr_6rem] gap-3">
-                    <div class="space-y-2">
-                      <label
-                        for="pf-bind-host"
-                        class="text-sm font-medium text-slate-100"
-                        >Bind Host</label
-                      >
-                      <Input
-                        id="pf-bind-host"
-                        bind:value={formBindHost}
-                        placeholder="127.0.0.1"
-                        class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                        disabled={isSaving}
-                      />
-                    </div>
-                    <div class="space-y-2">
-                      <label
-                        for="pf-bind-port"
-                        class="text-sm font-medium text-slate-100"
-                        >Bind Port</label
-                      >
-                      <Input
-                        id="pf-bind-port"
-                        bind:value={formBindPort}
-                        type="number"
-                        min="1"
-                        max="65535"
-                        class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                        disabled={isSaving}
-                        oninput={onBindPortInput}
-                      />
-                    </div>
-                  </div>
-
-                  <div class="flex items-center justify-center">
-                    <span class="text-lg text-slate-600">↓</span>
-                  </div>
-
-                  <div class="grid grid-cols-[1fr_6rem] gap-3">
-                    <div class="space-y-2">
-                      <label
-                        for="pf-target-host"
-                        class="text-sm font-medium text-slate-100"
-                        >Target Host</label
-                      >
-                      <Input
-                        id="pf-target-host"
-                        bind:value={formTargetHost}
-                        placeholder="127.0.0.1"
-                        class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                        disabled={isSaving}
-                      />
-                    </div>
-                    <div class="space-y-2">
-                      <label
-                        for="pf-target-port"
-                        class="text-sm font-medium text-slate-100"
-                        >Target Port</label
-                      >
-                      <Input
-                        id="pf-target-port"
-                        bind:value={formTargetPort}
-                        type="number"
-                        min="1"
-                        max="65535"
-                        class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                        disabled={isSaving}
-                        oninput={() => (autoFilledTargetPort = false)}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="flex flex-wrap items-center gap-2 pt-1">
-                <Button
-                  type="submit"
-                  class="rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200"
-                  disabled={isSaving}
-                >
-                  {#if isSaving}
-                    <Loader2 class="size-4 animate-spin" />
-                  {/if}
-                  {isSaving ? "Saving…" : "Save Forward"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  class="rounded-2xl text-slate-300 hover:bg-white/8 hover:text-white"
-                  onclick={closeForm}
-                  disabled={isSaving}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </div>
-        {/if}
-      </form>
-    {/if}
-
     <div class="mt-6 flex-1">
-      {#if sortedSavedForwards.length === 0 && forwards.length === 0 && !showForm}
+      {#if sortedSavedForwards.length === 0}
         <div
           class="flex h-full min-h-[16rem] items-center justify-center rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground"
         >
@@ -569,24 +264,13 @@
         </div>
       {:else}
         <div class="space-y-6">
-          {#if sortedSavedForwards.length > 0}
-            <section>
-              <div class="flex items-center justify-between gap-3">
-                <h2 class="text-sm font-semibold text-slate-100">
-                  Saved Forwards
-                </h2>
-                <span
-                  class="rounded-full border border-cyan-300/15 bg-cyan-300/8 px-2 py-0.5 text-[10px] font-medium text-cyan-200"
-                  >{savedForwards.length}</span
-                >
-              </div>
-
-              <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <section>
+              <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {#each sortedSavedForwards as savedForward (savedForward.id)}
                   {@const connection = connectionForForward(savedForward)}
-                  <article
-                    class="group rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055]"
-                  >
+                  {@const runtimeForward = runtimeForwardFor(savedForward, connection)}
+                  {@const badge = runtimeForward ? stateBadge(runtimeForward.state) : null}
+                  <article class={cardClass(runtimeForward)}>
                     <div class="flex items-start gap-3">
                       <div
                         class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
@@ -595,9 +279,21 @@
                       </div>
 
                       <div class="min-w-0 flex-1">
-                        <p class="truncate text-sm font-medium text-white">
-                          {savedForward.name}
-                        </p>
+                        <div class="flex items-center gap-2">
+                          <p class="truncate text-sm font-medium text-white">
+                            {savedForward.name}
+                          </p>
+                          {#if badge}
+                            <span
+                              class="shrink-0 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide {badge.text}"
+                            >
+                              <span
+                                class="mr-1 inline-block size-1.5 shrink-0 rounded-full {badge.tone}"
+                              ></span>
+                              {badge.label}
+                            </span>
+                          {/if}
+                        </div>
                         <p class="mt-1 truncate text-xs text-slate-400">
                           {#if connection}
                             {connection.username}@{connection.host}:{connection.port}
@@ -620,30 +316,64 @@
                       >
                     </div>
 
+                    {#if runtimeForward?.error}
+                      <p class="mt-2 text-xs text-red-300">
+                        {runtimeForward.error}
+                      </p>
+                    {/if}
+
                     <div class="mt-4 flex items-center gap-2">
+                      {#if runtimeForward}
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          class="gap-1.5 rounded-xl text-slate-400 hover:bg-amber-400/10 hover:text-amber-300"
+                          onclick={() => handleStopRuntime(runtimeForward)}
+                          disabled={deletingRuntimeForwardIds.includes(
+                            runtimeForward.id,
+                          )}
+                        >
+                          {#if deletingRuntimeForwardIds.includes(runtimeForward.id)}
+                            <Loader2 class="size-3 animate-spin" />
+                          {:else}
+                            <Square class="size-3" />
+                          {/if}
+                          Stop
+                        </Button>
+                      {:else}
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          class="gap-1.5 rounded-xl bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/18 hover:text-white"
+                          onclick={() => handleForward(savedForward)}
+                          disabled={!connection ||
+                            forwardingPresetIds.includes(savedForward.id)}
+                        >
+                          {#if forwardingPresetIds.includes(savedForward.id)}
+                            <Loader2 class="size-3 animate-spin" />
+                          {:else}
+                            <Play class="size-3" />
+                          {/if}
+                          Forward
+                        </Button>
+                      {/if}
                       <Button
                         variant="ghost"
                         size="xs"
-                        class="gap-1.5 rounded-xl bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/18 hover:text-white"
-                        onclick={() => handleForward(savedForward)}
-                        disabled={!connection ||
-                          forwardingPresetIds.includes(savedForward.id)}
+                        class="gap-1.5 rounded-xl text-slate-400 hover:bg-white/8 hover:text-white"
+                        onclick={() => onEdit(savedForward)}
+                        disabled={runtimeForward !== null}
                       >
-                        {#if forwardingPresetIds.includes(savedForward.id)}
-                          <Loader2 class="size-3 animate-spin" />
-                        {:else}
-                          <Play class="size-3" />
-                        {/if}
-                        Forward
+                        <Pencil class="size-3" />
+                        Edit
                       </Button>
                       <Button
                         variant="ghost"
                         size="xs"
                         class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
                         onclick={() => requestDeleteSaved(savedForward)}
-                        disabled={deletingSavedForwardIds.includes(
-                          savedForward.id,
-                        )}
+                        disabled={runtimeForward !== null ||
+                          deletingSavedForwardIds.includes(savedForward.id)}
                       >
                         {#if deletingSavedForwardIds.includes(savedForward.id)}
                           <Loader2 class="size-3 animate-spin" />
@@ -657,92 +387,7 @@
                 {/each}
               </div>
             </section>
-          {/if}
 
-          {#if forwards.length > 0}
-            <section>
-              <div class="flex items-center justify-between gap-3">
-                <h2 class="text-sm font-semibold text-slate-100">
-                  Runtime Forwards
-                </h2>
-                <span
-                  class="rounded-full border border-emerald-300/15 bg-emerald-300/8 px-2 py-0.5 text-[10px] font-medium text-emerald-200"
-                  >{forwards.length}</span
-                >
-              </div>
-
-              <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {#each forwards as forward (forward.id)}
-                  {@const badge = stateBadge(forward.state)}
-                  <article
-                    class="group rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055]"
-                  >
-                    <div class="flex items-start gap-3">
-                      <div
-                        class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
-                      >
-                        <Network class="size-5" />
-                      </div>
-
-                      <div class="min-w-0 flex-1">
-                        <div class="flex items-center gap-2">
-                          <p class="truncate text-sm font-medium text-white">
-                            {forward.name}
-                          </p>
-                          <span
-                            class="shrink-0 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide {badge.text}"
-                          >
-                            <span
-                              class="mr-1 inline-block size-1.5 shrink-0 rounded-full {badge.tone}"
-                            ></span>
-                            {badge.label}
-                          </span>
-                        </div>
-                        <p class="mt-1 text-xs text-slate-400">
-                          {forward.username}@{forward.host}:{forward.port}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div
-                      class="mt-3 rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-xs"
-                    >
-                      <span class="font-mono text-cyan-100"
-                        >{forward.bind_host}:{forward.bind_port}</span
-                      >
-                      <span class="mx-2 text-slate-600">→</span>
-                      <span class="font-mono text-slate-300"
-                        >{forward.target_host}:{forward.target_port}</span
-                      >
-                    </div>
-
-                    {#if forward.error}
-                      <p class="mt-2 text-xs text-red-300">{forward.error}</p>
-                    {/if}
-
-                    <div class="mt-4 flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
-                        onclick={() => handleRemoveRuntime(forward)}
-                        disabled={deletingRuntimeForwardIds.includes(
-                          forward.id,
-                        )}
-                      >
-                        {#if deletingRuntimeForwardIds.includes(forward.id)}
-                          <Loader2 class="size-3 animate-spin" />
-                        {:else}
-                          <Trash2 class="size-3" />
-                        {/if}
-                        Remove
-                      </Button>
-                    </div>
-                  </article>
-                {/each}
-              </div>
-            </section>
-          {/if}
         </div>
       {/if}
     </div>
@@ -759,3 +404,47 @@
   onConfirm={confirmDelete}
   onCancel={() => (pendingDeleteTarget = null)}
 />
+
+<style>
+  @keyframes forward-border-listening {
+    0%,
+    100% {
+      box-shadow: 0 0 18px rgb(52 211 153 / 0.12);
+    }
+    50% {
+      box-shadow: 0 0 34px rgb(52 211 153 / 0.36);
+    }
+  }
+
+  @keyframes forward-border-connecting {
+    0%,
+    100% {
+      box-shadow: 0 0 18px rgb(252 211 77 / 0.1);
+    }
+    50% {
+      box-shadow: 0 0 34px rgb(252 211 77 / 0.32);
+    }
+  }
+
+  @keyframes forward-border-error {
+    0%,
+    100% {
+      box-shadow: 0 0 18px rgb(248 113 113 / 0.1);
+    }
+    50% {
+      box-shadow: 0 0 34px rgb(248 113 113 / 0.32);
+    }
+  }
+
+  :global(.forward-card--listening) {
+    animation: forward-border-listening 1.5s ease-in-out infinite;
+  }
+
+  :global(.forward-card--connecting) {
+    animation: forward-border-connecting 1.5s ease-in-out infinite;
+  }
+
+  :global(.forward-card--error) {
+    animation: forward-border-error 1.5s ease-in-out infinite;
+  }
+</style>
