@@ -329,7 +329,7 @@ export function createAppShellStore(queryClient: QueryClient) {
       const sessionId = await sessionStore.connectLocal("Claude Code");
       await sessionStore.writeSession(
         sessionId,
-        "mkdir -p /tmp/noverwork/claude-code && cd /tmp/noverwork/claude-code && claude\n",
+        "mkdir -p ~/noverterm/agent && cd ~/noverterm/agent && claude\n",
       );
       return true;
     } catch {
@@ -342,7 +342,7 @@ export function createAppShellStore(queryClient: QueryClient) {
       const sessionId = await sessionStore.connectLocal("OpenCode");
       await sessionStore.writeSession(
         sessionId,
-        "mkdir -p /tmp/noverterm/opencode && cd /tmp/noverterm/opencode && opencode\n",
+        "mkdir -p ~/noverterm/agent && cd ~/noverterm/agent && opencode\n",
       );
       return true;
     } catch {
