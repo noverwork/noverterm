@@ -83,6 +83,21 @@
     await goto(terminalPath);
   }
 
+  async function openK9sTerminal() {
+    await app.openK9sTerminal();
+    await goto(terminalPath);
+  }
+
+  async function openClaudeCodeTerminal() {
+    await app.openClaudeCodeTerminal();
+    await goto(terminalPath);
+  }
+
+  async function openOpencodeTerminal() {
+    await app.openOpencodeTerminal();
+    await goto(terminalPath);
+  }
+
   async function closeSessionAndNavigate(id: string) {
     const isLastSession = app.sessionStore.sessions.size === 1;
     app.closeSession(id);
@@ -206,6 +221,9 @@
         onActivateSession={activateSession}
         onCloseSession={closeSessionAndNavigate}
         onLocalTerminal={openLocalTerminal}
+        onK9sTerminal={openK9sTerminal}
+        onClaudeCodeTerminal={openClaudeCodeTerminal}
+        onOpencodeTerminal={openOpencodeTerminal}
         onManageKeys={() => goto("/keys")}
         onPortForwards={() => goto("/forwards")}
         onNewConnection={() => goto("/connections")}

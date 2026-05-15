@@ -314,6 +314,42 @@ export function createAppShellStore(queryClient: QueryClient) {
     }
   }
 
+  async function openK9sTerminal(): Promise<boolean> {
+    try {
+      const sessionId = await sessionStore.connectLocal("k9s");
+      await sessionStore.writeSession(sessionId, "k9s\n");
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function openClaudeCodeTerminal(): Promise<boolean> {
+    try {
+      const sessionId = await sessionStore.connectLocal("Claude Code");
+      await sessionStore.writeSession(
+        sessionId,
+        "mkdir -p /tmp/noverwork/claude-code && cd /tmp/noverwork/claude-code && claude\n",
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function openOpencodeTerminal(): Promise<boolean> {
+    try {
+      const sessionId = await sessionStore.connectLocal("OpenCode");
+      await sessionStore.writeSession(
+        sessionId,
+        "mkdir -p /tmp/noverterm/opencode && cd /tmp/noverterm/opencode && opencode\n",
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function activateSession(id: string) {
     sessionStore.setActiveSession(id);
   }
@@ -659,6 +695,9 @@ export function createAppShellStore(queryClient: QueryClient) {
     logout,
     connectSavedConnection,
     connectLocalTerminal,
+    openK9sTerminal,
+    openClaudeCodeTerminal,
+    openOpencodeTerminal,
     activateSession,
     resetConnectionFormError,
     saveConnection,
