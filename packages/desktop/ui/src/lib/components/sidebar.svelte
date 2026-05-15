@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import {
     KeyRound,
     LogOut,
@@ -20,6 +21,9 @@
     onActivateSession,
     onCloseSession,
     onLocalTerminal,
+    onK9sTerminal,
+    onClaudeCodeTerminal,
+    onOpencodeTerminal,
     onManageKeys,
     onPortForwards,
     onNewConnection,
@@ -37,6 +41,9 @@
     onActivateSession: (id: string) => void;
     onCloseSession: (id: string) => void;
     onLocalTerminal?: () => void;
+    onK9sTerminal?: () => void;
+    onClaudeCodeTerminal?: () => void;
+    onOpencodeTerminal?: () => void;
     onManageKeys?: () => void;
     onPortForwards?: () => void;
     onNewConnection?: () => void;
@@ -49,6 +56,17 @@
     forwardCount?: number;
     activeSection?: SidebarSection;
   } = $props();
+
+  let appVersion = $state<string | null>(null);
+
+  onMount(async () => {
+    try {
+      const { getVersion } = await import("@tauri-apps/api/app");
+      appVersion = await getVersion();
+    } catch {
+      appVersion = null;
+    }
+  });
 
   const activeSessions = $derived(
     Array.from(sessions.values()).filter(
@@ -111,14 +129,102 @@
     return "ml-auto rounded-full bg-cyan-300/12 px-1.5 py-0.5 text-[10px] text-cyan-200";
   }
 
-  function localTerminalButtonClass(): string {
+  function localTerminalIconButtonClass(): string {
     if (activeSection === "terminal") {
-      return "h-10 w-full justify-start gap-2 rounded-2xl border-emerald-300/18 bg-emerald-300/8 text-emerald-100 shadow-[0_10px_26px_rgb(52_211_153/0.08)] ring-1 ring-emerald-300/8 hover:border-emerald-300/25 hover:bg-emerald-300/12 hover:text-white";
+      return "rounded-2xl border-emerald-300/24 bg-emerald-300/12 text-emerald-100 shadow-[0_0_22px_rgb(52_211_153/0.12)] ring-1 ring-emerald-300/10 hover:border-emerald-300/35 hover:bg-emerald-300/16 hover:text-white";
     }
 
-    return "h-10 w-full justify-start gap-2 rounded-2xl border-emerald-300/12 bg-emerald-300/[0.045] text-emerald-200/85 hover:border-emerald-300/22 hover:bg-emerald-300/8 hover:text-emerald-50";
+    return "rounded-2xl border-emerald-300/12 bg-emerald-300/[0.045] text-emerald-200/85 hover:border-emerald-300/22 hover:bg-emerald-300/8 hover:text-emerald-50";
+  }
+
+  function k9sIconButtonClass(): string {
+    return "rounded-2xl border-cyan-300/12 bg-cyan-300/[0.045] text-cyan-200/85 hover:border-cyan-300/22 hover:bg-cyan-300/8 hover:text-cyan-50";
+  }
+
+  function claudeCodeIconButtonClass(): string {
+    return "rounded-2xl border-violet-300/12 bg-violet-300/[0.045] text-violet-200/85 hover:border-violet-300/22 hover:bg-violet-300/8 hover:text-violet-50";
+  }
+
+  function opencodeIconButtonClass(): string {
+    return "rounded-2xl border-orange-300/12 bg-orange-300/[0.045] text-orange-200/85 hover:border-orange-300/22 hover:bg-orange-300/8 hover:text-orange-50";
   }
 </script>
+
+{#snippet claudeIcon()}
+  <svg
+    viewBox="0 0 24 24"
+    class="size-4"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M12 3.5 13.9 9l5.6-1.9-3.1 5 4.9 3.3-5.9.8.5 5.8-3.9-4.4L8.1 22l.5-5.8-5.9-.8L7.6 12 4.5 7.1 10.1 9 12 3.5Z" />
+    <path d="M12 9.2v5.6" />
+    <path d="m9.2 12 5.6 0" />
+  </svg>
+{/snippet}
+
+{#snippet opencodeIcon()}
+  <svg
+    viewBox="0 0 24 24"
+    class="size-4"
+    fill="none"
+    aria-hidden="true"
+  >
+    <rect
+      x="3"
+      y="5"
+      width="18"
+      height="14"
+      rx="4"
+      stroke="currentColor"
+      stroke-width="1.8"
+    />
+    <path
+      d="m9 10-2 2 2 2M15 10l2 2-2 2M13 8.5l-2 7"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </svg>
+{/snippet}
+
+{#snippet k9sIcon()}
+  <svg
+    viewBox="0 0 24 24"
+    class="size-4"
+    fill="none"
+    aria-hidden="true"
+  >
+    <rect
+      x="3"
+      y="5"
+      width="18"
+      height="14"
+      rx="4"
+      stroke="currentColor"
+      stroke-width="1.8"
+    />
+    <path
+      d="M8 9v6M8 12.5 11.5 9M9.8 11.5 12 15"
+      stroke="currentColor"
+      stroke-width="1.7"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M14.2 15h2.2c.9 0 1.6-.7 1.6-1.6v-.1c0-.9-.7-1.6-1.6-1.6h-.8c-.8 0-1.4-.6-1.4-1.4S14.8 9 15.6 9h2"
+      stroke="currentColor"
+      stroke-width="1.7"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </svg>
+{/snippet}
 
 <aside
   class="sidebar relative flex w-[18rem] shrink-0 flex-col overflow-hidden border-r border-white/10 shadow-[18px_0_60px_rgb(0_0_0/0.28)] backdrop-blur-2xl"
@@ -127,7 +233,7 @@
     class="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-cyan-300/25 to-transparent"
   ></div>
 
-  <div class="flex items-center justify-between px-4 py-4">
+  <div class="flex items-center justify-between px-4 pt-4 pb-3">
     <button
       type="button"
       class="flex min-w-0 cursor-pointer items-center gap-3 rounded-2xl text-left transition-colors hover:bg-white/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/30"
@@ -145,24 +251,73 @@
         >
           NOVERTERM
         </p>
+        {#if appVersion}
+          <p class="mt-1 text-[10px] font-medium text-slate-500">
+            v{appVersion}
+          </p>
+        {/if}
       </div>
     </button>
   </div>
 
-  <div class="flex min-h-0 flex-1 flex-col">
-    <div class="px-4 pb-4">
-      <div class="grid gap-2">
+  <div class="border-b border-white/8 px-4 pb-4">
+    {#if onLocalTerminal || onK9sTerminal || onClaudeCodeTerminal || onOpencodeTerminal}
+      <div class="flex items-center gap-2">
         {#if onLocalTerminal}
           <Button
             onclick={onLocalTerminal}
             variant="outline"
-            size="sm"
-            class={localTerminalButtonClass()}
+            size="icon-lg"
+            class={localTerminalIconButtonClass()}
+            aria-label="Open local terminal"
+            title="Local terminal"
           >
-            <Terminal class="size-3.5" />
-            Local terminal
+            <Terminal class="size-4" />
           </Button>
         {/if}
+        {#if onK9sTerminal}
+          <Button
+            onclick={onK9sTerminal}
+            variant="outline"
+            size="icon-lg"
+            class={k9sIconButtonClass()}
+            aria-label="Open k9s terminal"
+            title="k9s terminal"
+          >
+            {@render k9sIcon()}
+          </Button>
+        {/if}
+        {#if onClaudeCodeTerminal}
+          <Button
+            onclick={onClaudeCodeTerminal}
+            variant="outline"
+            size="icon-lg"
+            class={claudeCodeIconButtonClass()}
+            aria-label="Open Claude Code"
+            title="Claude Code"
+          >
+            {@render claudeIcon()}
+          </Button>
+        {/if}
+        {#if onOpencodeTerminal}
+          <Button
+            onclick={onOpencodeTerminal}
+            variant="outline"
+            size="icon-lg"
+            class={opencodeIconButtonClass()}
+            aria-label="Open OpenCode"
+            title="OpenCode"
+          >
+            {@render opencodeIcon()}
+          </Button>
+        {/if}
+      </div>
+    {/if}
+  </div>
+
+  <div class="flex min-h-0 flex-1 flex-col">
+    <div class="px-4 py-4">
+      <div class="grid gap-2">
         <div class="grid gap-2">
           {#if onNewConnection}
             <Button
