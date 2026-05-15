@@ -157,11 +157,10 @@ impl PortForwardManager {
             error: None,
         };
 
-        emit_status_event(&app, &status);
-
         let forwards = self.forwards.clone();
         let app_clone = app.clone();
         let status_clone = status.clone();
+        let mut entries = self.forwards.lock().await;
 
         let ssh_task = tokio::spawn(async move {
             run_port_forward(app_clone, input, trust_store, status_clone, forwards).await;
@@ -173,7 +172,9 @@ impl PortForwardManager {
         };
 
         let forward_id_clone = forward_id.clone();
-        self.forwards.lock().await.insert(forward_id, entry);
+        entries.insert(forward_id, entry);
+        emit_status_event(&app, &status);
+        drop(entries);
 
         info!(
             forward_id = forward_id_clone,
@@ -215,6 +216,28 @@ impl PortForwardManager {
     }
 }
 
+async fn update_stored_status(
+    forwards: &Arc<Mutex<HashMap<String, PortForwardEntry>>>,
+    status: &PortForwardStatus,
+) -> bool {
+    if let Some(entry) = forwards.lock().await.get_mut(&status.id) {
+        entry.status = status.clone();
+        return true;
+    }
+
+    false
+}
+
+async fn emit_and_store_status(
+    app: &AppHandle,
+    forwards: &Arc<Mutex<HashMap<String, PortForwardEntry>>>,
+    status: &PortForwardStatus,
+) {
+    if update_stored_status(forwards, status).await {
+        emit_status_event(app, status);
+    }
+}
+
 async fn run_port_forward(
     app: AppHandle,
     input: PortForwardCreateInput,
@@ -250,7 +273,7 @@ async fn run_port_forward(
             warn!(forward_id = %status.id, "SSH connect failed: {}", error_msg);
             status.state = PortForwardState::Error;
             status.error = Some(error_msg);
-            emit_status_event(&app, &status);
+            emit_and_store_status(&app, &forwards, &status).await;
             forwards.lock().await.remove(&status.id);
             return;
         }
@@ -264,7 +287,7 @@ async fn run_port_forward(
             warn!(forward_id = %status.id, "Authentication failed: {}", error);
             status.state = PortForwardState::Error;
             status.error = Some(error);
-            emit_status_event(&app, &status);
+            emit_and_store_status(&app, &forwards, &status).await;
             forwards.lock().await.remove(&status.id);
             return;
         }
@@ -284,7 +307,7 @@ async fn run_port_forward(
             warn!(forward_id = %status.id, "{}", error_msg);
             status.state = PortForwardState::Error;
             status.error = Some(error_msg);
-            emit_status_event(&app, &status);
+            emit_and_store_status(&app, &forwards, &status).await;
             forwards.lock().await.remove(&status.id);
             return;
         }
@@ -297,7 +320,7 @@ async fn run_port_forward(
             warn!(forward_id = %status.id, "{}", error_msg);
             status.state = PortForwardState::Error;
             status.error = Some(error_msg);
-            emit_status_event(&app, &status);
+            emit_and_store_status(&app, &forwards, &status).await;
             forwards.lock().await.remove(&status.id);
             return;
         }
@@ -306,7 +329,7 @@ async fn run_port_forward(
     status.bind_port = actual_bind_port;
     status.state = PortForwardState::Listening;
     status.error = None;
-    emit_status_event(&app, &status);
+    emit_and_store_status(&app, &forwards, &status).await;
 
     info!(
         forward_id = %status.id,
@@ -318,28 +341,24 @@ async fn run_port_forward(
     );
 
     let handle = Arc::new(Mutex::new(session));
-    let handle_for_disconnect = handle.clone();
     let target_host = input.target_host.clone();
     let target_port = input.target_port;
     let forward_id = status.id.clone();
     let app_clone = app.clone();
     let status_for_error = status.clone();
 
-    let forward_task = tokio::spawn(async move {
-        run_listener_loop(
-            listener,
-            handle,
-            target_host,
-            target_port,
-            app_clone,
-            status_for_error,
-        )
-        .await;
-    });
+    run_listener_loop(
+        listener,
+        handle.clone(),
+        target_host,
+        target_port,
+        app_clone,
+        status_for_error,
+        forwards.clone(),
+    )
+    .await;
 
-    forward_task.await.ok();
-
-    let _ = handle_for_disconnect
+    let _ = handle
         .lock()
         .await
         .disconnect(Disconnect::ByApplication, "Port forward stopped", "")
@@ -355,6 +374,7 @@ async fn run_listener_loop(
     target_port: u16,
     app: AppHandle,
     mut status: PortForwardStatus,
+    forwards: Arc<Mutex<HashMap<String, PortForwardEntry>>>,
 ) {
     loop {
         match listener.accept().await {
@@ -364,6 +384,7 @@ async fn run_listener_loop(
                 let target_port_clone = target_port;
                 let app_clone = app.clone();
                 let mut status_clone = status.clone();
+                let forwards_clone = forwards.clone();
 
                 tokio::spawn(async move {
                     match handle_forward_connection(
@@ -372,6 +393,9 @@ async fn run_listener_loop(
                         handle_clone,
                         target_host_clone,
                         target_port_clone,
+                        app_clone.clone(),
+                        status_clone.clone(),
+                        forwards_clone.clone(),
                     )
                     .await
                     {
@@ -382,9 +406,9 @@ async fn run_listener_loop(
                                 "Forward connection failed: {}",
                                 error
                             );
-                            status_clone.state = PortForwardState::Error;
+                            status_clone.state = PortForwardState::Listening;
                             status_clone.error = Some(error);
-                            emit_status_event(&app_clone, &status_clone);
+                            emit_and_store_status(&app_clone, &forwards_clone, &status_clone).await;
                         }
                     }
                 });
@@ -394,7 +418,7 @@ async fn run_listener_loop(
                 warn!(forward_id = %status.id, "{}", error_msg);
                 status.state = PortForwardState::Error;
                 status.error = Some(error_msg);
-                emit_status_event(&app, &status);
+                emit_and_store_status(&app, &forwards, &status).await;
                 break;
             }
         }
@@ -407,18 +431,29 @@ async fn handle_forward_connection(
     handle: Arc<Mutex<Handle<ClientHandler>>>,
     target_host: String,
     target_port: u16,
+    app: AppHandle,
+    mut status: PortForwardStatus,
+    forwards: Arc<Mutex<HashMap<String, PortForwardEntry>>>,
 ) -> Result<(), String> {
+    let target = format!("{target_host}:{target_port}");
+    let originator = originator_addr.to_string();
     let channel = handle
         .lock()
         .await
         .channel_open_direct_tcpip(
-            target_host,
+            target_host.clone(),
             u32::from(target_port),
             originator_addr.ip().to_string(),
             u32::from(originator_addr.port()),
         )
         .await
-        .map_err(|e| format!("Failed to open direct-tcpip channel: {}", e))?;
+        .map_err(|e| {
+            format!("Failed to open direct-tcpip channel to {target} from {originator}: {e}")
+        })?;
+
+    status.state = PortForwardState::Listening;
+    status.error = None;
+    emit_and_store_status(&app, &forwards, &status).await;
 
     let mut remote_stream = channel.into_stream();
     copy_bidirectional(&mut local_stream, &mut remote_stream)

@@ -19,10 +19,6 @@
 } from "$lib/app-data-types.js";
   import type { PortForward } from "$lib/stores/port-forward.svelte.js";
 
-  type DeleteTarget =
-    | { kind: "saved"; forward: SavedPortForwardConfig }
-    | { kind: "runtime"; forward: PortForward };
-
   interface Props {
     connections: ConnectionConfig[];
     savedForwards: SavedPortForwardConfig[];
@@ -49,10 +45,9 @@
   let error = $state<string | null>(null);
   let isSaving = $state(false);
   let forwardingPresetIds = $state<string[]>([]);
-  let stoppingForwardIds = $state<string[]>([]);
   let deletingSavedForwardIds = $state<string[]>([]);
   let deletingRuntimeForwardIds = $state<string[]>([]);
-  let pendingDeleteTarget = $state<DeleteTarget | null>(null);
+  let pendingDeleteTarget = $state<SavedPortForwardConfig | null>(null);
 
   let selectedConnectionId = $state<string | null>(null);
   let selectedConnection = $derived(
@@ -68,6 +63,18 @@
   let formBindPort = $state("");
   let formTargetHost = $state("127.0.0.1");
   let formTargetPort = $state("");
+  let autoFilledTargetPort = $state(false);
+
+  $effect(() => {
+    if (formBindPort && autoFilledTargetPort) {
+      formTargetPort = String(formBindPort);
+    }
+  });
+
+  function onBindPortInput() {
+    autoFilledTargetPort = true;
+    formTargetPort = String(formBindPort);
+  }
 
   let sortedConnections = $derived(
     [...connections].sort((left, right) => left.name.localeCompare(right.name)),
@@ -107,6 +114,7 @@
     formBindPort = "";
     formTargetHost = "127.0.0.1";
     formTargetPort = "";
+    autoFilledTargetPort = false;
     error = null;
   }
 
@@ -147,12 +155,12 @@
       return;
     }
 
-    if (!formBindPort.trim()) {
+    if (!String(formBindPort).trim()) {
       error = "Bind port is required";
       return;
     }
 
-    if (!formTargetPort.trim()) {
+    if (!String(formTargetPort).trim()) {
       error = "Target port is required";
       return;
     }
@@ -164,9 +172,9 @@
         name: formName.trim(),
         connectionId: selectedConnection.id,
         bind_host: formBindHost.trim(),
-        bind_port: parsePort(formBindPort, "Bind port"),
+        bind_port: parsePort(String(formBindPort), "Bind port"),
         target_host: formTargetHost.trim(),
-        target_port: parsePort(formTargetPort, "Target port"),
+        target_port: parsePort(String(formTargetPort), "Target port"),
       };
 
       await onSave(input);
@@ -195,27 +203,27 @@
     }
   }
 
-  async function handleStop(forward: PortForward) {
+  async function handleRemoveRuntime(forward: PortForward) {
     error = null;
-    stoppingForwardIds = [...stoppingForwardIds, forward.id];
+    deletingRuntimeForwardIds = [...deletingRuntimeForwardIds, forward.id];
 
     try {
-      await onStop(forward.id);
+      if (forward.state === "connecting" || forward.state === "listening") {
+        await onStop(forward.id);
+      }
+      await onDeleteRuntime(forward.id);
     } catch (cause) {
       error =
-        cause instanceof Error ? cause.message : "Failed to stop port forward";
+        cause instanceof Error ? cause.message : "Failed to remove port forward";
     } finally {
-      stoppingForwardIds = stoppingForwardIds.filter((id) => id !== forward.id);
+      deletingRuntimeForwardIds = deletingRuntimeForwardIds.filter(
+        (id) => id !== forward.id,
+      );
     }
   }
 
   function requestDeleteSaved(forward: SavedPortForwardConfig) {
-    pendingDeleteTarget = { kind: "saved", forward };
-    error = null;
-  }
-
-  function requestDeleteRuntime(forward: PortForward) {
-    pendingDeleteTarget = { kind: "runtime", forward };
+    pendingDeleteTarget = forward;
     error = null;
   }
 
@@ -224,15 +232,7 @@
       return;
     }
 
-    const deleteTarget = pendingDeleteTarget;
-    error = null;
-
-    if (deleteTarget.kind === "saved") {
-      await confirmDeleteSaved(deleteTarget.forward);
-      return;
-    }
-
-    await confirmDeleteRuntime(deleteTarget.forward);
+    await confirmDeleteSaved(pendingDeleteTarget);
   }
 
   async function confirmDeleteSaved(forward: SavedPortForwardConfig) {
@@ -248,24 +248,6 @@
           : "Failed to delete saved port forward";
     } finally {
       deletingSavedForwardIds = deletingSavedForwardIds.filter(
-        (id) => id !== forward.id,
-      );
-    }
-  }
-
-  async function confirmDeleteRuntime(forward: PortForward) {
-    deletingRuntimeForwardIds = [...deletingRuntimeForwardIds, forward.id];
-
-    try {
-      await onDeleteRuntime(forward.id);
-      pendingDeleteTarget = null;
-    } catch (cause) {
-      error =
-        cause instanceof Error
-          ? cause.message
-          : "Failed to remove stopped port forward";
-    } finally {
-      deletingRuntimeForwardIds = deletingRuntimeForwardIds.filter(
         (id) => id !== forward.id,
       );
     }
@@ -301,23 +283,15 @@
   }
 
   function deleteDialogTitle(): string {
-    if (pendingDeleteTarget?.kind === "runtime") {
-      return "Remove stopped forward?";
-    }
-
     return "Delete saved forward?";
   }
 
   function deleteDialogDescription(): string {
-    if (pendingDeleteTarget?.kind === "runtime") {
-      return "This only removes the stopped runtime entry from the current list. The saved preset is not affected.";
-    }
-
     return "This removes the saved forwarding preset. Existing runtime forwards are not stopped automatically.";
   }
 
   function deleteDialogItemName(): string | undefined {
-    return pendingDeleteTarget?.forward.name;
+    return pendingDeleteTarget?.name;
   }
 
   function deleteDialogIsDeleting(): boolean {
@@ -325,11 +299,7 @@
       return false;
     }
 
-    if (pendingDeleteTarget.kind === "saved") {
-      return deletingSavedForwardIds.includes(pendingDeleteTarget.forward.id);
-    }
-
-    return deletingRuntimeForwardIds.includes(pendingDeleteTarget.forward.id);
+    return deletingSavedForwardIds.includes(pendingDeleteTarget.id);
   }
 </script>
 
@@ -517,6 +487,7 @@
                         max="65535"
                         class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
                         disabled={isSaving}
+                        oninput={onBindPortInput}
                       />
                     </div>
                   </div>
@@ -554,6 +525,7 @@
                         max="65535"
                         class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
                         disabled={isSaving}
+                        oninput={() => (autoFilledTargetPort = false)}
                       />
                     </div>
                   </div>
@@ -749,40 +721,22 @@
                     {/if}
 
                     <div class="mt-4 flex items-center gap-2">
-                      {#if forward.state !== "stopped"}
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          class="gap-1.5 rounded-xl text-slate-400 hover:bg-amber-400/10 hover:text-amber-300"
-                          onclick={() => handleStop(forward)}
-                          disabled={stoppingForwardIds.includes(forward.id)}
-                        >
-                          {#if stoppingForwardIds.includes(forward.id)}
-                            <Loader2 class="size-3 animate-spin" />
-                          {:else}
-                            <Square class="size-3" />
-                          {/if}
-                          Stop
-                        </Button>
-                      {/if}
-                      {#if forward.state === "stopped"}
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
-                          onclick={() => requestDeleteRuntime(forward)}
-                          disabled={deletingRuntimeForwardIds.includes(
-                            forward.id,
-                          )}
-                        >
-                          {#if deletingRuntimeForwardIds.includes(forward.id)}
-                            <Loader2 class="size-3 animate-spin" />
-                          {:else}
-                            <Trash2 class="size-3" />
-                          {/if}
-                          Remove
-                        </Button>
-                      {/if}
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
+                        onclick={() => handleRemoveRuntime(forward)}
+                        disabled={deletingRuntimeForwardIds.includes(
+                          forward.id,
+                        )}
+                      >
+                        {#if deletingRuntimeForwardIds.includes(forward.id)}
+                          <Loader2 class="size-3 animate-spin" />
+                        {:else}
+                          <Trash2 class="size-3" />
+                        {/if}
+                        Remove
+                      </Button>
                     </div>
                   </article>
                 {/each}
@@ -800,9 +754,7 @@
   title={deleteDialogTitle()}
   description={deleteDialogDescription()}
   itemName={deleteDialogItemName()}
-  confirmLabel={pendingDeleteTarget?.kind === "runtime"
-    ? "Remove entry"
-    : "Delete forward"}
+  confirmLabel="Delete forward"
   isDeleting={deleteDialogIsDeleting()}
   onConfirm={confirmDelete}
   onCancel={() => (pendingDeleteTarget = null)}
