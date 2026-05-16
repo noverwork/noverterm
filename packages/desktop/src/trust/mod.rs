@@ -44,12 +44,12 @@ pub(crate) enum TrustCheck {
     TrustMismatch(HostTrustMismatch),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-struct TrustedSshHost {
-    host: String,
-    port: u16,
-    algorithm: String,
-    fingerprint: String,
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+pub struct TrustedSshHost {
+    pub host: String,
+    pub port: u16,
+    pub algorithm: String,
+    pub fingerprint: String,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -113,6 +113,24 @@ impl SshTrustStore {
                 presented_fingerprint: fingerprint.to_string(),
             })
         }
+    }
+
+    pub async fn list(&self) -> Vec<TrustedSshHost> {
+        let records = self.records.read().await;
+        snapshot_records(&records)
+    }
+
+    pub async fn remove(&self, host: &str, port: u16) -> Result<(), String> {
+        let key = record_key(host, port);
+        let snapshot = {
+            let mut records = self.records.write().await;
+            records.remove(&key).ok_or_else(|| {
+                format!("No trusted host found for {host}:{port}")
+            })?;
+            snapshot_records(&records)
+        };
+
+        persist_records(&self.path, snapshot).await
     }
 }
 
