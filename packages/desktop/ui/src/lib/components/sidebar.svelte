@@ -7,19 +7,13 @@
     Server,
     Settings,
     Terminal,
-    X,
   } from "@lucide/svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
-  import type { Session, SessionStatus } from "$lib/stores/session.svelte.js";
 
   type SidebarSection = "terminal" | "hosts" | "keys" | "forwards";
 
   let {
-    sessions,
-    activeSessionId,
-    onActivateSession,
-    onCloseSession,
     onLocalTerminal,
     onK9sTerminal,
     onClaudeCodeTerminal,
@@ -36,10 +30,6 @@
     forwardCount = 0,
     activeSection = "terminal",
   }: {
-    sessions: Map<string, Session>;
-    activeSessionId: string | null;
-    onActivateSession: (id: string) => void;
-    onCloseSession: (id: string) => void;
     onLocalTerminal?: () => void;
     onK9sTerminal?: () => void;
     onClaudeCodeTerminal?: () => void;
@@ -67,51 +57,6 @@
       appVersion = null;
     }
   });
-
-  const activeSessions = $derived(
-    Array.from(sessions.values()).filter(
-      (session) => session.status !== "disconnected",
-    ),
-  );
-
-  function statusBadge(status?: SessionStatus) {
-    switch (status) {
-      case "connected":
-        return {
-          tone: "bg-emerald-400 shadow-[0_0_14px_rgb(52_211_153/0.65)]",
-          label: "Live",
-          text: "text-emerald-300",
-        };
-      case "connecting":
-        return {
-          tone: "bg-amber-300 shadow-[0_0_14px_rgb(252_211_77/0.55)] animate-pulse",
-          label: "Starting",
-          text: "text-amber-300",
-        };
-      case "trust_required":
-        return {
-          tone: "bg-amber-300 shadow-[0_0_14px_rgb(252_211_77/0.55)]",
-          label: "Trust",
-          text: "text-amber-300",
-        };
-      case "error":
-        return {
-          tone: "bg-red-400 shadow-[0_0_14px_rgb(248_113_113/0.55)]",
-          label: "Error",
-          text: "text-red-300",
-        };
-      default:
-        return { tone: "bg-slate-500", label: "Saved", text: "text-slate-400" };
-    }
-  }
-
-  function sessionSubtitle(session: Session) {
-    if (session.type === "local") {
-      return "Local shell";
-    }
-
-    return `${session.username}@${session.host}:${session.port}`;
-  }
 
   function navButtonClass(section: SidebarSection): string {
     if (activeSection === section) {
@@ -359,61 +304,7 @@
       </div>
     </div>
 
-    <div class="flex-1 overflow-y-auto px-3 pb-3" data-sidebar-scroll>
-      {#if activeSessions.length > 0}
-        <div class="mb-6">
-          <div class="flex items-center justify-between px-2">
-            <p class="section-title text-emerald-300/80">Active</p>
-            <span
-              class="rounded-full border border-emerald-300/15 bg-emerald-300/8 px-2 py-0.5 text-[10px] font-medium text-emerald-200"
-              >{activeSessions.length}</span
-            >
-          </div>
-          <div class="mt-2 space-y-1.5">
-            {#each activeSessions as session (session.id)}
-              {@const status = statusBadge(session.status)}
-              <div
-                class={session.id === activeSessionId
-                  ? "group flex items-start gap-2 rounded-2xl border border-cyan-300/30 bg-cyan-300/10 p-1.5 text-white shadow-[0_10px_32px_rgb(34_211_238/0.10)] transition"
-                  : "group flex items-start gap-2 rounded-2xl border border-transparent p-1.5 text-slate-300 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white"}
-              >
-                <button
-                  class="flex min-w-0 flex-1 cursor-pointer items-start gap-3 rounded-xl px-1.5 py-1.5 text-left"
-                  onclick={() => onActivateSession(session.id)}
-                >
-                  <span
-                    class="mt-1.5 size-2.5 shrink-0 rounded-full {status.tone}"
-                  ></span>
-                  <span class="min-w-0 flex-1">
-                    <span class="flex items-center gap-2">
-                      <span class="truncate text-sm font-semibold"
-                        >{session.name}</span
-                      >
-                      <span
-                        class="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide {status.text}"
-                        >{status.label}</span
-                      >
-                    </span>
-                    <span class="mt-1 block truncate text-xs text-slate-500"
-                      >{sessionSubtitle(session)}</span
-                    >
-                  </span>
-                </button>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  class="size-7 shrink-0 rounded-xl text-slate-500 opacity-0 transition-opacity hover:bg-red-400/10 hover:text-red-300 group-hover:opacity-100 group-focus-within:opacity-100"
-                  onclick={() => onCloseSession(session.id)}
-                  aria-label={`Close ${session.name}`}
-                >
-                  <X class="size-3" />
-                </Button>
-              </div>
-            {/each}
-          </div>
-        </div>
-      {/if}
-    </div>
+    <div class="flex-1"></div>
 
     <div class="border-t border-white/10 p-3">
       <div

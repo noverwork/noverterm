@@ -216,10 +216,6 @@
       class="workspace-canvas flex h-screen w-screen overflow-hidden bg-background"
     >
       <Sidebar
-        sessions={app.sessionStore.sessions}
-        activeSessionId={app.sessionStore.activeSessionId}
-        onActivateSession={activateSession}
-        onCloseSession={closeSessionAndNavigate}
         onLocalTerminal={openLocalTerminal}
         onK9sTerminal={openK9sTerminal}
         onClaudeCodeTerminal={openClaudeCodeTerminal}
@@ -238,6 +234,47 @@
       />
 
       <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-[#080c13]/72">
+        <div class="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-white/10 px-4">
+          {#each app.activeSessions as session (session.id)}
+            {@const isActive = session.id === app.sessionStore.activeSessionId}
+            <div
+              class={isActive
+                ? "group flex shrink-0 items-center gap-2 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1.5 text-sm text-white transition hover:bg-cyan-300/14"
+                : "group flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-3 py-1.5 text-sm text-slate-400 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white"}
+            >
+              <button
+                type="button"
+                class="flex min-w-0 flex-1 items-center gap-2 text-left"
+                onclick={() => activateSession(session.id)}
+              >
+                <span
+                  class={session.status === "connected"
+                    ? "size-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_10px_rgb(52_211_153/0.55)]"
+                    : session.status === "connecting"
+                      ? "size-2 shrink-0 rounded-full bg-amber-300 shadow-[0_0_10px_rgb(252_211_77/0.45)] animate-pulse"
+                      : session.status === "trust_required"
+                        ? "size-2 shrink-0 rounded-full bg-amber-300 shadow-[0_0_10px_rgb(252_211_77/0.45)]"
+                        : "size-2 shrink-0 rounded-full bg-red-400 shadow-[0_0_10px_rgb(248_113_113/0.45)]"}
+                ></span>
+                <span class="truncate font-medium">{session.name}</span>
+              </button>
+              <button
+                type="button"
+                class="flex size-5 shrink-0 items-center justify-center rounded text-slate-500 opacity-0 transition-opacity hover:bg-red-400/10 hover:text-red-300 group-hover:opacity-100"
+                onclick={(event) => {
+                  event.stopPropagation();
+                  void closeSessionAndNavigate(session.id);
+                }}
+                aria-label={`Close ${session.name}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3">
+                  <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+                </svg>
+              </button>
+            </div>
+          {/each}
+        </div>
+
         <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
           {#if !hasTerminalErrorOverlay}
             {@render children()}
