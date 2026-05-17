@@ -64,6 +64,10 @@ function getTheme() {
     brightMagenta: "#c084fc",
     brightCyan: "#22d3ee",
     brightWhite: "#ffffff",
+    scrollbarSliderBackground: "transparent",
+    scrollbarSliderHoverBackground: "transparent",
+    scrollbarSliderActiveBackground: "transparent",
+    overviewRulerBorder: "transparent",
   };
 }
 
@@ -165,6 +169,9 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       cursorStyle: currentConfig.cursorStyle,
       cursorBlink: currentConfig.cursorBlink,
       scrollback: currentConfig.scrollback,
+      overviewRuler: {
+        width: 1,
+      },
       allowProposedApi: true,
     });
 

@@ -234,7 +234,7 @@
       />
 
       <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-[#080c13]/72">
-        <div class="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-white/10 px-4">
+        <div class="session-tabs flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-white/10 px-4">
           {#each app.activeSessions as session (session.id)}
             {@const isActive = session.id === app.sessionStore.activeSessionId}
             <div
