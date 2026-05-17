@@ -49,6 +49,14 @@
       (app.activeSession?.status === "error" ||
         app.activeSession?.status === "trust_required"),
   );
+  const sessionTabEdgeSize = 72;
+  const sessionTabMaxScrollSpeed = 0.8;
+  let sessionTabsElement = $state<HTMLDivElement | null>(null);
+  let canScrollSessionTabsLeft = $state(false);
+  let canScrollSessionTabsRight = $state(false);
+  let sessionTabScrollFrame = 0;
+  let sessionTabScrollVelocity = 0;
+  let sessionTabLastFrameTime = 0;
   const activeSidebarSection = $derived.by(() => {
     if (routePath.startsWith("/connections")) {
       return "hosts";
@@ -67,9 +75,11 @@
 
   onMount(async () => {
     await app.init();
+    updateSessionTabScrollIndicators();
   });
 
   onDestroy(() => {
+    stopSessionTabAutoScroll();
     app.cleanup();
   });
 
@@ -122,6 +132,88 @@
       await goto(terminalPath);
     }
   }
+
+  function stopSessionTabAutoScroll() {
+    sessionTabScrollVelocity = 0;
+    sessionTabLastFrameTime = 0;
+
+    if (sessionTabScrollFrame !== 0) {
+      cancelAnimationFrame(sessionTabScrollFrame);
+      sessionTabScrollFrame = 0;
+    }
+  }
+
+  function updateSessionTabScrollIndicators() {
+    if (!sessionTabsElement) {
+      canScrollSessionTabsLeft = false;
+      canScrollSessionTabsRight = false;
+      return;
+    }
+
+    const maxScrollLeft = sessionTabsElement.scrollWidth - sessionTabsElement.clientWidth;
+    canScrollSessionTabsLeft = sessionTabsElement.scrollLeft > 1;
+    canScrollSessionTabsRight = sessionTabsElement.scrollLeft < maxScrollLeft - 1;
+  }
+
+  function stepSessionTabAutoScroll(timestamp: number) {
+    if (!sessionTabsElement || sessionTabScrollVelocity === 0) {
+      stopSessionTabAutoScroll();
+      return;
+    }
+
+    const elapsed = sessionTabLastFrameTime === 0
+      ? 16
+      : Math.min(timestamp - sessionTabLastFrameTime, 32);
+    sessionTabLastFrameTime = timestamp;
+    sessionTabsElement.scrollLeft += sessionTabScrollVelocity * elapsed;
+    updateSessionTabScrollIndicators();
+    sessionTabScrollFrame = requestAnimationFrame(stepSessionTabAutoScroll);
+  }
+
+  function startSessionTabAutoScroll(velocity: number) {
+    sessionTabScrollVelocity = velocity;
+
+    if (sessionTabScrollFrame === 0) {
+      sessionTabScrollFrame = requestAnimationFrame(stepSessionTabAutoScroll);
+    }
+  }
+
+  function handleSessionTabsPointerMove(event: PointerEvent) {
+    if (!sessionTabsElement) {
+      return;
+    }
+
+    const maxScrollLeft = sessionTabsElement.scrollWidth - sessionTabsElement.clientWidth;
+    if (maxScrollLeft <= 0) {
+      stopSessionTabAutoScroll();
+      updateSessionTabScrollIndicators();
+      return;
+    }
+
+    const bounds = sessionTabsElement.getBoundingClientRect();
+    const leftDistance = event.clientX - bounds.left;
+    const rightDistance = bounds.right - event.clientX;
+
+    if (leftDistance < sessionTabEdgeSize && sessionTabsElement.scrollLeft > 0) {
+      const intensity = (sessionTabEdgeSize - leftDistance) / sessionTabEdgeSize;
+      startSessionTabAutoScroll(-sessionTabMaxScrollSpeed * intensity);
+      return;
+    }
+
+    if (rightDistance < sessionTabEdgeSize && sessionTabsElement.scrollLeft < maxScrollLeft) {
+      const intensity = (sessionTabEdgeSize - rightDistance) / sessionTabEdgeSize;
+      startSessionTabAutoScroll(sessionTabMaxScrollSpeed * intensity);
+      return;
+    }
+
+    stopSessionTabAutoScroll();
+    updateSessionTabScrollIndicators();
+  }
+
+  $effect(() => {
+    app.activeSessions.length;
+    requestAnimationFrame(updateSessionTabScrollIndicators);
+  });
 
   function handleGlobalKeydown(event: KeyboardEvent) {
     const mod = event.metaKey || event.ctrlKey;
@@ -234,45 +326,71 @@
       />
 
       <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-[#080c13]/72">
-        <div class="session-tabs flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-white/10 px-4">
-          {#each app.activeSessions as session (session.id)}
-            {@const isActive = session.id === app.sessionStore.activeSessionId}
-            <div
-              class={isActive
-                ? "group flex shrink-0 items-center gap-2 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1.5 text-sm text-white transition hover:bg-cyan-300/14"
-                : "group flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-3 py-1.5 text-sm text-slate-400 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white"}
-            >
-              <button
-                type="button"
-                class="flex min-w-0 flex-1 items-center gap-2 text-left"
-                onclick={() => activateSession(session.id)}
-              >
-                <span
-                  class={session.status === "connected"
-                    ? "size-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_10px_rgb(52_211_153/0.55)]"
-                    : session.status === "connecting"
-                      ? "size-2 shrink-0 rounded-full bg-amber-300 shadow-[0_0_10px_rgb(252_211_77/0.45)] animate-pulse"
-                      : session.status === "trust_required"
-                        ? "size-2 shrink-0 rounded-full bg-amber-300 shadow-[0_0_10px_rgb(252_211_77/0.45)]"
-                        : "size-2 shrink-0 rounded-full bg-red-400 shadow-[0_0_10px_rgb(248_113_113/0.45)]"}
-                ></span>
-                <span class="truncate font-medium">{session.name}</span>
-              </button>
-              <button
-                type="button"
-                class="flex size-5 shrink-0 items-center justify-center rounded text-slate-500 opacity-0 transition-opacity hover:bg-red-400/10 hover:text-red-300 group-hover:opacity-100"
-                onclick={(event) => {
-                  event.stopPropagation();
-                  void closeSessionAndNavigate(session.id);
-                }}
-                aria-label={`Close ${session.name}`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3">
-                  <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
-                </svg>
-              </button>
+        <div class="relative h-10 shrink-0 border-b border-white/10">
+          {#if canScrollSessionTabsLeft}
+            <div class="pointer-events-none absolute inset-y-0 left-0 z-20 flex w-12 items-center bg-gradient-to-r from-[#080c13] via-[#080c13]/90 to-transparent pl-1 text-cyan-200/45" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4">
+                <path d="m15 18-6-6 6-6" />
+              </svg>
             </div>
-          {/each}
+          {/if}
+
+          <div
+            bind:this={sessionTabsElement}
+            role="group"
+            aria-label="Active terminal sessions"
+            class="session-tabs flex h-full items-center gap-1 overflow-x-auto px-4"
+            onscroll={updateSessionTabScrollIndicators}
+            onpointermove={handleSessionTabsPointerMove}
+            onpointerleave={stopSessionTabAutoScroll}
+          >
+            {#each app.activeSessions as session (session.id)}
+              {@const isActive = session.id === app.sessionStore.activeSessionId}
+              <div
+                class={isActive
+                  ? "group flex shrink-0 items-center gap-2 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1.5 text-sm text-white transition hover:bg-cyan-300/14"
+                  : "group flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-3 py-1.5 text-sm text-slate-400 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white"}
+              >
+                <button
+                  type="button"
+                  class="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  onclick={() => activateSession(session.id)}
+                >
+                  <span
+                    class={session.status === "connected"
+                      ? "size-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_10px_rgb(52_211_153/0.55)]"
+                      : session.status === "connecting"
+                        ? "size-2 shrink-0 rounded-full bg-amber-300 shadow-[0_0_10px_rgb(252_211_77/0.45)] animate-pulse"
+                        : session.status === "trust_required"
+                          ? "size-2 shrink-0 rounded-full bg-amber-300 shadow-[0_0_10px_rgb(252_211_77/0.45)]"
+                          : "size-2 shrink-0 rounded-full bg-red-400 shadow-[0_0_10px_rgb(248_113_113/0.45)]"}
+                  ></span>
+                  <span class="truncate font-medium">{session.name}</span>
+                </button>
+                <button
+                  type="button"
+                  class="flex size-5 shrink-0 items-center justify-center rounded text-slate-500 opacity-0 transition-opacity hover:bg-red-400/10 hover:text-red-300 group-hover:opacity-100"
+                  onclick={(event) => {
+                    event.stopPropagation();
+                    void closeSessionAndNavigate(session.id);
+                  }}
+                  aria-label={`Close ${session.name}`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3">
+                    <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+                  </svg>
+                </button>
+              </div>
+            {/each}
+          </div>
+
+          {#if canScrollSessionTabsRight}
+            <div class="pointer-events-none absolute inset-y-0 right-0 z-20 flex w-12 items-center justify-end bg-gradient-to-l from-[#080c13] via-[#080c13]/90 to-transparent pr-1 text-cyan-200/45" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4">
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </div>
+          {/if}
         </div>
 
         <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">

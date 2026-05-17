@@ -281,6 +281,7 @@
   }
 
   .session-tabs {
+    overscroll-behavior-x: contain;
     scrollbar-width: none;
   }
 
