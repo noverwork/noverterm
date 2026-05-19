@@ -1,6 +1,7 @@
 use russh::client::{self, AuthResult, Handle, Msg};
 use russh::keys::ssh_key::HashAlg;
 use russh::keys::ssh_key::PublicKey;
+use russh::Preferred;
 use russh::{ChannelMsg, ChannelReadHalf, ChannelWriteHalf, Disconnect};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -22,6 +23,24 @@ use super::keys::{is_rsa_key, load_key_pair, rsa_hash_candidates};
 
 const SSH_PROBE_TIMEOUT: Duration = Duration::from_secs(8);
 const SSH_PROBE_OUTPUT_LIMIT: usize = 16 * 1024;
+
+const SSH_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(16);
+const SSH_OUTPUT_BUFFER_THRESHOLD: usize = 4096;
+
+fn client_config(inactivity_timeout: Option<Duration>) -> Arc<client::Config> {
+    Arc::new(client::Config {
+        inactivity_timeout,
+        preferred: Preferred {
+            compression: std::borrow::Cow::Borrowed(&[
+                russh::compression::ZLIB,
+                russh::compression::ZLIB_LEGACY,
+                russh::compression::NONE,
+            ]),
+            ..Preferred::DEFAULT
+        },
+        ..<_>::default()
+    })
+}
 
 const HOST_INFO_PROBE_COMMAND: &str = r#"sh -lc '
 hostname_value=$(hostname 2>/dev/null || uname -n 2>/dev/null || true)
@@ -263,11 +282,7 @@ impl SshSessionManager {
         let session_id = Uuid::new_v4().to_string();
         info!(session_id, host, port, user, "Starting SSH connection flow");
 
-        let config = client::Config {
-            inactivity_timeout: None,
-            ..<_>::default()
-        };
-        let config = Arc::new(config);
+        let config = client_config(None);
         let trust_check = Arc::new(Mutex::new(None));
         let handler = ClientHandler::new(host.clone(), port, trust_store, trust_check.clone());
 
@@ -335,11 +350,7 @@ impl SshSessionManager {
         let probe_id = Uuid::new_v4().to_string();
         info!(probe_id, host, port, user, "Starting SSH host info probe");
 
-        let config = client::Config {
-            inactivity_timeout: Some(SSH_PROBE_TIMEOUT),
-            ..<_>::default()
-        };
-        let config = Arc::new(config);
+        let config = client_config(Some(SSH_PROBE_TIMEOUT));
         let trust_check = Arc::new(Mutex::new(None));
         let handler = ClientHandler::new(host.clone(), port, trust_store, trust_check.clone());
 
@@ -674,82 +685,95 @@ async fn read_loop(
     app: AppHandle,
     sessions: Arc<Mutex<HashMap<String, SshSession>>>,
 ) {
+    let mut buffer = Vec::with_capacity(SSH_OUTPUT_BUFFER_THRESHOLD);
+    let mut flush_interval = tokio::time::interval(SSH_OUTPUT_FLUSH_INTERVAL);
+    flush_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+    async fn flush_buffer(
+        buffer: &mut Vec<u8>,
+        session_id: &str,
+        app: &AppHandle,
+        closed: bool,
+    ) {
+        if buffer.is_empty() && !closed {
+            return;
+        }
+
+        let output = std::mem::take(buffer);
+        let event = SshOutputEvent {
+            session_id: session_id.to_string(),
+            output,
+            closed,
+        };
+
+        let bytes = event.output.len();
+        info!(session_id, bytes, "Emitted aggregated SSH output");
+
+        if let Err(e) = app.emit("ssh_output", event) {
+            warn!(session_id, "Failed to emit ssh_output: {}", e);
+        }
+    }
+
     loop {
-        match channel_read.wait().await {
-            Some(msg) => match msg {
-                ChannelMsg::Data { ref data } => {
-                    info!(session_id, bytes = data.len(), "Received SSH output chunk");
-                    let output = data.to_vec();
-                    let event = SshOutputEvent {
-                        session_id: session_id.clone(),
-                        output,
-                        closed: false,
-                    };
-                    if let Err(e) = app.emit("ssh_output", event) {
-                        warn!(session_id, "Failed to emit ssh_output: {}", e);
+        tokio::select! {
+            msg = channel_read.wait() => {
+                match msg {
+                    Some(ChannelMsg::Data { ref data }) => {
+                        buffer.extend_from_slice(data);
+                        if buffer.len() >= SSH_OUTPUT_BUFFER_THRESHOLD {
+                            flush_buffer(&mut buffer, &session_id, &app, false).await;
+                        }
+                    }
+                    Some(ChannelMsg::Eof) => {
+                        info!(session_id, "Channel EOF received");
+                        flush_buffer(&mut buffer, &session_id, &app, true).await;
+                        remove_session_and_stop_port_forwards(
+                            sessions.clone(),
+                            &session_id,
+                            &app,
+                            Some("SSH session closed".to_string()),
+                        )
+                        .await;
+                        break;
+                    }
+                    Some(ChannelMsg::Close) => {
+                        info!(session_id, "Channel closed");
+                        flush_buffer(&mut buffer, &session_id, &app, true).await;
+                        remove_session_and_stop_port_forwards(
+                            sessions.clone(),
+                            &session_id,
+                            &app,
+                            Some("SSH session closed".to_string()),
+                        )
+                        .await;
+                        break;
+                    }
+                    Some(ChannelMsg::ExitStatus { exit_status }) => {
+                        info!(session_id, "Exit status: {}", exit_status);
+                    }
+                    Some(ChannelMsg::Success) => {
+                        info!(session_id, "Received SSH channel success message");
+                    }
+                    Some(ChannelMsg::Failure) => {
+                        warn!(session_id, "Received SSH channel failure message");
+                    }
+                    Some(_) => {}
+                    None => {
+                        info!(session_id, "Channel stream ended");
+                        flush_buffer(&mut buffer, &session_id, &app, true).await;
+                        remove_session_and_stop_port_forwards(
+                            sessions.clone(),
+                            &session_id,
+                            &app,
+                            Some("SSH session ended".to_string()),
+                        )
+                        .await;
+                        break;
                     }
                 }
-                ChannelMsg::Eof => {
-                    info!(session_id, "Channel EOF received");
-                    let event = SshOutputEvent {
-                        session_id: session_id.clone(),
-                        output: Vec::new(),
-                        closed: true,
-                    };
-                    let _ = app.emit("ssh_output", event);
-                    remove_session_and_stop_port_forwards(
-                        sessions.clone(),
-                        &session_id,
-                        &app,
-                        Some("SSH session closed".to_string()),
-                    )
-                    .await;
-                    break;
-                }
-                ChannelMsg::Close => {
-                    info!(session_id, "Channel closed");
-                    let event = SshOutputEvent {
-                        session_id: session_id.clone(),
-                        output: Vec::new(),
-                        closed: true,
-                    };
-                    let _ = app.emit("ssh_output", event);
-                    remove_session_and_stop_port_forwards(
-                        sessions.clone(),
-                        &session_id,
-                        &app,
-                        Some("SSH session closed".to_string()),
-                    )
-                    .await;
-                    break;
-                }
-                ChannelMsg::ExitStatus { exit_status } => {
-                    info!(session_id, "Exit status: {}", exit_status);
-                }
-                ChannelMsg::Success => {
-                    info!(session_id, "Received SSH channel success message");
-                }
-                ChannelMsg::Failure => {
-                    warn!(session_id, "Received SSH channel failure message");
-                }
-                _ => {}
-            },
-            None => {
-                info!(session_id, "Channel stream ended");
-                let event = SshOutputEvent {
-                    session_id: session_id.clone(),
-                    output: Vec::new(),
-                    closed: true,
-                };
-                let _ = app.emit("ssh_output", event);
-                remove_session_and_stop_port_forwards(
-                    sessions.clone(),
-                    &session_id,
-                    &app,
-                    Some("SSH session ended".to_string()),
-                )
-                .await;
-                break;
+            }
+            _ = flush_interval.tick() => {
+                flush_buffer(&mut buffer, &session_id, &app, false).await;
             }
         }
     }
