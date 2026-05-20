@@ -11,7 +11,7 @@
 
   import { Button } from "$lib/components/ui/button/index.js";
 
-  type SidebarSection = "terminal" | "hosts" | "keys" | "forwards";
+  type SidebarSection = "terminal" | "hosts" | "keys" | "forwards" | "known-hosts";
 
   let {
     onLocalTerminal,
@@ -19,6 +19,7 @@
     onClaudeCodeTerminal,
     onOpencodeTerminal,
     onManageKeys,
+    onManageKnownHosts,
     onPortForwards,
     onNewConnection,
     onGoHome,
@@ -35,6 +36,7 @@
     onClaudeCodeTerminal?: () => void;
     onOpencodeTerminal?: () => void;
     onManageKeys?: () => void;
+    onManageKnownHosts?: () => void;
     onPortForwards?: () => void;
     onNewConnection?: () => void;
     onGoHome?: () => void;
@@ -298,6 +300,17 @@
               <Network class="size-3.5" />
               Forwards
               <span class={navCountBadgeClass("forwards")}>{forwardCount}</span>
+            </Button>
+          {/if}
+          {#if onManageKnownHosts}
+            <Button
+              onclick={onManageKnownHosts}
+              variant="outline"
+              size="sm"
+              class={navButtonClass("known-hosts")}
+            >
+              <Server class="size-3.5" />
+              Known Hosts
             </Button>
           {/if}
         </div>

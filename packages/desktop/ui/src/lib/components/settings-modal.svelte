@@ -54,11 +54,10 @@
             <Settings class="size-5" />
           </div>
           <p class="mt-4 text-sm font-semibold text-white">
-            No settings needed right now
+            Manage SSH trust from Known Hosts
           </p>
           <p class="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">
-            Noverterm uses the bundled Sarasa terminal font and tuned defaults
-            automatically.
+            Trusted SSH fingerprints are available from the Known Hosts page in the sidebar.
           </p>
         </div>
       </div>
