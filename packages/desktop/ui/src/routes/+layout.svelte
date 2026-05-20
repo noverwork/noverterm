@@ -10,6 +10,7 @@
   import AuthShell from "$lib/components/auth-shell.svelte";
   import SettingsModal from "$lib/components/settings-modal.svelte";
   import Sidebar from "$lib/components/sidebar.svelte";
+  import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import {
     createAppShellStore,
@@ -70,18 +71,28 @@
       return "forwards";
     }
 
+    if (routePath.startsWith("/known-hosts")) {
+      return "known-hosts";
+    }
+
     return "terminal";
   });
 
   onMount(async () => {
+    window.addEventListener("contextmenu", handleGlobalContextMenu);
     await app.init();
     updateSessionTabScrollIndicators();
   });
 
   onDestroy(() => {
+    window.removeEventListener("contextmenu", handleGlobalContextMenu);
     stopSessionTabAutoScroll();
     app.cleanup();
   });
+
+  function handleGlobalContextMenu(event: MouseEvent) {
+    event.preventDefault();
+  }
 
   async function activateSession(id: string) {
     app.activateSession(id);
@@ -109,11 +120,32 @@
   }
 
   async function closeSessionAndNavigate(id: string) {
-    const isLastSession = app.sessionStore.sessions.size === 1;
-    app.closeSession(id);
-    if (isLastSession && routePath === terminalPath) {
+    await closeSessionIdsAndNavigate([id]);
+  }
+
+  async function closeSessionIdsAndNavigate(ids: string[]) {
+    if (ids.length === 0) {
+      return;
+    }
+
+    const activeSessionIds = app.activeSessions.map((session) => session.id);
+    const closingAllSessions = activeSessionIds.every((id) => ids.includes(id));
+
+    for (const id of ids) {
+      app.closeSession(id);
+    }
+
+    if (closingAllSessions && routePath === terminalPath) {
       await goto(connectionsPath);
     }
+  }
+
+  function sessionIdsBefore(index: number): string[] {
+    return app.activeSessions.slice(0, index).map((session) => session.id);
+  }
+
+  function sessionIdsAfter(index: number): string[] {
+    return app.activeSessions.slice(index + 1).map((session) => session.id);
   }
 
   async function goHome() {
@@ -322,6 +354,7 @@
         onClaudeCodeTerminal={openClaudeCodeTerminal}
         onOpencodeTerminal={openOpencodeTerminal}
         onManageKeys={() => goto("/keys")}
+        onManageKnownHosts={() => goto("/known-hosts")}
         onPortForwards={() => goto("/forwards")}
         onNewConnection={() => goto("/connections")}
         onGoHome={goHome}
@@ -353,43 +386,75 @@
             onpointermove={handleSessionTabsPointerMove}
             onpointerleave={stopSessionTabAutoScroll}
           >
-            {#each app.activeSessions as session (session.id)}
+            {#each app.activeSessions as session, sessionIndex (session.id)}
               {@const isActive = session.id === app.sessionStore.activeSessionId}
-              <div
-                class={isActive
-                  ? "group flex shrink-0 items-center gap-2 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1.5 text-sm text-white transition hover:bg-cyan-300/14"
-                  : "group flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-3 py-1.5 text-sm text-slate-400 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white"}
-              >
-                <button
-                  type="button"
-                  class="flex min-w-0 flex-1 items-center gap-2 text-left"
-                  onclick={() => activateSession(session.id)}
-                >
-                  <span
-                    class={session.status === "connected"
-                      ? "size-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_10px_rgb(52_211_153/0.55)]"
-                      : session.status === "connecting"
-                        ? "size-2 shrink-0 rounded-full bg-amber-300 shadow-[0_0_10px_rgb(252_211_77/0.45)] animate-pulse"
-                        : session.status === "trust_required"
-                          ? "size-2 shrink-0 rounded-full bg-amber-300 shadow-[0_0_10px_rgb(252_211_77/0.45)]"
-                          : "size-2 shrink-0 rounded-full bg-red-400 shadow-[0_0_10px_rgb(248_113_113/0.45)]"}
-                  ></span>
-                  <span class="truncate font-medium">{session.name}</span>
-                </button>
-                <button
-                  type="button"
-                  class="flex size-5 shrink-0 items-center justify-center rounded text-slate-500 opacity-0 transition-opacity hover:bg-red-400/10 hover:text-red-300 group-hover:opacity-100"
-                  onclick={(event) => {
-                    event.stopPropagation();
-                    void closeSessionAndNavigate(session.id);
-                  }}
-                  aria-label={`Close ${session.name}`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3">
-                    <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
-                  </svg>
-                </button>
-              </div>
+              <ContextMenu.Root>
+                <ContextMenu.Trigger class="contents">
+                  <div
+                    class={isActive
+                      ? "group flex shrink-0 items-center gap-2 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1.5 text-sm text-white transition hover:bg-cyan-300/14"
+                      : "group flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-3 py-1.5 text-sm text-slate-400 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white"}
+                  >
+                    <button
+                      type="button"
+                      class="flex min-w-0 flex-1 items-center gap-2 text-left"
+                      onclick={() => activateSession(session.id)}
+                    >
+                      <span
+                        class={session.status === "connected"
+                          ? "size-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_10px_rgb(52_211_153/0.55)]"
+                          : session.status === "connecting"
+                            ? "size-2 shrink-0 rounded-full bg-amber-300 shadow-[0_0_10px_rgb(252_211_77/0.45)] animate-pulse"
+                            : session.status === "trust_required"
+                              ? "size-2 shrink-0 rounded-full bg-amber-300 shadow-[0_0_10px_rgb(252_211_77/0.45)]"
+                              : "size-2 shrink-0 rounded-full bg-red-400 shadow-[0_0_10px_rgb(248_113_113/0.45)]"}
+                      ></span>
+                      <span class="truncate font-medium">{session.name}</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="flex size-5 shrink-0 items-center justify-center rounded text-slate-500 opacity-0 transition-opacity hover:bg-red-400/10 hover:text-red-300 group-hover:opacity-100"
+                      onclick={(event) => {
+                        event.stopPropagation();
+                        void closeSessionAndNavigate(session.id);
+                      }}
+                      aria-label={`Close ${session.name}`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3">
+                        <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+                      </svg>
+                    </button>
+                  </div>
+                </ContextMenu.Trigger>
+                <ContextMenu.Content class="min-w-44 border-white/10 bg-slate-950/96 text-slate-100 shadow-2xl shadow-black/45">
+                  <ContextMenu.Label class="max-w-56 truncate text-slate-400">
+                    {session.name}
+                  </ContextMenu.Label>
+                  <ContextMenu.Separator class="bg-white/10" />
+                  <ContextMenu.Item
+                    class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                    onclick={() => void closeSessionAndNavigate(session.id)}
+                  >
+                    Close
+                  </ContextMenu.Item>
+                  <ContextMenu.Item
+                    class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                    disabled={sessionIndex === 0}
+                    onclick={() =>
+                      void closeSessionIdsAndNavigate(sessionIdsBefore(sessionIndex))}
+                  >
+                    Close Tabs to the Left
+                  </ContextMenu.Item>
+                  <ContextMenu.Item
+                    class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                    disabled={sessionIndex === app.activeSessions.length - 1}
+                    onclick={() =>
+                      void closeSessionIdsAndNavigate(sessionIdsAfter(sessionIndex))}
+                  >
+                    Close Tabs to the Right
+                  </ContextMenu.Item>
+                </ContextMenu.Content>
+              </ContextMenu.Root>
             {/each}
           </div>
 
