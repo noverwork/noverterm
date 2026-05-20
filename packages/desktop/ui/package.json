@@ -17,7 +17,6 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@lucide/svelte": "^1.8.0",
     "@tanstack/svelte-query": "^6.1.16",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-http": "^2",
@@ -38,15 +37,18 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
     "@eslint/js": "^10.0.1",
+    "@internationalized/date": "^3.12.1",
+    "@lucide/svelte": "^1.16.0",
     "@sveltejs/adapter-static": "^3.0.6",
     "@sveltejs/kit": "^2.9.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@tailwindcss/vite": "^4.2.2",
+    "@tauri-apps/cli": "^2",
     "@testing-library/svelte": "^5.3.1",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^25.6.0",
+    "bits-ui": "^2.18.1",
     "eslint": "^10.2.0",
     "eslint-plugin-svelte": "^3.17.0",
     "globals": "^17.5.0",
