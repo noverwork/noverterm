@@ -210,9 +210,18 @@
     updateSessionTabScrollIndicators();
   }
 
+  function scheduleSessionTabScrollIndicatorUpdate(activeSessionCount: number) {
+    requestAnimationFrame(() => {
+      if (activeSessionCount !== app.activeSessions.length) {
+        return;
+      }
+
+      updateSessionTabScrollIndicators();
+    });
+  }
+
   $effect(() => {
-    app.activeSessions.length;
-    requestAnimationFrame(updateSessionTabScrollIndicators);
+    scheduleSessionTabScrollIndicatorUpdate(app.activeSessions.length);
   });
 
   function handleGlobalKeydown(event: KeyboardEvent) {
