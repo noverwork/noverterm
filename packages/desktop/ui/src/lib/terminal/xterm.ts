@@ -1,6 +1,7 @@
 import { Terminal } from "@xterm/xterm";
 import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { FitAddon } from "@xterm/addon-fit";
+import { ImageAddon } from "@xterm/addon-image";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -9,6 +10,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { TerminalConfig } from "$lib/app-data-types.js";
 import { createTerminalKeyHandler } from "./keyboard-shortcuts.js";
+import {
+  registerTerminalControlResponseSuppression,
+  stripTerminalControlResponses,
+} from "./terminal-control-responses.js";
 
 import type {
   SessionType,
@@ -21,6 +26,7 @@ interface TerminalOptions {
   config: TerminalConfig;
   onOutput?: (data: string) => void;
   onClose?: () => void;
+  onSearchRequest?: () => void;
   subscribeOutput?: (callback: TerminalOutputCallback) => () => void;
 }
 
@@ -71,6 +77,14 @@ function getTheme() {
   };
 }
 
+function loadImageAddon(terminal: Terminal) {
+  try {
+    terminal.loadAddon(new ImageAddon({ enableSizeReports: false }));
+  } catch (error) {
+    console.warn("[xterm:image-addon] failed to load", error);
+  }
+}
+
 export function createTerminal(options: TerminalOptions): TerminalController {
   const { sessionId, sessionType } = options;
   let currentConfig = options.config;
@@ -80,6 +94,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   let outputUnlisten: (() => void) | null = null;
   let disposed = false;
   let selectionCallback: (() => void) | null = null;
+  let controlResponseSuppressionDisposer: (() => void) | null = null;
   let initialSizeSynced = false;
   let revealFrame: number | null = null;
   let lastSearchTerm = "";
@@ -100,22 +115,13 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     }
   }
 
-  function searchPrompt() {
-    const term = window.prompt("Search terminal buffer", lastSearchTerm);
-    if (term === null) return;
-
-    lastSearchTerm = term;
-    if (term.length === 0) {
-      searchAddon?.clearDecorations();
-      return;
-    }
-
-    searchAddon?.findNext(term);
+  function requestSearch() {
+    options.onSearchRequest?.();
   }
 
   function repeatSearch(backwards: boolean) {
     if (!lastSearchTerm) {
-      searchPrompt();
+      requestSearch();
       return;
     }
 
@@ -132,7 +138,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       writeClipboard(selection) {
         void navigator.clipboard.writeText(selection).catch(() => undefined);
       },
-      openSearchPrompt: searchPrompt,
+      openSearchPrompt: requestSearch,
       repeatSearch,
     },
   );
@@ -174,12 +180,15 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       },
       allowProposedApi: true,
     });
+    controlResponseSuppressionDisposer =
+      registerTerminalControlResponseSuppression(terminal);
 
     fitAddon = new FitAddon();
     searchAddon = new SearchAddon();
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(searchAddon);
     terminal.loadAddon(new ClipboardAddon());
+    loadImageAddon(terminal);
     terminal.loadAddon(new WebglAddon());
     terminal.loadAddon(
       new WebLinksAddon((event, uri) => {
@@ -209,7 +218,10 @@ export function createTerminal(options: TerminalOptions): TerminalController {
 
     terminal.onData((data) => {
       console.info("[xterm:input]", { sessionId, bytes: data.length });
-      sendInput(data);
+      const input = stripTerminalControlResponses(data);
+      if (input.length > 0) {
+        sendInput(input);
+      }
     });
 
     terminal.onSelectionChange(() => {
@@ -328,6 +340,8 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     }
     outputUnlisten?.();
     outputUnlisten = null;
+    controlResponseSuppressionDisposer?.();
+    controlResponseSuppressionDisposer = null;
     terminal?.dispose();
     terminal = null;
     fitAddon = null;
