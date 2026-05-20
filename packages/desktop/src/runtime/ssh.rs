@@ -689,12 +689,7 @@ async fn read_loop(
     let mut flush_interval = tokio::time::interval(SSH_OUTPUT_FLUSH_INTERVAL);
     flush_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
-    async fn flush_buffer(
-        buffer: &mut Vec<u8>,
-        session_id: &str,
-        app: &AppHandle,
-        closed: bool,
-    ) {
+    async fn flush_buffer(buffer: &mut Vec<u8>, session_id: &str, app: &AppHandle, closed: bool) {
         if buffer.is_empty() && !closed {
             return;
         }
