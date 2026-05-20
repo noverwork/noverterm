@@ -1,6 +1,6 @@
 {
   "name": "noverterm-ui",
-  "version": "0.4.4",
+  "version": "0.5.0",
   "description": "SvelteKit frontend for noverterm desktop app",
   "type": "module",
   "scripts": {
