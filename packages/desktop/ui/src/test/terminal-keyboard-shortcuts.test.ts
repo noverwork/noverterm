@@ -32,17 +32,17 @@ function createActions(): TerminalKeyboardActions {
 }
 
 describe("terminal keyboard shortcuts", () => {
-  it("passes Ctrl+F and Ctrl+G through for terminal apps like vi", () => {
+  it("uses Ctrl+F for terminal search and passes Ctrl+G through", () => {
     const actions = createActions();
     const handler = createTerminalKeyHandler(() => createTarget(), actions);
     const ctrlF = createKeyEvent("f", { ctrlKey: true });
     const ctrlG = createKeyEvent("g", { ctrlKey: true });
 
-    expect(handler(ctrlF)).toBe(true);
+    expect(handler(ctrlF)).toBe(false);
     expect(handler(ctrlG)).toBe(true);
-    expect(actions.openSearchPrompt).not.toHaveBeenCalled();
+    expect(actions.openSearchPrompt).toHaveBeenCalledTimes(1);
     expect(actions.repeatSearch).not.toHaveBeenCalled();
-    expect(ctrlF.preventDefault).not.toHaveBeenCalled();
+    expect(ctrlF.preventDefault).toHaveBeenCalledTimes(1);
     expect(ctrlG.preventDefault).not.toHaveBeenCalled();
   });
 

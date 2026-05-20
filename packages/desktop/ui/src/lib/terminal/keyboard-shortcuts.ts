@@ -32,14 +32,14 @@ export function createTerminalKeyHandler(
       return false;
     }
 
-    if (!event.metaKey) return true;
-
-    if (key === "f") {
+    if (key === "f" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
       event.stopPropagation();
       actions.openSearchPrompt();
       return false;
     }
+
+    if (!event.metaKey) return true;
 
     if (key === "g") {
       event.preventDefault();

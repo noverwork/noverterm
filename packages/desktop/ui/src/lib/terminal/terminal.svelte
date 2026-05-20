@@ -1,7 +1,10 @@
 <script lang="ts">
+  import { ChevronDown, ChevronUp, Search, X } from "@lucide/svelte";
   import { onMount, tick } from "svelte";
+  import { Button } from "$lib/components/ui/button/index.js";
+  import { Input } from "$lib/components/ui/input/index.js";
   import { createTerminal } from "./xterm.js";
-import type { TerminalConfig } from "$lib/app-data-types.js";
+  import type { TerminalConfig } from "$lib/app-data-types.js";
   import type { SessionType, TerminalOutputCallback } from "$lib/stores/session.svelte.js";
 
   let {
@@ -31,6 +34,81 @@ import type { TerminalConfig } from "$lib/app-data-types.js";
   let resizeObserver: ResizeObserver | null = null;
   let revealFrame: number | null = null;
   let revealGeneration = 0;
+  let searchOpen = $state(false);
+  let searchTerm = $state("");
+  let searchMatched = $state<boolean | null>(null);
+  let searchInput = $state<HTMLInputElement | null>(null);
+
+  async function openSearch() {
+    searchOpen = true;
+    await tick();
+    searchInput?.focus();
+    searchInput?.select();
+  }
+
+  function closeSearch() {
+    searchOpen = false;
+    searchMatched = null;
+    term?.clearSearch();
+    term?.focus();
+  }
+
+  function findNext() {
+    if (searchTerm.length === 0) {
+      searchMatched = null;
+      term?.clearSearch();
+      return;
+    }
+
+    searchMatched = term?.findNext(searchTerm) ?? false;
+  }
+
+  function findPrevious() {
+    if (searchTerm.length === 0) {
+      searchMatched = null;
+      term?.clearSearch();
+      return;
+    }
+
+    searchMatched = term?.findPrevious(searchTerm) ?? false;
+  }
+
+  function handleSearchKeydown(event: KeyboardEvent) {
+    event.stopPropagation();
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeSearch();
+      return;
+    }
+
+    if (event.key.toLowerCase() === "f" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      searchInput?.select();
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (event.shiftKey) {
+        findPrevious();
+      } else {
+        findNext();
+      }
+    }
+  }
+
+  $effect(() => {
+    if (!searchOpen) return;
+
+    if (searchTerm.length === 0) {
+      searchMatched = null;
+      term?.clearSearch();
+      return;
+    }
+
+    searchMatched = term?.findNext(searchTerm) ?? false;
+  });
 
   function cancelScheduledReveal() {
     revealGeneration += 1;
@@ -79,7 +157,17 @@ import type { TerminalConfig } from "$lib/app-data-types.js";
   onMount(() => {
     if (!container) return;
 
-    term = createTerminal({ sessionId, sessionType, config, onOutput, onClose, subscribeOutput });
+    term = createTerminal({
+      sessionId,
+      sessionType,
+      config,
+      onOutput,
+      onClose,
+      onSearchRequest: () => {
+        void openSearch();
+      },
+      subscribeOutput,
+    });
     term.init(container);
 
     if (controller !== undefined) {
@@ -112,4 +200,61 @@ import type { TerminalConfig } from "$lib/app-data-types.js";
   });
 </script>
 
-<div bind:this={container} class="terminal-container w-full h-full"></div>
+<div class="relative h-full w-full">
+  <div bind:this={container} class="terminal-container h-full w-full"></div>
+
+  {#if searchOpen}
+    <div
+      class="absolute right-2 top-2 z-30 flex h-8 items-center gap-1 rounded-xl border border-white/10 bg-[#080c13]/95 px-2 py-1 text-slate-100 shadow-lg shadow-black/40 backdrop-blur-sm"
+      role="search"
+      aria-label="Terminal search"
+    >
+      <Search class="size-3.5 text-slate-400" aria-hidden="true" />
+      <Input
+        bind:ref={searchInput}
+        bind:value={searchTerm}
+        aria-label="Search terminal buffer"
+        placeholder="Search"
+        class="h-6 w-44 border-white/10 bg-white/[0.04] px-2 py-0 text-xs text-slate-100 placeholder:text-slate-500 focus-visible:ring-1"
+        onkeydown={handleSearchKeydown}
+      />
+      {#if searchMatched === false && searchTerm.length > 0}
+        <span class="px-1 text-[0.68rem] text-amber-300" aria-live="polite">
+          No match
+        </span>
+      {/if}
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        class="size-6 cursor-pointer text-slate-300 hover:bg-white/10 hover:text-white"
+        disabled={searchTerm.length === 0}
+        title="Previous result"
+        aria-label="Previous search result"
+        onclick={findPrevious}
+      >
+        <ChevronUp class="size-3" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        class="size-6 cursor-pointer text-slate-300 hover:bg-white/10 hover:text-white"
+        disabled={searchTerm.length === 0}
+        title="Next result"
+        aria-label="Next search result"
+        onclick={findNext}
+      >
+        <ChevronDown class="size-3" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        class="size-6 cursor-pointer text-slate-400 hover:bg-white/10 hover:text-white"
+        title="Close search"
+        aria-label="Close terminal search"
+        onclick={closeSearch}
+      >
+        <X class="size-3" />
+      </Button>
+    </div>
+  {/if}
+</div>
