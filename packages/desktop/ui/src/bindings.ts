@@ -135,6 +135,22 @@ async portForwardList() : Promise<Result<PortForwardStatus[], string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
+},
+async knownHostsGet() : Promise<Result<KnownHostsResponse, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("known_hosts_get") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async knownHostsRemove(host: string, port: number) : Promise<Result<KnownHostsResponse, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("known_hosts_remove", { host, port }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
 }
 }
 
@@ -154,6 +170,7 @@ export type HostSystemInfo = { hostname: string | null; os: string | null; cpu_u
 export type HostTrustConfirmation = { host: string; port: number; algorithm: string; fingerprint: string }
 export type HostTrustMismatch = { host: string; port: number; expected_algorithm: string; expected_fingerprint: string; presented_algorithm: string; presented_fingerprint: string }
 export type HostTrustPrompt = { host: string; port: number; algorithm: string; fingerprint: string }
+export type KnownHostsResponse = { hosts: TrustedSshHost[] }
 export type PortForwardStartInput = { name: string; host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null; bind_host: string; bind_port: number; target_host: string; target_port: number }
 export type PortForwardState = "connecting" | "listening" | "stopped" | "error"
 export type PortForwardStatus = { id: string; name: string; host: string; port: number; username: string; bind_host: string; bind_port: number; target_host: string; target_port: number; state: PortForwardState; error: string | null }
@@ -162,6 +179,7 @@ export type SshLocalPortForwardInput = { session_id: string; bind_host: string; 
 export type SshPortForwardState = "listening" | "stopped" | "error"
 export type SshPortForwardStatus = { forward_id: string; session_id: string; bind_host: string; bind_port: number; target_host: string; target_port: number; status: SshPortForwardState; error: string | null }
 export type SshProbeHostInfoResponse = { status: "success"; info: HostSystemInfo } | { status: "trust_required"; prompt: HostTrustPrompt } | { status: "trust_mismatch"; mismatch: HostTrustMismatch }
+export type TrustedSshHost = { host: string; port: number; algorithm: string; fingerprint: string }
 
 /** tauri-specta globals **/
 

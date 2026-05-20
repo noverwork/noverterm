@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
+use tauri::State;
 use tokio::sync::RwLock;
 
 #[derive(Debug, Clone)]
@@ -55,6 +56,11 @@ pub struct TrustedSshHost {
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct TrustedSshHostsFile {
     records: Vec<TrustedSshHost>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+pub struct KnownHostsResponse {
+    pub hosts: Vec<TrustedSshHost>,
 }
 
 impl SshTrustStore {
@@ -124,14 +130,37 @@ impl SshTrustStore {
         let key = record_key(host, port);
         let snapshot = {
             let mut records = self.records.write().await;
-            records.remove(&key).ok_or_else(|| {
-                format!("No trusted host found for {host}:{port}")
-            })?;
+            records
+                .remove(&key)
+                .ok_or_else(|| format!("No trusted host found for {host}:{port}"))?;
             snapshot_records(&records)
         };
 
         persist_records(&self.path, snapshot).await
     }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn known_hosts_get(
+    trust_store: State<'_, SshTrustStore>,
+) -> Result<KnownHostsResponse, String> {
+    Ok(KnownHostsResponse {
+        hosts: trust_store.list().await,
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn known_hosts_remove(
+    host: String,
+    port: u16,
+    trust_store: State<'_, SshTrustStore>,
+) -> Result<KnownHostsResponse, String> {
+    trust_store.remove(&host, port).await?;
+    Ok(KnownHostsResponse {
+        hosts: trust_store.list().await,
+    })
 }
 
 fn load_records(path: &Path) -> Result<HashMap<String, TrustedSshHost>, String> {

@@ -97,7 +97,9 @@ fn command_builder() -> Builder<tauri::Wry> {
         crate::connect::local_disconnect,
         crate::connect::port_forward_start,
         crate::connect::port_forward_stop,
-        crate::connect::port_forward_list
+        crate::connect::port_forward_list,
+        crate::trust::known_hosts_get,
+        crate::trust::known_hosts_remove
     ])
 }
 
