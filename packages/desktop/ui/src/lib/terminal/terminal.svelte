@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { ChevronDown, ChevronUp, Search, X } from "@lucide/svelte";
+  import { ChevronDown, ChevronUp, Copy, Search, X } from "@lucide/svelte";
   import { onMount, tick } from "svelte";
   import { Button } from "$lib/components/ui/button/index.js";
+  import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { createTerminal } from "./xterm.js";
   import type { TerminalConfig } from "$lib/app-data-types.js";
@@ -38,6 +39,20 @@
   let searchTerm = $state("");
   let searchMatched = $state<boolean | null>(null);
   let searchInput = $state<HTMLInputElement | null>(null);
+  let hasSelection = $state(false);
+
+  function updateSelectionState() {
+    hasSelection = Boolean(term?.copySelection());
+    onSelectionChange?.();
+  }
+
+  async function copySelection() {
+    const selection = term?.copySelection();
+    if (!selection) return;
+
+    await navigator.clipboard.writeText(selection).catch(() => undefined);
+    term?.focus();
+  }
 
   async function openSearch() {
     searchOpen = true;
@@ -174,9 +189,7 @@
       controller = term;
     }
 
-    if (onSelectionChange) {
-      term.onSelectionChange(onSelectionChange);
-    }
+    term.onSelectionChange(updateSelectionState);
 
     if (active) {
       void scheduleReveal();
@@ -201,7 +214,21 @@
 </script>
 
 <div class="relative h-full w-full">
-  <div bind:this={container} class="terminal-container h-full w-full"></div>
+  <ContextMenu.Root>
+    <ContextMenu.Trigger class="contents">
+      <div bind:this={container} class="terminal-container h-full w-full"></div>
+    </ContextMenu.Trigger>
+    <ContextMenu.Content class="min-w-36 border-white/10 bg-slate-950/96 text-slate-100 shadow-2xl shadow-black/45">
+      <ContextMenu.Item
+        class="cursor-pointer gap-2 focus:bg-cyan-300/10 focus:text-white"
+        disabled={!hasSelection}
+        onclick={() => void copySelection()}
+      >
+        <Copy class="size-3.5" />
+        Copy
+      </ContextMenu.Item>
+    </ContextMenu.Content>
+  </ContextMenu.Root>
 
   {#if searchOpen}
     <div
