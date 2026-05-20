@@ -219,9 +219,9 @@
 </script>
 
 <div
-  class="workspace-canvas flex h-full flex-col overflow-y-auto px-5 py-6 lg:px-8"
+  class="workspace-canvas flex h-full min-h-0 flex-col overflow-hidden px-5 py-6 lg:px-8"
 >
-  <section class="ide-panel flex min-h-full flex-col p-5 text-white sm:p-6">
+  <section class="ide-panel flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-white sm:p-6">
     <div
       class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between"
     >
@@ -255,7 +255,7 @@
       </div>
     {/if}
 
-    <div class="mt-6 flex-1">
+    <div class="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
       {#if sortedSavedForwards.length === 0}
         <div
           class="flex h-full min-h-[16rem] items-center justify-center rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground"
