@@ -309,14 +309,14 @@
               <Button
                 type="submit"
                 size="sm"
-                class="rounded bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                class="rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200"
                 disabled={isSavingGroup}>Add</Button
               >
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                class="rounded text-slate-400 hover:bg-white/8 hover:text-white"
+                class="rounded-2xl text-slate-300 hover:bg-white/8 hover:text-white"
                 onclick={() => {
                   isCreatingGroup = false;
                   newGroupName = "";
@@ -437,7 +437,7 @@
                 <Button
                   variant="ghost"
                   size="xs"
-                  class="gap-1.5 rounded-xl text-slate-400 hover:bg-white/7 hover:text-white"
+                  class="gap-1.5 rounded-xl text-slate-400 hover:bg-white/8 hover:text-white"
                   onclick={() => onEdit(connection)}
                 >
                   <Pencil class="size-3" />

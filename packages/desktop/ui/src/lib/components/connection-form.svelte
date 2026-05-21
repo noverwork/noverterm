@@ -545,8 +545,8 @@
                         placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
                         rows="8"
                         class={$errors.privateKey
-                          ? "flex min-h-[12rem] w-full rounded-2xl border border-destructive bg-black/20 px-3 py-2 font-mono text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                          : "flex min-h-[12rem] w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 font-mono text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300/20"}
+                          ? "flex min-h-[15rem] w-full resize-none rounded-2xl border border-destructive bg-black/20 px-3 py-2 font-mono text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          : "flex min-h-[15rem] w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-3 py-2 font-mono text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300/20"}
                         disabled={isSaving}
                       ></textarea>
                       {#if $errors.privateKey}

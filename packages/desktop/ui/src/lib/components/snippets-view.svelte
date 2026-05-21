@@ -121,7 +121,7 @@
       {:else}
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {#each snippets as snippet (snippet.id)}
-            <article class="group relative rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:z-20 hover:border-white/14 hover:bg-white/[0.055]">
+            <article class="group rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055]">
               <div class="flex items-start gap-3">
                 <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200">
                   <FileText class="size-5" />

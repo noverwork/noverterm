@@ -148,7 +148,7 @@
       {/if}
 
       <form class="mt-5 rounded-[1.35rem] border border-cyan-300/24 bg-cyan-300/8 p-5 shadow-[0_16px_42px_rgb(34_211_238/0.08)]" onsubmit={handleSubmit}>
-        <div class="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+        <div class="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
           <div class="space-y-4">
             {#if keyRecord}
               <div class="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
@@ -186,18 +186,9 @@
                 disabled={isSaving || isLoadingSecret}
               />
             </div>
-
-            <div class="flex flex-wrap items-center gap-2 pt-1">
-              <Button type="submit" class="rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200" disabled={isSaving || isLoadingSecret}>
-                {submitLabel}
-              </Button>
-              <Button type="button" variant="ghost" size="sm" class="rounded-2xl text-slate-300 hover:bg-white/8 hover:text-white" onclick={onCancel} disabled={isSaving}>
-                Cancel
-              </Button>
-            </div>
           </div>
 
-          <div class="space-y-2">
+          <div class="space-y-4">
             <label for="ssh-key-private" class="text-sm font-medium text-slate-100">Private key</label>
             <textarea
               id="ssh-key-private"
@@ -210,6 +201,15 @@
             {#if isEditing}
               <p class="text-xs leading-5 text-slate-500">This field shows the saved raw private key after vault decryption. Editing it will rotate the stored key on update.</p>
             {/if}
+
+            <div class="flex flex-wrap items-center gap-2 pt-1">
+              <Button type="submit" class="rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200" disabled={isSaving || isLoadingSecret}>
+                {submitLabel}
+              </Button>
+              <Button type="button" variant="ghost" size="sm" class="rounded-2xl text-slate-300 hover:bg-white/8 hover:text-white" onclick={onCancel} disabled={isSaving}>
+                Cancel
+              </Button>
+            </div>
           </div>
         </div>
       </form>

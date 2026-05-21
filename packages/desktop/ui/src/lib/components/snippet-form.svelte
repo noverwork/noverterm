@@ -149,15 +149,6 @@
                 </div>
               </div>
             </div>
-
-            <div class="flex flex-wrap items-center gap-2 pt-1">
-              <Button type="submit" class="rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200" disabled={isSaving}>
-                {submitLabel}
-              </Button>
-              <Button type="button" variant="ghost" size="sm" class="rounded-2xl text-slate-300 hover:bg-white/8 hover:text-white" onclick={onCancel} disabled={isSaving}>
-                Cancel
-              </Button>
-            </div>
           </div>
 
           <div class="space-y-4">
@@ -183,6 +174,15 @@
                   disabled={isSaving}
                 ></textarea>
               </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 pt-1">
+              <Button type="submit" class="rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200" disabled={isSaving}>
+                {submitLabel}
+              </Button>
+              <Button type="button" variant="ghost" size="sm" class="rounded-2xl text-slate-300 hover:bg-white/8 hover:text-white" onclick={onCancel} disabled={isSaving}>
+                Cancel
+              </Button>
             </div>
           </div>
         </div>
