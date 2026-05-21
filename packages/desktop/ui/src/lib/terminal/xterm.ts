@@ -26,6 +26,7 @@ interface TerminalOptions {
   config: TerminalConfig;
   onOutput?: (data: string) => void;
   onClose?: () => void;
+  onRequestClose?: () => void;
   onSearchRequest?: () => void;
   subscribeOutput?: (callback: TerminalOutputCallback) => () => void;
 }
@@ -140,6 +141,9 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       },
       openSearchPrompt: requestSearch,
       repeatSearch,
+      closeTerminal() {
+        options.onRequestClose?.();
+      },
     },
   );
 

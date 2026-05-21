@@ -28,6 +28,7 @@ function createActions(): TerminalKeyboardActions {
     writeClipboard: vi.fn(),
     openSearchPrompt: vi.fn(),
     repeatSearch: vi.fn(),
+    closeTerminal: vi.fn(),
   };
 }
 
@@ -86,5 +87,19 @@ describe("terminal keyboard shortcuts", () => {
     expect(handler(ctrlC)).toBe(true);
     expect(actions.writeClipboard).not.toHaveBeenCalled();
     expect(ctrlC.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("closes the terminal on Cmd+W and passes Ctrl+W through", () => {
+    const actions = createActions();
+    const handler = createTerminalKeyHandler(() => createTarget(), actions);
+    const metaW = createKeyEvent("w", { metaKey: true });
+    const ctrlW = createKeyEvent("w", { ctrlKey: true });
+
+    expect(handler(metaW)).toBe(false);
+    expect(handler(ctrlW)).toBe(true);
+    expect(actions.closeTerminal).toHaveBeenCalledTimes(1);
+    expect(metaW.preventDefault).toHaveBeenCalledTimes(1);
+    expect(metaW.stopPropagation).toHaveBeenCalledTimes(1);
+    expect(ctrlW.preventDefault).not.toHaveBeenCalled();
   });
 });

@@ -7,6 +7,7 @@ export interface TerminalKeyboardActions {
   writeClipboard(selection: string): void;
   openSearchPrompt(): void;
   repeatSearch(backwards: boolean): void;
+  closeTerminal(): void;
 }
 
 export function createTerminalKeyHandler(
@@ -36,6 +37,13 @@ export function createTerminalKeyHandler(
       event.preventDefault();
       event.stopPropagation();
       actions.openSearchPrompt();
+      return false;
+    }
+
+    if (key === "w" && event.metaKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      actions.closeTerminal();
       return false;
     }
 
