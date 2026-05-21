@@ -15,6 +15,7 @@
     config,
     onOutput,
     onClose,
+    onRequestClose,
     subscribeOutput,
     onSelectionChange,
     controller = $bindable(null),
@@ -25,6 +26,7 @@
     config: TerminalConfig;
     onOutput?: (data: string) => void;
     onClose?: () => void;
+    onRequestClose?: () => void;
     subscribeOutput?: (callback: TerminalOutputCallback) => () => void;
     onSelectionChange?: () => void;
     controller?: ReturnType<typeof createTerminal> | null;
@@ -178,6 +180,7 @@
       config,
       onOutput,
       onClose,
+      onRequestClose,
       onSearchRequest: () => {
         void openSearch();
       },

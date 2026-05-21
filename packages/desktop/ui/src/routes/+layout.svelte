@@ -508,6 +508,8 @@
                         app.sessionStore.updateSession(session.id, {
                           status: "disconnected",
                         })}
+                      onRequestClose={() =>
+                        void closeSessionAndNavigate(session.id)}
                     />
                     {#if session.status === "connecting"}
                       <div class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#080c13]/90">
