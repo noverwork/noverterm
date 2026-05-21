@@ -59,7 +59,7 @@
       <LoginForm onLogin={onLogin} onForgotPassword={() => (view = "forgot")} {isLoading} {error} />
       <div class="mt-6 text-center text-sm text-slate-400">
         Don't have an account?
-        <button class="ml-1 font-medium text-primary hover:underline" onclick={() => (view = "signup")}>Sign up</button>
+        <button class="ml-1 font-medium text-cyan-300 transition hover:text-cyan-200" onclick={() => (view = "signup")}>Sign up</button>
       </div>
     {:else if view === "forgot"}
       <ForgotPasswordForm onSubmit={onForgotPassword} onBack={() => (view = "login")} />
@@ -69,7 +69,7 @@
       <SignupForm onSignup={onSignup} {isLoading} {error} />
       <div class="mt-6 text-center text-sm text-slate-400">
         Already have an account?
-        <button class="ml-1 font-medium text-primary hover:underline" onclick={() => (view = "login")}>Sign in</button>
+        <button class="ml-1 font-medium text-cyan-300 transition hover:text-cyan-200" onclick={() => (view = "login")}>Sign in</button>
       </div>
     {/if}
   </div>

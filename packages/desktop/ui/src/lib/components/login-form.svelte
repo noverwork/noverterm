@@ -33,7 +33,7 @@
   }
 </script>
 
-<div class="rounded-[1.4rem] bg-slate-950/85 p-6 text-white sm:p-7">
+<div class="rounded-[1.35rem] border border-cyan-300/24 bg-cyan-300/8 p-6 text-white shadow-[0_16px_42px_rgb(34_211_238/0.08)] sm:p-7">
   <div class="space-y-5">
     {#if error}
       <div class="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive" role="alert">
@@ -59,7 +59,7 @@
             placeholder="you@example.com"
             disabled={isLoading || $submitting}
             onkeydown={(event) => event.key === "Enter" && handleSubmit()}
-            class={$errors.email ? "pl-9 border-destructive bg-white/5 text-white placeholder:text-slate-500" : "pl-9 border-white/10 bg-white/5 text-white placeholder:text-slate-500"}
+            class={$errors.email ? "pl-9 border-destructive bg-black/20 text-white placeholder:text-slate-500" : "pl-9 border-white/10 bg-black/20 text-white placeholder:text-slate-500"}
           />
         </div>
         {#if $errors.email}
@@ -81,7 +81,7 @@
             placeholder="password"
             disabled={isLoading || $submitting}
             onkeydown={(event) => event.key === "Enter" && handleSubmit()}
-            class={$errors.password ? "pl-9 border-destructive bg-white/5 text-white placeholder:text-slate-500" : "pl-9 border-white/10 bg-white/5 text-white placeholder:text-slate-500"}
+            class={$errors.password ? "pl-9 border-destructive bg-black/20 text-white placeholder:text-slate-500" : "pl-9 border-white/10 bg-black/20 text-white placeholder:text-slate-500"}
           />
         </div>
         {#if $errors.password}
