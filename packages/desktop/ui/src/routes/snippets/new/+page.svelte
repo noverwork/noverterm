@@ -6,6 +6,7 @@
   import { createSnippet } from "$lib/api/snippets-api.js";
   import { mutationKeys, queryKeys } from "$lib/queries/query-keys.js";
   import type { ConnectionConfig } from "$lib/app-data-types.js";
+  import { getAppShellContext } from "$lib/stores/app-shell.svelte.js";
 
   const app = getAppShellContext();
   const hosts = $derived(app.connections as ConnectionConfig[]);

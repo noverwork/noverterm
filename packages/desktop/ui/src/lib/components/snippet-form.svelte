@@ -2,6 +2,8 @@
   import { FileText } from "@lucide/svelte";
 
   import type { ConnectionConfig } from "$lib/app-data-types.js";
+  import { Button } from "$lib/components/ui/button/index.js";
+  import { Input } from "$lib/components/ui/input/index.js";
 
   interface Props {
     hosts: ConnectionConfig[];
@@ -13,9 +15,15 @@
 
   let title = $state("");
   let body = $state("");
-  let hostId = $state(hosts[0]?.id ?? "");
+  let hostId = $state("");
   let error = $state<string | null>(null);
   let isSaving = $state(false);
+
+  $effect(() => {
+    if (!hostId && hosts.length > 0) {
+      hostId = hosts[0].id;
+    }
+  });
 
   async function handleSubmit(event: SubmitEvent) {
     event.preventDefault();
@@ -65,8 +73,9 @@
     <form class="mt-6 min-h-0 flex-1 space-y-5 overflow-y-auto pr-1" onsubmit={handleSubmit}>
       {#if hosts.length > 1}
         <div class="space-y-2">
-          <label class="text-sm font-medium text-slate-300">Host</label>
+          <label for="snippet-host" class="text-sm font-medium text-slate-300">Host</label>
           <select
+            id="snippet-host"
             bind:value={hostId}
             class="w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white focus:border-cyan-300/40 focus:outline-none focus:ring-1 focus:ring-cyan-300/20"
           >
