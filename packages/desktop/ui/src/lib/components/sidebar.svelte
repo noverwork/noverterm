@@ -295,6 +295,18 @@
               <span class={navCountBadgeClass("keys")}>{keyCount}</span>
             </Button>
           {/if}
+          {#if onSnippets}
+            <Button
+              onclick={onSnippets}
+              variant="outline"
+              size="sm"
+              class={navButtonClass("snippets")}
+            >
+              <FileText class="size-3.5" />
+              Snippets
+              <span class={navCountBadgeClass("snippets")}>{snippetCount}</span>
+            </Button>
+          {/if}
           {#if onPortForwards}
             <Button
               onclick={onPortForwards}
@@ -316,18 +328,6 @@
             >
               <Server class="size-3.5" />
               Known Hosts
-            </Button>
-          {/if}
-          {#if onSnippets}
-            <Button
-              onclick={onSnippets}
-              variant="outline"
-              size="sm"
-              class={navButtonClass("snippets")}
-            >
-              <FileText class="size-3.5" />
-              Snippets
-              <span class={navCountBadgeClass("snippets")}>{snippetCount}</span>
             </Button>
           {/if}
         </div>
