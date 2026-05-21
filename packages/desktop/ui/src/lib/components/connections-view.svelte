@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { ChevronDown, FolderInput, Pencil, Plus, Trash2 } from "@lucide/svelte";
+  import { ChevronDown, FolderInput, Pencil, Plus, Server, Trash2 } from "@lucide/svelte";
 
   import DeleteConfirmDialog from "$lib/components/delete-confirm-dialog.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import type { HostGroupRecord } from "$lib/api/types.js";
-import type { ConnectionConfig } from "$lib/app-data-types.js";
+  import type { ConnectionConfig } from "$lib/app-data-types.js";
 
   interface Props {
     connections: ConnectionConfig[];
@@ -368,6 +368,10 @@ import type { ConnectionConfig } from "$lib/app-data-types.js";
               class="group rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055]"
             >
               <div class="flex items-start gap-3">
+                <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200">
+                  <Server class="size-5" />
+                </div>
+
                 <div class="min-w-0 flex-1">
                   <div class="flex flex-wrap items-center gap-2">
                     <span class="truncate text-sm font-medium text-white"

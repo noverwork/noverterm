@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Loader2, Network, Server } from "@lucide/svelte";
+  import { ChevronDown, Loader2, Network, Server } from "@lucide/svelte";
 
   import type {
     ConnectionConfig,
@@ -21,7 +21,7 @@
   let error = $state<string | null>(null);
   let isSaving = $state(false);
   let initializedForwardId = $state<string | null>(null);
-  let selectedConnectionId = $state<string | null>(null);
+  let selectedConnectionId = $state("");
   let formName = $state("");
   let formBindHost = $state("127.0.0.1");
   let formBindPort = $state("");
@@ -57,7 +57,7 @@
     }
 
     initializedForwardId = forwardId;
-    selectedConnectionId = forward?.connectionId ?? null;
+    selectedConnectionId = forward?.connectionId ?? "";
     formName = forward?.name ?? "";
     formBindHost = forward?.bind_host ?? "127.0.0.1";
     formBindPort = forward ? String(forward.bind_port) : "";
@@ -193,19 +193,7 @@
           void handleSubmit();
         }}
       >
-        <div class="flex items-center justify-between gap-3">
-          <h2 class="text-sm font-semibold text-cyan-100">Port Forward</h2>
-          <button
-            type="button"
-            class="cursor-pointer text-xs text-slate-400 transition-colors hover:text-white"
-            onclick={onCancel}
-            disabled={isSaving}
-          >
-            Cancel
-          </button>
-        </div>
-
-        <div class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <div class="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
           <div class="space-y-4">
             <div class="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
               <div class="flex items-center gap-3">
@@ -240,42 +228,46 @@
                   </p>
                 </div>
               {:else}
-                <div
-                  class="mt-4 grid max-h-80 gap-2 overflow-y-auto pr-2 sm:grid-cols-2"
-                  style="scrollbar-gutter: stable;"
-                >
-                  {#each sortedConnections as connection (connection.id)}
-                    <button
-                      type="button"
-                      class="cursor-pointer rounded-xl border px-3 py-3 text-left transition-all {selectedConnectionId ===
-                      connection.id
-                        ? 'border-cyan-300/30 bg-cyan-300/10 shadow-[0_0_20px_rgb(34_211_238/0.08)]'
-                        : 'border-white/8 bg-white/[0.03] hover:border-white/14 hover:bg-white/[0.055]'}"
-                      onclick={() => (selectedConnectionId = connection.id)}
+                <div class="mt-4 space-y-2">
+                  <label for="pf-connection" class="text-sm font-medium text-slate-100">Connection</label>
+                  <div class="relative">
+                    <select
+                      id="pf-connection"
+                      bind:value={selectedConnectionId}
+                      class="flex h-11 w-full appearance-none rounded-2xl border border-white/10 bg-black/20 px-3 py-1 pr-10 text-sm text-white shadow-sm transition-colors hover:bg-white/[0.06] focus-visible:border-cyan-300/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={isSaving}
                     >
-                      <div class="flex items-start gap-2.5">
-                        <div
-                          class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
-                        >
-                          <Server class="size-4" />
-                        </div>
-                        <div class="min-w-0 flex-1">
-                          <p class="truncate text-sm font-medium text-white">
-                            {connection.name}
-                          </p>
-                          <p
-                            class="mt-0.5 truncate font-mono text-[11px] text-slate-400"
-                          >
-                            {connection.username}@{connection.host}:{connection.port}
-                          </p>
-                          <p class="mt-0.5 text-[11px] text-slate-500">
-                            {getAuthLabel(connection)}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  {/each}
+                      <option value="" class="bg-slate-900">— Select a saved connection —</option>
+                      {#each sortedConnections as connection (connection.id)}
+                        <option value={connection.id} class="bg-slate-900">
+                          {connection.name} ({connection.username}@{connection.host}:{connection.port})
+                        </option>
+                      {/each}
+                    </select>
+                    <ChevronDown class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                  </div>
                 </div>
+
+                {#if selectedConnection}
+                  <div class="mt-3 rounded-2xl border border-white/8 bg-white/[0.035] p-3">
+                    <div class="flex items-start gap-2.5">
+                      <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-cyan-300/14 bg-cyan-300/8 text-cyan-200">
+                        <Server class="size-4" />
+                      </div>
+                      <div class="min-w-0 flex-1">
+                        <p class="truncate text-sm font-medium text-white">
+                          {selectedConnection.name}
+                        </p>
+                        <p class="mt-0.5 truncate font-mono text-[11px] text-slate-400">
+                          {selectedConnection.username}@{selectedConnection.host}:{selectedConnection.port}
+                        </p>
+                        <p class="mt-0.5 text-[11px] text-slate-500">
+                          {getAuthLabel(selectedConnection)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                {/if}
               {/if}
             </div>
 

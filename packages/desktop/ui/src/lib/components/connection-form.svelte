@@ -258,20 +258,8 @@
           void handleSubmit();
         }}
       >
-        <div class="flex items-center justify-between gap-3">
-          <h2 class="text-sm font-semibold text-cyan-100">SSH Connection</h2>
-          <button
-            type="button"
-            class="cursor-pointer text-xs text-slate-400 transition-colors hover:text-white"
-            onclick={onCancel}
-            disabled={isSaving}
-          >
-            Cancel
-          </button>
-        </div>
-
         <div
-          class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]"
+          class="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]"
         >
           <div class="space-y-4">
             <div class="rounded-2xl border border-white/8 bg-white/[0.035] p-4">

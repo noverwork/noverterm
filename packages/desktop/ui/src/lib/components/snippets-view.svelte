@@ -158,9 +158,9 @@
 
               <div class="mt-4 flex items-center gap-2">
                   <Button
-                    variant="default"
+                    variant="ghost"
                     size="xs"
-                    class="gap-1.5 rounded-xl bg-emerald-300/20 text-emerald-200 hover:bg-emerald-300/30 hover:text-emerald-100"
+                    class="gap-1.5 rounded-xl bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/18 hover:text-white"
                     onclick={() => handleRun(snippet)}
                     disabled={runningSnippetId === snippet.id}
                   >
@@ -179,7 +179,7 @@
                   <Button
                     variant="ghost"
                     size="xs"
-                    class="gap-1.5 rounded-xl text-slate-400 hover:bg-cyan-300/10 hover:text-white"
+                    class="gap-1.5 rounded-xl text-slate-400 hover:bg-white/8 hover:text-white"
                     onclick={() => onEdit(snippet)}
                   >
                     <Pencil class="size-3" />

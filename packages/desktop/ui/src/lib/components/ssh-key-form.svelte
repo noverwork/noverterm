@@ -148,14 +148,7 @@
       {/if}
 
       <form class="mt-5 rounded-[1.35rem] border border-cyan-300/24 bg-cyan-300/8 p-5 shadow-[0_16px_42px_rgb(34_211_238/0.08)]" onsubmit={handleSubmit}>
-        <div class="flex items-center justify-between gap-3">
-          <h2 class="text-sm font-semibold text-cyan-100">SSH Key</h2>
-          <button type="button" class="cursor-pointer text-xs text-slate-400 transition-colors hover:text-white" onclick={onCancel} disabled={isSaving}>
-            Cancel
-          </button>
-        </div>
-
-        <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+        <div class="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
           <div class="space-y-4">
             {#if keyRecord}
               <div class="rounded-2xl border border-white/8 bg-white/[0.035] p-4">

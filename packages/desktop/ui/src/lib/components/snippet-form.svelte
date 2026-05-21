@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { FileText } from "@lucide/svelte";
+  import { ChevronDown, FileText, Server } from "@lucide/svelte";
 
   import type { SnippetRecord } from "$lib/api/types.js";
   import type { ConnectionConfig } from "$lib/app-data-types.js";
@@ -100,46 +100,54 @@
       {/if}
 
       <form class="mt-5 rounded-[1.35rem] border border-cyan-300/24 bg-cyan-300/8 p-5 shadow-[0_16px_42px_rgb(34_211_238/0.08)]" onsubmit={handleSubmit}>
-        <div class="flex items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
-            <div class="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200">
-              <FileText class="size-5" />
-            </div>
-            <h2 class="text-sm font-semibold text-cyan-100">Command Snippet</h2>
-          </div>
-          <button type="button" class="cursor-pointer text-xs text-slate-400 transition-colors hover:text-white" onclick={onCancel} disabled={isSaving}>
-            Cancel
-          </button>
-        </div>
-
-        <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+        <div class="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
           <div class="space-y-4">
-            {#if hosts.length > 1}
-              <div class="space-y-2">
-                <label for="snippet-host" class="text-sm font-medium text-slate-100">Host</label>
-                <select
-                  id="snippet-host"
-                  bind:value={hostId}
-                  class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:border-cyan-300/40 focus:outline-none focus:ring-1 focus:ring-cyan-300/20"
-                >
-                  {#each hosts as host (host.id)}
-                    <option value={host.id}>{host.name} ({host.host})</option>
-                  {/each}
-                </select>
+            <div class="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
+              <div class="flex items-center gap-3">
+                <div class="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200">
+                  <Server class="size-5" />
+                </div>
+                <div>
+                  <h3 class="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Host & Title</h3>
+                  <p class="mt-1 text-xs text-slate-400">Choose the target host and give this snippet a name.</p>
+                </div>
               </div>
-            {:else if hosts.length === 1}
-              <input type="hidden" bind:value={hostId} />
-            {/if}
 
-            <div class="space-y-2">
-              <label for="snippet-title" class="text-sm font-medium text-slate-100">Title</label>
-              <Input
-                id="snippet-title"
-                bind:value={title}
-                placeholder="e.g. Restart Nginx"
-                class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                disabled={isSaving}
-              />
+              <div class="mt-4 space-y-4">
+                {#if hosts.length > 1}
+                  <div class="space-y-2">
+                    <label for="snippet-host" class="text-sm font-medium text-slate-100">Host</label>
+                    <div class="relative">
+                      <select
+                        id="snippet-host"
+                        bind:value={hostId}
+                        class="flex h-11 w-full appearance-none rounded-2xl border border-white/10 bg-black/20 px-3 py-1 pr-10 text-sm text-white shadow-sm transition-colors hover:bg-white/[0.06] focus-visible:border-cyan-300/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={isSaving}
+                      >
+                        {#each hosts as host (host.id)}
+                          <option value={host.id} class="bg-slate-900">
+                            {host.name} ({host.host})
+                          </option>
+                        {/each}
+                      </select>
+                      <ChevronDown class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                    </div>
+                  </div>
+                {:else if hosts.length === 1}
+                  <input type="hidden" bind:value={hostId} />
+                {/if}
+
+                <div class="space-y-2">
+                  <label for="snippet-title" class="text-sm font-medium text-slate-100">Title</label>
+                  <Input
+                    id="snippet-title"
+                    bind:value={title}
+                    placeholder="e.g. Restart Nginx"
+                    class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
+                    disabled={isSaving}
+                  />
+                </div>
+              </div>
             </div>
 
             <div class="flex flex-wrap items-center gap-2 pt-1">
@@ -152,16 +160,30 @@
             </div>
           </div>
 
-          <div class="space-y-2">
-            <label for="snippet-body" class="text-sm font-medium text-slate-100">Command</label>
-            <textarea
-              id="snippet-body"
-              bind:value={body}
-              placeholder="sudo systemctl restart nginx"
-              rows="10"
-              class="flex min-h-[15rem] w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-3 py-2 font-mono text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300/20"
-              disabled={isSaving}
-            ></textarea>
+          <div class="space-y-4">
+            <div class="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
+              <div class="flex items-center gap-3">
+                <div class="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200">
+                  <FileText class="size-5" />
+                </div>
+                <div>
+                  <h3 class="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Command</h3>
+                  <p class="mt-1 text-xs text-slate-400">The command or script that will run on the selected host.</p>
+                </div>
+              </div>
+
+              <div class="mt-4 space-y-2">
+                <label for="snippet-body" class="text-sm font-medium text-slate-100">Command</label>
+                <textarea
+                  id="snippet-body"
+                  bind:value={body}
+                  placeholder="sudo systemctl restart nginx"
+                  rows="10"
+                  class="flex min-h-[15rem] w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-3 py-2 font-mono text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300/20"
+                  disabled={isSaving}
+                ></textarea>
+              </div>
+            </div>
           </div>
         </div>
       </form>
