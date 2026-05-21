@@ -4,7 +4,7 @@
 
   import SnippetsView from "$lib/components/snippets-view.svelte";
   import { snippetListQueryOptions } from "$lib/queries/snippet-queries.js";
-  import { deleteSnippet, updateSnippet } from "$lib/api/snippets-api.js";
+  import { deleteSnippet } from "$lib/api/snippets-api.js";
   import { mutationKeys } from "$lib/queries/query-keys.js";
   import type { SnippetRecord } from "$lib/api/types.js";
   import type { ConnectionConfig } from "$lib/app-data-types.js";
@@ -22,26 +22,10 @@
     },
   }));
 
-  const updateSnippetMutation = createMutation(() => ({
-    mutationKey: mutationKeys.updateSnippet,
-    mutationFn: ({ id, input }: { id: string; input: { host_id: string; title: string; body: string } }) =>
-      updateSnippet(id, input),
-    onSuccess: () => {
-      snippetListQuery.refetch();
-    },
-  }));
-
   const snippets = $derived(snippetListQuery.data ?? []);
 
   async function handleDelete(snippet: SnippetRecord) {
     await deleteSnippetMutation.mutateAsync(snippet.id);
-  }
-
-  async function handleEdit(snippet: SnippetRecord, title: string, body: string) {
-    await updateSnippetMutation.mutateAsync({
-      id: snippet.id,
-      input: { host_id: snippet.host_id, title, body },
-    });
   }
 
   async function handleRun(connection: ConnectionConfig, command: string) {
@@ -58,6 +42,6 @@
   connections={app.connections}
   onNew={() => goto("/snippets/new")}
   onRun={handleRun}
-  onEdit={handleEdit}
+  onEdit={(snippet) => goto(`/snippets/${snippet.id}/edit`)}
   onDelete={handleDelete}
 />

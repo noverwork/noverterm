@@ -1,25 +1,52 @@
 <script lang="ts">
   import { FileText } from "@lucide/svelte";
 
+  import type { SnippetRecord } from "$lib/api/types.js";
   import type { ConnectionConfig } from "$lib/app-data-types.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
 
   interface Props {
     hosts: ConnectionConfig[];
+    snippet?: SnippetRecord | null;
     onSave: (hostId: string, title: string, body: string) => Promise<void>;
     onCancel: () => void;
   }
 
-  let { hosts, onSave, onCancel }: Props = $props();
+  let { hosts, snippet = null, onSave, onCancel }: Props = $props();
 
   let title = $state("");
   let body = $state("");
   let hostId = $state("");
   let error = $state<string | null>(null);
   let isSaving = $state(false);
+  let initializedSnippetId = $state<string | null>(null);
+
+  const isEditing = $derived(snippet !== null);
+  const pageTitle = $derived(isEditing ? "Edit Snippet" : "New Snippet");
+  const pageDescription = $derived(
+    isEditing
+      ? "Update the host, title, or command for this snippet."
+      : "Create a reusable command template for a host.",
+  );
+  const submitLabel = $derived.by(() => {
+    if (isSaving) {
+      return isEditing ? "Updating…" : "Saving…";
+    }
+
+    return isEditing ? "Update snippet" : "Save snippet";
+  });
 
   $effect(() => {
+    const nextSnippetId = snippet?.id ?? "new";
+    if (initializedSnippetId !== nextSnippetId) {
+      initializedSnippetId = nextSnippetId;
+      title = snippet?.title ?? "";
+      body = snippet?.body ?? "";
+      hostId = snippet?.host_id ?? "";
+      error = null;
+    }
+
     if (!hostId && hosts.length > 0) {
       hostId = hosts[0].id;
     }
@@ -59,8 +86,8 @@
       </div>
 
       <div class="flex-1">
-        <h1 class="text-2xl font-semibold tracking-tight">New Snippet</h1>
-        <p class="mt-1 text-sm text-slate-500">Create a reusable command template for a host.</p>
+        <h1 class="text-2xl font-semibold tracking-tight">{pageTitle}</h1>
+        <p class="mt-1 text-sm text-slate-500">{pageDescription}</p>
       </div>
     </div>
 
@@ -117,7 +144,7 @@
           class="gap-2 rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200"
           disabled={isSaving}
         >
-          {isSaving ? "Saving…" : "Save snippet"}
+          {submitLabel}
         </Button>
         <Button
           type="button"

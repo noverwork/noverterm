@@ -95,6 +95,7 @@ async fn update_snippet(
         UpdateSnippetInput {
             owner_id: owner_id.clone(),
             id,
+            host_id: request.host_id,
             title: request.title,
             body: request.body,
         },

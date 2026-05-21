@@ -34,6 +34,7 @@ pub struct NewHostSnippet {
 #[derive(Debug, Clone, AsChangeset)]
 #[diesel(table_name = host_snippets)]
 pub struct UpdateHostSnippet {
+    pub host_id: String,
     pub title: String,
     pub body: String,
     pub updated_at: NaiveDateTime,

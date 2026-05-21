@@ -32,24 +32,9 @@ pub struct CreateSnippetInput {
 pub struct UpdateSnippetInput {
     pub owner_id: String,
     pub id: String,
+    pub host_id: String,
     pub title: String,
     pub body: String,
-}
-
-pub async fn list_by_host(
-    pool: DbPool,
-    owner_id: String,
-    host_id: String,
-) -> Result<Vec<HostSnippet>, RepositoryError> {
-    run_db(pool, move |connection| {
-        host_snippets::table
-            .filter(host_snippets::owner_id.eq(owner_id))
-            .filter(host_snippets::host_id.eq(host_id))
-            .order(host_snippets::created_at.desc())
-            .load::<HostSnippet>(connection)
-            .map_err(internal_error)
-    })
-    .await
 }
 
 pub async fn list_all(
@@ -113,7 +98,10 @@ pub async fn update(
     input: UpdateSnippetInput,
 ) -> Result<HostSnippet, RepositoryError> {
     run_db(pool, move |connection| {
+        ensure_owner_scoped_host_exists(connection, &input.owner_id, &input.host_id)?;
+
         let changes = UpdateHostSnippet {
+            host_id: input.host_id,
             title: input.title,
             body: input.body,
             updated_at: Utc::now().naive_utc(),
