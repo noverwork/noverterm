@@ -7,11 +7,10 @@
     Server,
     Settings,
     Terminal,
+    FileText,
   } from "@lucide/svelte";
 
-  import { Button } from "$lib/components/ui/button/index.js";
-
-  type SidebarSection = "terminal" | "hosts" | "keys" | "forwards" | "known-hosts";
+  type SidebarSection = "terminal" | "hosts" | "keys" | "forwards" | "known-hosts" | "snippets";
 
   let {
     onLocalTerminal,
@@ -23,12 +22,14 @@
     onPortForwards,
     onNewConnection,
     onGoHome,
+    onSnippets,
     authEmail,
     onOpenSettings,
     onLogout,
     connectionCount = 0,
     keyCount = 0,
     forwardCount = 0,
+    snippetCount = 0,
     activeSection = "terminal",
   }: {
     onLocalTerminal?: () => void;
@@ -40,12 +41,14 @@
     onPortForwards?: () => void;
     onNewConnection?: () => void;
     onGoHome?: () => void;
+    onSnippets?: () => void;
     authEmail?: string;
     onOpenSettings?: () => void;
     onLogout?: () => void;
     connectionCount?: number;
     keyCount?: number;
     forwardCount?: number;
+    snippetCount?: number;
     activeSection?: SidebarSection;
   } = $props();
 
@@ -311,6 +314,18 @@
             >
               <Server class="size-3.5" />
               Known Hosts
+            </Button>
+          {/if}
+          {#if onSnippets}
+            <Button
+              onclick={onSnippets}
+              variant="outline"
+              size="sm"
+              class={navButtonClass("snippets")}
+            >
+              <FileText class="size-3.5" />
+              Snippets
+              <span class={navCountBadgeClass("snippets")}>{snippetCount}</span>
             </Button>
           {/if}
         </div>

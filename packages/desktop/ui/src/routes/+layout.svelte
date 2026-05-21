@@ -75,6 +75,10 @@
       return "known-hosts";
     }
 
+    if (routePath.startsWith("/snippets")) {
+      return "snippets";
+    }
+
     return "terminal";
   });
 
@@ -356,6 +360,7 @@
         onManageKeys={() => goto("/keys")}
         onManageKnownHosts={() => goto("/known-hosts")}
         onPortForwards={() => goto("/forwards")}
+        onSnippets={() => goto("/snippets")}
         onNewConnection={() => goto("/connections")}
         onGoHome={goHome}
         authEmail={app.authStatus?.email ?? ""}

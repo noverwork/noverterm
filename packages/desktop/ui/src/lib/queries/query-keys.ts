@@ -6,6 +6,7 @@ export const queryKeys = {
   hostGroups: () => [...queryKeys.metadata(), "host-groups"] as const,
   keys: () => [...queryKeys.metadata(), "keys"] as const,
   keySecret: (keyId: string) => [...queryKeys.keys(), keyId, "secret"] as const,
+  snippets: () => ["snippets"] as const,
 };
 
 export const mutationKeys = {
@@ -24,4 +25,7 @@ export const mutationKeys = {
   deleteKey: ["app-data", "keys", "delete"] as const,
   revealKeySecret: ["app-data", "keys", "reveal-secret"] as const,
   upsertSetting: ["app-data", "settings", "upsert"] as const,
+  createSnippet: ["snippets", "create"] as const,
+  updateSnippet: ["snippets", "update"] as const,
+  deleteSnippet: ["snippets", "delete"] as const,
 };
