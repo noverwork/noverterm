@@ -113,7 +113,8 @@
 
   function bodyPreview(body: string): string {
     if (!body) return "—";
-    return body.length > 80 ? `${body.slice(0, 80)}…` : body;
+    const firstLine = body.split("\n")[0];
+    return firstLine.length > 100 ? `${firstLine.slice(0, 100)}…` : firstLine;
   }
 </script>
 
