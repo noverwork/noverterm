@@ -11,6 +11,18 @@ diesel::table! {
 }
 
 diesel::table! {
+    host_snippets (id) {
+        id -> Text,
+        host_id -> Text,
+        owner_id -> Text,
+        title -> Text,
+        body -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     ssh_hosts (id) {
         id -> Text,
         name -> Text,
@@ -62,12 +74,14 @@ diesel::table! {
 }
 
 diesel::joinable!(host_groups -> users (owner_id));
+diesel::joinable!(host_snippets -> users (owner_id));
 diesel::joinable!(ssh_hosts -> users (owner_id));
 diesel::joinable!(ssh_keys -> users (owner_id));
 diesel::joinable!(user_settings -> users (owner_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     host_groups,
+    host_snippets,
     ssh_hosts,
     ssh_keys,
     user_settings,
