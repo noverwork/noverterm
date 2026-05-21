@@ -16,6 +16,7 @@ pub fn build_router(state: AppState) -> Router {
         .nest("/hosts", crate::hosts::router())
         .nest("/keys", crate::keys::router())
         .nest("/settings", crate::settings::router())
+        .nest("/snippets", crate::snippets::router())
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             crate::auth::require_authenticated_user,
