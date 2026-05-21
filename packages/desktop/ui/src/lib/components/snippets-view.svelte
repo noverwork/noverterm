@@ -4,7 +4,6 @@
   import type { SnippetRecord } from "$lib/api/types.js";
   import DeleteConfirmDialog from "$lib/components/delete-confirm-dialog.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
-  import { Textarea } from "$lib/components/ui/textarea/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
 
   interface Props {
@@ -107,12 +106,12 @@
                     placeholder="Snippet title"
                     class="rounded-xl border-white/10 bg-white/[0.05] text-white placeholder:text-slate-500"
                   />
-                  <Textarea
+                  <textarea
                     bind:value={editBody}
                     placeholder="Command or text..."
                     rows={4}
-                    class="rounded-xl border-white/10 bg-white/[0.05] font-mono text-sm text-white placeholder:text-slate-500"
-                  />
+                    class="rounded-xl border border-white/10 bg-white/[0.05] font-mono text-sm text-white placeholder:text-slate-500 p-2 resize-none"
+                  ></textarea>
                   <div class="flex items-center gap-2">
                     <Button
                       variant="default"

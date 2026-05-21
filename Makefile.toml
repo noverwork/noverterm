@@ -99,10 +99,22 @@ workspace = false
 command = "cargo"
 args = ["check"]
 
+[tasks."frontend:check"]
+description = "Type check frontend with svelte-check"
+workspace = false
+dependencies = ["frontend:install"]
+cwd = "packages/desktop/ui"
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+npx svelte-kit sync
+npx svelte-check --tsconfig ./tsconfig.json --fail-on-warnings
+'''
+
 # --- CI Pipeline ---
 [tasks.ci]
 description = "Full CI pipeline: lint, format check, and test"
-run_task = { name = ["lint", "fmt-check", "test-all"] }
+run_task = { name = ["lint", "fmt-check", "test-all", "frontend:check"] }
 
 # --- Run ---
 [tasks."backend:dev"]
