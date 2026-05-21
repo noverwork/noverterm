@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Copy, FileText, Play, Plus, Trash2 } from "@lucide/svelte";
+  import { Copy, FileText, Pencil, Play, Plus, Trash2 } from "@lucide/svelte";
 
   import type { SnippetRecord } from "$lib/api/types.js";
   import type { ConnectionConfig } from "$lib/app-data-types.js";
@@ -12,15 +12,20 @@
     connections: ConnectionConfig[];
     onNew: () => void;
     onRun: (connection: ConnectionConfig, command: string) => Promise<boolean>;
+    onEdit: (snippet: SnippetRecord, title: string, body: string) => Promise<void>;
     onDelete: (snippet: SnippetRecord) => Promise<void>;
   }
 
-  let { snippets, connections, onNew, onRun, onDelete }: Props = $props();
+  let { snippets, connections, onNew, onRun, onEdit, onDelete }: Props = $props();
 
   let error = $state<string | null>(null);
   let pendingDeleteSnippet = $state<SnippetRecord | null>(null);
   let deletingSnippetId = $state<string | null>(null);
   let runningSnippetId = $state<string | null>(null);
+  let editingSnippet = $state<SnippetRecord | null>(null);
+  let editTitle = $state("");
+  let editBody = $state("");
+  let savingEdit = $state(false);
 
   function requestDelete(snippet: SnippetRecord) {
     pendingDeleteSnippet = snippet;
@@ -43,6 +48,40 @@
       error = cause instanceof Error ? cause.message : "Failed to delete snippet";
     } finally {
       deletingSnippetId = null;
+    }
+  }
+
+  function startEdit(snippet: SnippetRecord) {
+    editingSnippet = snippet;
+    editTitle = snippet.title;
+    editBody = snippet.body;
+    error = null;
+  }
+
+  function cancelEdit() {
+    editingSnippet = null;
+    editTitle = "";
+    editBody = "";
+  }
+
+  async function saveEdit() {
+    if (!editingSnippet || !editTitle.trim()) {
+      error = "Title is required";
+      return;
+    }
+
+    savingEdit = true;
+    error = null;
+
+    try {
+      await onEdit(editingSnippet, editTitle.trim(), editBody);
+      editingSnippet = null;
+      editTitle = "";
+      editBody = "";
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : "Failed to save changes";
+    } finally {
+      savingEdit = false;
     }
   }
 
@@ -108,51 +147,96 @@
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {#each snippets as snippet (snippet.id)}
             <article class="group rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055]">
-              <div class="flex items-start gap-3">
-                <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200">
-                  <FileText class="size-5" />
+              {#if editingSnippet?.id === snippet.id}
+                <div class="flex flex-col gap-3">
+                  <Input
+                    bind:value={editTitle}
+                    placeholder="Snippet title"
+                    class="rounded-xl border-white/10 bg-white/[0.05] text-white placeholder:text-slate-500"
+                  />
+                  <textarea
+                    bind:value={editBody}
+                    placeholder="Command or text..."
+                    rows={4}
+                    class="w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 font-mono text-sm text-white placeholder:text-slate-500 focus:border-cyan-300/40 focus:outline-none focus:ring-1 focus:ring-cyan-300/20 resize-none"
+                  ></textarea>
+                  <div class="flex items-center gap-2">
+                    <Button
+                      variant="default"
+                      size="xs"
+                      class="gap-1.5 rounded-xl bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                      onclick={saveEdit}
+                      disabled={savingEdit}
+                    >
+                      {savingEdit ? "Saving…" : "Save"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      class="gap-1.5 rounded-xl text-slate-400 hover:bg-white/10"
+                      onclick={cancelEdit}
+                      disabled={savingEdit}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              {:else}
+                <div class="flex items-start gap-3">
+                  <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200">
+                    <FileText class="size-5" />
+                  </div>
+
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-medium text-white">{snippet.title}</p>
+                    <p class="mt-1 text-xs text-slate-500">{snippet.host_name}</p>
+                    <p class="mt-2 rounded-lg bg-black/20 px-2 py-1.5 font-mono text-[11px] text-slate-300 break-all">
+                      {bodyPreview(snippet.body)}
+                    </p>
+                  </div>
                 </div>
 
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm font-medium text-white">{snippet.title}</p>
-                  <p class="mt-1 text-xs text-slate-500">{snippet.host_name}</p>
-                  <p class="mt-2 rounded-lg bg-black/20 px-2 py-1.5 font-mono text-[11px] text-slate-300 break-all">
-                    {bodyPreview(snippet.body)}
-                  </p>
+                <div class="mt-4 flex items-center gap-2">
+                  <Button
+                    variant="default"
+                    size="xs"
+                    class="gap-1.5 rounded-xl bg-emerald-300/20 text-emerald-200 hover:bg-emerald-300/30 hover:text-emerald-100"
+                    onclick={() => handleRun(snippet)}
+                    disabled={runningSnippetId === snippet.id}
+                  >
+                    <Play class="size-3" />
+                    {runningSnippetId === snippet.id ? "Running…" : "Run"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    class="gap-1.5 rounded-xl bg-white/[0.035] text-slate-200 hover:bg-cyan-300/10 hover:text-white"
+                    onclick={() => copyToClipboard(snippet.body)}
+                  >
+                    <Copy class="size-3" />
+                    Copy
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    class="gap-1.5 rounded-xl text-slate-400 hover:bg-cyan-300/10 hover:text-white"
+                    onclick={() => startEdit(snippet)}
+                  >
+                    <Pencil class="size-3" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
+                    onclick={() => requestDelete(snippet)}
+                    disabled={deletingSnippetId === snippet.id}
+                  >
+                    <Trash2 class="size-3" />
+                    Delete
+                  </Button>
                 </div>
-              </div>
-
-              <div class="mt-4 flex items-center gap-2">
-                <Button
-                  variant="default"
-                  size="xs"
-                  class="gap-1.5 rounded-xl bg-emerald-300/20 text-emerald-200 hover:bg-emerald-300/30 hover:text-emerald-100"
-                  onclick={() => handleRun(snippet)}
-                  disabled={runningSnippetId === snippet.id}
-                >
-                  <Play class="size-3" />
-                  {runningSnippetId === snippet.id ? "Running…" : "Run"}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  class="gap-1.5 rounded-xl bg-white/[0.035] text-slate-200 hover:bg-cyan-300/10 hover:text-white"
-                  onclick={() => copyToClipboard(snippet.body)}
-                >
-                  <Copy class="size-3" />
-                  Copy
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
-                  onclick={() => requestDelete(snippet)}
-                  disabled={deletingSnippetId === snippet.id}
-                >
-                  <Trash2 class="size-3" />
-                  Delete
-                </Button>
-              </div>
+              {/if}
             </article>
           {/each}
         </div>
