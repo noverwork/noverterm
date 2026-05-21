@@ -176,3 +176,25 @@ pub struct KeyUpdateRequest {
 pub struct HostGroupWriteRequest {
     pub name: String,
 }
+
+// ============================================================================
+// Snippet API Types
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
+#[ts(export, export_to = "snippet-record.ts")]
+pub struct SnippetRecord {
+    pub id: String,
+    pub host_id: String,
+    pub host_name: String,
+    pub title: String,
+    pub body: String,
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[ts(export, export_to = "snippet-write-request.ts")]
+pub struct SnippetWriteRequest {
+    pub host_id: String,
+    pub title: String,
+    pub body: String,
+}
