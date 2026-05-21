@@ -7,6 +7,10 @@
   import { deleteSnippet } from "$lib/api/snippets-api.js";
   import { mutationKeys } from "$lib/queries/query-keys.js";
   import type { SnippetRecord } from "$lib/api/types.js";
+  import type { ConnectionConfig } from "$lib/app-data-types.js";
+  import { getAppShellContext } from "$lib/stores/app-shell.svelte.js";
+
+  const app = getAppShellContext();
 
   const snippetListQuery = createQuery(() => snippetListQueryOptions());
 
@@ -23,10 +27,16 @@
   async function handleDelete(snippet: SnippetRecord) {
     await deleteSnippetMutation.mutateAsync(snippet.id);
   }
+
+  async function handleRun(connection: ConnectionConfig, command: string) {
+    return await app.runSnippet(connection, command);
+  }
 </script>
 
 <SnippetsView
   snippets={snippets}
+  connections={app.connections}
   onNew={() => goto("/snippets/new")}
+  onRun={handleRun}
   onDelete={handleDelete}
 />

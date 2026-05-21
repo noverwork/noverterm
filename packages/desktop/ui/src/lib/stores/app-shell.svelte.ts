@@ -610,6 +610,36 @@ export function createAppShellStore(queryClient: QueryClient) {
     }
   }
 
+  async function runSnippet(
+    connection: ConnectionConfig,
+    command: string,
+  ): Promise<boolean> {
+    const existingSession = Array.from(sessionStore.sessions.values()).find(
+      (s) => s.connectionId === connection.id && s.status !== "disconnected",
+    );
+
+    if (existingSession) {
+      sessionStore.setActiveSession(existingSession.id);
+      await sessionStore.writeSession(existingSession.id, command + "\n");
+      return true;
+    }
+
+    const connected = await connectSavedConnection(connection);
+    if (!connected) {
+      return false;
+    }
+
+    const newSession = Array.from(sessionStore.sessions.values()).find(
+      (s) => s.connectionId === connection.id && s.status !== "disconnected",
+    );
+    if (newSession) {
+      await sessionStore.writeSession(newSession.id, command + "\n");
+      return true;
+    }
+
+    return false;
+  }
+
   function openSettings() {
     showSettings = true;
   }
@@ -717,6 +747,7 @@ export function createAppShellStore(queryClient: QueryClient) {
     closeSession,
     retryActiveConnection,
     trustActiveHost,
+    runSnippet,
     openSettings,
     closeSettings,
   };
