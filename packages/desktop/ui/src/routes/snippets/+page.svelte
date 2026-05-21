@@ -29,7 +29,11 @@
   }
 
   async function handleRun(connection: ConnectionConfig, command: string) {
-    return await app.runSnippet(connection, command);
+    const success = await app.runSnippet(connection, command);
+    if (success) {
+      await goto("/terminal");
+    }
+    return success;
   }
 </script>
 

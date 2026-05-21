@@ -633,6 +633,7 @@ export function createAppShellStore(queryClient: QueryClient) {
       (s) => s.connectionId === connection.id && s.status !== "disconnected",
     );
     if (newSession) {
+      sessionStore.setActiveSession(newSession.id);
       await sessionStore.writeSession(newSession.id, command + "\n");
       return true;
     }
