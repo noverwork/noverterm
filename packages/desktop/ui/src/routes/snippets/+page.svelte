@@ -1,17 +1,22 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
-  import { getQueryClient } from "@tanstack/svelte-query";
+  import { createQuery, createMutation } from "@tanstack/svelte-query";
 
   import SnippetsView from "$lib/components/snippets-view.svelte";
-  import {
-    useSnippetListQuery,
-    useDeleteSnippetMutation,
-  } from "$lib/queries/snippet-queries.js";
+  import { snippetListQueryOptions } from "$lib/queries/snippet-queries.js";
+  import { deleteSnippet } from "$lib/api/snippets-api.js";
+  import { mutationKeys } from "$lib/queries/query-keys.js";
   import type { SnippetRecord } from "$lib/api/types.js";
 
-  const queryClient = getQueryClient();
-  const snippetListQuery = useSnippetListQuery(queryClient);
-  const deleteSnippetMutation = useDeleteSnippetMutation(queryClient);
+  const snippetListQuery = createQuery(() => snippetListQueryOptions());
+
+  const deleteSnippetMutation = createMutation(() => ({
+    mutationKey: mutationKeys.deleteSnippet,
+    mutationFn: (id: string) => deleteSnippet(id),
+    onSuccess: () => {
+      snippetListQuery.refetch();
+    },
+  }));
 
   const snippets = $derived(snippetListQuery.data ?? []);
 

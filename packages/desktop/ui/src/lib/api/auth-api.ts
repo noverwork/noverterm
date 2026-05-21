@@ -92,7 +92,12 @@ export async function restoreBackendSession(): Promise<AuthSessionStatus | null>
   }
 
   try {
-    const status = await withAuthorizedRetry(async (accessToken) => checkSession(accessToken));
+    const status = await Promise.race([
+      withAuthorizedRetry(async (accessToken) => checkSession(accessToken)),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("restore session timed out")), 8_000),
+      ),
+    ]);
     setActiveVaultEmail(status.email);
     return status;
   } catch {
