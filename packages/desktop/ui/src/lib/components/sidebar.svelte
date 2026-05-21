@@ -10,6 +10,8 @@
     FileText,
   } from "@lucide/svelte";
 
+  import { Button } from "$lib/components/ui/button/index.js";
+
   type SidebarSection = "terminal" | "hosts" | "keys" | "forwards" | "known-hosts" | "snippets";
 
   let {
