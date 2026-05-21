@@ -119,57 +119,48 @@
           No snippets saved yet
         </div>
       {:else}
-        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {#each snippets as snippet (snippet.id)}
-            <article class="group relative rounded-[1.45rem] border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.025] shadow-[0_18px_50px_rgb(0_0_0/0.16)] transition hover:z-20 hover:border-cyan-300/24 hover:from-white/[0.09] hover:to-white/[0.035]">
-                <div class="p-4">
-                  <div class="flex items-start gap-3">
-                    <div class="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200 shadow-[0_0_24px_rgb(34_211_238/0.08)]">
-                      <FileText class="size-5" />
-                    </div>
-
-                    <div class="min-w-0 flex-1">
-                      <p class="truncate text-base font-semibold text-white">{snippet.title}</p>
-                      <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-                        <span class="rounded-full border border-cyan-300/15 bg-cyan-300/10 px-2 py-0.5 font-medium text-cyan-100">
-                          Runs on {snippet.host_name}
-                        </span>
-                        <span class="rounded-full border border-white/10 bg-white/[0.035] px-2 py-0.5 text-slate-400">
-                          {commandLineCount(snippet.body)} {commandLineCount(snippet.body) === 1 ? "line" : "lines"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="group/preview relative mt-4 rounded-2xl border border-white/10 bg-black/25 p-3 transition hover:border-cyan-300/25 hover:bg-black/35">
-                    <div class="mb-2 flex items-center justify-between gap-3">
-                      <span class="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">Command preview</span>
-                      {#if extraLineLabel(snippet.body)}
-                        <span class="text-[10px] font-medium text-cyan-200/70">{extraLineLabel(snippet.body)}</span>
-                      {/if}
-                    </div>
-                    <p class="flex min-h-6 items-start gap-2 font-mono text-xs leading-5 text-slate-200">
-                      <span class="select-none text-cyan-300/70">$</span>
-                      <span class="break-all">{bodyPreview(snippet.body)}</span>
-                    </p>
-
-                    <div class="pointer-events-none absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 translate-y-1 opacity-0 transition duration-150 group-hover/preview:translate-y-0 group-hover/preview:opacity-100">
-                      <div class="rounded-2xl border border-cyan-300/20 bg-slate-950/95 p-3 shadow-[0_24px_70px_rgb(0_0_0/0.45)] ring-1 ring-white/8 backdrop-blur-xl">
-                        <div class="mb-2 flex items-center justify-between gap-3">
-                          <span class="text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200/80">Full script</span>
-                          <span class="text-[10px] text-slate-500">{commandLineCount(snippet.body)} {commandLineCount(snippet.body) === 1 ? "line" : "lines"}</span>
-                        </div>
-                        <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-black/35 p-3 font-mono text-xs leading-5 text-slate-100">{snippet.body || "—"}</pre>
-                      </div>
-                    </div>
-                  </div>
+            <article class="group relative rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:z-20 hover:border-white/14 hover:bg-white/[0.055]">
+              <div class="flex items-start gap-3">
+                <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200">
+                  <FileText class="size-5" />
                 </div>
 
-                <div class="flex items-center gap-2 border-t border-white/8 bg-white/[0.018] px-4 py-3">
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-medium text-white">{snippet.title}</p>
+                  <p class="mt-1 truncate text-xs text-slate-400">Runs on {snippet.host_name}</p>
+                  <div class="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
+                    <span>{commandLineCount(snippet.body)} {commandLineCount(snippet.body) === 1 ? "line" : "lines"}</span>
+                    {#if extraLineLabel(snippet.body)}
+                      <span>{extraLineLabel(snippet.body)}</span>
+                    {/if}
+                  </div>
+                </div>
+              </div>
+
+              <div class="group/preview relative mt-3 rounded-lg bg-black/20 px-2 py-1.5 font-mono text-[11px] text-slate-300 transition hover:bg-black/30">
+                <p class="break-all">
+                  <span class="select-none text-cyan-300/70">$</span>
+                  {bodyPreview(snippet.body)}
+                </p>
+
+                <div class="pointer-events-none absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 translate-y-1 opacity-0 transition duration-150 group-hover/preview:translate-y-0 group-hover/preview:opacity-100">
+                  <div class="rounded-2xl border border-white/10 bg-slate-950/95 p-3 shadow-[0_24px_70px_rgb(0_0_0/0.45)] ring-1 ring-cyan-300/10 backdrop-blur-xl">
+                    <div class="mb-2 flex items-center justify-between gap-3 font-sans">
+                      <span class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Full script</span>
+                      <span class="text-[10px] text-slate-500">{commandLineCount(snippet.body)} {commandLineCount(snippet.body) === 1 ? "line" : "lines"}</span>
+                    </div>
+                    <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-black/35 p-3 font-mono text-xs leading-5 text-slate-100">{snippet.body || "—"}</pre>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-4 flex items-center gap-2">
                   <Button
                     variant="default"
                     size="xs"
-                    class="min-w-20 gap-1.5 rounded-xl bg-emerald-300/22 text-emerald-100 hover:bg-emerald-300/32 hover:text-white"
+                    class="gap-1.5 rounded-xl bg-emerald-300/20 text-emerald-200 hover:bg-emerald-300/30 hover:text-emerald-100"
                     onclick={() => handleRun(snippet)}
                     disabled={runningSnippetId === snippet.id}
                   >
@@ -179,7 +170,7 @@
                   <Button
                     variant="ghost"
                     size="xs"
-                    class="gap-1.5 rounded-xl text-slate-300 hover:bg-cyan-300/10 hover:text-white"
+                    class="gap-1.5 rounded-xl bg-white/[0.035] text-slate-200 hover:bg-cyan-300/10 hover:text-white"
                     onclick={() => copyToClipboard(snippet.body)}
                   >
                     <Copy class="size-3" />
@@ -197,7 +188,7 @@
                   <Button
                     variant="ghost"
                     size="xs"
-                    class="ml-auto gap-1.5 rounded-xl text-slate-500 hover:bg-red-400/10 hover:text-red-300"
+                    class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
                     onclick={() => requestDelete(snippet)}
                     disabled={deletingSnippetId === snippet.id}
                   >
