@@ -155,13 +155,11 @@ export function createAppShellStore(queryClient: QueryClient) {
   );
 
   const activeSessions = $derived(
-    Array.from(sessionStore.sessions.values()).filter(
-      (session) => session.status !== "disconnected",
-    ) as Session[],
+    Array.from(sessionStore.sessions.values()) as Session[],
   );
 
   const mountedTerminalSessions = $derived(
-    activeSessions.filter(
+    Array.from(sessionStore.sessions.values()).filter(
       (session) => session.status === "connected" || session.status === "connecting",
     ) as Session[],
   );

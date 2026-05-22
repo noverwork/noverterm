@@ -25,6 +25,8 @@
         return "bg-amber-300 shadow-[0_0_12px_rgb(252_211_77/0.55)]";
       case "error":
         return "bg-red-400 shadow-[0_0_12px_rgb(248_113_113/0.55)]";
+      case "disconnected":
+        return "bg-red-400 shadow-[0_0_12px_rgb(248_113_113/0.55)]";
       default:
         return "bg-slate-500";
     }

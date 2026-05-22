@@ -50,6 +50,9 @@
       (app.activeSession?.status === "error" ||
         app.activeSession?.status === "trust_required"),
   );
+  const hasTerminalDisconnectedOverlay = $derived(
+    isTerminalRoute && app.activeSession?.status === "disconnected",
+  );
   const sessionTabEdgeSize = 72;
   const sessionTabMaxScrollSpeed = 0.8;
   let sessionTabsElement = $state<HTMLDivElement | null>(null);
@@ -150,6 +153,10 @@
 
   function sessionIdsAfter(index: number): string[] {
     return app.activeSessions.slice(index + 1).map((session) => session.id);
+  }
+
+  function allSessionIds(): string[] {
+    return app.activeSessions.map((session) => session.id);
   }
 
   async function goHome() {
@@ -458,6 +465,13 @@
                   >
                     Close Tabs to the Right
                   </ContextMenu.Item>
+                  <ContextMenu.Separator class="bg-white/10" />
+                  <ContextMenu.Item
+                    class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                    onclick={() => void closeSessionIdsAndNavigate(allSessionIds())}
+                  >
+                    Close All Tabs
+                  </ContextMenu.Item>
                 </ContextMenu.Content>
               </ContextMenu.Root>
             {/each}
@@ -473,7 +487,7 @@
         </div>
 
         <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-          {#if !hasTerminalErrorOverlay}
+          {#if !hasTerminalErrorOverlay && !hasTerminalDisconnectedOverlay}
             {@render children()}
           {/if}
 
@@ -526,6 +540,41 @@
                     {/if}
                   </div>
                 {/each}
+              </div>
+            </div>
+          {/if}
+
+          {#if isTerminalRoute && app.activeSession?.status === "disconnected"}
+            <div class="absolute inset-0 z-20 flex h-full flex-col items-center justify-center p-8" aria-live="polite">
+              <div class="w-full max-w-lg rounded-[2rem] border border-red-300/20 bg-red-400/8 p-8 text-center shadow-2xl shadow-black/30">
+                <div
+                  class="mx-auto grid size-14 place-items-center rounded-2xl bg-red-400/12 text-red-300"
+                >
+                  <AlertCircle class="size-7" />
+                </div>
+                <h2 class="mt-5 text-xl font-semibold text-white">
+                  Terminal disconnected
+                </h2>
+                <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-400">
+                  {app.activeSession.name} is no longer connected. The tab stays open so you can see it failed and decide whether to retry or close it.
+                </p>
+                <div class="mt-6 flex flex-wrap justify-center gap-3">
+                  {#if app.activeSession.connectionId}
+                    <Button
+                      onclick={retryActiveConnection}
+                      class="gap-2 rounded-2xl bg-red-300 px-5 text-red-950 hover:bg-red-200"
+                    >
+                      Retry session
+                    </Button>
+                  {/if}
+                  <Button
+                    variant="outline"
+                    onclick={() => void closeSessionAndNavigate(app.activeSession?.id ?? "")}
+                    class="rounded-2xl border-white/10 bg-white/4 px-5 text-white hover:bg-white/8"
+                  >
+                    Close tab
+                  </Button>
+                </div>
               </div>
             </div>
           {/if}
