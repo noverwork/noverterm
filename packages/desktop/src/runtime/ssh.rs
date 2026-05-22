@@ -27,6 +27,9 @@ const SSH_PROBE_OUTPUT_LIMIT: usize = 16 * 1024;
 const SSH_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(16);
 const SSH_OUTPUT_BUFFER_THRESHOLD: usize = 4096;
 
+const SSH_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(10);
+const SSH_KEEPALIVE_TIMEOUT: Duration = Duration::from_secs(5);
+
 fn client_config(inactivity_timeout: Option<Duration>) -> Arc<client::Config> {
     Arc::new(client::Config {
         inactivity_timeout,
@@ -240,6 +243,7 @@ pub struct SshSession {
     pub(crate) handle: Arc<Mutex<Handle<ClientHandler>>>,
     pub(crate) channel_write: ChannelWriteHalf<Msg>,
     port_forwards: HashMap<String, SshPortForwardTask>,
+    keepalive_task: Option<JoinHandle<()>>,
 }
 
 struct SshPortForwardTask {
@@ -320,18 +324,35 @@ impl SshSessionManager {
 
         let sid = session_id.clone();
         let sessions = self.sessions.clone();
+        let read_app = app.clone();
 
         tokio::spawn(async move {
-            read_loop(channel_read, sid, app, sessions).await;
+            read_loop(channel_read, sid, read_app, sessions).await;
         });
         info!(session_id, "Spawned SSH read loop");
+
+        let session_handle = Arc::new(Mutex::new(session));
+        let keepalive_handle = session_handle.clone();
+        let keepalive_sessions = self.sessions.clone();
+        let keepalive_app = app.clone();
+        let ka_session_id = session_id.clone();
+        let keepalive_task = tokio::spawn(async move {
+            keepalive_loop(
+                keepalive_handle,
+                ka_session_id,
+                keepalive_app,
+                keepalive_sessions,
+            )
+            .await;
+        });
 
         self.sessions.lock().await.insert(
             session_id.clone(),
             SshSession {
-                handle: Arc::new(Mutex::new(session)),
+                handle: session_handle,
                 channel_write,
                 port_forwards: HashMap::new(),
+                keepalive_task: Some(keepalive_task),
             },
         );
 
@@ -530,7 +551,7 @@ impl SshSessionManager {
         let session = self.sessions.lock().await.remove(session_id);
         if let Some(mut session) = session {
             info!(session_id, "Disconnecting SSH session");
-            let stopped_forwards = session.stop_port_forwards(None);
+            let stopped_forwards = session.stop_runtime_tasks(None, true);
             let _ = session.channel_write.close().await;
             let _ = session
                 .handle
@@ -547,7 +568,15 @@ impl SshSessionManager {
 }
 
 impl SshSession {
-    fn stop_port_forwards(&mut self, error: Option<String>) -> Vec<SshPortForwardStatus> {
+    fn stop_runtime_tasks(
+        &mut self,
+        error: Option<String>,
+        abort_keepalive: bool,
+    ) -> Vec<SshPortForwardStatus> {
+        if abort_keepalive {
+            self.abort_keepalive_task();
+        }
+
         self.port_forwards
             .drain()
             .map(|(_, forward)| {
@@ -555,6 +584,12 @@ impl SshSession {
                 stopped_port_forward_status(forward.status, error.clone())
             })
             .collect()
+    }
+
+    fn abort_keepalive_task(&mut self) {
+        if let Some(task) = self.keepalive_task.take() {
+            task.abort();
+        }
     }
 }
 
@@ -679,6 +714,51 @@ async fn authenticate_public_key(
     Ok(PublicKeyAuthOutcome::Rejected)
 }
 
+async fn keepalive_loop(
+    handle: Arc<Mutex<Handle<ClientHandler>>>,
+    session_id: String,
+    app: AppHandle,
+    sessions: Arc<Mutex<HashMap<String, SshSession>>>,
+) {
+    let mut interval = tokio::time::interval(SSH_KEEPALIVE_INTERVAL);
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+    loop {
+        interval.tick().await;
+
+        let ping_result = timeout(SSH_KEEPALIVE_TIMEOUT, async {
+            handle.lock().await.send_ping().await
+        })
+        .await;
+
+        match ping_result {
+            Ok(Ok(())) => info!(session_id, "SSH keepalive ping succeeded"),
+            Ok(Err(error)) => {
+                warn!(session_id, error = %error, "SSH keepalive ping failed");
+                break;
+            }
+            Err(_) => {
+                warn!(
+                    session_id,
+                    timeout_ms = SSH_KEEPALIVE_TIMEOUT.as_millis(),
+                    "SSH keepalive ping timed out"
+                );
+                break;
+            }
+        }
+    }
+
+    emit_ssh_closed_event(&app, &session_id);
+    remove_session_and_stop_port_forwards(
+        sessions,
+        &session_id,
+        &app,
+        Some("SSH keepalive failed".to_string()),
+        false,
+    )
+    .await;
+}
+
 async fn read_loop(
     mut channel_read: ChannelReadHalf,
     session_id: String,
@@ -727,6 +807,7 @@ async fn read_loop(
                             &session_id,
                             &app,
                             Some("SSH session closed".to_string()),
+                            true,
                         )
                         .await;
                         break;
@@ -739,6 +820,7 @@ async fn read_loop(
                             &session_id,
                             &app,
                             Some("SSH session closed".to_string()),
+                            true,
                         )
                         .await;
                         break;
@@ -761,6 +843,7 @@ async fn read_loop(
                             &session_id,
                             &app,
                             Some("SSH session ended".to_string()),
+                            true,
                         )
                         .await;
                         break;
@@ -779,16 +862,29 @@ async fn remove_session_and_stop_port_forwards(
     session_id: &str,
     app: &AppHandle,
     error: Option<String>,
+    abort_keepalive: bool,
 ) {
     let stopped_forwards = sessions
         .lock()
         .await
         .remove(session_id)
-        .map(|mut session| session.stop_port_forwards(error))
+        .map(|mut session| session.stop_runtime_tasks(error, abort_keepalive))
         .unwrap_or_default();
 
     for status in stopped_forwards {
         emit_port_forward_event(app, &status);
+    }
+}
+
+fn emit_ssh_closed_event(app: &AppHandle, session_id: &str) {
+    let event = SshOutputEvent {
+        session_id: session_id.to_string(),
+        output: Vec::new(),
+        closed: true,
+    };
+
+    if let Err(error) = app.emit("ssh_output", event) {
+        warn!(session_id, "Failed to emit ssh_output close event: {error}");
     }
 }
 
