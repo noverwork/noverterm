@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ── Lint ──────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Rust
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-make
+        run: cargo install cargo-make
+
+      - name: Clippy
+        run: cargo make lint
+
+      - name: Format check
+        run: cargo make fmt-check
+
+      # Frontend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/desktop/ui/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: packages/desktop/ui
+        run: npm ci
+
+      - name: ESLint
+        working-directory: packages/desktop/ui
+        run: npm run lint
+
+  # ── Typecheck ─────────────────────────────────────────
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Rust
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-make
+        run: cargo install cargo-make
+
+      - name: Rust type check
+        run: cargo make check
+
+      # Frontend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/desktop/ui/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: packages/desktop/ui
+        run: npm ci
+
+      - name: Svelte type check
+        working-directory: packages/desktop/ui
+        run: npm run check
+
+  # ── Build (macOS & Windows) ──────────────────────────
+  build:
+    name: Build - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            rust_target: aarch64-apple-darwin
+            artifact_glob: |
+              target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+              target/aarch64-apple-darwin/release/bundle/macos/*.app
+          - os: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            artifact_glob: |
+              target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+              target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Rust
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-make
+        run: cargo install cargo-make
+
+      # Frontend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/desktop/ui/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: packages/desktop/ui
+        run: npm ci
+
+      # Tauri build
+      - name: Build Tauri app
+        run: cargo make tauri:build
+
+      # Upload artifacts
+      - name: Upload macOS artifacts
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: noverterm-macos
+          path: |
+            target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            target/aarch64-apple-darwin/release/bundle/macos/*.app
+          if-no-files-found: warn
+
+      - name: Upload Windows artifacts
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: noverterm-windows
+          path: |
+            target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          if-no-files-found: warn
