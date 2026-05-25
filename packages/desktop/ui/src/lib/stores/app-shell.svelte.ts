@@ -538,6 +538,35 @@ export function createAppShellStore(queryClient: QueryClient) {
     void sessionStore.disconnectSession(id);
   }
 
+  async function duplicateSession(id: string): Promise<boolean> {
+    const session = sessionStore.sessions.get(id);
+    if (!session) {
+      return false;
+    }
+
+    if (session.type === "local") {
+      try {
+        await sessionStore.connectLocal(session.name);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    if (!session.connectionId) {
+      return false;
+    }
+
+    const connection = connections.find(
+      (candidate) => candidate.id === session.connectionId,
+    );
+    if (!connection) {
+      return false;
+    }
+
+    return await connectSavedConnection(connection);
+  }
+
   async function retryActiveConnection(): Promise<boolean> {
     if (!activeSession) {
       return false;
@@ -744,6 +773,7 @@ export function createAppShellStore(queryClient: QueryClient) {
     deleteRuntimePortForward,
     deleteSavedPortForward,
     closeSession,
+    duplicateSession,
     retryActiveConnection,
     trustActiveHost,
     runSnippet,

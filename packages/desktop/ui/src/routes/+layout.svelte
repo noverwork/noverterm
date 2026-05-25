@@ -5,7 +5,7 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
   import { QueryClient, QueryClientProvider } from "@tanstack/svelte-query";
-  import { AlertCircle, Loader2 } from "@lucide/svelte";
+  import { AlertCircle, Copy, Loader2 } from "@lucide/svelte";
 
   import AuthShell from "$lib/components/auth-shell.svelte";
   import SettingsModal from "$lib/components/settings-modal.svelte";
@@ -448,6 +448,13 @@
                     onclick={() => void closeSessionAndNavigate(session.id)}
                   >
                     Close
+                  </ContextMenu.Item>
+                  <ContextMenu.Item
+                    class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                    disabled={session.type !== "local" && !session.connectionId}
+                    onclick={() => void app.duplicateSession(session.id)}
+                  >
+                    Duplicate Tab
                   </ContextMenu.Item>
                   <ContextMenu.Item
                     class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
