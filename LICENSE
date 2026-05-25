@@ -1,0 +1,106 @@
+Business Source License 1.1
+
+License text copyright notice:
+Portions copyright 2026 Noverwork
+
+Parameters
+
+Licensor:             Noverwork
+Licensed Work:        Noverterm v0.7.6 and later versions
+                      The Licensed Work is (c) 2026 Noverwork
+Additional Use Grant: You may make use of the Licensed Work, provided that
+                      you may not use the Licensed Work for a Commercial Purpose.
+
+                      A "Commercial Purpose" is one that includes the following:
+
+                      * offering the Licensed Work or any derivative thereof to
+                        third parties as a commercial product or service;
+
+                      * offering the Licensed Work or any derivative thereof to
+                        third parties as a managed service or hosted offering.
+
+                      For the avoidance of doubt, use of the Licensed Work for
+                      internal purposes (including by employees or contractors)
+                      within an organization is not a Commercial Purpose.
+
+Change Date:          2029-05-25
+
+Change License:       MIT
+
+Notice
+
+The Business Source License ("BSL") is not an Open Source license. It is a
+source-available license that restricts certain uses of the Licensed Work.
+The BSL is designed to allow users to view, modify, and use the source code
+for internal purposes, while protecting the Licensor's commercial interests.
+
+On the Change Date specified above, the Licensed Work will become available
+under the Change License specified above. Until that date, the terms below apply.
+
+Terms
+
+1. DEFINITIONS
+
+   "License" means this Business Source License 1.1.
+
+   "Licensed Work" means the software or work made available under this License.
+
+   "Licensor" means the entity offering the Licensed Work.
+
+   "You" means an individual or legal entity exercising permissions under this License.
+
+   "Commercial Purpose" means any use of the Licensed Work that involves offering
+   the Licensed Work or a derivative work to third parties as a commercial product
+   or service, or as a managed service or hosted offering.
+
+2. GRANT OF LICENSE
+
+   Subject to the terms and conditions of this License, Licensor grants You a
+   royalty-free, non-exclusive license to use, reproduce, modify, and distribute
+   the Licensed Work, provided that You do not use the Licensed Work for a
+   Commercial Purpose.
+
+3. REDISTRIBUTION
+
+   You may redistribute copies of the Licensed Work or derivative works thereof,
+   provided that You include a copy of this License and any applicable copyright
+   notices. You may not charge a fee for the Licensed Work itself, though You may
+   charge for support, warranty, or indemnification services.
+
+4. PATENTS
+
+   Licensor grants You a non-exclusive license under any patent claims licensable
+   by Licensor that are necessarily infringed by the Licensed Work.
+
+5. NO WARRANTY
+
+   THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE LICENSED WORK OR THE USE OR OTHER DEALINGS
+   IN THE LICENSED WORK.
+
+6. LIMITATION OF LIABILITY
+
+   IN NO EVENT SHALL LICENSOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+   OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+   WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+   OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF OR INABILITY TO USE THE
+   LICENSED WORK, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+7. TERMINATION
+
+   This License terminates automatically if You fail to comply with its terms.
+   Upon termination, You must cease all use of the Licensed Work and destroy all
+   copies in Your possession.
+
+8. MISCELLANEOUS
+
+   This License constitutes the entire agreement between the parties with respect
+   to the subject matter hereof. If any provision of this License is held to be
+   unenforceable, such provision shall be modified only to the extent necessary
+   to make it enforceable.
