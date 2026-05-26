@@ -71,6 +71,7 @@ export function createAppShellStore(queryClient: QueryClient) {
   let visibleTerminalSessionId = $state<string | null>(null);
   let startupLoading = $state(true);
   let startupError = $state<string | null>(null);
+  let sessionOrder = $state<string[]>([]);
 
   const metadataQuery = createQuery(
     () => ({
@@ -154,15 +155,49 @@ export function createAppShellStore(queryClient: QueryClient) {
       : undefined,
   );
 
-  const activeSessions = $derived(
-    Array.from(sessionStore.sessions.values()) as Session[],
-  );
+  const activeSessions = $derived.by(() => {
+    const allSessions = Array.from(sessionStore.sessions.values()) as Session[];
+
+    let effectiveOrder = sessionOrder.filter((id) => sessionStore.sessions.has(id));
+    const allIds = allSessions.map((s) => s.id);
+    const newIds = allIds.filter((id) => !effectiveOrder.includes(id));
+    effectiveOrder = [...effectiveOrder, ...newIds];
+
+    if (effectiveOrder.length === 0) {
+      return allSessions;
+    }
+
+    const orderMap = new Map<string, number>();
+    effectiveOrder.forEach((id, index) => orderMap.set(id, index));
+
+    return [...allSessions].sort((a, b) => {
+      const aIdx = orderMap.get(a.id) ?? Infinity;
+      const bIdx = orderMap.get(b.id) ?? Infinity;
+      return aIdx - bIdx;
+    });
+  });
 
   const mountedTerminalSessions = $derived(
     Array.from(sessionStore.sessions.values()).filter(
       (session) => session.status === "connected" || session.status === "connecting",
     ) as Session[],
   );
+
+  let lastSyncedSessionIds = new Set<string>();
+
+  $effect(() => {
+    const currentIds = new Set(Array.from(sessionStore.sessions.keys()));
+
+    const hasNew = [...currentIds].some((id) => !lastSyncedSessionIds.has(id));
+    const hasRemoved = [...lastSyncedSessionIds].some((id) => !currentIds.has(id));
+
+    if (!hasNew && !hasRemoved) return;
+
+    const filtered = sessionOrder.filter((id) => currentIds.has(id));
+    const newIds = [...currentIds].filter((id) => !filtered.includes(id));
+    sessionOrder = [...filtered, ...newIds];
+    lastSyncedSessionIds = currentIds;
+  });
 
   $effect(() => {
     if (
@@ -538,6 +573,23 @@ export function createAppShellStore(queryClient: QueryClient) {
     void sessionStore.disconnectSession(id);
   }
 
+  function reorderSessions(fromSessionId: string, toSessionId: string) {
+    if (fromSessionId === toSessionId) return;
+
+    const visibleOrder = activeSessions.map((session) => session.id);
+    const fromIndex = visibleOrder.indexOf(fromSessionId);
+    const toIndex = visibleOrder.indexOf(toSessionId);
+    if (fromIndex === -1 || toIndex === -1) return;
+
+    const [movedId] = visibleOrder.splice(fromIndex, 1);
+    if (!movedId) return;
+
+    visibleOrder.splice(toIndex, 0, movedId);
+    const visibleIds = new Set(visibleOrder);
+    const hiddenIds = sessionOrder.filter((id) => !visibleIds.has(id));
+    sessionOrder = [...visibleOrder, ...hiddenIds];
+  }
+
   async function duplicateSession(id: string): Promise<boolean> {
     const session = sessionStore.sessions.get(id);
     if (!session) {
@@ -773,6 +825,7 @@ export function createAppShellStore(queryClient: QueryClient) {
     deleteRuntimePortForward,
     deleteSavedPortForward,
     closeSession,
+    reorderSessions,
     duplicateSession,
     retryActiveConnection,
     trustActiveHost,
