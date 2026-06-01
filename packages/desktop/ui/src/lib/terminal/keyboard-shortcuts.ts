@@ -18,6 +18,18 @@ export function createTerminalKeyHandler(
     const terminal = getTerminal();
     if (!terminal || event.type !== "keydown") return true;
 
+    // Let modifier keys pass through so xterm.js tracks internal modifier state
+    // correctly. Without this, the first Shift/Ctrl/Alt/Meta press may be lost.
+    if (
+      event.key === "Shift" ||
+      event.key === "Control" ||
+      event.key === "Alt" ||
+      event.key === "Meta" ||
+      event.key === "CapsLock"
+    ) {
+      return true;
+    }
+
     const key = event.key.toLowerCase();
     if (key === "c") {
       const isCopyShortcut = event.metaKey || event.ctrlKey;

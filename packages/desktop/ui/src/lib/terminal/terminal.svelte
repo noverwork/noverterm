@@ -168,6 +168,7 @@
       return;
     }
 
+    term?.focus();
     void scheduleReveal();
   });
 
