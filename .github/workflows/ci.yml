@@ -157,7 +157,8 @@ jobs:
 
       # Tauri build
       - name: Build Tauri app
-        run: cargo make tauri:build
+        working-directory: packages/desktop
+        run: npx @tauri-apps/cli build
 
       # Upload artifacts
       - name: Upload macOS artifacts
