@@ -1,0 +1,177 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  API_URL: ${{ vars.API_URL }}
+
+jobs:
+  validate-version:
+    name: Validate version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: version
+        name: Validate tag matches Tauri version
+        run: |
+          node <<'JS'
+          const fs = require('fs');
+          const ref = process.env.GITHUB_REF_NAME || '';
+          const version = JSON.parse(fs.readFileSync('packages/desktop/tauri.conf.json', 'utf8')).version;
+          if (ref && ref !== 'main') {
+            const tagVersion = ref.replace(/^v/, '');
+            if (tagVersion !== version) {
+              console.error(`tag ${ref} does not match tauri.conf.json version ${version}`);
+              process.exit(1);
+            }
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
+          JS
+
+  build:
+    name: Build - ${{ matrix.os }}
+    needs: validate-version
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            rust_target: aarch64-apple-darwin
+            artifact_name: noverterm-macos-release
+            artifact_paths: |
+              target/release/bundle/dmg/*.dmg
+              target/release/bundle/macos/*.app.tar.gz
+              target/release/bundle/macos/*.app.tar.gz.sig
+          - os: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            artifact_name: noverterm-windows-release
+            artifact_paths: |
+              target/release/bundle/msi/*.msi
+              target/release/bundle/msi/*.msi.sig
+              target/release/bundle/nsis/*.exe
+              target/release/bundle/nsis/*.exe.sig
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/desktop/ui/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: packages/desktop/ui
+        run: npm ci
+
+      - name: Build Tauri app
+        working-directory: packages/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx @tauri-apps/cli build
+
+      - name: Upload release build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_paths }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [validate-version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate updater manifest
+        env:
+          VERSION: ${{ needs.validate-version.outputs.version }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          node <<'JS'
+          const fs = require('fs');
+          const path = require('path');
+
+          function walk(directory) {
+            return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+              const fullPath = path.join(directory, entry.name);
+              return entry.isDirectory() ? walk(fullPath) : [fullPath];
+            });
+          }
+
+          function findFile(files, predicate, label) {
+            const file = files.find(predicate);
+            if (!file) {
+              throw new Error(`missing ${label}`);
+            }
+            return file;
+          }
+
+          const files = walk('dist');
+          const tag = process.env.RELEASE_TAG;
+          const baseUrl = `https://github.com/${process.env.REPOSITORY}/releases/download/${tag}`;
+          const macArchive = findFile(files, (file) => file.endsWith('.app.tar.gz'), 'macOS updater archive');
+          const macSignature = `${macArchive}.sig`;
+          const windowsInstaller = findFile(files, (file) => file.endsWith('-setup.exe'), 'Windows NSIS updater installer');
+          const windowsSignature = `${windowsInstaller}.sig`;
+
+          for (const signature of [macSignature, windowsSignature]) {
+            if (!fs.existsSync(signature)) {
+              throw new Error(`missing signature ${signature}`);
+            }
+          }
+
+          const manifest = {
+            version: process.env.VERSION,
+            notes: `Noverterm ${process.env.VERSION}`,
+            pub_date: new Date().toISOString(),
+            platforms: {
+              'darwin-aarch64': {
+                signature: fs.readFileSync(macSignature, 'utf8').trim(),
+                url: `${baseUrl}/${path.basename(macArchive)}`,
+              },
+              'windows-x86_64': {
+                signature: fs.readFileSync(windowsSignature, 'utf8').trim(),
+                url: `${baseUrl}/${path.basename(windowsInstaller)}`,
+              },
+            },
+          };
+
+          fs.writeFileSync('latest.json', `${JSON.stringify(manifest, null, 2)}\n`);
+          JS
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Noverterm ${{ needs.validate-version.outputs.version }}
+          generate_release_notes: true
+          files: |
+            latest.json
+            dist/**
+          fail_on_unmatched_files: true
+          overwrite_files: true

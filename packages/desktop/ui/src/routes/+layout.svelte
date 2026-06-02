@@ -19,6 +19,7 @@
     setAppShellContext,
   } from "$lib/stores/app-shell.svelte.js";
   import TerminalView from "$lib/terminal/terminal.svelte";
+  import { checkForAppUpdate } from "$lib/updater/auto-update.js";
 
   interface Props {
     children: Snippet;
@@ -96,6 +97,7 @@
   onMount(async () => {
     window.addEventListener("contextmenu", handleGlobalContextMenu);
     await app.init();
+    void checkForAppUpdate();
     updateSessionTabScrollIndicators();
   });
 
