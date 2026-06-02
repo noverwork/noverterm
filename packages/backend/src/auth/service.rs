@@ -5,7 +5,10 @@ use chrono::Utc;
 use diesel::prelude::*;
 use orm::models::{NewUser, User};
 use orm::schema::users;
-use shared::{AuthResponse, ForgotPasswordRequest, LoginRequest, LogoutRequest, RefreshRequest, RegisterRequest, ResetPasswordRequest};
+use shared::{
+    AuthResponse, ForgotPasswordRequest, LoginRequest, LogoutRequest, RefreshRequest,
+    RegisterRequest, ResetPasswordRequest,
+};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 

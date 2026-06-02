@@ -11,7 +11,14 @@ pub mod snippets;
 
 pub use bootstrap::run;
 
-pub const FEATURE_BOUNDARIES: &[&str] = &["auth", "host_groups", "hosts", "keys", "settings", "snippets"];
+pub const FEATURE_BOUNDARIES: &[&str] = &[
+    "auth",
+    "host_groups",
+    "hosts",
+    "keys",
+    "settings",
+    "snippets",
+];
 
 pub fn feature_boundaries() -> &'static [&'static str] {
     FEATURE_BOUNDARIES
@@ -29,7 +36,14 @@ mod tests {
     fn backend_feature_boundaries_match_control_plane_ownership() {
         assert_eq!(
             feature_boundaries(),
-            &["auth", "host_groups", "hosts", "keys", "settings", "snippets"]
+            &[
+                "auth",
+                "host_groups",
+                "hosts",
+                "keys",
+                "settings",
+                "snippets"
+            ]
         );
     }
 }

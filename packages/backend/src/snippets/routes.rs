@@ -13,7 +13,10 @@ use super::repository::{self, CreateSnippetInput, RepositoryError, UpdateSnippet
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_snippets).post(create_snippet))
-        .route("/{id}", get(get_snippet).put(update_snippet).delete(delete_snippet))
+        .route(
+            "/{id}",
+            get(get_snippet).put(update_snippet).delete(delete_snippet),
+        )
 }
 
 async fn list_snippets(
@@ -28,7 +31,11 @@ async fn list_snippets(
 
     let mut records = Vec::with_capacity(snippets.len());
     for snippet in snippets {
-        records.push(to_record(pool.clone(), &owner_id, snippet).await.map_err(into_http_error)?);
+        records.push(
+            to_record(pool.clone(), &owner_id, snippet)
+                .await
+                .map_err(into_http_error)?,
+        );
     }
 
     Ok(Json(records))

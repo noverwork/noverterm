@@ -3,8 +3,6 @@ import type { KeyWriteRequest } from "../../bindings/key-write-request.js";
 import type { Setting } from "../../bindings/setting.js";
 import type { SshHostRecord } from "../../bindings/ssh-host-record.js";
 import type { SshKeyRecord } from "../../bindings/ssh-key-record.js";
-import type { SnippetRecord } from "../../bindings/snippet-record.js";
-import type { SnippetWriteRequest } from "../../bindings/snippet-write-request.js";
 
 export type { AuthResponse } from "../../bindings/auth-response.js";
 export type { ForgotPasswordRequest } from "../../bindings/forgot-password-request.js";

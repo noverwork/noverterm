@@ -1,5 +1,6 @@
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use shared::{ForgotPasswordRequest, LoginRequest, LogoutRequest, RefreshRequest, RegisterRequest};
 use tower::ServiceExt;
 
 use crate::auth::{AuthConfig, AuthService};
@@ -18,7 +19,7 @@ async fn register_and_login_flow() {
     let email = unique_name("alice");
 
     let register_response = auth_service
-        .register(super::service::RegisterRequest {
+        .register(RegisterRequest {
             email: email.clone(),
             password: "wonderland".to_string(),
         })
@@ -30,7 +31,7 @@ async fn register_and_login_flow() {
     assert!(!register_response.refresh_token.is_empty());
 
     let login_response = auth_service
-        .login(super::service::LoginRequest {
+        .login(LoginRequest {
             email: email.clone(),
             password: "wonderland".to_string(),
         })
@@ -46,7 +47,7 @@ async fn refresh_returns_new_tokens() {
     let email = unique_name("bob");
 
     auth_service
-        .register(super::service::RegisterRequest {
+        .register(RegisterRequest {
             email: email.clone(),
             password: "secret".to_string(),
         })
@@ -54,7 +55,7 @@ async fn refresh_returns_new_tokens() {
         .expect("register should succeed");
 
     let login_response = auth_service
-        .login(super::service::LoginRequest {
+        .login(LoginRequest {
             email: email.clone(),
             password: "secret".to_string(),
         })
@@ -62,7 +63,7 @@ async fn refresh_returns_new_tokens() {
         .expect("login should succeed");
 
     let refresh_response = auth_service
-        .refresh(super::service::RefreshRequest {
+        .refresh(RefreshRequest {
             refresh_token: login_response.refresh_token,
         })
         .await
@@ -78,7 +79,7 @@ async fn invalid_refresh_token_fails() {
     let auth_service = auth_service();
 
     let result = auth_service
-        .refresh(super::service::RefreshRequest {
+        .refresh(RefreshRequest {
             refresh_token: "not-a-valid-jwt".to_string(),
         })
         .await;
@@ -91,7 +92,7 @@ async fn logout_is_noop() {
     let auth_service = auth_service();
 
     let result = auth_service
-        .logout(super::service::LogoutRequest {
+        .logout(LogoutRequest {
             refresh_token: "any-token".to_string(),
         })
         .await;
@@ -105,7 +106,7 @@ async fn register_duplicate_email_fails() {
     let email = unique_name("charlie");
 
     auth_service
-        .register(super::service::RegisterRequest {
+        .register(RegisterRequest {
             email: email.clone(),
             password: "pass1".to_string(),
         })
@@ -113,7 +114,7 @@ async fn register_duplicate_email_fails() {
         .expect("first register should succeed");
 
     let result = auth_service
-        .register(super::service::RegisterRequest {
+        .register(RegisterRequest {
             email: email.clone(),
             password: "pass2".to_string(),
         })
@@ -128,7 +129,7 @@ async fn password_reset_throttle_is_recorded_only_for_existing_accounts() {
     let unknown_email = unique_name("missing-reset-account");
 
     auth_service
-        .request_password_reset(super::service::ForgotPasswordRequest {
+        .request_password_reset(ForgotPasswordRequest {
             email: unknown_email.clone(),
         })
         .await
@@ -143,7 +144,7 @@ async fn password_reset_throttle_is_recorded_only_for_existing_accounts() {
 
     let existing_email = unique_name("reset-account");
     auth_service
-        .register(super::service::RegisterRequest {
+        .register(RegisterRequest {
             email: existing_email.clone(),
             password: "pass1".to_string(),
         })
@@ -151,7 +152,7 @@ async fn password_reset_throttle_is_recorded_only_for_existing_accounts() {
         .expect("register should succeed");
 
     auth_service
-        .request_password_reset(super::service::ForgotPasswordRequest {
+        .request_password_reset(ForgotPasswordRequest {
             email: existing_email.clone(),
         })
         .await
@@ -175,7 +176,7 @@ async fn protected_bootstrap_route_requires_valid_access_token() {
     let email = unique_name("dave");
 
     auth_service
-        .register(super::service::RegisterRequest {
+        .register(RegisterRequest {
             email: email.clone(),
             password: "pass".to_string(),
         })

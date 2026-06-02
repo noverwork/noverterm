@@ -37,10 +37,7 @@ pub struct UpdateSnippetInput {
     pub body: String,
 }
 
-pub async fn list_all(
-    pool: DbPool,
-    owner_id: String,
-) -> Result<Vec<HostSnippet>, RepositoryError> {
+pub async fn list_all(pool: DbPool, owner_id: String) -> Result<Vec<HostSnippet>, RepositoryError> {
     run_db(pool, move |connection| {
         host_snippets::table
             .filter(host_snippets::owner_id.eq(owner_id))

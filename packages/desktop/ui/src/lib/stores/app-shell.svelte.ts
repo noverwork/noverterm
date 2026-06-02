@@ -1,4 +1,5 @@
 import { getContext, setContext } from "svelte";
+import { SvelteSet } from "svelte/reactivity";
 import {
   createMutation,
   createQuery,
@@ -167,12 +168,9 @@ export function createAppShellStore(queryClient: QueryClient) {
       return allSessions;
     }
 
-    const orderMap = new Map<string, number>();
-    effectiveOrder.forEach((id, index) => orderMap.set(id, index));
-
     return [...allSessions].sort((a, b) => {
-      const aIdx = orderMap.get(a.id) ?? Infinity;
-      const bIdx = orderMap.get(b.id) ?? Infinity;
+      const aIdx = effectiveOrder.indexOf(a.id);
+      const bIdx = effectiveOrder.indexOf(b.id);
       return aIdx - bIdx;
     });
   });
@@ -183,10 +181,10 @@ export function createAppShellStore(queryClient: QueryClient) {
     ) as Session[],
   );
 
-  let lastSyncedSessionIds = new Set<string>();
+  let lastSyncedSessionIds = new SvelteSet<string>();
 
   $effect(() => {
-    const currentIds = new Set(Array.from(sessionStore.sessions.keys()));
+    const currentIds = new SvelteSet(Array.from(sessionStore.sessions.keys()));
 
     const hasNew = [...currentIds].some((id) => !lastSyncedSessionIds.has(id));
     const hasRemoved = [...lastSyncedSessionIds].some((id) => !currentIds.has(id));
@@ -585,8 +583,7 @@ export function createAppShellStore(queryClient: QueryClient) {
     if (!movedId) return;
 
     visibleOrder.splice(toIndex, 0, movedId);
-    const visibleIds = new Set(visibleOrder);
-    const hiddenIds = sessionOrder.filter((id) => !visibleIds.has(id));
+    const hiddenIds = sessionOrder.filter((id) => !visibleOrder.includes(id));
     sessionOrder = [...visibleOrder, ...hiddenIds];
   }
 

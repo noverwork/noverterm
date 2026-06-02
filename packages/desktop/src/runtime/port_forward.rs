@@ -124,6 +124,16 @@ struct PortForwardEntry {
     ssh_task: JoinHandle<()>,
 }
 
+#[derive(Clone)]
+struct ForwardConnectionContext {
+    handle: Arc<Mutex<Handle<ClientHandler>>>,
+    target_host: String,
+    target_port: u16,
+    app: AppHandle,
+    status: PortForwardStatus,
+    forwards: Arc<Mutex<HashMap<String, PortForwardEntry>>>,
+}
+
 #[derive(Default)]
 pub struct PortForwardManager {
     forwards: Arc<Mutex<HashMap<String, PortForwardEntry>>>,
@@ -379,36 +389,34 @@ async fn run_listener_loop(
     loop {
         match listener.accept().await {
             Ok((local_stream, originator_addr)) => {
-                let handle_clone = handle.clone();
-                let target_host_clone = target_host.clone();
-                let target_port_clone = target_port;
-                let app_clone = app.clone();
-                let mut status_clone = status.clone();
-                let forwards_clone = forwards.clone();
+                let context = ForwardConnectionContext {
+                    handle: handle.clone(),
+                    target_host: target_host.clone(),
+                    target_port,
+                    app: app.clone(),
+                    status: status.clone(),
+                    forwards: forwards.clone(),
+                };
+                let error_context = context.clone();
 
                 tokio::spawn(async move {
-                    match handle_forward_connection(
-                        local_stream,
-                        originator_addr,
-                        handle_clone,
-                        target_host_clone,
-                        target_port_clone,
-                        app_clone.clone(),
-                        status_clone.clone(),
-                        forwards_clone.clone(),
-                    )
-                    .await
-                    {
+                    match handle_forward_connection(local_stream, originator_addr, context).await {
                         Ok(()) => {}
                         Err(error) => {
+                            let mut status = error_context.status;
                             warn!(
-                                forward_id = %status_clone.id,
+                                forward_id = %status.id,
                                 "Forward connection failed: {}",
                                 error
                             );
-                            status_clone.state = PortForwardState::Listening;
-                            status_clone.error = Some(error);
-                            emit_and_store_status(&app_clone, &forwards_clone, &status_clone).await;
+                            status.state = PortForwardState::Listening;
+                            status.error = Some(error);
+                            emit_and_store_status(
+                                &error_context.app,
+                                &error_context.forwards,
+                                &status,
+                            )
+                            .await;
                         }
                     }
                 });
@@ -428,21 +436,17 @@ async fn run_listener_loop(
 async fn handle_forward_connection(
     mut local_stream: tokio::net::TcpStream,
     originator_addr: SocketAddr,
-    handle: Arc<Mutex<Handle<ClientHandler>>>,
-    target_host: String,
-    target_port: u16,
-    app: AppHandle,
-    mut status: PortForwardStatus,
-    forwards: Arc<Mutex<HashMap<String, PortForwardEntry>>>,
+    mut context: ForwardConnectionContext,
 ) -> Result<(), String> {
-    let target = format!("{target_host}:{target_port}");
+    let target = format!("{}:{}", context.target_host, context.target_port);
     let originator = originator_addr.to_string();
-    let channel = handle
+    let channel = context
+        .handle
         .lock()
         .await
         .channel_open_direct_tcpip(
-            target_host.clone(),
-            u32::from(target_port),
+            context.target_host.clone(),
+            u32::from(context.target_port),
             originator_addr.ip().to_string(),
             u32::from(originator_addr.port()),
         )
@@ -451,9 +455,9 @@ async fn handle_forward_connection(
             format!("Failed to open direct-tcpip channel to {target} from {originator}: {e}")
         })?;
 
-    status.state = PortForwardState::Listening;
-    status.error = None;
-    emit_and_store_status(&app, &forwards, &status).await;
+    context.status.state = PortForwardState::Listening;
+    context.status.error = None;
+    emit_and_store_status(&context.app, &context.forwards, &context.status).await;
 
     let mut remote_stream = channel.into_stream();
     copy_bidirectional(&mut local_stream, &mut remote_stream)

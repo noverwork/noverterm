@@ -7,7 +7,7 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
   import { QueryClient, QueryClientProvider } from "@tanstack/svelte-query";
-  import { AlertCircle, Copy, Loader2 } from "@lucide/svelte";
+  import { AlertCircle, Loader2 } from "@lucide/svelte";
 
   import AuthShell from "$lib/components/auth-shell.svelte";
   import SettingsModal from "$lib/components/settings-modal.svelte";
