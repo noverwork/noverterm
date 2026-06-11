@@ -571,6 +571,19 @@ impl SshSessionManager {
             .map_err(|error| error.to_string())
     }
 
+    pub async fn sftp_home_dir(&self, sftp_id: &str) -> Result<String, String> {
+        let sessions = self.sessions.lock().await;
+        let session = find_sftp_session(&sessions, sftp_id)?;
+
+        session
+            .sftp_sessions
+            .get(sftp_id)
+            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+            .home_dir()
+            .await
+            .map_err(|error| error.to_string())
+    }
+
     pub async fn sftp_stat(&self, sftp_id: &str, path: &str) -> Result<FileEntry, String> {
         let sessions = self.sessions.lock().await;
         let session = find_sftp_session(&sessions, sftp_id)?;

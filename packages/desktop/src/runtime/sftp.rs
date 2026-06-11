@@ -248,6 +248,17 @@ impl SftpSession {
         }
     }
 
+    pub async fn home_dir(&self) -> Result<String, SftpError> {
+        match &self.inner {
+            SftpSessionInner::Active(session) => session
+                .canonicalize(".")
+                .await
+                .map_err(|error| classify_sftp_error("realpath", ".", error)),
+            #[cfg(test)]
+            SftpSessionInner::Mock { .. } => Ok("/mock/home".to_string()),
+        }
+    }
+
     pub async fn upload(
         &self,
         local_path: &str,

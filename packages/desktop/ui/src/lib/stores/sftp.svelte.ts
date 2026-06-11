@@ -171,7 +171,14 @@ export class SftpStore {
       });
       this.isDirectConnection = true;
       await this.setupEventListeners();
-      await this.navigateRemote("~");
+      try {
+        const homeDir = await invoke<string>("sftp_home_dir", {
+          sessionId: this.sftpSessionId,
+        });
+        await this.navigateRemote(homeDir);
+      } catch {
+        await this.navigateRemote(".");
+      }
     } catch (error: unknown) {
       const message = errorMessage(error);
       this.sftpSessionId = null;

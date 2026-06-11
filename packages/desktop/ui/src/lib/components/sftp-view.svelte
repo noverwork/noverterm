@@ -24,6 +24,15 @@
   let showRenameDialog = $state<{ panel: "local" | "remote"; entry: FileEntry } | null>(null);
   let showDeleteDialog = $state<{ panel: "local" | "remote"; entry: FileEntry } | null>(null);
 
+  let hasLoadedLocal = $state(false);
+
+  $effect(() => {
+    if (!hasLoadedLocal) {
+      hasLoadedLocal = true;
+      void sftpStore.navigateLocal(sftpStore.localPath);
+    }
+  });
+
   async function handleConnect(connection: ConnectionConfig) {
     if (connecting) return;
     connecting = true;

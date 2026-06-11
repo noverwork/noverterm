@@ -102,6 +102,7 @@ fn command_builder() -> Builder<tauri::Wry> {
         crate::sftp::sftp_open,
         crate::sftp::sftp_close,
         crate::sftp::sftp_connect_direct,
+        crate::sftp::sftp_home_dir,
         crate::sftp::sftp_list_dir,
         crate::sftp::sftp_stat,
         crate::sftp::sftp_mkdir,

@@ -69,6 +69,15 @@ pub async fn sftp_list_dir(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn sftp_home_dir(
+    session_id: String,
+    ssh_manager: State<'_, SshSessionManager>,
+) -> Result<String, String> {
+    ssh_manager.sftp_home_dir(&session_id).await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn sftp_stat(
     session_id: String,
     path: String,
@@ -288,6 +297,7 @@ mod tests {
         let _ = sftp_open;
         let _ = sftp_close;
         let _ = sftp_connect_direct;
+        let _ = sftp_home_dir;
         let _ = sftp_list_dir;
         let _ = sftp_stat;
         let _ = sftp_mkdir;
