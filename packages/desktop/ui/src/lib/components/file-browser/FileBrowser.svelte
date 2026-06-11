@@ -12,6 +12,7 @@
   } from "@lucide/svelte";
 
   import { sftpStore } from "$lib/stores/sftp.svelte.js";
+  import ErrorToast from "$lib/components/toast/ErrorToast.svelte";
   import type { FileEntry } from "$lib/types/sftp.js";
 
   import CreateFolderDialog from "./CreateFolderDialog.svelte";
@@ -462,6 +463,21 @@
     transfers={sftpStore.activeTransfers}
     onCancel={handleCancelTransfer}
   />
+{/if}
+
+{#if sftpStore.errorQueue.length > 0}
+  <div
+    class="fixed bottom-4 right-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
+    data-testid="error-toast-stack"
+  >
+    {#each sftpStore.errorQueue as error (error.id)}
+      <ErrorToast
+        message={error.message}
+        type={error.type}
+        onDismiss={() => sftpStore.dismissError(error.id)}
+      />
+    {/each}
+  </div>
 {/if}
 
 <CreateFolderDialog

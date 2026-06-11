@@ -14,6 +14,11 @@ type SftpStoreMock = {
   remoteLoading: boolean;
   localError: string | null;
   remoteError: string | null;
+  errorQueue: Array<{
+    id: string;
+    message: string;
+    type: "error" | "warning" | "info";
+  }>;
   activeTransfers: Map<string, TransferProgress>;
   selectedLocal: FileEntry | null;
   selectedRemote: FileEntry | null;
@@ -32,6 +37,7 @@ type SftpStoreMock = {
   startUpload: ReturnType<typeof vi.fn>;
   startDownload: ReturnType<typeof vi.fn>;
   cancelTransfer: ReturnType<typeof vi.fn>;
+  dismissError: ReturnType<typeof vi.fn>;
 };
 
 const { mockStore } = vi.hoisted(() => {
@@ -44,6 +50,7 @@ const { mockStore } = vi.hoisted(() => {
     remoteLoading: false,
     localError: null,
     remoteError: null,
+    errorQueue: [],
     activeTransfers: new Map<string, TransferProgress>(),
     selectedLocal: null,
     selectedRemote: null,
@@ -62,6 +69,7 @@ const { mockStore } = vi.hoisted(() => {
     startUpload: vi.fn(),
     startDownload: vi.fn(),
     cancelTransfer: vi.fn(),
+    dismissError: vi.fn(),
   };
   return { mockStore: store };
 });
@@ -93,6 +101,7 @@ function resetMockStore(): void {
   mockStore.remoteLoading = false;
   mockStore.localError = null;
   mockStore.remoteError = null;
+  mockStore.errorQueue = [];
   mockStore.activeTransfers = new Map<string, TransferProgress>();
   mockStore.selectedLocal = null;
   mockStore.selectedRemote = null;
@@ -111,6 +120,7 @@ function resetMockStore(): void {
   mockStore.startUpload.mockReset();
   mockStore.startDownload.mockReset();
   mockStore.cancelTransfer.mockReset();
+  mockStore.dismissError.mockReset();
 }
 
 describe("FileBrowser", () => {
@@ -188,6 +198,28 @@ describe("FileBrowser", () => {
 
     const rows = document.querySelectorAll('[data-testid="transfer-row"]');
     expect(rows).toHaveLength(0);
+  });
+
+  it("renders dismissable error toasts from the store queue", async () => {
+    mockStore.errorQueue = [
+      {
+        id: "error-1",
+        message: "Path not found: /missing",
+        type: "error",
+      },
+    ];
+
+    renderFileBrowser();
+
+    expect(screen.getByTestId("error-toast-stack")).toBeTruthy();
+    expect(screen.getByTestId("error-toast-message").textContent).toContain(
+      "Path not found: /missing",
+    );
+
+    await fireEvent.click(screen.getByTestId("error-toast-dismiss"));
+
+    expect(mockStore.dismissError).toHaveBeenCalledTimes(1);
+    expect(mockStore.dismissError).toHaveBeenCalledWith("error-1");
   });
 
   it("clicking breadcrumb navigates", async () => {

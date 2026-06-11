@@ -622,11 +622,7 @@ fn file_type_sort_rank(file_type: FileType) -> u8 {
     }
 }
 
-fn classify_sftp_error(
-    operation: &'static str,
-    path: &str,
-    error: impl ToString,
-) -> SftpError {
+fn classify_sftp_error(operation: &'static str, path: &str, error: impl ToString) -> SftpError {
     let message = error.to_string();
     let lower_message = message.to_lowercase();
 
@@ -637,17 +633,27 @@ fn classify_sftp_error(
         };
     }
 
+    if is_not_found(&lower_message) {
+        return SftpError::NotFound(path.to_string());
+    }
+
     if is_connection_lost(&lower_message) {
-        return SftpError::ConnectionLost(format!(
-            "while trying to {operation} {path}: {message}"
-        ));
+        return SftpError::ConnectionLost(format!("while trying to {operation} {path}: {message}"));
     }
 
     SftpError::OperationFailed(format!("cannot {operation} {path}: {message}"))
 }
 
 fn is_permission_denied(message: &str) -> bool {
-    message.contains("permission denied") || (message.contains("permission") && message.contains("denied"))
+    message.contains("permission denied")
+        || (message.contains("permission") && message.contains("denied"))
+}
+
+fn is_not_found(message: &str) -> bool {
+    message.contains("not found")
+        || message.contains("no such file")
+        || message.contains("no such path")
+        || message.contains("does not exist")
 }
 
 fn is_connection_lost(message: &str) -> bool {
@@ -715,7 +721,6 @@ pub async fn rename_sftp(
 
 const UPLOAD_CHUNK_SIZE: usize = 32 * 1024;
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
-const PROGRESS_BYTE_INTERVAL: u64 = 1024 * 1024;
 
 struct ProgressEmitter {
     transfer_id: String,
@@ -747,17 +752,18 @@ impl ProgressEmitter {
     }
 
     fn maybe_emit(&mut self, bytes_transferred: u64) -> Option<TransferProgress> {
+        self.maybe_emit_at(bytes_transferred, Instant::now())
+    }
+
+    fn maybe_emit_at(&mut self, bytes_transferred: u64, now: Instant) -> Option<TransferProgress> {
         if bytes_transferred == self.last_emit_bytes {
             return None;
         }
 
-        let now = Instant::now();
         let enough_time = now.duration_since(self.last_emit_at) >= PROGRESS_INTERVAL;
-        let enough_bytes =
-            bytes_transferred.saturating_sub(self.last_emit_bytes) >= PROGRESS_BYTE_INTERVAL;
         let complete = bytes_transferred == self.total_bytes;
 
-        if complete || enough_time || enough_bytes {
+        if complete || enough_time {
             return self.emit(bytes_transferred, now);
         }
 
@@ -1039,9 +1045,10 @@ async fn download_mock(
         let entries = entries
             .lock()
             .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
-        let entry = entries.get(remote_path).copied().ok_or_else(|| {
-            SftpError::OperationFailed(format!("SFTP path not found: {remote_path}"))
-        })?;
+        let entry = entries
+            .get(remote_path)
+            .copied()
+            .ok_or_else(|| SftpError::NotFound(remote_path.to_string()))?;
 
         if entry.file_type != MockFileType::File {
             return Err(SftpError::IsADirectory);
@@ -1128,7 +1135,7 @@ fn list_mock_dir(
 ) -> Result<Vec<FileEntry>, SftpError> {
     let directory = entries
         .get(path)
-        .ok_or_else(|| SftpError::OperationFailed(format!("SFTP path not found: {path}")))?;
+        .ok_or_else(|| SftpError::NotFound(path.to_string()))?;
 
     if directory.file_type != MockFileType::Directory {
         return Err(SftpError::IsADirectory);
@@ -1153,7 +1160,7 @@ fn stat_mock(entries: &HashMap<String, MockEntry>, path: &str) -> Result<FileEnt
         .get(path)
         .copied()
         .map(|entry| file_entry_from_mock(file_name_from_path(path), entry))
-        .ok_or_else(|| SftpError::OperationFailed(format!("SFTP path not found: {path}")))
+        .ok_or_else(|| SftpError::NotFound(path.to_string()))
 }
 
 #[cfg(test)]
@@ -1210,7 +1217,7 @@ fn remove_mock(entries: &mut HashMap<String, MockEntry>, path: &str) -> Result<(
     let entry = entries
         .get(path)
         .copied()
-        .ok_or_else(|| SftpError::OperationFailed(format!("SFTP path not found: {path}")))?;
+        .ok_or_else(|| SftpError::NotFound(path.to_string()))?;
 
     match entry.file_type {
         MockFileType::File | MockFileType::Symlink => {
@@ -1239,9 +1246,7 @@ fn rename_mock(
     }
 
     if !entries.contains_key(old) {
-        return Err(SftpError::OperationFailed(format!(
-            "SFTP path not found: {old}"
-        )));
+        return Err(SftpError::NotFound(old.to_string()));
     }
 
     let old_prefix = format!("{}/", old.trim_end_matches('/'));
@@ -1280,6 +1285,7 @@ pub enum SftpError {
     ChannelOpenFailed(String),
     DirectoryNotEmpty,
     IsADirectory,
+    NotFound(String),
     NotConnected,
     PermissionDenied {
         operation: &'static str,
@@ -1303,6 +1309,7 @@ impl fmt::Display for SftpError {
             }
             Self::DirectoryNotEmpty => write!(formatter, "SFTP directory is not empty"),
             Self::IsADirectory => write!(formatter, "SFTP path is a directory"),
+            Self::NotFound(path) => write!(formatter, "Path not found: {path}"),
             Self::NotConnected => write!(formatter, "SFTP session is not connected"),
             Self::PermissionDenied { operation, path } => {
                 write!(formatter, "Permission denied: cannot {operation} {path}")
@@ -1334,8 +1341,9 @@ mod tests {
     use tokio::io::AsyncWriteExt;
 
     use super::{
-        classify_sftp_error, FileEntry, FileType, MockEntry, SftpError, SftpSession,
-        SftpSessionManager, TransferCancellation, TransferDirection, UPLOAD_CHUNK_SIZE,
+        classify_sftp_error, FileEntry, FileType, MockEntry, ProgressEmitter, SftpError,
+        SftpSession, SftpSessionManager, TransferCancellation, TransferDirection,
+        UPLOAD_CHUNK_SIZE,
     };
 
     fn mock_file() -> MockEntry {
@@ -1577,7 +1585,7 @@ mod tests {
                 .expect("downloaded file should stat");
             assert_eq!(metadata.len(), file_size as u64);
             let callback_events = session.mock_progress_events();
-            assert!(callback_events.len() >= 5);
+            assert!(!callback_events.is_empty());
             let final_event = callback_events
                 .last()
                 .expect("download should record final progress");
@@ -1755,6 +1763,40 @@ mod tests {
     }
 
     #[test]
+    fn test_not_found_classification_message_is_clear() {
+        let error = classify_sftp_error("read", "/missing/file.txt", "not found");
+
+        assert_eq!(error, SftpError::NotFound("/missing/file.txt".to_string()));
+        assert_eq!(error.to_string(), "Path not found: /missing/file.txt");
+    }
+
+    #[test]
+    fn test_progress_emitter_throttles_fast_chunks_until_complete() {
+        let total_bytes = (UPLOAD_CHUNK_SIZE * 100) as u64;
+        let mut progress = ProgressEmitter::new(
+            "fast-transfer".to_string(),
+            total_bytes,
+            TransferDirection::Upload,
+            None,
+        );
+        let start = progress.last_emit_at;
+        let mut events = Vec::new();
+
+        for chunk_index in 1..=100 {
+            let bytes_transferred = (UPLOAD_CHUNK_SIZE * chunk_index) as u64;
+            let now = start + Duration::from_micros((chunk_index * 500) as u64);
+            if let Some(event) = progress.maybe_emit_at(bytes_transferred, now) {
+                events.push(event);
+            }
+        }
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].transfer_id, "fast-transfer");
+        assert_eq!(events[0].bytes_transferred, total_bytes);
+        assert_eq!(events[0].direction, TransferDirection::Upload);
+    }
+
+    #[test]
     fn test_not_connected_message_is_clear() {
         assert_eq!(
             SftpError::NotConnected.to_string(),
@@ -1861,7 +1903,7 @@ mod tests {
 
         let result = session.stat("/missing").await;
 
-        assert!(result.is_err());
+        assert_eq!(result, Err(SftpError::NotFound("/missing".to_string())));
     }
 
     #[tokio::test]

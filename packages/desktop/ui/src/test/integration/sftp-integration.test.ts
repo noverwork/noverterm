@@ -14,6 +14,11 @@ type SftpStoreMock = {
   remoteLoading: boolean;
   localError: string | null;
   remoteError: string | null;
+  errorQueue: Array<{
+    id: string;
+    message: string;
+    type: "error" | "warning" | "info";
+  }>;
   activeTransfers: Map<string, TransferProgress>;
   selectedLocal: FileEntry | null;
   selectedRemote: FileEntry | null;
@@ -32,6 +37,7 @@ type SftpStoreMock = {
   startUpload: ReturnType<typeof vi.fn>;
   startDownload: ReturnType<typeof vi.fn>;
   cancelTransfer: ReturnType<typeof vi.fn>;
+  dismissError: ReturnType<typeof vi.fn>;
   openSftp: ReturnType<typeof vi.fn>;
   closeSftp: ReturnType<typeof vi.fn>;
 };
@@ -46,6 +52,7 @@ const { mockStore } = vi.hoisted(() => {
     remoteLoading: false,
     localError: null,
     remoteError: null,
+    errorQueue: [],
     activeTransfers: new Map<string, TransferProgress>(),
     selectedLocal: null,
     selectedRemote: null,
@@ -64,6 +71,7 @@ const { mockStore } = vi.hoisted(() => {
     startUpload: vi.fn(),
     startDownload: vi.fn(),
     cancelTransfer: vi.fn(),
+    dismissError: vi.fn(),
     openSftp: vi.fn(),
     closeSftp: vi.fn(),
   };
@@ -98,6 +106,7 @@ function resetMockStore(): void {
   mockStore.remoteLoading = false;
   mockStore.localError = null;
   mockStore.remoteError = null;
+  mockStore.errorQueue = [];
   mockStore.activeTransfers = new Map<string, TransferProgress>();
   mockStore.selectedLocal = null;
   mockStore.selectedRemote = null;
@@ -116,6 +125,7 @@ function resetMockStore(): void {
   mockStore.startUpload.mockReset();
   mockStore.startDownload.mockReset();
   mockStore.cancelTransfer.mockReset();
+  mockStore.dismissError.mockReset();
   mockStore.openSftp.mockReset();
   mockStore.openSftp.mockResolvedValue(undefined);
   mockStore.closeSftp.mockReset();
