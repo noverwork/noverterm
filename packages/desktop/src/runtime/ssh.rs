@@ -20,6 +20,7 @@ use uuid::Uuid;
 use crate::trust::{HostTrustMismatch, HostTrustPrompt, SshTrustStore, TrustCheck};
 
 use super::keys::{is_rsa_key, load_key_pair, rsa_hash_candidates};
+use super::sftp::{close_sftp_session, open_sftp_session, SftpSession};
 
 const SSH_PROBE_TIMEOUT: Duration = Duration::from_secs(8);
 const SSH_PROBE_OUTPUT_LIMIT: usize = 16 * 1024;
@@ -242,6 +243,7 @@ impl client::Handler for ClientHandler {
 pub struct SshSession {
     pub(crate) handle: Arc<Mutex<Handle<ClientHandler>>>,
     pub(crate) channel_write: ChannelWriteHalf<Msg>,
+    sftp_sessions: HashMap<String, SftpSession>,
     port_forwards: HashMap<String, SshPortForwardTask>,
     keepalive_task: Option<JoinHandle<()>>,
 }
@@ -351,6 +353,7 @@ impl SshSessionManager {
             SshSession {
                 handle: session_handle,
                 channel_write,
+                sftp_sessions: HashMap::new(),
                 port_forwards: HashMap::new(),
                 keepalive_task: Some(keepalive_task),
             },
@@ -568,6 +571,27 @@ impl SshSessionManager {
 }
 
 impl SshSession {
+    pub async fn open_sftp(&mut self) -> Result<String, String> {
+        if !self.sftp_sessions.is_empty() {
+            return Err("SFTP session already open".to_string());
+        }
+
+        let mut handle = self.handle.lock().await;
+        let session = open_sftp_session(&mut handle)
+            .await
+            .map_err(|error| error.to_string())?;
+        let session_id = session.id().to_string();
+
+        self.sftp_sessions.insert(session_id.clone(), session);
+        Ok(session_id)
+    }
+
+    pub async fn close_sftp(&mut self, sftp_id: &str) -> Result<(), String> {
+        close_sftp_session(&mut self.sftp_sessions, sftp_id)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
     fn stop_runtime_tasks(
         &mut self,
         error: Option<String>,

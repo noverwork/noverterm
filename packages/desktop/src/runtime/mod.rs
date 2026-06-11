@@ -1,5 +1,6 @@
 mod keys;
 pub mod local;
 pub mod port_forward;
-pub mod ssh;
+pub mod sftp;
 mod sftp_compile_test;
+pub mod ssh;
