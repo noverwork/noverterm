@@ -140,17 +140,21 @@
   }
 
   function handleDrop(panel: "local" | "remote", event: DragEvent): void {
+    console.log("[SFTP] handleDrop", { panel, dataTransfer: event.dataTransfer?.types });
     event.preventDefault();
     dragOverPanel = null;
     if (!event.dataTransfer) return;
     const raw = event.dataTransfer.getData("application/x-sftp-entry");
+    console.log("[SFTP] handleDrop raw", { raw, types: Array.from(event.dataTransfer.types) });
     if (!raw) return;
     let payload: { panel: "local" | "remote"; entry: FileEntry };
     try {
       payload = JSON.parse(raw);
-    } catch {
+    } catch (error) {
+      console.error("[SFTP] handleDrop parse error", error);
       return;
     }
+    console.log("[SFTP] handleDrop payload", { payload, targetPanel: panel });
     if (payload.panel === panel) return;
     if (panel === "remote" && !sftpStore.isConnected) {
       connectError = "Connect to a server before dragging files to Remote";

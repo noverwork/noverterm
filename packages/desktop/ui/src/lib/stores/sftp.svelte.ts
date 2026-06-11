@@ -340,6 +340,7 @@ export class SftpStore {
     target: "local" | "remote",
     entry: FileEntry,
   ): Promise<void> {
+    console.log("[SFTP] dropTransfer called", { source, target, entry, sessionId: this.sftpSessionId, isConnected: this.isConnected });
     if (entry.file_type !== "File") {
       this.showError("Only files can be transferred via drag-and-drop", "warning");
       return;
@@ -352,13 +353,17 @@ export class SftpStore {
       }
       const localPath = joinPath(this.localPath, entry.name);
       const remotePath = joinPath(this.remotePath, entry.name);
+      console.log("[SFTP] uploading", { localPath, remotePath });
       try {
-        await invoke("sftp_upload", {
+        const transferId = await invoke<string>("sftp_upload", {
           sessionId: this.sftpSessionId,
           localPath,
           remotePath,
         });
+        console.log("[SFTP] upload started", { transferId });
+        this.showError(`Uploading ${entry.name}...`, "info");
       } catch (error: unknown) {
+        console.error("[SFTP] upload failed", error);
         this.showError(errorMessage(error));
       }
     } else {
@@ -368,13 +373,17 @@ export class SftpStore {
       }
       const remotePath = joinPath(this.remotePath, entry.name);
       const localPath = joinPath(this.localPath, entry.name);
+      console.log("[SFTP] downloading", { remotePath, localPath });
       try {
-        await invoke("sftp_download", {
+        const transferId = await invoke<string>("sftp_download", {
           sessionId: this.sftpSessionId,
           remotePath,
           localPath,
         });
+        console.log("[SFTP] download started", { transferId });
+        this.showError(`Downloading ${entry.name}...`, "info");
       } catch (error: unknown) {
+        console.error("[SFTP] download failed", error);
         this.showError(errorMessage(error));
       }
     }
