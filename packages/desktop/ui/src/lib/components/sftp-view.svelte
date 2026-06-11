@@ -25,6 +25,7 @@
   let showDeleteDialog = $state<{ panel: "local" | "remote"; entry: FileEntry } | null>(null);
 
   let hasLoadedLocal = $state(false);
+  let dragOverPanel = $state<"local" | "remote" | null>(null);
 
   $effect(() => {
     if (!hasLoadedLocal) {
@@ -114,6 +115,49 @@
     }
     showDeleteDialog = null;
   }
+
+  function handleDragOver(panel: "local" | "remote", event: DragEvent): void {
+    if (!event.dataTransfer) return;
+    if (panel === "remote" && !sftpStore.isConnected) return;
+    if (!event.dataTransfer.types.includes("application/x-sftp-entry")) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    if (dragOverPanel !== panel) {
+      dragOverPanel = panel;
+    }
+  }
+
+  function handleDragLeave(panel: "local" | "remote", event: DragEvent): void {
+    if (event.currentTarget instanceof HTMLElement) {
+      const related = event.relatedTarget as Node | null;
+      if (related && event.currentTarget.contains(related)) {
+        return;
+      }
+    }
+    if (dragOverPanel === panel) {
+      dragOverPanel = null;
+    }
+  }
+
+  function handleDrop(panel: "local" | "remote", event: DragEvent): void {
+    event.preventDefault();
+    dragOverPanel = null;
+    if (!event.dataTransfer) return;
+    const raw = event.dataTransfer.getData("application/x-sftp-entry");
+    if (!raw) return;
+    let payload: { panel: "local" | "remote"; entry: FileEntry };
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    if (payload.panel === panel) return;
+    if (panel === "remote" && !sftpStore.isConnected) {
+      connectError = "Connect to a server before dragging files to Remote";
+      return;
+    }
+    void sftpStore.dropTransfer(payload.panel, panel, payload.entry);
+  }
 </script>
 
 <div class="flex h-full min-h-0 flex-col overflow-hidden bg-[#080c13]/72">
@@ -186,11 +230,18 @@
           </button>
         </div>
       </div>
-      <div class="flex-1 overflow-auto p-2">
+      <div
+        class="flex-1 overflow-auto p-2 {dragOverPanel === 'local' ? 'bg-cyan-300/10 ring-2 ring-cyan-300/40 ring-inset rounded-lg' : ''}"
+        ondragover={(event) => handleDragOver("local", event)}
+        ondragleave={(event) => handleDragLeave("local", event)}
+        ondrop={(event) => handleDrop("local", event)}
+        data-testid="local-drop-zone"
+      >
         <FileList
           files={sftpStore.localFiles}
           selected={sftpStore.selectedLocal}
           loading={sftpStore.localLoading}
+          panelId="local"
           onSelect={handleLocalSelect}
           onNavigate={handleLocalNavigate}
         />
@@ -298,11 +349,18 @@
             </button>
           </div>
         </div>
-        <div class="flex-1 overflow-auto p-2">
+        <div
+          class="flex-1 overflow-auto p-2 {dragOverPanel === 'remote' ? 'bg-cyan-300/10 ring-2 ring-cyan-300/40 ring-inset rounded-lg' : ''}"
+          ondragover={(event) => handleDragOver("remote", event)}
+          ondragleave={(event) => handleDragLeave("remote", event)}
+          ondrop={(event) => handleDrop("remote", event)}
+          data-testid="remote-drop-zone"
+        >
           <FileList
             files={sftpStore.remoteFiles}
             selected={sftpStore.selectedRemote}
             loading={sftpStore.remoteLoading}
+            panelId="remote"
             onSelect={handleRemoteSelect}
             onNavigate={handleRemoteNavigate}
           />

@@ -234,4 +234,102 @@ describe("sftpStore", () => {
       { message: "network reset", type: "error" },
     ]);
   });
+
+  describe("dropTransfer", () => {
+    const fileEntry: FileEntry = {
+      name: "report.pdf",
+      size: 1024,
+      modified: 1700000000,
+      file_type: "File",
+    };
+
+    it("uploads a local file when dropped to the remote panel", async () => {
+      vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        if (cmd === "sftp_connect_direct") return "sftp-1";
+        if (cmd === "sftp_home_dir") return "/home/user";
+        if (cmd === "sftp_list_dir") return [];
+        if (cmd === "sftp_upload") return "transfer-1";
+        return undefined;
+      });
+      await store.connectDirect({
+        host: "example.com",
+        port: 22,
+        username: "user",
+        password: "secret",
+      });
+
+      vi.mocked(invoke).mockClear();
+      await store.dropTransfer("local", "remote", fileEntry);
+
+      expect(invoke).toHaveBeenCalledWith("sftp_upload", {
+        sessionId: "sftp-1",
+        localPath: "~/report.pdf",
+        remotePath: "/home/user/report.pdf",
+      });
+    });
+
+    it("downloads a remote file when dropped to the local panel", async () => {
+      vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        if (cmd === "sftp_connect_direct") return "sftp-1";
+        if (cmd === "sftp_home_dir") return "/home/user";
+        if (cmd === "sftp_list_dir") return [];
+        if (cmd === "sftp_download") return "transfer-2";
+        return undefined;
+      });
+      await store.connectDirect({
+        host: "example.com",
+        port: 22,
+        username: "user",
+        password: "secret",
+      });
+
+      vi.mocked(invoke).mockClear();
+      await store.dropTransfer("remote", "local", fileEntry);
+
+      expect(invoke).toHaveBeenCalledWith("sftp_download", {
+        sessionId: "sftp-1",
+        remotePath: "/home/user/report.pdf",
+        localPath: "~/report.pdf",
+      });
+    });
+
+    it("ignores drops within the same panel", async () => {
+      vi.mocked(invoke).mockResolvedValue("sftp-1");
+      await store.openSftp("ssh-1");
+
+      vi.mocked(invoke).mockClear();
+      await store.dropTransfer("local", "local", fileEntry);
+      await store.dropTransfer("remote", "remote", fileEntry);
+
+      expect(invoke).not.toHaveBeenCalledWith("sftp_upload", expect.anything());
+      expect(invoke).not.toHaveBeenCalledWith("sftp_download", expect.anything());
+    });
+
+    it("rejects non-file entries", async () => {
+      vi.mocked(invoke).mockResolvedValue("sftp-1");
+      await store.openSftp("ssh-1");
+
+      vi.mocked(invoke).mockClear();
+      const dirEntry: FileEntry = {
+        name: "documents",
+        size: 0,
+        modified: null,
+        file_type: "Dir",
+      };
+      await store.dropTransfer("local", "remote", dirEntry);
+
+      expect(invoke).not.toHaveBeenCalledWith("sftp_upload", expect.anything());
+      expect(store.errorQueue).toMatchObject([
+        { type: "warning", message: expect.stringContaining("Only files") },
+      ]);
+    });
+
+    it("warns when dropping to remote without an active connection", async () => {
+      await store.dropTransfer("local", "remote", fileEntry);
+
+      expect(store.errorQueue).toMatchObject([
+        { type: "warning", message: expect.stringContaining("Connect to a server") },
+      ]);
+    });
+  });
 });

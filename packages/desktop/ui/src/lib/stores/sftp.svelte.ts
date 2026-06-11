@@ -44,7 +44,7 @@ export class SftpStore {
   sshSessionId = $state<string | null>(null);
   isDirectConnection = $state(false);
 
-  isConnected = $derived(this.sftpSessionId !== null);
+  isConnected = $derived(this.sftpSessionId != null && this.sftpSessionId.length > 0);
 
   private unlistenProgress: UnlistenFn | null = null;
   private unlistenComplete: UnlistenFn | null = null;
@@ -332,6 +332,51 @@ export class SftpStore {
       await invoke("sftp_cancel_transfer", { transferId });
     } catch (error: unknown) {
       this.showError(errorMessage(error));
+    }
+  }
+
+  async dropTransfer(
+    source: "local" | "remote",
+    target: "local" | "remote",
+    entry: FileEntry,
+  ): Promise<void> {
+    if (entry.file_type !== "File") {
+      this.showError("Only files can be transferred via drag-and-drop", "warning");
+      return;
+    }
+    if (source === target) return;
+    if (target === "remote") {
+      if (!this.isConnected) {
+        this.showError("Connect to a server before dragging files to Remote", "warning");
+        return;
+      }
+      const localPath = joinPath(this.localPath, entry.name);
+      const remotePath = joinPath(this.remotePath, entry.name);
+      try {
+        await invoke("sftp_upload", {
+          sessionId: this.sftpSessionId,
+          localPath,
+          remotePath,
+        });
+      } catch (error: unknown) {
+        this.showError(errorMessage(error));
+      }
+    } else {
+      if (!this.isConnected) {
+        this.showError("Connect to a server before dragging files from Remote", "warning");
+        return;
+      }
+      const remotePath = joinPath(this.remotePath, entry.name);
+      const localPath = joinPath(this.localPath, entry.name);
+      try {
+        await invoke("sftp_download", {
+          sessionId: this.sftpSessionId,
+          remotePath,
+          localPath,
+        });
+      } catch (error: unknown) {
+        this.showError(errorMessage(error));
+      }
     }
   }
 

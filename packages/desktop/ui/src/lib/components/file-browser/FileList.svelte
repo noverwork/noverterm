@@ -19,11 +19,21 @@
     files: FileEntry[];
     selected: FileEntry | null;
     loading: boolean;
+    panelId?: "local" | "remote";
     onSelect: (entry: FileEntry) => void;
     onNavigate: (entry: FileEntry) => void;
+    onDragStart?: (entry: FileEntry, panel: "local" | "remote") => void;
   }
 
-  let { files, selected, loading, onSelect, onNavigate }: Props = $props();
+  let {
+    files,
+    selected,
+    loading,
+    panelId = "local",
+    onSelect,
+    onNavigate,
+    onDragStart,
+  }: Props = $props();
 
   let sortBy = $state<SortKey>("name");
   let sortDir = $state<SortDirection>("asc");
@@ -155,6 +165,30 @@
       onSelect(entry);
     }
   }
+
+  function handleRowDragStart(event: DragEvent, entry: FileEntry): void {
+    if (!event.dataTransfer) {
+      return;
+    }
+    if (entry.file_type !== "File") {
+      event.preventDefault();
+      return;
+    }
+    const payload = JSON.stringify({ panel: panelId, entry });
+    event.dataTransfer.setData("application/x-sftp-entry", payload);
+    event.dataTransfer.setData("text/plain", `${panelId}:${entry.name}`);
+    event.dataTransfer.effectAllowed = "copy";
+    if (event.currentTarget instanceof HTMLElement) {
+      event.currentTarget.classList.add("opacity-50");
+    }
+    onDragStart?.(entry, panelId);
+  }
+
+  function handleRowDragEnd(event: DragEvent): void {
+    if (event.currentTarget instanceof HTMLElement) {
+      event.currentTarget.classList.remove("opacity-50");
+    }
+  }
 </script>
 
 <div
@@ -242,6 +276,8 @@
               data-file-name={entry.name}
               data-file-type={entry.file_type}
               data-selected={isSelected(entry)}
+              data-panel={panelId}
+              draggable="true"
               role="button"
               tabindex="0"
               onclick={() => handleRowClick(entry)}
@@ -252,6 +288,8 @@
                   handleRowClick(entry);
                 }
               }}
+              ondragstart={(event) => handleRowDragStart(event, entry)}
+              ondragend={handleRowDragEnd}
             >
               <span class="flex min-w-0 items-center gap-2">
                 {#if entry.file_type === "Dir"}
