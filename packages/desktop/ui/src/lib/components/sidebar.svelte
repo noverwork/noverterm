@@ -8,11 +8,12 @@
     Settings,
     Terminal,
     FileText,
+    FolderOpen,
   } from "@lucide/svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
 
-  type SidebarSection = "terminal" | "hosts" | "keys" | "forwards" | "known-hosts" | "snippets";
+  type SidebarSection = "terminal" | "hosts" | "keys" | "forwards" | "known-hosts" | "snippets" | "sftp";
 
   let {
     onLocalTerminal,
@@ -25,6 +26,7 @@
     onNewConnection,
     onGoHome,
     onSnippets,
+    onSftp,
     authEmail,
     onOpenSettings,
     onLogout,
@@ -44,6 +46,7 @@
     onNewConnection?: () => void;
     onGoHome?: () => void;
     onSnippets?: () => void;
+    onSftp?: () => void;
     authEmail?: string;
     onOpenSettings?: () => void;
     onLogout?: () => void;
@@ -305,6 +308,17 @@
               <FileText class="size-3.5" />
               Snippets
               <span class={navCountBadgeClass("snippets")}>{snippetCount}</span>
+            </Button>
+          {/if}
+          {#if onSftp}
+            <Button
+              onclick={onSftp}
+              variant="outline"
+              size="sm"
+              class={navButtonClass("sftp")}
+            >
+              <FolderOpen class="size-3.5" />
+              SFTP
             </Button>
           {/if}
           {#if onPortForwards}

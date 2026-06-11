@@ -43,7 +43,9 @@
   const routePath = $derived($page.url.pathname);
   const connectionsPath = "/connections";
   const terminalPath = "/terminal";
+  const sftpPath = "/sftp";
   const isTerminalRoute = $derived(routePath === terminalPath);
+  const isSftpRoute = $derived(routePath === sftpPath);
   const isTerminalVisible = $derived(
     isTerminalRoute &&
       (app.activeSession?.status === "connected" ||
@@ -90,6 +92,10 @@
 
     if (routePath.startsWith("/snippets")) {
       return "snippets";
+    }
+
+    if (routePath.startsWith("/sftp")) {
+      return "sftp";
     }
 
     return "terminal";
@@ -447,6 +453,7 @@
         onManageKnownHosts={() => goto("/known-hosts")}
         onPortForwards={() => goto("/forwards")}
         onSnippets={() => goto("/snippets")}
+        onSftp={() => goto("/sftp")}
         onNewConnection={() => goto("/connections")}
         onGoHome={goHome}
         authEmail={app.authStatus?.email ?? ""}
@@ -583,7 +590,11 @@
         </div>
 
         <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-          {#if isTerminalRoute}
+          {#if isSftpRoute}
+            {#if children}
+              {@render children()}
+            {/if}
+          {:else if isTerminalRoute}
             <SessionViewSwitcher activeSession={app.activeSession}>
               {#if !hasTerminalErrorOverlay && !hasTerminalDisconnectedOverlay}
                 {@render children()}

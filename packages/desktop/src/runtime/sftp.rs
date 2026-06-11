@@ -158,7 +158,7 @@ impl fmt::Debug for SftpSession {
 }
 
 impl SftpSession {
-    fn new(id: String, inner: RusshSftpSession) -> Self {
+    pub fn new(id: String, inner: RusshSftpSession) -> Self {
         Self {
             id,
             inner: SftpSessionInner::Active(inner),

@@ -8,6 +8,7 @@ use crate::runtime::sftp::{
     FileEntry, TransferCancellation, TransferComplete, TransferDirection, TransferError,
 };
 use crate::runtime::ssh::SshSessionManager;
+use crate::trust::SshTrustStore;
 
 use self::state::TransferState;
 
@@ -27,6 +28,33 @@ pub async fn sftp_close(
     ssh_manager: State<'_, SshSessionManager>,
 ) -> Result<(), String> {
     ssh_manager.close_sftp(&session_id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn sftp_connect_direct(
+    app: AppHandle,
+    host: String,
+    port: u16,
+    username: String,
+    password: Option<String>,
+    private_key_path: Option<String>,
+    passphrase: Option<String>,
+    ssh_manager: State<'_, SshSessionManager>,
+    trust_store: State<'_, SshTrustStore>,
+) -> Result<String, String> {
+    ssh_manager
+        .connect_direct_sftp(
+            app,
+            &host,
+            port,
+            &username,
+            password.as_deref(),
+            private_key_path.as_deref(),
+            passphrase.as_deref(),
+            trust_store.inner().clone(),
+        )
+        .await
 }
 
 #[tauri::command]
@@ -259,6 +287,7 @@ mod tests {
     fn test_sftp_commands_compile() {
         let _ = sftp_open;
         let _ = sftp_close;
+        let _ = sftp_connect_direct;
         let _ = sftp_list_dir;
         let _ = sftp_stat;
         let _ = sftp_mkdir;

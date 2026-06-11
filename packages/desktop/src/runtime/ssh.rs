@@ -3,6 +3,7 @@ use russh::keys::ssh_key::HashAlg;
 use russh::keys::ssh_key::PublicKey;
 use russh::Preferred;
 use russh::{ChannelMsg, ChannelReadHalf, ChannelWriteHalf, Disconnect};
+use russh_sftp::client::SftpSession as RusshSftpSession;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -245,7 +246,7 @@ impl client::Handler for ClientHandler {
 
 pub struct SshSession {
     pub(crate) handle: Arc<Mutex<Handle<ClientHandler>>>,
-    pub(crate) channel_write: ChannelWriteHalf<Msg>,
+    pub(crate) channel_write: Option<ChannelWriteHalf<Msg>>,
     sftp_sessions: HashMap<String, SftpSession>,
     port_forwards: HashMap<String, SshPortForwardTask>,
     keepalive_task: Option<JoinHandle<()>>,
@@ -355,7 +356,7 @@ impl SshSessionManager {
             session_id.clone(),
             SshSession {
                 handle: session_handle,
-                channel_write,
+                channel_write: Some(channel_write),
                 sftp_sessions: HashMap::new(),
                 port_forwards: HashMap::new(),
                 keepalive_task: Some(keepalive_task),
@@ -422,8 +423,12 @@ impl SshSessionManager {
             .get(session_id)
             .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
-        session
+        let channel_write = session
             .channel_write
+            .as_ref()
+            .ok_or_else(|| "No shell channel available for this session".to_string())?;
+
+        channel_write
             .data(&data[..])
             .await
             .map_err(|e| format!("Failed to write: {}", e))?;
@@ -444,6 +449,106 @@ impl SshSessionManager {
             .ok_or_else(|| format!("Session not found: {session_id}"))?;
 
         session.open_sftp().await
+    }
+
+    pub async fn connect_direct_sftp(
+        &self,
+        app: AppHandle,
+        host: &str,
+        port: u16,
+        username: &str,
+        password: Option<&str>,
+        private_key_path: Option<&str>,
+        passphrase: Option<&str>,
+        trust_store: SshTrustStore,
+    ) -> Result<String, String> {
+        let sftp_session_id = Uuid::new_v4().to_string();
+        info!(sftp_session_id, host, port, username, "Starting direct SFTP connection");
+
+        let config = client_config(None);
+        let trust_check = Arc::new(Mutex::new(None));
+        let handler = ClientHandler::new(
+            host.to_string(),
+            port,
+            trust_store,
+            trust_check.clone(),
+        );
+
+        let mut session = match client::connect(config, (host.to_string(), port), handler).await {
+            Ok(session) => session,
+            Err(error) => {
+                let response = map_connect_error(error, trust_check).await;
+                return match response {
+                    Ok(SshConnectResponse::Connected { .. }) => Err("Unexpected connected response".to_string()),
+                    Ok(SshConnectResponse::TrustRequired { prompt }) => Err(format!("Trust required: {}", prompt.fingerprint)),
+                    Ok(SshConnectResponse::TrustMismatch { mismatch }) => Err(format!("Trust mismatch: {}", mismatch.expected_fingerprint)),
+                    Err(e) => Err(e),
+                };
+            }
+        };
+
+        let auth_method = if let Some(key_path) = private_key_path {
+            AuthMethod::PublicKey {
+                private_key: key_path.to_string(),
+                passphrase: passphrase.map(|s| s.to_string()),
+            }
+        } else if let Some(pwd) = password {
+            AuthMethod::Password(pwd.to_string())
+        } else {
+            return Err("No authentication method provided".to_string());
+        };
+
+        authenticate_session(&mut session, username, auth_method, &sftp_session_id).await?;
+
+        info!(sftp_session_id, "SFTP authentication successful");
+
+        let channel = session
+            .channel_open_session()
+            .await
+            .map_err(|e| format!("Failed to open channel: {}", e))?;
+
+        channel
+            .request_subsystem(true, "sftp")
+            .await
+            .map_err(|e| format!("Failed to request SFTP subsystem: {}", e))?;
+
+        info!(sftp_session_id, "SFTP subsystem requested");
+
+        let sftp = RusshSftpSession::new(channel.into_stream())
+            .await
+            .map_err(|e| format!("Failed to create SFTP session: {}", e))?;
+
+        let sftp_session = SftpSession::new(sftp_session_id.clone(), sftp);
+
+        let session_handle = Arc::new(Mutex::new(session));
+        let keepalive_handle = session_handle.clone();
+        let keepalive_sessions = self.sessions.clone();
+        let keepalive_app = app.clone();
+        let ka_session_id = sftp_session_id.clone();
+
+        let keepalive_task = tokio::spawn(async move {
+            keepalive_loop(
+                keepalive_handle,
+                ka_session_id,
+                keepalive_app,
+                keepalive_sessions,
+            )
+            .await;
+        });
+
+        self.sessions.lock().await.insert(
+            sftp_session_id.clone(),
+            SshSession {
+                handle: session_handle,
+                channel_write: None,
+                sftp_sessions: HashMap::from([(sftp_session_id.clone(), sftp_session)]),
+                port_forwards: HashMap::new(),
+                keepalive_task: Some(keepalive_task),
+            },
+        );
+
+        info!(sftp_session_id, "Direct SFTP session established");
+        Ok(sftp_session_id)
     }
 
     pub async fn close_sftp(&self, sftp_id: &str) -> Result<(), String> {
@@ -566,8 +671,12 @@ impl SshSessionManager {
             .get(session_id)
             .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
-        session
+        let channel_write = session
             .channel_write
+            .as_ref()
+            .ok_or_else(|| "No shell channel available for this session".to_string())?;
+
+        channel_write
             .window_change(cols, rows, 0, 0)
             .await
             .map_err(|e| format!("Failed to resize: {}", e))?;
@@ -681,7 +790,9 @@ impl SshSessionManager {
         if let Some(mut session) = session {
             info!(session_id, "Disconnecting SSH session");
             let stopped_forwards = session.stop_runtime_tasks(None, true);
-            let _ = session.channel_write.close().await;
+            if let Some(channel_write) = session.channel_write.as_ref() {
+                let _ = channel_write.close().await;
+            }
             let _ = session
                 .handle
                 .lock()

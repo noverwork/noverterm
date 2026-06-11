@@ -42,6 +42,9 @@ export class SftpStore {
   selectedRemote = $state<FileEntry | null>(null);
   sftpSessionId = $state<string | null>(null);
   sshSessionId = $state<string | null>(null);
+  isDirectConnection = $state(false);
+
+  isConnected = $derived(this.sftpSessionId !== null);
 
   private unlistenProgress: UnlistenFn | null = null;
   private unlistenComplete: UnlistenFn | null = null;
@@ -140,12 +143,49 @@ export class SftpStore {
       }
 
       this.sshSessionId = null;
+      this.isDirectConnection = false;
       await this.teardownEventListeners();
     } catch (error: unknown) {
       const message = errorMessage(error);
       this.remoteError = message;
       this.showError(message);
     }
+  }
+
+  async connectDirect(options: {
+    host: string;
+    port: number;
+    username: string;
+    password?: string;
+    privateKeyPath?: string;
+    passphrase?: string;
+  }): Promise<void> {
+    try {
+      this.sftpSessionId = await invoke<string>("sftp_connect_direct", {
+        host: options.host,
+        port: options.port,
+        username: options.username,
+        password: options.password,
+        privateKeyPath: options.privateKeyPath,
+        passphrase: options.passphrase,
+      });
+      this.isDirectConnection = true;
+      await this.setupEventListeners();
+      await this.navigateRemote("~");
+    } catch (error: unknown) {
+      const message = errorMessage(error);
+      this.sftpSessionId = null;
+      this.isDirectConnection = false;
+      this.remoteError = message;
+      this.showError(message);
+      throw error;
+    }
+  }
+
+  async disconnect(): Promise<void> {
+    await this.closeSftp();
+    this.remotePath = "";
+    this.remoteFiles = [];
   }
 
   async navigateRemote(path: string): Promise<void> {
@@ -305,6 +345,7 @@ export class SftpStore {
     this.selectedRemote = null;
     this.sftpSessionId = null;
     this.sshSessionId = null;
+    this.isDirectConnection = false;
   }
 
   private async setupEventListeners(): Promise<void> {
