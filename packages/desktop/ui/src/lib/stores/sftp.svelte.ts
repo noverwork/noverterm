@@ -157,7 +157,7 @@ export class SftpStore {
     port: number;
     username: string;
     password?: string;
-    privateKeyPath?: string;
+    privateKey?: string;
     passphrase?: string;
   }): Promise<void> {
     try {
@@ -166,7 +166,7 @@ export class SftpStore {
         port: options.port,
         username: options.username,
         password: options.password,
-        privateKeyPath: options.privateKeyPath,
+        privateKey: options.privateKey,
         passphrase: options.passphrase,
       });
       this.isDirectConnection = true;

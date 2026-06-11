@@ -458,7 +458,7 @@ impl SshSessionManager {
         port: u16,
         username: &str,
         password: Option<&str>,
-        private_key_path: Option<&str>,
+        private_key: Option<&str>,
         passphrase: Option<&str>,
         trust_store: SshTrustStore,
     ) -> Result<String, String> {
@@ -487,9 +487,9 @@ impl SshSessionManager {
             }
         };
 
-        let auth_method = if let Some(key_path) = private_key_path {
+        let auth_method = if let Some(key_content) = private_key {
             AuthMethod::PublicKey {
-                private_key: key_path.to_string(),
+                private_key: key_content.to_string(),
                 passphrase: passphrase.map(|s| s.to_string()),
             }
         } else if let Some(pwd) = password {

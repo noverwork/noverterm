@@ -1,54 +1,35 @@
 <script lang="ts">
-  import { FolderOpen, Loader2, X } from "@lucide/svelte";
+  import { FolderOpen, Loader2, Server, X } from "@lucide/svelte";
   import FileList from "./file-browser/FileList.svelte";
   import TransferProgress from "./file-browser/TransferProgress.svelte";
   import CreateFolderDialog from "./file-browser/CreateFolderDialog.svelte";
   import RenameDialog from "./file-browser/RenameDialog.svelte";
   import DeleteConfirmDialog from "./file-browser/DeleteConfirmDialog.svelte";
   import { sftpStore } from "$lib/stores/sftp.svelte.js";
+  import type { ConnectionConfig } from "$lib/app-data-types.js";
   import type { FileEntry } from "$lib/types/sftp.js";
 
   interface Props {
-    onConnect: (options: {
-      host: string;
-      port: number;
-      username: string;
-      password?: string;
-      privateKeyPath?: string;
-      passphrase?: string;
-    }) => Promise<void>;
+    connections: ConnectionConfig[];
+    onConnect: (connection: ConnectionConfig) => Promise<void>;
     onDisconnect: () => Promise<void>;
   }
 
-  let { onConnect, onDisconnect }: Props = $props();
+  let { connections, onConnect, onDisconnect }: Props = $props();
 
   let connecting = $state(false);
   let connectError = $state<string | null>(null);
-
-  let host = $state("");
-  let port = $state(22);
-  let username = $state("");
-  let password = $state("");
-  let privateKeyPath = $state("");
-  let passphrase = $state("");
-  let authMethod = $state<"password" | "key">("password");
 
   let showCreateFolderDialog = $state<"local" | "remote" | null>(null);
   let showRenameDialog = $state<{ panel: "local" | "remote"; entry: FileEntry } | null>(null);
   let showDeleteDialog = $state<{ panel: "local" | "remote"; entry: FileEntry } | null>(null);
 
-  async function handleConnect() {
+  async function handleConnect(connection: ConnectionConfig) {
+    if (connecting) return;
     connecting = true;
     connectError = null;
     try {
-      await onConnect({
-        host,
-        port,
-        username,
-        password: authMethod === "password" ? password : undefined,
-        privateKeyPath: authMethod === "key" ? privateKeyPath : undefined,
-        passphrase: authMethod === "key" ? passphrase : undefined,
-      });
+      await onConnect(connection);
     } catch (e) {
       connectError = e instanceof Error ? e.message : String(e);
     } finally {
@@ -209,95 +190,38 @@
 
     <div class="flex w-1/2 flex-col">
       {#if !sftpStore.isConnected}
-        <div class="flex flex-col border-b border-white/8 p-6">
-          <h2 class="mb-4 text-sm font-medium text-white">Connect to a remote machine</h2>
-          <form class="grid gap-4" onsubmit={(e) => { e.preventDefault(); handleConnect(); }}>
-            <div class="grid grid-cols-3 gap-3">
-              <div class="col-span-2">
-                <label class="mb-1 block text-xs text-slate-400">Host</label>
-                <input
-                  type="text"
-                  class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-cyan-300/30 focus:outline-none"
-                  placeholder="example.com"
-                  bind:value={host}
-                  required
-                />
-              </div>
-              <div>
-                <label class="mb-1 block text-xs text-slate-400">Port</label>
-                <input
-                  type="number"
-                  class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-cyan-300/30 focus:outline-none"
-                  bind:value={port}
-                  required
-                />
-              </div>
-            </div>
-            <div>
-              <label class="mb-1 block text-xs text-slate-400">Username</label>
-              <input
-                type="text"
-                class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-cyan-300/30 focus:outline-none"
-                placeholder="root"
-                bind:value={username}
-                required
-              />
-            </div>
-            <div>
-              <label class="mb-2 block text-xs text-slate-400">Authentication</label>
-              <div class="flex gap-4">
-                <label class="flex items-center gap-2 text-sm text-white">
-                  <input type="radio" bind:group={authMethod} value="password" class="text-cyan-300" />
-                  Password
-                </label>
-                <label class="flex items-center gap-2 text-sm text-white">
-                  <input type="radio" bind:group={authMethod} value="key" class="text-cyan-300" />
-                  Private Key
-                </label>
-              </div>
-            </div>
-            {#if authMethod === "password"}
-              <div>
-                <label class="mb-1 block text-xs text-slate-400">Password</label>
-                <input
-                  type="password"
-                  class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-cyan-300/30 focus:outline-none"
-                  bind:value={password}
-                />
-              </div>
-            {:else}
-              <div>
-                <label class="mb-1 block text-xs text-slate-400">Private Key Path</label>
-                <input
-                  type="text"
-                  class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-cyan-300/30 focus:outline-none"
-                  placeholder="~/.ssh/id_rsa"
-                  bind:value={privateKeyPath}
-                />
-              </div>
-              <div>
-                <label class="mb-1 block text-xs text-slate-400">Passphrase (optional)</label>
-                <input
-                  type="password"
-                  class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-cyan-300/30 focus:outline-none"
-                  bind:value={passphrase}
-                />
-              </div>
+        <div class="flex flex-col border-b border-white/8 p-4">
+          <h2 class="mb-3 text-sm font-medium text-white">Select a connection</h2>
+          <div class="grid gap-2">
+            {#each connections as connection}
+              <button
+                type="button"
+                class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-cyan-300/30 hover:bg-cyan-300/8 disabled:opacity-50"
+                onclick={() => handleConnect(connection)}
+                disabled={connecting}
+              >
+                <div class="grid size-8 shrink-0 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-300/12 text-cyan-200">
+                  <Server class="size-4" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-medium text-white">{connection.name}</p>
+                  <p class="truncate text-xs text-slate-400">{connection.username}@{connection.host}:{connection.port}</p>
+                </div>
+              </button>
+            {/each}
+            {#if connections.length === 0}
+              <p class="py-4 text-center text-sm text-slate-400">No saved connections. Add one in Connections.</p>
             {/if}
-            <button
-              type="submit"
-              class="flex items-center justify-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm text-cyan-100 transition hover:bg-cyan-300/15 disabled:opacity-30"
-              disabled={connecting}
-            >
-              {#if connecting}
-                <Loader2 class="size-4 animate-spin" />
-              {/if}
-              Connect
-            </button>
-          </form>
+          </div>
           {#if connectError}
-            <div class="mt-4 rounded-xl border border-red-300/20 bg-red-400/8 p-3">
+            <div class="mt-3 rounded-xl border border-red-300/20 bg-red-400/8 p-3">
               <p class="text-sm text-red-200">{connectError}</p>
+            </div>
+          {/if}
+          {#if connecting}
+            <div class="mt-3 flex items-center gap-2 text-sm text-slate-400">
+              <Loader2 class="size-4 animate-spin" />
+              <span>Connecting...</span>
             </div>
           {/if}
         </div>

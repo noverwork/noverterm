@@ -38,7 +38,7 @@ pub async fn sftp_connect_direct(
     port: u16,
     username: String,
     password: Option<String>,
-    private_key_path: Option<String>,
+    private_key: Option<String>,
     passphrase: Option<String>,
     ssh_manager: State<'_, SshSessionManager>,
     trust_store: State<'_, SshTrustStore>,
@@ -50,7 +50,7 @@ pub async fn sftp_connect_direct(
             port,
             &username,
             password.as_deref(),
-            private_key_path.as_deref(),
+            private_key.as_deref(),
             passphrase.as_deref(),
             trust_store.inner().clone(),
         )

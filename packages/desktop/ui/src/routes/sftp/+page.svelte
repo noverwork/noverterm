@@ -1,16 +1,22 @@
 <script lang="ts">
   import SftpView from "$lib/components/sftp-view.svelte";
+  import { getAppShellContext } from "$lib/stores/app-shell.svelte.js";
   import { sftpStore } from "$lib/stores/sftp.svelte.js";
+  import { createDirectSshConnectInput } from "$lib/services/ssh-connection-input.js";
+  import type { ConnectionConfig } from "$lib/app-data-types.js";
 
-  async function handleConnect(options: {
-    host: string;
-    port: number;
-    username: string;
-    password?: string;
-    privateKeyPath?: string;
-    passphrase?: string;
-  }) {
-    await sftpStore.connectDirect(options);
+  const app = getAppShellContext();
+
+  async function handleConnect(connection: ConnectionConfig) {
+    const input = await createDirectSshConnectInput(connection);
+    await sftpStore.connectDirect({
+      host: input.host,
+      port: input.port,
+      username: input.username,
+      password: input.password ?? undefined,
+      privateKey: input.private_key ?? undefined,
+      passphrase: input.passphrase ?? undefined,
+    });
   }
 
   async function handleDisconnect() {
@@ -19,6 +25,7 @@
 </script>
 
 <SftpView
+  connections={app.connections}
   onConnect={handleConnect}
   onDisconnect={handleDisconnect}
 />
