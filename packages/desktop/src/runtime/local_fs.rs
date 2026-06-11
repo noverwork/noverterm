@@ -3,12 +3,29 @@
 //! This module mirrors the SFTP operations API to enable seamless switching
 //! between local and remote (SFTP) file browsing.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 use tokio::fs;
 
 use super::sftp::{FileEntry, FileType};
+
+/// Expand `~` to the user's home directory.
+fn expand_tilde(path: &str) -> Result<PathBuf, String> {
+    if path == "~" {
+        home_dir().map(PathBuf::from)
+    } else if let Some(rest) = path.strip_prefix("~/") {
+        home_dir().map(|home| PathBuf::from(home).join(rest))
+    } else {
+        Ok(PathBuf::from(path))
+    }
+}
+
+fn home_dir() -> Result<String, String> {
+    std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .map_err(|_| "HOME environment variable not set".to_string())
+}
 
 fn file_type_from_metadata(metadata: &std::fs::Metadata) -> FileType {
     if metadata.file_type().is_dir() {
@@ -74,10 +91,11 @@ fn entry_from_path(path: &Path, name: &str) -> std::io::Result<FileEntry> {
 ///
 /// Returns entries sorted: directories first, then files, alphabetically.
 pub async fn local_list_dir(path: &str) -> Result<Vec<FileEntry>, String> {
+    let expanded_path = expand_tilde(path)?;
     let mut entries = Vec::new();
-    let mut dir = fs::read_dir(path)
+    let mut dir = fs::read_dir(&expanded_path)
         .await
-        .map_err(|e| format!("Failed to open directory '{}': {}", path, e))?;
+        .map_err(|e| format!("Failed to open directory '{}': {}", expanded_path.display(), e))?;
 
     while let Some(entry) = dir
         .next_entry()
@@ -109,33 +127,36 @@ pub async fn local_list_dir(path: &str) -> Result<Vec<FileEntry>, String> {
 
 /// Get file/directory metadata.
 pub async fn local_stat(path: &str) -> Result<FileEntry, String> {
-    let p = Path::new(path);
+    let expanded_path = expand_tilde(path)?;
+    let p = &expanded_path;
 
     if !p.exists() {
-        return Err(format!("Path does not exist: {}", path));
+        return Err(format!("Path does not exist: {}", expanded_path.display()));
     }
 
     let name = p
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| path.to_string());
+        .unwrap_or_else(|| expanded_path.to_string_lossy().to_string());
 
-    entry_from_path(p, &name).map_err(|e| format!("Failed to stat '{}': {}", path, e))
+    entry_from_path(p, &name).map_err(|e| format!("Failed to stat '{}': {}", expanded_path.display(), e))
 }
 
 /// Create a directory.
 pub async fn local_mkdir(path: &str) -> Result<(), String> {
-    fs::create_dir(path)
+    let expanded_path = expand_tilde(path)?;
+    fs::create_dir(&expanded_path)
         .await
-        .map_err(|e| format!("Failed to create directory '{}': {}", path, e))
+        .map_err(|e| format!("Failed to create directory '{}': {}", expanded_path.display(), e))
 }
 
 /// Remove a file or empty directory.
 pub async fn local_remove(path: &str) -> Result<(), String> {
-    let p = Path::new(path);
+    let expanded_path = expand_tilde(path)?;
+    let p = &expanded_path;
 
     if !p.exists() {
-        return Err(format!("Path does not exist: {}", path));
+        return Err(format!("Path does not exist: {}", expanded_path.display()));
     }
 
     if p.is_dir() {
@@ -143,28 +164,30 @@ pub async fn local_remove(path: &str) -> Result<(), String> {
             Ok(()) => return Ok(()),
             Err(e) => {
                 if e.kind() == std::io::ErrorKind::DirectoryNotEmpty {
-                    return Err(format!("Directory not empty: {}", path));
+                    return Err(format!("Directory not empty: {}", expanded_path.display()));
                 }
                 if p.is_file() {
                     return fs::remove_file(p)
                         .await
-                        .map_err(|e| format!("Failed to remove '{}': {}", path, e));
+                        .map_err(|e| format!("Failed to remove '{}': {}", expanded_path.display(), e));
                 }
-                return Err(format!("Failed to remove '{}': {}", path, e));
+                return Err(format!("Failed to remove '{}': {}", expanded_path.display(), e));
             }
         }
     }
 
     fs::remove_file(p)
         .await
-        .map_err(|e| format!("Failed to remove '{}': {}", path, e))
+        .map_err(|e| format!("Failed to remove '{}': {}", expanded_path.display(), e))
 }
 
 /// Rename a file or directory.
 pub async fn local_rename(old: &str, new: &str) -> Result<(), String> {
-    fs::rename(old, new)
+    let old_expanded = expand_tilde(old)?;
+    let new_expanded = expand_tilde(new)?;
+    fs::rename(&old_expanded, &new_expanded)
         .await
-        .map_err(|e| format!("Failed to rename '{}' to '{}': {}", old, new, e))
+        .map_err(|e| format!("Failed to rename '{}' to '{}': {}", old_expanded.display(), new_expanded.display(), e))
 }
 
 #[cfg(test)]
@@ -212,6 +235,24 @@ mod tests {
 
         let entries = local_list_dir(path).await.expect("list_dir should succeed");
         assert!(entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_local_list_tilde_expansion() {
+        let result = local_list_dir("~").await;
+        if let Ok(home) = std::env::var("HOME") {
+            assert!(result.is_ok(), "tilde should expand to home directory: {}", home);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_expand_tilde_variants() {
+        if let Ok(home) = std::env::var("HOME") {
+            assert_eq!(expand_tilde("~").unwrap(), PathBuf::from(&home));
+            assert_eq!(expand_tilde("~/test").unwrap(), PathBuf::from(&home).join("test"));
+            assert_eq!(expand_tilde("/absolute/path").unwrap(), PathBuf::from("/absolute/path"));
+            assert_eq!(expand_tilde("relative/path").unwrap(), PathBuf::from("relative/path"));
+        }
     }
 
     #[tokio::test]

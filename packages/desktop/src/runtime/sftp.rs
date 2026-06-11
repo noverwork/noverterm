@@ -544,10 +544,11 @@ pub async fn list_sftp_dir(
     session: &RusshSftpSession,
     path: &str,
 ) -> Result<Vec<FileEntry>, SftpError> {
+    let resolved_path = resolve_remote_path(session, path).await?;
     let mut entries = session
-        .read_dir(path)
+        .read_dir(&resolved_path)
         .await
-        .map_err(|error| classify_sftp_error("read", path, error))?
+        .map_err(|error| classify_sftp_error("read", &resolved_path, error))?
         .filter(|entry| {
             let name = entry.file_name();
             name != "." && name != ".."
@@ -559,20 +560,41 @@ pub async fn list_sftp_dir(
     Ok(entries)
 }
 
+/// Resolve a path to an absolute path on the remote server.
+///
+/// If the path starts with `~`, it is resolved to the user's home directory
+/// using SFTP's `realpath` command. Otherwise, the path is passed through
+/// unchanged.
+async fn resolve_remote_path(
+    session: &RusshSftpSession,
+    path: &str,
+) -> Result<String, SftpError> {
+    if path.starts_with('~') {
+        session
+            .canonicalize(path)
+            .await
+            .map_err(|error| classify_sftp_error("realpath", path, error))
+    } else {
+        Ok(path.to_string())
+    }
+}
+
 pub async fn stat_sftp(session: &RusshSftpSession, path: &str) -> Result<FileEntry, SftpError> {
+    let resolved_path = resolve_remote_path(session, path).await?;
     let metadata = session
-        .metadata(path)
+        .metadata(&resolved_path)
         .await
-        .map_err(|error| classify_sftp_error("read", path, error))?;
+        .map_err(|error| classify_sftp_error("read", &resolved_path, error))?;
 
     Ok(file_entry_from_metadata(
-        file_name_from_path(path),
+        file_name_from_path(&resolved_path),
         &metadata,
     ))
 }
 
 pub async fn mkdir_sftp(session: &RusshSftpSession, path: &str) -> Result<(), SftpError> {
-    session.create_dir(path).await.map_err(|error| {
+    let resolved_path = resolve_remote_path(session, path).await?;
+    session.create_dir(&resolved_path).await.map_err(|error| {
         let message = error.to_string();
         if message.to_lowercase().contains("exists") {
             SftpError::AlreadyExists
@@ -668,33 +690,34 @@ fn is_connection_lost(message: &str) -> bool {
 }
 
 pub async fn remove_sftp(session: &RusshSftpSession, path: &str) -> Result<(), SftpError> {
+    let resolved_path = resolve_remote_path(session, path).await?;
     let metadata = session
-        .metadata(path)
+        .metadata(&resolved_path)
         .await
-        .map_err(|error| classify_sftp_error("read", path, error))?;
+        .map_err(|error| classify_sftp_error("read", &resolved_path, error))?;
 
     match metadata.file_type() {
         RusshFileType::Dir => {
             let mut entries = session
-                .read_dir(path)
+                .read_dir(&resolved_path)
                 .await
-                .map_err(|error| classify_sftp_error("read", path, error))?;
+                .map_err(|error| classify_sftp_error("read", &resolved_path, error))?;
 
             if entries.next().is_some() {
                 return Err(SftpError::DirectoryNotEmpty);
             }
 
             session
-                .remove_dir(path)
+                .remove_dir(&resolved_path)
                 .await
-                .map_err(|error| classify_sftp_error("write", path, error))
+                .map_err(|error| classify_sftp_error("write", &resolved_path, error))
         }
-        _ => session.remove_file(path).await.map_err(|error| {
+        _ => session.remove_file(&resolved_path).await.map_err(|error| {
             let message = error.to_string();
             if message.to_lowercase().contains("is a directory") {
                 SftpError::IsADirectory
             } else {
-                classify_sftp_error("write", path, message)
+                classify_sftp_error("write", &resolved_path, message)
             }
         }),
     }
@@ -705,16 +728,19 @@ pub async fn rename_sftp(
     old: &str,
     new: &str,
 ) -> Result<(), SftpError> {
-    if session.metadata(new).await.is_ok() {
+    let resolved_old = resolve_remote_path(session, old).await?;
+    let resolved_new = resolve_remote_path(session, new).await?;
+
+    if session.metadata(&resolved_new).await.is_ok() {
         return Err(SftpError::AlreadyExists);
     }
 
-    session.rename(old, new).await.map_err(|error| {
+    session.rename(&resolved_old, &resolved_new).await.map_err(|error| {
         let message = error.to_string();
         if message.to_lowercase().contains("exists") {
             SftpError::AlreadyExists
         } else {
-            classify_sftp_error("write", old, message)
+            classify_sftp_error("write", &resolved_old, message)
         }
     })
 }
