@@ -213,7 +213,7 @@ impl SftpSession {
             SftpSessionInner::Active(session) => session
                 .close()
                 .await
-                .map_err(|error| SftpError::CloseFailed(error.to_string())),
+                .map_err(|error| classify_sftp_error("close", self.id(), error)),
             #[cfg(test)]
             SftpSessionInner::Mock { close_error, .. } => match close_error {
                 Some(error) => Err(SftpError::ConnectionLost(error.clone())),
@@ -547,7 +547,7 @@ pub async fn list_sftp_dir(
     let mut entries = session
         .read_dir(path)
         .await
-        .map_err(|error| SftpError::OperationFailed(error.to_string()))?
+        .map_err(|error| classify_sftp_error("read", path, error))?
         .filter(|entry| {
             let name = entry.file_name();
             name != "." && name != ".."
@@ -563,7 +563,7 @@ pub async fn stat_sftp(session: &RusshSftpSession, path: &str) -> Result<FileEnt
     let metadata = session
         .metadata(path)
         .await
-        .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
+        .map_err(|error| classify_sftp_error("read", path, error))?;
 
     Ok(file_entry_from_metadata(
         file_name_from_path(path),
@@ -577,7 +577,7 @@ pub async fn mkdir_sftp(session: &RusshSftpSession, path: &str) -> Result<(), Sf
         if message.to_lowercase().contains("exists") {
             SftpError::AlreadyExists
         } else {
-            SftpError::OperationFailed(message)
+            classify_sftp_error("write", path, message)
         }
     })
 }
@@ -622,18 +622,57 @@ fn file_type_sort_rank(file_type: FileType) -> u8 {
     }
 }
 
+fn classify_sftp_error(
+    operation: &'static str,
+    path: &str,
+    error: impl ToString,
+) -> SftpError {
+    let message = error.to_string();
+    let lower_message = message.to_lowercase();
+
+    if is_permission_denied(&lower_message) {
+        return SftpError::PermissionDenied {
+            operation,
+            path: path.to_string(),
+        };
+    }
+
+    if is_connection_lost(&lower_message) {
+        return SftpError::ConnectionLost(format!(
+            "while trying to {operation} {path}: {message}"
+        ));
+    }
+
+    SftpError::OperationFailed(format!("cannot {operation} {path}: {message}"))
+}
+
+fn is_permission_denied(message: &str) -> bool {
+    message.contains("permission denied") || (message.contains("permission") && message.contains("denied"))
+}
+
+fn is_connection_lost(message: &str) -> bool {
+    message.contains("connection lost")
+        || message.contains("connection reset")
+        || message.contains("connection closed")
+        || message.contains("channel closed")
+        || message.contains("transport closed")
+        || message.contains("broken pipe")
+        || message.contains("unexpected eof")
+        || message == "eof"
+}
+
 pub async fn remove_sftp(session: &RusshSftpSession, path: &str) -> Result<(), SftpError> {
     let metadata = session
         .metadata(path)
         .await
-        .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
+        .map_err(|error| classify_sftp_error("read", path, error))?;
 
     match metadata.file_type() {
         RusshFileType::Dir => {
             let mut entries = session
                 .read_dir(path)
                 .await
-                .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
+                .map_err(|error| classify_sftp_error("read", path, error))?;
 
             if entries.next().is_some() {
                 return Err(SftpError::DirectoryNotEmpty);
@@ -642,14 +681,14 @@ pub async fn remove_sftp(session: &RusshSftpSession, path: &str) -> Result<(), S
             session
                 .remove_dir(path)
                 .await
-                .map_err(|error| SftpError::OperationFailed(error.to_string()))
+                .map_err(|error| classify_sftp_error("write", path, error))
         }
         _ => session.remove_file(path).await.map_err(|error| {
             let message = error.to_string();
             if message.to_lowercase().contains("is a directory") {
                 SftpError::IsADirectory
             } else {
-                SftpError::OperationFailed(message)
+                classify_sftp_error("write", path, message)
             }
         }),
     }
@@ -669,7 +708,7 @@ pub async fn rename_sftp(
         if message.to_lowercase().contains("exists") {
             SftpError::AlreadyExists
         } else {
-            SftpError::OperationFailed(message)
+            classify_sftp_error("write", old, message)
         }
     })
 }
@@ -775,7 +814,7 @@ pub async fn upload_sftp(
             OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::TRUNCATE,
         )
         .await
-        .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
+        .map_err(|error| classify_sftp_error("write", remote_path, error))?;
 
     let mut progress = ProgressEmitter::new(
         transfer_id,
@@ -803,7 +842,7 @@ pub async fn upload_sftp(
             remote_file
                 .write_all(&buffer[..read_count])
                 .await
-                .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
+                .map_err(|error| classify_sftp_error("write", remote_path, error))?;
             bytes_transferred += read_count as u64;
             progress.maybe_emit(bytes_transferred);
         }
@@ -811,11 +850,11 @@ pub async fn upload_sftp(
         remote_file
             .flush()
             .await
-            .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
+            .map_err(|error| classify_sftp_error("write", remote_path, error))?;
         remote_file
             .shutdown()
             .await
-            .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
+            .map_err(|error| classify_sftp_error("write", remote_path, error))?;
 
         progress.maybe_emit(bytes_transferred);
         Ok(bytes_transferred)
@@ -928,12 +967,12 @@ pub async fn download_sftp(
     let total_bytes = session
         .metadata(remote_path)
         .await
-        .map_err(|error| SftpError::OperationFailed(error.to_string()))?
+        .map_err(|error| classify_sftp_error("read", remote_path, error))?
         .len();
     let mut remote_file = session
         .open_with_flags(remote_path, OpenFlags::READ)
         .await
-        .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
+        .map_err(|error| classify_sftp_error("read", remote_path, error))?;
     let mut local_file = tokio::fs::File::create(local_path)
         .await
         .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
@@ -955,7 +994,7 @@ pub async fn download_sftp(
             let read_count = remote_file
                 .read(&mut buffer)
                 .await
-                .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
+                .map_err(|error| classify_sftp_error("read", remote_path, error))?;
             if read_count == 0 {
                 break;
             }
@@ -1241,6 +1280,11 @@ pub enum SftpError {
     ChannelOpenFailed(String),
     DirectoryNotEmpty,
     IsADirectory,
+    NotConnected,
+    PermissionDenied {
+        operation: &'static str,
+        path: String,
+    },
     SubsystemNotSupported(String),
     SessionInitFailed(String),
     SessionNotFound(String),
@@ -1259,6 +1303,10 @@ impl fmt::Display for SftpError {
             }
             Self::DirectoryNotEmpty => write!(formatter, "SFTP directory is not empty"),
             Self::IsADirectory => write!(formatter, "SFTP path is a directory"),
+            Self::NotConnected => write!(formatter, "SFTP session is not connected"),
+            Self::PermissionDenied { operation, path } => {
+                write!(formatter, "Permission denied: cannot {operation} {path}")
+            }
             Self::SubsystemNotSupported(error) => {
                 write!(formatter, "SFTP subsystem is not supported: {error}")
             }
@@ -1286,8 +1334,8 @@ mod tests {
     use tokio::io::AsyncWriteExt;
 
     use super::{
-        FileEntry, FileType, MockEntry, SftpError, SftpSession, SftpSessionManager,
-        TransferCancellation, TransferDirection, UPLOAD_CHUNK_SIZE,
+        classify_sftp_error, FileEntry, FileType, MockEntry, SftpError, SftpSession,
+        SftpSessionManager, TransferCancellation, TransferDirection, UPLOAD_CHUNK_SIZE,
     };
 
     fn mock_file() -> MockEntry {
@@ -1676,6 +1724,42 @@ mod tests {
             Err(SftpError::ConnectionLost("transport closed".to_string()))
         );
         assert!(manager.contains("sftp-1"));
+    }
+
+    #[test]
+    fn test_permission_denied_message_includes_operation_and_path() {
+        let error = classify_sftp_error("read", "/root/secret", "permission denied");
+
+        assert_eq!(
+            error,
+            SftpError::PermissionDenied {
+                operation: "read",
+                path: "/root/secret".to_string(),
+            }
+        );
+        assert_eq!(
+            error.to_string(),
+            "Permission denied: cannot read /root/secret"
+        );
+    }
+
+    #[test]
+    fn test_connection_loss_message_is_specific() {
+        let error = classify_sftp_error("write", "/remote/file.txt", "channel closed");
+
+        assert!(matches!(error, SftpError::ConnectionLost(_)));
+        assert_eq!(
+            error.to_string(),
+            "SFTP connection lost: while trying to write /remote/file.txt: channel closed"
+        );
+    }
+
+    #[test]
+    fn test_not_connected_message_is_clear() {
+        assert_eq!(
+            SftpError::NotConnected.to_string(),
+            "SFTP session is not connected"
+        );
     }
 
     #[tokio::test]

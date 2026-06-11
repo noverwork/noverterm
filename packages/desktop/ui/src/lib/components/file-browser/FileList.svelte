@@ -129,6 +129,14 @@
     return `${entry.file_type}:${entry.name}:${index}`;
   }
 
+  function displayName(name: string): string {
+    if (name.length <= 40) {
+      return name;
+    }
+
+    return `${name.slice(0, 37)}...`;
+  }
+
   function handleRowClick(entry: FileEntry): void {
     onSelect(entry);
   }
@@ -214,10 +222,11 @@
       </div>
     {:else if sortedFiles.length === 0}
       <div
-        class="flex h-full min-h-[12rem] items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-slate-400"
+        class="flex h-full min-h-[12rem] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-slate-400"
         data-testid="file-list-empty"
       >
-        No files
+        <Folder class="size-6 text-slate-500" aria-hidden="true" />
+        <span>No files</span>
       </div>
     {:else}
       <ul class="flex flex-col gap-0.5 py-1" data-testid="file-list-rows">
@@ -261,7 +270,7 @@
                     onclick={(event) => handleNameClick(event, entry)}
                     title={entry.name}
                   >
-                    {entry.name}
+                    {displayName(entry.name)}
                   </button>
                 {:else}
                   <button
@@ -270,7 +279,7 @@
                     onclick={(event) => handleNameClick(event, entry)}
                     title={entry.name}
                   >
-                    {entry.name}
+                    {displayName(entry.name)}
                   </button>
                 {/if}
               </span>

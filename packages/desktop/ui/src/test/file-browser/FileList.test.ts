@@ -43,7 +43,7 @@ describe("FileList", () => {
     renderFileList();
 
     expect(screen.getByTestId("file-list-empty")).toBeTruthy();
-    expect(screen.getByTestId("file-list-empty").textContent).toBe("No files");
+    expect(screen.getByTestId("file-list-empty").textContent).toContain("No files");
     expect(screen.queryAllByTestId("file-row")).toHaveLength(0);
   });
 
@@ -70,6 +70,15 @@ describe("FileList", () => {
     expect(screen.getByText("projects")).toBeTruthy();
     expect(screen.getByText("link-to-bin")).toBeTruthy();
     expect(screen.getByText("weird")).toBeTruthy();
+  });
+
+  it("truncates long file names and keeps the full name as a tooltip", () => {
+    const longName = "this-is-a-very-long-sftp-filename-that-needs-truncation.txt";
+
+    renderFileList({ files: [buildEntry({ name: longName })] });
+
+    expect(screen.getByText("this-is-a-very-long-sftp-filename-tha...")).toBeTruthy();
+    expect(screen.getByTitle(longName)).toBeTruthy();
   });
 
   it("formats size human-readable", () => {

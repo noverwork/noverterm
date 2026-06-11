@@ -69,6 +69,8 @@ describe("sftpStore", () => {
     expect(store.remoteLoading).toBe(false);
     expect(store.localError).toBeNull();
     expect(store.remoteError).toBeNull();
+    expect(store.lastError).toBeNull();
+    expect(store.errorQueue).toEqual([]);
     expect(store.activeTransfers.size).toBe(0);
     expect(store.selectedLocal).toBeNull();
     expect(store.selectedRemote).toBeNull();
@@ -94,7 +96,29 @@ describe("sftpStore", () => {
     await store.navigateLocal("/root");
 
     expect(store.localError).toBe("permission denied");
+    expect(store.lastError).toBe("permission denied");
+    expect(store.errorQueue).toMatchObject([
+      { message: "permission denied", type: "error" },
+    ]);
     expect(store.localLoading).toBe(false);
+  });
+
+  it("queues multiple errors and dismisses by id", () => {
+    store.showError("first failure");
+    store.showError("watch out", "warning");
+
+    expect(store.lastError).toBe("watch out");
+    expect(store.errorQueue).toMatchObject([
+      { message: "first failure", type: "error" },
+      { message: "watch out", type: "warning" },
+    ]);
+
+    const firstId = store.errorQueue[0]?.id;
+    expect(firstId).toBeTruthy();
+    store.dismissError(firstId ?? "");
+
+    expect(store.errorQueue).toHaveLength(1);
+    expect(store.errorQueue[0]?.message).toBe("watch out");
   });
 
   it("opens and closes an SFTP session", async () => {
@@ -205,5 +229,9 @@ describe("sftpStore", () => {
 
     expect(store.activeTransfers.has("transfer-1")).toBe(false);
     expect(store.remoteError).toBe("network reset");
+    expect(store.lastError).toBe("network reset");
+    expect(store.errorQueue).toMatchObject([
+      { message: "network reset", type: "error" },
+    ]);
   });
 });
