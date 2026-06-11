@@ -20,7 +20,10 @@ use uuid::Uuid;
 use crate::trust::{HostTrustMismatch, HostTrustPrompt, SshTrustStore, TrustCheck};
 
 use super::keys::{is_rsa_key, load_key_pair, rsa_hash_candidates};
-use super::sftp::{close_sftp_session, open_sftp_session, SftpSession};
+use super::sftp::{
+    close_sftp_session, open_sftp_session, FileEntry, SftpSession, TransferCancellation,
+    TransferProgress,
+};
 
 const SSH_PROBE_TIMEOUT: Duration = Duration::from_secs(8);
 const SSH_PROBE_OUTPUT_LIMIT: usize = 16 * 1024;
@@ -253,7 +256,7 @@ struct SshPortForwardTask {
     task: JoinHandle<()>,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct SshSessionManager {
     sessions: Arc<Mutex<HashMap<String, SshSession>>>,
 }
@@ -434,6 +437,129 @@ impl SshSessionManager {
         Ok(())
     }
 
+    pub async fn open_sftp(&self, session_id: &str) -> Result<String, String> {
+        let mut sessions = self.sessions.lock().await;
+        let session = sessions
+            .get_mut(session_id)
+            .ok_or_else(|| format!("Session not found: {session_id}"))?;
+
+        session.open_sftp().await
+    }
+
+    pub async fn close_sftp(&self, sftp_id: &str) -> Result<(), String> {
+        let mut sessions = self.sessions.lock().await;
+        let session = find_sftp_session_mut(&mut sessions, sftp_id)?;
+
+        session.close_sftp(sftp_id).await
+    }
+
+    pub async fn sftp_list_dir(&self, sftp_id: &str, path: &str) -> Result<Vec<FileEntry>, String> {
+        let sessions = self.sessions.lock().await;
+        let session = find_sftp_session(&sessions, sftp_id)?;
+
+        session
+            .sftp_sessions
+            .get(sftp_id)
+            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+            .list_dir(path)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    pub async fn sftp_stat(&self, sftp_id: &str, path: &str) -> Result<FileEntry, String> {
+        let sessions = self.sessions.lock().await;
+        let session = find_sftp_session(&sessions, sftp_id)?;
+
+        session
+            .sftp_sessions
+            .get(sftp_id)
+            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+            .stat(path)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    pub async fn sftp_mkdir(&self, sftp_id: &str, path: &str) -> Result<(), String> {
+        let sessions = self.sessions.lock().await;
+        let session = find_sftp_session(&sessions, sftp_id)?;
+
+        session
+            .sftp_sessions
+            .get(sftp_id)
+            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+            .mkdir(path)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    pub async fn sftp_remove(&self, sftp_id: &str, path: &str) -> Result<(), String> {
+        let sessions = self.sessions.lock().await;
+        let session = find_sftp_session(&sessions, sftp_id)?;
+
+        session
+            .sftp_sessions
+            .get(sftp_id)
+            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+            .remove(path)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    pub async fn sftp_rename(&self, sftp_id: &str, old: &str, new: &str) -> Result<(), String> {
+        let sessions = self.sessions.lock().await;
+        let session = find_sftp_session(&sessions, sftp_id)?;
+
+        session
+            .sftp_sessions
+            .get(sftp_id)
+            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+            .rename(old, new)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    pub async fn sftp_upload(
+        &self,
+        sftp_id: &str,
+        local_path: &str,
+        remote_path: &str,
+        transfer_id: String,
+        cancel: TransferCancellation,
+        progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
+    ) -> Result<u64, String> {
+        let sessions = self.sessions.lock().await;
+        let session = find_sftp_session(&sessions, sftp_id)?;
+
+        session
+            .sftp_sessions
+            .get(sftp_id)
+            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+            .upload(local_path, remote_path, transfer_id, cancel, progress_tx)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    pub async fn sftp_download(
+        &self,
+        sftp_id: &str,
+        remote_path: &str,
+        local_path: &str,
+        transfer_id: String,
+        cancel: TransferCancellation,
+        progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
+    ) -> Result<u64, String> {
+        let sessions = self.sessions.lock().await;
+        let session = find_sftp_session(&sessions, sftp_id)?;
+
+        session
+            .sftp_sessions
+            .get(sftp_id)
+            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+            .download(remote_path, local_path, transfer_id, cancel, progress_tx)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
     pub async fn resize(&self, session_id: &str, cols: u32, rows: u32) -> Result<(), String> {
         let sessions = self.sessions.lock().await;
         let session = sessions
@@ -568,6 +694,26 @@ impl SshSessionManager {
         }
         Ok(())
     }
+}
+
+fn find_sftp_session<'a>(
+    sessions: &'a HashMap<String, SshSession>,
+    sftp_id: &str,
+) -> Result<&'a SshSession, String> {
+    sessions
+        .values()
+        .find(|session| session.sftp_sessions.contains_key(sftp_id))
+        .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))
+}
+
+fn find_sftp_session_mut<'a>(
+    sessions: &'a mut HashMap<String, SshSession>,
+    sftp_id: &str,
+) -> Result<&'a mut SshSession, String> {
+    sessions
+        .values_mut()
+        .find(|session| session.sftp_sessions.contains_key(sftp_id))
+        .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))
 }
 
 impl SshSession {

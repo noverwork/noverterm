@@ -3,6 +3,7 @@ pub mod bootstrap;
 pub mod connect;
 pub mod runtime;
 pub mod settings;
+pub mod sftp;
 pub mod trust;
 
 pub use bootstrap::{export_types, run};
@@ -15,6 +16,7 @@ pub const FEATURE_BOUNDARIES: &[&str] = &[
     "trust",
     "settings",
     "connect",
+    "sftp",
 ];
 
 pub fn feature_boundaries() -> &'static [&'static str] {
@@ -37,6 +39,7 @@ mod tests {
                 "trust",
                 "settings",
                 "connect",
+                "sftp",
             ]
         );
     }

@@ -8,6 +8,7 @@ use crate::runtime::local::LocalSessionManager;
 use crate::runtime::port_forward::PortForwardManager;
 use crate::runtime::ssh::SshSessionManager;
 use crate::settings::SettingsManager;
+use crate::sftp::state::TransferState;
 use crate::trust::SshTrustStore;
 
 #[derive(Clone, serde::Serialize, specta::Type)]
@@ -98,6 +99,21 @@ fn command_builder() -> Builder<tauri::Wry> {
         crate::connect::port_forward_start,
         crate::connect::port_forward_stop,
         crate::connect::port_forward_list,
+        crate::sftp::sftp_open,
+        crate::sftp::sftp_close,
+        crate::sftp::sftp_list_dir,
+        crate::sftp::sftp_stat,
+        crate::sftp::sftp_mkdir,
+        crate::sftp::sftp_remove,
+        crate::sftp::sftp_rename,
+        crate::sftp::sftp_upload,
+        crate::sftp::sftp_download,
+        crate::sftp::sftp_cancel_transfer,
+        crate::sftp::local_list_dir,
+        crate::sftp::local_stat,
+        crate::sftp::local_mkdir,
+        crate::sftp::local_remove,
+        crate::sftp::local_rename,
         crate::trust::known_hosts_get,
         crate::trust::known_hosts_remove
     ])
@@ -168,6 +184,9 @@ pub fn run() {
 
             let pf_manager = PortForwardManager::new();
             app.manage(pf_manager);
+
+            let transfer_state = TransferState::new();
+            app.manage(transfer_state);
 
             #[cfg(debug_assertions)]
             {
