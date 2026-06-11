@@ -48,3 +48,4 @@ tauri-plugin-fs = "2"
 [dev-dependencies]
 axum = "0.8"
 rsa = "0.10.0-rc.12"
+tempfile = "3"
