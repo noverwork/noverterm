@@ -24,6 +24,7 @@
     scrollKey?: string;
     onSelect: (entry: FileEntry) => void;
     onNavigate: (entry: FileEntry) => void;
+    onNavigateUp?: () => void;
     onDragStart?: (entry: FileEntry, panel: "local" | "remote") => void;
   }
 
@@ -35,6 +36,7 @@
     scrollKey = panelId,
     onSelect,
     onNavigate,
+    onNavigateUp,
     onDragStart,
   }: Props = $props();
 
@@ -160,15 +162,6 @@
   function handleRowDoubleClick(entry: FileEntry): void {
     if (entry.file_type === "Dir") {
       onNavigate(entry);
-    }
-  }
-
-  function handleNameClick(event: MouseEvent, entry: FileEntry): void {
-    event.stopPropagation();
-    if (entry.file_type === "Dir") {
-      onNavigate(entry);
-    } else {
-      onSelect(entry);
     }
   }
 
@@ -302,16 +295,38 @@
         <Loader2 class="size-4 animate-spin" />
         <span>Loading…</span>
       </div>
-    {:else if sortedFiles.length === 0}
-      <div
-        class="flex h-full min-h-[12rem] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-slate-400"
-        data-testid="file-list-empty"
-      >
-        <Folder class="size-6 text-slate-500" aria-hidden="true" />
-        <span>No files</span>
-      </div>
     {:else}
       <ul class="flex flex-col gap-0.5 py-1" data-testid="file-list-rows">
+        {#if onNavigateUp}
+          <li>
+            <div
+              class="grid w-full grid-cols-[minmax(0,1fr)_6rem_10rem] items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors text-slate-200 hover:bg-white/[0.05]"
+              data-testid="file-row-parent"
+              data-panel={panelId}
+              role="button"
+              tabindex="0"
+              onclick={onNavigateUp}
+              onkeydown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onNavigateUp();
+                }
+              }}
+            >
+              <span class="flex min-w-0 items-center gap-2">
+                <Folder class="size-4 shrink-0 text-cyan-200" />
+                <span
+                  class="min-w-0 flex-1 cursor-pointer truncate text-left font-medium text-white transition-colors hover:text-cyan-200"
+                  title="Parent directory"
+                >
+                  ..
+                </span>
+              </span>
+              <span class="text-right font-mono text-xs text-slate-400">—</span>
+              <span class="text-right text-xs text-slate-400">—</span>
+            </div>
+          </li>
+        {/if}
         {#each sortedFiles as entry, index (rowKey(entry, index))}
           <li>
             <div
@@ -350,23 +365,19 @@
                   <FileQuestion class="size-4 shrink-0 {fileIconClass(entry.file_type)}" />
                 {/if}
                 {#if entry.file_type === "Dir"}
-                  <button
-                    type="button"
+                  <span
                     class="min-w-0 flex-1 cursor-pointer truncate text-left font-medium text-white transition-colors hover:text-cyan-200"
-                    onclick={(event) => handleNameClick(event, entry)}
                     title={entry.name}
                   >
                     {displayName(entry.name)}
-                  </button>
+                  </span>
                 {:else}
-                  <button
-                    type="button"
+                  <span
                     class="min-w-0 flex-1 cursor-pointer truncate text-left text-slate-200 transition-colors hover:text-white"
-                    onclick={(event) => handleNameClick(event, entry)}
                     title={entry.name}
                   >
                     {displayName(entry.name)}
-                  </button>
+                  </span>
                 {/if}
               </span>
               <span class="text-right font-mono text-xs text-slate-400">

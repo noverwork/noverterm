@@ -23,10 +23,12 @@ function renderFileList(options: {
   loading?: boolean;
   onSelect?: (entry: FileEntry) => void;
   onNavigate?: (entry: FileEntry) => void;
+  onNavigateUp?: () => void;
   scrollKey?: string;
 } = {}) {
   const onSelect = options.onSelect ?? vi.fn();
   const onNavigate = options.onNavigate ?? vi.fn();
+  const onNavigateUp = options.onNavigateUp;
   const result = render(FileList, {
     props: {
       files: options.files ?? [],
@@ -35,18 +37,32 @@ function renderFileList(options: {
       scrollKey: options.scrollKey,
       onSelect,
       onNavigate,
+      onNavigateUp,
     },
   });
-  return { ...result, onSelect, onNavigate };
+  return { ...result, onSelect, onNavigate, onNavigateUp };
 }
 
 describe("FileList", () => {
-  it("renders empty state when no files", () => {
+  it("renders no file rows and no empty placeholder when no files", () => {
     renderFileList();
 
-    expect(screen.getByTestId("file-list-empty")).toBeTruthy();
-    expect(screen.getByTestId("file-list-empty").textContent).toContain("No files");
+    expect(screen.getByTestId("file-list-rows")).toBeTruthy();
+    expect(screen.queryByTestId("file-list-empty")).toBeNull();
     expect(screen.queryAllByTestId("file-row")).toHaveLength(0);
+  });
+
+  it("keeps the parent directory row visible when a directory is empty", async () => {
+    const onNavigateUp = vi.fn();
+    renderFileList({ onNavigateUp });
+
+    expect(screen.getByTestId("file-row-parent")).toBeTruthy();
+    expect(screen.getByText("..")).toBeTruthy();
+    expect(screen.queryByText("No files")).toBeNull();
+
+    await fireEvent.click(screen.getByText(".."));
+
+    expect(onNavigateUp).toHaveBeenCalledTimes(1);
   });
 
   it("renders loading state when loading is true", () => {
@@ -213,11 +229,11 @@ describe("FileList", () => {
     expect(onSelect).toHaveBeenCalledWith(target);
   });
 
-  it("emits onNavigate when a directory row is double-clicked", async () => {
+  it("opens a directory when double-clicking its name", async () => {
     const directory = buildEntry({ name: "docs", file_type: "Dir" });
     const { onNavigate } = renderFileList({ files: [directory] });
 
-    await fireEvent.dblClick(screen.getByTestId("file-row"));
+    await fireEvent.dblClick(screen.getByText("docs"));
 
     expect(onNavigate).toHaveBeenCalledTimes(1);
     expect(onNavigate).toHaveBeenCalledWith(directory);
@@ -232,15 +248,23 @@ describe("FileList", () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
-  it("emits onNavigate when clicking the name of a directory entry", async () => {
+  it("selects a directory when clicking its name without navigating", async () => {
     const directory = buildEntry({ name: "src", file_type: "Dir" });
     const { onSelect, onNavigate } = renderFileList({ files: [directory] });
 
-    const nameButton = screen.getByText("src");
-    await fireEvent.click(nameButton);
+    await fireEvent.click(screen.getByText("src"));
+
+    expect(onSelect).toHaveBeenCalledWith(directory);
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it("opens a directory when double-clicking anywhere on its row", async () => {
+    const directory = buildEntry({ name: "src", file_type: "Dir" });
+    const { onNavigate } = renderFileList({ files: [directory] });
+
+    await fireEvent.dblClick(screen.getByTestId("file-row"));
 
     expect(onNavigate).toHaveBeenCalledWith(directory);
-    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it("emits onSelect when clicking the name of a file entry", async () => {

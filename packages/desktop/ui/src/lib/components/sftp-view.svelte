@@ -75,6 +75,34 @@
     }
   }
 
+  function parentDirectoryPath(currentPath: string): string | null {
+    if (!currentPath || currentPath === "/") {
+      return null;
+    }
+    if (currentPath === "~") {
+      return "/";
+    }
+    const lastSlash = currentPath.lastIndexOf("/");
+    if (lastSlash <= 0) {
+      return "/";
+    }
+    return currentPath.slice(0, lastSlash);
+  }
+
+  function handleLocalNavigateUp() {
+    const parent = parentDirectoryPath(sftpStore.localPath);
+    if (parent !== null) {
+      sftpStore.navigateLocal(parent);
+    }
+  }
+
+  function handleRemoteNavigateUp() {
+    const parent = parentDirectoryPath(sftpStore.remotePath);
+    if (parent !== null) {
+      sftpStore.navigateRemote(parent);
+    }
+  }
+
   async function handleCreateFolder(name: string) {
     if (showCreateFolderDialog === "local") {
       await sftpStore.localMkdir(name);
@@ -285,6 +313,7 @@
           scrollKey={sftpStore.localPath}
           onSelect={handleLocalSelect}
           onNavigate={handleLocalNavigate}
+          onNavigateUp={handleLocalNavigateUp}
         />
       </div>
     </div>
@@ -408,6 +437,7 @@
             scrollKey={sftpStore.remotePath}
             onSelect={handleRemoteSelect}
             onNavigate={handleRemoteNavigate}
+            onNavigateUp={handleRemoteNavigateUp}
           />
         </div>
       {/if}
