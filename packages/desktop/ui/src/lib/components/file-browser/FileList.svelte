@@ -9,6 +9,7 @@
     Link2,
     Loader2,
   } from "@lucide/svelte";
+  import { tick } from "svelte";
 
   import type { FileEntry, FileType } from "$lib/types/sftp.js";
 
@@ -20,6 +21,7 @@
     selected: FileEntry | null;
     loading: boolean;
     panelId?: "local" | "remote";
+    scrollKey?: string;
     onSelect: (entry: FileEntry) => void;
     onNavigate: (entry: FileEntry) => void;
     onDragStart?: (entry: FileEntry, panel: "local" | "remote") => void;
@@ -30,6 +32,7 @@
     selected,
     loading,
     panelId = "local",
+    scrollKey = panelId,
     onSelect,
     onNavigate,
     onDragStart,
@@ -37,6 +40,9 @@
 
   let sortBy = $state<SortKey>("name");
   let sortDir = $state<SortDirection>("asc");
+  let scrollContainer: HTMLDivElement | null = $state(null);
+  let rememberedScrollTop = $state(0);
+  let previousScrollKey = $state<string | null>(null);
 
   let sortedFiles = $derived.by(() => {
     const sorted = [...files];
@@ -189,6 +195,43 @@
       event.currentTarget.classList.remove("opacity-50");
     }
   }
+
+  function handleScroll(): void {
+    if (scrollContainer) {
+      rememberedScrollTop = scrollContainer.scrollTop;
+    }
+  }
+
+  $effect(() => {
+    const key = scrollKey;
+    const isLoading = loading;
+    const fileCount = sortedFiles.length;
+
+    if (previousScrollKey === null) {
+      previousScrollKey = key;
+      return;
+    }
+
+    if (key !== previousScrollKey) {
+      previousScrollKey = key;
+      rememberedScrollTop = 0;
+      void tick().then(() => {
+        if (scrollContainer) {
+          scrollContainer.scrollTop = 0;
+        }
+      });
+      return;
+    }
+
+    if (!isLoading && fileCount > 0) {
+      const targetScrollTop = rememberedScrollTop;
+      void tick().then(() => {
+        if (scrollContainer && scrollKey === key) {
+          scrollContainer.scrollTop = targetScrollTop;
+        }
+      });
+    }
+  });
 </script>
 
 <div
@@ -245,8 +288,13 @@
     </button>
   </div>
 
-  <div class="min-h-0 flex-1 overflow-y-auto">
-    {#if loading}
+  <div
+    class="relative min-h-0 flex-1 overflow-y-auto"
+    bind:this={scrollContainer}
+    onscroll={handleScroll}
+    data-testid="file-list-scroll"
+  >
+    {#if loading && sortedFiles.length === 0}
       <div
         class="flex h-full min-h-[12rem] items-center justify-center gap-2 text-sm text-slate-400"
         data-testid="file-list-loading"
@@ -331,6 +379,16 @@
           </li>
         {/each}
       </ul>
+
+      {#if loading}
+        <div
+          class="pointer-events-none sticky bottom-2 ml-auto mr-2 flex w-fit items-center gap-2 rounded-full border border-cyan-300/20 bg-slate-950/90 px-3 py-1.5 text-xs text-cyan-100 shadow-lg shadow-black/30 backdrop-blur"
+          data-testid="file-list-refreshing"
+        >
+          <Loader2 class="size-3.5 animate-spin" />
+          <span>Refreshing…</span>
+        </div>
+      {/if}
     {/if}
   </div>
 </div>

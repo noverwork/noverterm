@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/svelte";
+import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 
 import type { FileEntry } from "$lib/types/sftp.js";
@@ -23,6 +23,7 @@ function renderFileList(options: {
   loading?: boolean;
   onSelect?: (entry: FileEntry) => void;
   onNavigate?: (entry: FileEntry) => void;
+  scrollKey?: string;
 } = {}) {
   const onSelect = options.onSelect ?? vi.fn();
   const onNavigate = options.onNavigate ?? vi.fn();
@@ -31,6 +32,7 @@ function renderFileList(options: {
       files: options.files ?? [],
       selected: options.selected ?? null,
       loading: options.loading ?? false,
+      scrollKey: options.scrollKey,
       onSelect,
       onNavigate,
     },
@@ -52,6 +54,71 @@ describe("FileList", () => {
 
     expect(screen.getByTestId("file-list-loading")).toBeTruthy();
     expect(screen.queryByTestId("file-list-empty")).toBeNull();
+  });
+
+  it("keeps rows mounted while refreshing an existing directory", () => {
+    const files = [buildEntry({ name: "alpha.txt" })];
+
+    renderFileList({ files, loading: true, scrollKey: "/tmp" });
+
+    expect(screen.getByTestId("file-list-rows")).toBeTruthy();
+    expect(screen.getByTestId("file-list-refreshing")).toBeTruthy();
+    expect(screen.queryByTestId("file-list-loading")).toBeNull();
+    expect(screen.getByText("alpha.txt")).toBeTruthy();
+  });
+
+  it("preserves scroll position after refreshing the same directory", async () => {
+    const files = Array.from({ length: 40 }, (_, index) =>
+      buildEntry({ name: `file-${index.toString().padStart(2, "0")}.txt` }),
+    );
+    const { rerender } = renderFileList({ files, scrollKey: "/tmp" });
+    const scrollContainer = screen.getByTestId("file-list-scroll") as HTMLDivElement;
+    scrollContainer.scrollTop = 180;
+    await fireEvent.scroll(scrollContainer);
+
+    await rerender({
+      files,
+      selected: null,
+      loading: true,
+      scrollKey: "/tmp",
+      onSelect: vi.fn(),
+      onNavigate: vi.fn(),
+    });
+    await rerender({
+      files: [...files, buildEntry({ name: "new-file.txt" })],
+      selected: null,
+      loading: false,
+      scrollKey: "/tmp",
+      onSelect: vi.fn(),
+      onNavigate: vi.fn(),
+    });
+
+    await waitFor(() => {
+      expect(scrollContainer.scrollTop).toBe(180);
+    });
+  });
+
+  it("resets scroll position when navigating to a different directory", async () => {
+    const files = Array.from({ length: 20 }, (_, index) =>
+      buildEntry({ name: `file-${index.toString().padStart(2, "0")}.txt` }),
+    );
+    const { rerender } = renderFileList({ files, scrollKey: "/tmp" });
+    const scrollContainer = screen.getByTestId("file-list-scroll") as HTMLDivElement;
+    scrollContainer.scrollTop = 120;
+    await fireEvent.scroll(scrollContainer);
+
+    await rerender({
+      files,
+      selected: null,
+      loading: false,
+      scrollKey: "/tmp/subdir",
+      onSelect: vi.fn(),
+      onNavigate: vi.fn(),
+    });
+
+    await waitFor(() => {
+      expect(scrollContainer.scrollTop).toBe(0);
+    });
   });
 
   it("renders file list with mixed types", () => {
