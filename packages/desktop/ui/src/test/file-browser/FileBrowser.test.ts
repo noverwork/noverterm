@@ -296,6 +296,32 @@ describe("FileBrowser", () => {
     expect(newFolder.disabled).toBe(false);
   });
 
+  it("creates a local folder from the new-folder dialog", async () => {
+    renderFileBrowser();
+
+    await fireEvent.click(screen.getByTestId("local-new-folder"));
+    await fireEvent.input(screen.getByLabelText(/folder name/i), {
+      target: { value: "reports" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: /create/i }));
+
+    expect(mockStore.localMkdir).toHaveBeenCalledWith("reports");
+    expect(mockStore.remoteMkdir).not.toHaveBeenCalled();
+  });
+
+  it("creates a remote folder from the new-folder dialog", async () => {
+    renderFileBrowser();
+
+    await fireEvent.click(screen.getByTestId("remote-new-folder"));
+    await fireEvent.input(screen.getByLabelText(/folder name/i), {
+      target: { value: "logs" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: /create/i }));
+
+    expect(mockStore.remoteMkdir).toHaveBeenCalledWith("logs");
+    expect(mockStore.localMkdir).not.toHaveBeenCalled();
+  });
+
   it("enables rename/delete buttons when a local entry is selected", () => {
     mockStore.selectedLocal = buildEntry({ name: "notes.md" });
     renderFileBrowser();

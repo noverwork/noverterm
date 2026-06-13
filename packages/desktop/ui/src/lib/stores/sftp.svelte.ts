@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
+import { commands, type Result } from "../../bindings";
 import type {
   FileEntry,
   TransferComplete,
@@ -21,6 +22,14 @@ function joinPath(basePath: string, name: string): string {
   }
 
   return `${basePath.replace(/\/+$/, "")}/${name}`;
+}
+
+function unwrapCommandResult<T>(result: Result<T, string>): T {
+  if (result.status === "error") {
+    throw new Error(result.error);
+  }
+
+  return result.data;
 }
 
 function transferPercentage(progress: TransferProgress): number {
@@ -161,7 +170,7 @@ export class SftpStore {
 
   async localMkdir(name: string): Promise<void> {
     try {
-      await invoke("local_mkdir", { path: joinPath(this.localPath, name) });
+      unwrapCommandResult(await commands.localMkdir(joinPath(this.localPath, name)));
       await this.refreshLocal();
     } catch (error: unknown) {
       const message = errorMessage(error);
@@ -312,10 +321,9 @@ export class SftpStore {
     }
 
     try {
-      await invoke("sftp_mkdir", {
-        sessionId: this.sftpSessionId,
-        path: joinPath(this.remotePath, name),
-      });
+      unwrapCommandResult(
+        await commands.sftpMkdir(this.sftpSessionId, joinPath(this.remotePath, name)),
+      );
       await this.refreshRemote();
     } catch (error: unknown) {
       const message = errorMessage(error);

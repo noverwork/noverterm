@@ -107,6 +107,31 @@ describe("sftpStore", () => {
     expect(store.localLoading).toBe(false);
   });
 
+  it("creates a local folder and refreshes the current local directory", async () => {
+    store.localPath = "/tmp";
+    vi.mocked(invoke).mockResolvedValueOnce(null).mockResolvedValueOnce([testFile]);
+
+    await store.localMkdir("new-folder");
+
+    expect(invoke).toHaveBeenCalledWith("local_mkdir", { path: "/tmp/new-folder" });
+    expect(invoke).toHaveBeenCalledWith("local_list_dir", { path: "/tmp" });
+    expect(store.localFiles).toEqual([testFile]);
+    expect(store.localError).toBeNull();
+  });
+
+  it("shows command errors when local folder creation fails", async () => {
+    store.localPath = "/tmp";
+    vi.mocked(invoke).mockRejectedValueOnce("already exists");
+
+    await store.localMkdir("existing");
+
+    expect(store.localError).toBe("already exists");
+    expect(store.errorQueue).toMatchObject([
+      { message: "already exists", type: "error" },
+    ]);
+    expect(invoke).not.toHaveBeenCalledWith("local_list_dir", expect.anything());
+  });
+
   it("queues multiple errors and dismisses by id", () => {
     store.showError("first failure");
     store.showError("watch out", "warning");
@@ -179,6 +204,25 @@ describe("sftpStore", () => {
       path: "/home/user",
     });
     expect(store.remotePath).toBe("/home/user");
+    expect(store.remoteFiles).toEqual([testFile]);
+    expect(store.remoteError).toBeNull();
+  });
+
+  it("creates a remote folder and refreshes the current remote directory", async () => {
+    store.sftpSessionId = "sftp-1";
+    store.remotePath = "/home/user";
+    vi.mocked(invoke).mockResolvedValueOnce(null).mockResolvedValueOnce([testFile]);
+
+    await store.remoteMkdir("new-folder");
+
+    expect(invoke).toHaveBeenCalledWith("sftp_mkdir", {
+      sessionId: "sftp-1",
+      path: "/home/user/new-folder",
+    });
+    expect(invoke).toHaveBeenCalledWith("sftp_list_dir", {
+      sessionId: "sftp-1",
+      path: "/home/user",
+    });
     expect(store.remoteFiles).toEqual([testFile]);
     expect(store.remoteError).toBeNull();
   });
