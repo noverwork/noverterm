@@ -21,7 +21,8 @@
         "title": "noverterm",
         "width": 1200,
         "height": 800,
-        "maximized": true
+        "maximized": true,
+        "dragDropEnabled": false
       }
     ],
     "security": {
