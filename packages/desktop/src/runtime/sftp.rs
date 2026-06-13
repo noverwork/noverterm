@@ -1,16 +1,17 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use std::time::{Duration, Instant};
 
 use russh::client::Handle;
 use russh_sftp::client::fs::Metadata;
-use russh_sftp::client::SftpSession as RusshSftpSession;
+use russh_sftp::client::{Config as RusshSftpConfig, SftpSession as RusshSftpSession};
 use russh_sftp::protocol::FileType as RusshFileType;
 use russh_sftp::protocol::OpenFlags;
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use super::ssh::ClientHandler;
@@ -68,12 +69,14 @@ pub struct TransferError {
 #[derive(Debug, Clone)]
 pub struct TransferCancellation {
     token: Arc<AtomicBool>,
+    reason: Arc<StdMutex<Option<String>>>,
 }
 
 impl TransferCancellation {
     pub fn new() -> Self {
         Self {
             token: Arc::new(AtomicBool::new(false)),
+            reason: Arc::new(StdMutex::new(None)),
         }
     }
 
@@ -81,8 +84,20 @@ impl TransferCancellation {
         self.token.store(true, Ordering::SeqCst);
     }
 
+    pub fn cancel_with_reason(&self, reason: impl Into<String>) {
+        if let Ok(mut current_reason) = self.reason.lock() {
+            *current_reason = Some(reason.into());
+        }
+
+        self.cancel();
+    }
+
     pub fn is_cancelled(&self) -> bool {
         self.token.load(Ordering::SeqCst)
+    }
+
+    pub fn reason(&self) -> Option<String> {
+        self.reason.lock().ok().and_then(|reason| reason.clone())
     }
 }
 
@@ -528,7 +543,7 @@ pub(crate) async fn open_sftp_session(
         .await
         .map_err(|error| SftpError::SubsystemNotSupported(error.to_string()))?;
 
-    let session = RusshSftpSession::new(channel.into_stream())
+    let session = RusshSftpSession::new_with_config(channel.into_stream(), sftp_client_config())
         .await
         .map_err(|error| SftpError::SessionInitFailed(error.to_string()))?;
 
@@ -576,10 +591,7 @@ pub async fn list_sftp_dir(
 /// If the path starts with `~`, it is resolved to the user's home directory
 /// using SFTP's `realpath` command. Otherwise, the path is passed through
 /// unchanged.
-async fn resolve_remote_path(
-    session: &RusshSftpSession,
-    path: &str,
-) -> Result<String, SftpError> {
+async fn resolve_remote_path(session: &RusshSftpSession, path: &str) -> Result<String, SftpError> {
     if path.starts_with('~') {
         session
             .canonicalize(path)
@@ -746,18 +758,64 @@ pub async fn rename_sftp(
         return Err(SftpError::AlreadyExists);
     }
 
-    session.rename(&resolved_old, &resolved_new).await.map_err(|error| {
-        let message = error.to_string();
-        if message.to_lowercase().contains("exists") {
-            SftpError::AlreadyExists
-        } else {
-            classify_sftp_error("write", &resolved_old, message)
-        }
-    })
+    session
+        .rename(&resolved_old, &resolved_new)
+        .await
+        .map_err(|error| {
+            let message = error.to_string();
+            if message.to_lowercase().contains("exists") {
+                SftpError::AlreadyExists
+            } else {
+                classify_sftp_error("write", &resolved_old, message)
+            }
+        })
 }
 
-const UPLOAD_CHUNK_SIZE: usize = 32 * 1024;
+const SFTP_MAX_CONCURRENT_WRITES: usize = 1;
+const SFTP_MAX_PACKET_LEN: u32 = 256 * 1024;
+const SFTP_REQUEST_TIMEOUT_SECS: u64 = 30;
+const UPLOAD_CHUNK_SIZE: usize = 16 * 1024;
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
+const TRANSFER_LOG_INTERVAL: Duration = Duration::from_secs(2);
+const TRANSFER_LOG_BYTES: u64 = 1024 * 1024;
+const WRITE_STALL_WARN_AFTER: Duration = Duration::from_secs(2);
+const FAILED_UPLOAD_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
+
+fn sftp_request_timeout() -> Duration {
+    Duration::from_secs(SFTP_REQUEST_TIMEOUT_SECS)
+}
+
+fn sftp_timeout_error(operation: &str, bytes_transferred: u64) -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::TimedOut,
+        format!(
+            "SFTP {operation} timed out after {SFTP_REQUEST_TIMEOUT_SECS}s waiting for remote ACKs at {bytes_transferred} bytes"
+        ),
+    )
+}
+
+fn sftp_cancelled_error(operation: &str, cancel: &TransferCancellation) -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::Interrupted,
+        cancel
+            .reason()
+            .unwrap_or_else(|| format!("SFTP {operation} cancelled")),
+    )
+}
+
+async fn wait_for_cancellation(cancel: &TransferCancellation) {
+    while !cancel.is_cancelled() {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+pub(crate) fn sftp_client_config() -> RusshSftpConfig {
+    RusshSftpConfig {
+        max_packet_len: SFTP_MAX_PACKET_LEN,
+        max_concurrent_writes: SFTP_MAX_CONCURRENT_WRITES,
+        request_timeout_secs: SFTP_REQUEST_TIMEOUT_SECS,
+    }
+}
 
 struct ProgressEmitter {
     transfer_id: String,
@@ -790,6 +848,14 @@ impl ProgressEmitter {
 
     fn maybe_emit(&mut self, bytes_transferred: u64) -> Option<TransferProgress> {
         self.maybe_emit_at(bytes_transferred, Instant::now())
+    }
+
+    fn emit_final(&mut self, bytes_transferred: u64) -> Option<TransferProgress> {
+        if bytes_transferred == self.last_emit_bytes {
+            return None;
+        }
+
+        self.emit(bytes_transferred, Instant::now())
     }
 
     fn maybe_emit_at(&mut self, bytes_transferred: u64, now: Instant) -> Option<TransferProgress> {
@@ -835,6 +901,342 @@ fn speed_bps(bytes_transferred: u64, elapsed: Duration) -> u64 {
     (bytes_transferred as f64 / elapsed_secs) as u64
 }
 
+struct TransferLogger {
+    transfer_id: String,
+    total_bytes: u64,
+    direction: TransferDirection,
+    started_at: Instant,
+    last_log_at: Instant,
+    last_log_bytes: u64,
+}
+
+impl TransferLogger {
+    fn new(transfer_id: String, total_bytes: u64, direction: TransferDirection) -> Self {
+        let now = Instant::now();
+        Self {
+            transfer_id,
+            total_bytes,
+            direction,
+            started_at: now,
+            last_log_at: now,
+            last_log_bytes: 0,
+        }
+    }
+
+    fn log_started(&self, chunk_size: usize) {
+        info!(
+            transfer_id = %self.transfer_id,
+            direction = ?self.direction,
+            total_bytes = self.total_bytes,
+            chunk_size,
+            max_concurrent_writes = SFTP_MAX_CONCURRENT_WRITES,
+            max_packet_len = SFTP_MAX_PACKET_LEN,
+            request_timeout_secs = SFTP_REQUEST_TIMEOUT_SECS,
+            "SFTP transfer started"
+        );
+    }
+
+    fn maybe_log_progress(&mut self, bytes_transferred: u64) {
+        let now = Instant::now();
+        let byte_delta = bytes_transferred.saturating_sub(self.last_log_bytes);
+        let elapsed_since_log = now.duration_since(self.last_log_at);
+        let complete = bytes_transferred == self.total_bytes;
+
+        if !complete && byte_delta < TRANSFER_LOG_BYTES && elapsed_since_log < TRANSFER_LOG_INTERVAL
+        {
+            return;
+        }
+
+        info!(
+            transfer_id = %self.transfer_id,
+            direction = ?self.direction,
+            bytes_transferred,
+            total_bytes = self.total_bytes,
+            elapsed_ms = now.duration_since(self.started_at).as_millis(),
+            speed_bps = speed_bps(bytes_transferred, now.duration_since(self.started_at)),
+            "SFTP transfer progress"
+        );
+        self.last_log_at = now;
+        self.last_log_bytes = bytes_transferred;
+    }
+
+    fn log_finished(&self, bytes_transferred: u64) {
+        info!(
+            transfer_id = %self.transfer_id,
+            direction = ?self.direction,
+            bytes_transferred,
+            total_bytes = self.total_bytes,
+            elapsed_ms = Instant::now().duration_since(self.started_at).as_millis(),
+            "SFTP transfer finished"
+        );
+    }
+
+    fn log_failed(&self, error: &SftpError) {
+        warn!(
+            transfer_id = %self.transfer_id,
+            direction = ?self.direction,
+            total_bytes = self.total_bytes,
+            elapsed_ms = Instant::now().duration_since(self.started_at).as_millis(),
+            error = %error,
+            "SFTP transfer failed"
+        );
+    }
+}
+
+async fn write_all_with_stall_warning<W>(
+    writer: &mut W,
+    buffer: &[u8],
+    logger: &TransferLogger,
+    cancel: &TransferCancellation,
+    bytes_transferred: u64,
+) -> std::io::Result<()>
+where
+    W: AsyncWrite + Unpin,
+{
+    let started_at = Instant::now();
+    let write = writer.write_all(buffer);
+    tokio::pin!(write);
+    let timeout = tokio::time::sleep(sftp_request_timeout());
+    tokio::pin!(timeout);
+    let mut warned = false;
+
+    loop {
+        tokio::select! {
+            _ = wait_for_cancellation(cancel) => {
+                warn!(
+                    transfer_id = %logger.transfer_id,
+                    direction = ?logger.direction,
+                    bytes_transferred,
+                    chunk_bytes = buffer.len(),
+                    elapsed_ms = started_at.elapsed().as_millis(),
+                    reason = ?cancel.reason(),
+                    "SFTP write cancelled"
+                );
+                return Err(sftp_cancelled_error("write", cancel));
+            }
+            _ = &mut timeout => {
+                warn!(
+                    transfer_id = %logger.transfer_id,
+                    direction = ?logger.direction,
+                    bytes_transferred,
+                    chunk_bytes = buffer.len(),
+                    elapsed_ms = started_at.elapsed().as_millis(),
+                    max_concurrent_writes = SFTP_MAX_CONCURRENT_WRITES,
+                    "SFTP write timed out waiting for ACK/window"
+                );
+                return Err(sftp_timeout_error("write", bytes_transferred));
+            }
+            result = &mut write => {
+                if warned {
+                    info!(
+                        transfer_id = %logger.transfer_id,
+                        direction = ?logger.direction,
+                        bytes_transferred,
+                        chunk_bytes = buffer.len(),
+                        elapsed_ms = started_at.elapsed().as_millis(),
+                        "SFTP write resumed after waiting for ACK/window"
+                    );
+                }
+                return result;
+            }
+            _ = tokio::time::sleep(WRITE_STALL_WARN_AFTER), if !warned => {
+                warned = true;
+                warn!(
+                    transfer_id = %logger.transfer_id,
+                    direction = ?logger.direction,
+                    bytes_transferred,
+                    chunk_bytes = buffer.len(),
+                    stall_ms = WRITE_STALL_WARN_AFTER.as_millis(),
+                    max_concurrent_writes = SFTP_MAX_CONCURRENT_WRITES,
+            "SFTP write is waiting for ACK"
+                );
+            }
+        }
+    }
+}
+
+async fn flush_with_stall_warning<W>(
+    writer: &mut W,
+    logger: &TransferLogger,
+    cancel: &TransferCancellation,
+    bytes_transferred: u64,
+) -> std::io::Result<()>
+where
+    W: AsyncWrite + Unpin,
+{
+    let started_at = Instant::now();
+    info!(
+        transfer_id = %logger.transfer_id,
+        direction = ?logger.direction,
+        bytes_transferred,
+        "SFTP flush started"
+    );
+
+    let flush = writer.flush();
+    tokio::pin!(flush);
+    let timeout = tokio::time::sleep(sftp_request_timeout());
+    tokio::pin!(timeout);
+    let mut warned = false;
+
+    loop {
+        tokio::select! {
+            _ = wait_for_cancellation(cancel) => {
+                warn!(
+                    transfer_id = %logger.transfer_id,
+                    direction = ?logger.direction,
+                    bytes_transferred,
+                    elapsed_ms = started_at.elapsed().as_millis(),
+                    reason = ?cancel.reason(),
+                    "SFTP flush cancelled"
+                );
+                return Err(sftp_cancelled_error("flush", cancel));
+            }
+            _ = &mut timeout => {
+                warn!(
+                    transfer_id = %logger.transfer_id,
+                    direction = ?logger.direction,
+                    bytes_transferred,
+                    elapsed_ms = started_at.elapsed().as_millis(),
+                    "SFTP flush timed out waiting for outstanding ACKs"
+                );
+                return Err(sftp_timeout_error("flush", bytes_transferred));
+            }
+            result = &mut flush => {
+                info!(
+                    transfer_id = %logger.transfer_id,
+                    direction = ?logger.direction,
+                    bytes_transferred,
+                    elapsed_ms = started_at.elapsed().as_millis(),
+                    "SFTP flush finished"
+                );
+                return result;
+            }
+            _ = tokio::time::sleep(WRITE_STALL_WARN_AFTER), if !warned => {
+                warned = true;
+                warn!(
+                    transfer_id = %logger.transfer_id,
+                    direction = ?logger.direction,
+                    bytes_transferred,
+                    stall_ms = WRITE_STALL_WARN_AFTER.as_millis(),
+                    "SFTP flush is waiting for outstanding ACKs"
+                );
+            }
+        }
+    }
+}
+
+async fn shutdown_with_stall_warning<W>(
+    writer: &mut W,
+    logger: &TransferLogger,
+    cancel: &TransferCancellation,
+    bytes_transferred: u64,
+) -> std::io::Result<()>
+where
+    W: AsyncWrite + Unpin,
+{
+    let started_at = Instant::now();
+    info!(
+        transfer_id = %logger.transfer_id,
+        direction = ?logger.direction,
+        bytes_transferred,
+        "SFTP shutdown started"
+    );
+
+    let shutdown = writer.shutdown();
+    tokio::pin!(shutdown);
+    let timeout = tokio::time::sleep(sftp_request_timeout());
+    tokio::pin!(timeout);
+    let mut warned = false;
+
+    loop {
+        tokio::select! {
+            _ = wait_for_cancellation(cancel) => {
+                warn!(
+                    transfer_id = %logger.transfer_id,
+                    direction = ?logger.direction,
+                    bytes_transferred,
+                    elapsed_ms = started_at.elapsed().as_millis(),
+                    reason = ?cancel.reason(),
+                    "SFTP shutdown cancelled"
+                );
+                return Err(sftp_cancelled_error("shutdown", cancel));
+            }
+            _ = &mut timeout => {
+                warn!(
+                    transfer_id = %logger.transfer_id,
+                    direction = ?logger.direction,
+                    bytes_transferred,
+                    elapsed_ms = started_at.elapsed().as_millis(),
+                    "SFTP shutdown timed out waiting for close ACK"
+                );
+                return Err(sftp_timeout_error("shutdown", bytes_transferred));
+            }
+            result = &mut shutdown => {
+                info!(
+                    transfer_id = %logger.transfer_id,
+                    direction = ?logger.direction,
+                    bytes_transferred,
+                    elapsed_ms = started_at.elapsed().as_millis(),
+                    "SFTP shutdown finished"
+                );
+                return result;
+            }
+            _ = tokio::time::sleep(WRITE_STALL_WARN_AFTER), if !warned => {
+                warned = true;
+                warn!(
+                    transfer_id = %logger.transfer_id,
+                    direction = ?logger.direction,
+                    bytes_transferred,
+                    stall_ms = WRITE_STALL_WARN_AFTER.as_millis(),
+                    "SFTP shutdown is waiting for close ACK"
+                );
+            }
+        }
+    }
+}
+
+async fn cleanup_failed_upload(
+    session: &RusshSftpSession,
+    remote_path: &str,
+    logger: &TransferLogger,
+) {
+    info!(
+        transfer_id = %logger.transfer_id,
+        direction = ?logger.direction,
+        remote_path,
+        timeout_ms = FAILED_UPLOAD_CLEANUP_TIMEOUT.as_millis(),
+        "SFTP failed upload cleanup started"
+    );
+
+    match tokio::time::timeout(
+        FAILED_UPLOAD_CLEANUP_TIMEOUT,
+        session.remove_file(remote_path),
+    )
+    .await
+    {
+        Ok(Ok(())) => info!(
+            transfer_id = %logger.transfer_id,
+            direction = ?logger.direction,
+            remote_path,
+            "SFTP failed upload cleanup finished"
+        ),
+        Ok(Err(error)) => warn!(
+            transfer_id = %logger.transfer_id,
+            direction = ?logger.direction,
+            remote_path,
+            error = %error,
+            "SFTP failed upload cleanup failed"
+        ),
+        Err(_) => warn!(
+            transfer_id = %logger.transfer_id,
+            direction = ?logger.direction,
+            remote_path,
+            timeout_ms = FAILED_UPLOAD_CLEANUP_TIMEOUT.as_millis(),
+            "SFTP failed upload cleanup timed out"
+        ),
+    }
+}
+
 pub async fn upload_sftp(
     session: &RusshSftpSession,
     local_path: &str,
@@ -860,18 +1262,24 @@ pub async fn upload_sftp(
         .map_err(|error| classify_sftp_error("write", remote_path, error))?;
 
     let mut progress = ProgressEmitter::new(
-        transfer_id,
+        transfer_id.clone(),
         total_bytes,
         TransferDirection::Upload,
         progress_tx,
     );
+    let mut transfer_log = TransferLogger::new(transfer_id, total_bytes, TransferDirection::Upload);
+    transfer_log.log_started(UPLOAD_CHUNK_SIZE);
     let mut buffer = vec![0; UPLOAD_CHUNK_SIZE];
     let mut bytes_transferred = 0;
 
     let result = async {
         loop {
             if cancel.is_cancelled() {
-                return Err(SftpError::OperationFailed("upload cancelled".to_string()));
+                return Err(SftpError::OperationFailed(
+                    cancel
+                        .reason()
+                        .unwrap_or_else(|| "upload cancelled".to_string()),
+                ));
             }
 
             let read_count = local_file
@@ -882,30 +1290,38 @@ pub async fn upload_sftp(
                 break;
             }
 
-            remote_file
-                .write_all(&buffer[..read_count])
-                .await
-                .map_err(|error| classify_sftp_error("write", remote_path, error))?;
+            write_all_with_stall_warning(
+                &mut remote_file,
+                &buffer[..read_count],
+                &transfer_log,
+                &cancel,
+                bytes_transferred,
+            )
+            .await
+            .map_err(|error| classify_sftp_error("write", remote_path, error))?;
             bytes_transferred += read_count as u64;
             progress.maybe_emit(bytes_transferred);
+            transfer_log.maybe_log_progress(bytes_transferred);
         }
 
-        remote_file
-            .flush()
+        flush_with_stall_warning(&mut remote_file, &transfer_log, &cancel, bytes_transferred)
             .await
             .map_err(|error| classify_sftp_error("write", remote_path, error))?;
-        remote_file
-            .shutdown()
+        shutdown_with_stall_warning(&mut remote_file, &transfer_log, &cancel, bytes_transferred)
             .await
             .map_err(|error| classify_sftp_error("write", remote_path, error))?;
 
-        progress.maybe_emit(bytes_transferred);
+        progress.emit_final(bytes_transferred);
+        transfer_log.log_finished(bytes_transferred);
         Ok(bytes_transferred)
     }
     .await;
 
     if result.is_err() {
-        let _ = session.remove_file(remote_path).await;
+        if let Err(error) = &result {
+            transfer_log.log_failed(error);
+        }
+        cleanup_failed_upload(session, remote_path, &transfer_log).await;
     }
 
     result
@@ -979,7 +1395,7 @@ async fn upload_mock(
             tokio::time::sleep(Duration::from_millis(1)).await;
         }
 
-        if let Some(event) = progress.maybe_emit(bytes_transferred) {
+        if let Some(event) = progress.emit_final(bytes_transferred) {
             progress_callbacks
                 .lock()
                 .map_err(|error| SftpError::OperationFailed(error.to_string()))?
@@ -1054,7 +1470,7 @@ pub async fn download_sftp(
             .flush()
             .await
             .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
-        progress.maybe_emit(bytes_transferred);
+        progress.emit_final(bytes_transferred);
         Ok(bytes_transferred)
     }
     .await;
@@ -1147,7 +1563,7 @@ async fn download_mock(
             .flush()
             .await
             .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
-        if let Some(event) = progress.maybe_emit(bytes_transferred) {
+        if let Some(event) = progress.emit_final(bytes_transferred) {
             progress_callbacks
                 .lock()
                 .map_err(|error| SftpError::OperationFailed(error.to_string()))?
@@ -1378,9 +1794,9 @@ mod tests {
     use tokio::io::AsyncWriteExt;
 
     use super::{
-        classify_sftp_error, FileEntry, FileType, MockEntry, ProgressEmitter, SftpError,
-        SftpSession, SftpSessionManager, TransferCancellation, TransferDirection,
-        UPLOAD_CHUNK_SIZE,
+        classify_sftp_error, sftp_client_config, FileEntry, FileType, MockEntry, ProgressEmitter,
+        RusshSftpConfig, SftpError, SftpSession, SftpSessionManager, TransferCancellation,
+        TransferDirection, SFTP_MAX_PACKET_LEN, SFTP_REQUEST_TIMEOUT_SECS, UPLOAD_CHUNK_SIZE,
     };
 
     fn mock_file() -> MockEntry {
@@ -1805,6 +2221,19 @@ mod tests {
 
         assert_eq!(error, SftpError::NotFound("/missing/file.txt".to_string()));
         assert_eq!(error.to_string(), "Path not found: /missing/file.txt");
+    }
+
+    #[test]
+    fn test_sftp_client_config_uses_sequential_upload_window() {
+        let default_config = RusshSftpConfig::default();
+        let config = sftp_client_config();
+
+        assert_eq!(config.max_concurrent_writes, 1);
+        assert!(config.max_concurrent_writes < default_config.max_concurrent_writes);
+        assert_eq!(config.request_timeout_secs, SFTP_REQUEST_TIMEOUT_SECS);
+        assert_eq!(config.max_packet_len, SFTP_MAX_PACKET_LEN);
+        assert_eq!(config.max_packet_len, default_config.max_packet_len);
+        assert_eq!(UPLOAD_CHUNK_SIZE, 16 * 1024);
     }
 
     #[test]

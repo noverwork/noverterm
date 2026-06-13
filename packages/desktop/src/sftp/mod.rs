@@ -1,6 +1,9 @@
 pub mod state;
 
+use std::time::Duration;
+
 use tauri::{AppHandle, Emitter, State};
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::runtime::local_fs;
@@ -129,6 +132,7 @@ pub async fn sftp_upload(
     ssh_manager: State<'_, SshSessionManager>,
     transfer_state: State<'_, TransferState>,
 ) -> Result<String, String> {
+    let local_path = normalize_local_path(&local_path)?;
     spawn_transfer(
         app,
         session_id,
@@ -151,6 +155,7 @@ pub async fn sftp_download(
     ssh_manager: State<'_, SshSessionManager>,
     transfer_state: State<'_, TransferState>,
 ) -> Result<String, String> {
+    let local_path = normalize_local_path(&local_path)?;
     spawn_transfer(
         app,
         session_id,
@@ -173,7 +178,7 @@ pub async fn sftp_cancel_transfer(
     let cancellation = cancellations
         .get(&transfer_id)
         .ok_or_else(|| format!("Transfer not found: {transfer_id}"))?;
-    cancellation.cancel();
+    cancellation.cancel_with_reason("transfer cancelled by user");
     Ok(())
 }
 
@@ -207,6 +212,10 @@ pub async fn local_rename(old_path: String, new_path: String) -> Result<(), Stri
     local_fs::local_rename(&old_path, &new_path).await
 }
 
+fn normalize_local_path(path: &str) -> Result<String, String> {
+    local_fs::expand_tilde(path).map(|expanded| expanded.to_string_lossy().into_owned())
+}
+
 async fn spawn_transfer(
     app: AppHandle,
     session_id: String,
@@ -232,7 +241,45 @@ async fn spawn_transfer(
         }
     });
 
+    let watchdog_transfer_id = transfer_id.clone();
+    let watchdog_session_id = session_id.clone();
+    let watchdog_cancellation = cancellation.clone();
+    let watchdog_cancellations = transfer_state.cancellations.clone();
+    let watchdog_ssh_manager = ssh_manager.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_millis(500));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+        loop {
+            interval.tick().await;
+
+            let transfer_active = watchdog_cancellations
+                .lock()
+                .await
+                .contains_key(&watchdog_transfer_id);
+            if !transfer_active {
+                break;
+            }
+
+            if watchdog_ssh_manager
+                .contains_sftp_session(&watchdog_session_id)
+                .await
+            {
+                continue;
+            }
+
+            warn!(
+                transfer_id = %watchdog_transfer_id,
+                session_id = %watchdog_session_id,
+                "Cancelling SFTP transfer because SSH session disappeared"
+            );
+            watchdog_cancellation.cancel_with_reason("SSH session disconnected during transfer");
+            break;
+        }
+    });
+
     let task_transfer_id = transfer_id.clone();
+    let transfer_cancellations = transfer_state.cancellations.clone();
     tokio::spawn(async move {
         let result = match direction {
             TransferDirection::Upload => {
@@ -260,6 +307,11 @@ async fn spawn_transfer(
                     .await
             }
         };
+
+        transfer_cancellations
+            .lock()
+            .await
+            .remove(&task_transfer_id);
 
         match result {
             Ok(total_bytes) => {
@@ -306,6 +358,29 @@ mod tests {
         let _ = sftp_upload;
         let _ = sftp_download;
         let _ = sftp_cancel_transfer;
+    }
+
+    #[test]
+    fn test_normalize_local_path_expands_tilde() {
+        if let Ok(home) = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
+            let normalized =
+                normalize_local_path("~/report.pdf").expect("tilde path should normalize");
+
+            assert_eq!(
+                normalized,
+                std::path::PathBuf::from(home)
+                    .join("report.pdf")
+                    .to_string_lossy()
+            );
+        }
+    }
+
+    #[test]
+    fn test_normalize_local_path_keeps_remote_like_absolute_path() {
+        let normalized =
+            normalize_local_path("/home/dyson/report.pdf").expect("absolute path should normalize");
+
+        assert_eq!(normalized, "/home/dyson/report.pdf");
     }
 
     #[tokio::test]

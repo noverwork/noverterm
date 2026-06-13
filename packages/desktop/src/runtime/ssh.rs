@@ -22,7 +22,7 @@ use crate::trust::{HostTrustMismatch, HostTrustPrompt, SshTrustStore, TrustCheck
 
 use super::keys::{is_rsa_key, load_key_pair, rsa_hash_candidates};
 use super::sftp::{
-    close_sftp_session, open_sftp_session, FileEntry, SftpSession, TransferCancellation,
+    open_sftp_session, sftp_client_config, FileEntry, SftpSession, TransferCancellation,
     TransferProgress,
 };
 
@@ -247,7 +247,7 @@ impl client::Handler for ClientHandler {
 pub struct SshSession {
     pub(crate) handle: Arc<Mutex<Handle<ClientHandler>>>,
     pub(crate) channel_write: Option<ChannelWriteHalf<Msg>>,
-    sftp_sessions: HashMap<String, SftpSession>,
+    sftp_sessions: HashMap<String, Arc<SftpSession>>,
     port_forwards: HashMap<String, SshPortForwardTask>,
     keepalive_task: Option<JoinHandle<()>>,
 }
@@ -463,25 +463,29 @@ impl SshSessionManager {
         trust_store: SshTrustStore,
     ) -> Result<String, String> {
         let sftp_session_id = Uuid::new_v4().to_string();
-        info!(sftp_session_id, host, port, username, "Starting direct SFTP connection");
+        info!(
+            sftp_session_id,
+            host, port, username, "Starting direct SFTP connection"
+        );
 
         let config = client_config(None);
         let trust_check = Arc::new(Mutex::new(None));
-        let handler = ClientHandler::new(
-            host.to_string(),
-            port,
-            trust_store,
-            trust_check.clone(),
-        );
+        let handler = ClientHandler::new(host.to_string(), port, trust_store, trust_check.clone());
 
         let mut session = match client::connect(config, (host.to_string(), port), handler).await {
             Ok(session) => session,
             Err(error) => {
                 let response = map_connect_error(error, trust_check).await;
                 return match response {
-                    Ok(SshConnectResponse::Connected { .. }) => Err("Unexpected connected response".to_string()),
-                    Ok(SshConnectResponse::TrustRequired { prompt }) => Err(format!("Trust required: {}", prompt.fingerprint)),
-                    Ok(SshConnectResponse::TrustMismatch { mismatch }) => Err(format!("Trust mismatch: {}", mismatch.expected_fingerprint)),
+                    Ok(SshConnectResponse::Connected { .. }) => {
+                        Err("Unexpected connected response".to_string())
+                    }
+                    Ok(SshConnectResponse::TrustRequired { prompt }) => {
+                        Err(format!("Trust required: {}", prompt.fingerprint))
+                    }
+                    Ok(SshConnectResponse::TrustMismatch { mismatch }) => {
+                        Err(format!("Trust mismatch: {}", mismatch.expected_fingerprint))
+                    }
                     Err(e) => Err(e),
                 };
             }
@@ -514,7 +518,7 @@ impl SshSessionManager {
 
         info!(sftp_session_id, "SFTP subsystem requested");
 
-        let sftp = RusshSftpSession::new(channel.into_stream())
+        let sftp = RusshSftpSession::new_with_config(channel.into_stream(), sftp_client_config())
             .await
             .map_err(|e| format!("Failed to create SFTP session: {}", e))?;
 
@@ -541,7 +545,7 @@ impl SshSessionManager {
             SshSession {
                 handle: session_handle,
                 channel_write: None,
-                sftp_sessions: HashMap::from([(sftp_session_id.clone(), sftp_session)]),
+                sftp_sessions: HashMap::from([(sftp_session_id.clone(), Arc::new(sftp_session))]),
                 port_forwards: HashMap::new(),
                 keepalive_task: Some(keepalive_task),
             },
@@ -552,85 +556,73 @@ impl SshSessionManager {
     }
 
     pub async fn close_sftp(&self, sftp_id: &str) -> Result<(), String> {
-        let mut sessions = self.sessions.lock().await;
-        let session = find_sftp_session_mut(&mut sessions, sftp_id)?;
+        let (ssh_id, sftp_session) = {
+            let mut sessions = self.sessions.lock().await;
+            remove_sftp_session(&mut sessions, sftp_id)?
+        };
 
-        session.close_sftp(sftp_id).await
+        if let Err(error) = sftp_session.close().await {
+            let mut sessions = self.sessions.lock().await;
+            if let Some(session) = sessions.get_mut(&ssh_id) {
+                session
+                    .sftp_sessions
+                    .insert(sftp_id.to_string(), sftp_session);
+            }
+            return Err(error.to_string());
+        }
+
+        Ok(())
     }
 
     pub async fn sftp_list_dir(&self, sftp_id: &str, path: &str) -> Result<Vec<FileEntry>, String> {
-        let sessions = self.sessions.lock().await;
-        let session = find_sftp_session(&sessions, sftp_id)?;
+        let sftp_session = self.sftp_session(sftp_id).await?;
 
-        session
-            .sftp_sessions
-            .get(sftp_id)
-            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+        sftp_session
             .list_dir(path)
             .await
             .map_err(|error| error.to_string())
     }
 
     pub async fn sftp_home_dir(&self, sftp_id: &str) -> Result<String, String> {
-        let sessions = self.sessions.lock().await;
-        let session = find_sftp_session(&sessions, sftp_id)?;
+        let sftp_session = self.sftp_session(sftp_id).await?;
 
-        session
-            .sftp_sessions
-            .get(sftp_id)
-            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+        sftp_session
             .home_dir()
             .await
             .map_err(|error| error.to_string())
     }
 
     pub async fn sftp_stat(&self, sftp_id: &str, path: &str) -> Result<FileEntry, String> {
-        let sessions = self.sessions.lock().await;
-        let session = find_sftp_session(&sessions, sftp_id)?;
+        let sftp_session = self.sftp_session(sftp_id).await?;
 
-        session
-            .sftp_sessions
-            .get(sftp_id)
-            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+        sftp_session
             .stat(path)
             .await
             .map_err(|error| error.to_string())
     }
 
     pub async fn sftp_mkdir(&self, sftp_id: &str, path: &str) -> Result<(), String> {
-        let sessions = self.sessions.lock().await;
-        let session = find_sftp_session(&sessions, sftp_id)?;
+        let sftp_session = self.sftp_session(sftp_id).await?;
 
-        session
-            .sftp_sessions
-            .get(sftp_id)
-            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+        sftp_session
             .mkdir(path)
             .await
             .map_err(|error| error.to_string())
     }
 
     pub async fn sftp_remove(&self, sftp_id: &str, path: &str) -> Result<(), String> {
-        let sessions = self.sessions.lock().await;
-        let session = find_sftp_session(&sessions, sftp_id)?;
+        let sftp_session = self.sftp_session(sftp_id).await?;
 
-        session
-            .sftp_sessions
-            .get(sftp_id)
-            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+        sftp_session
             .remove(path)
             .await
             .map_err(|error| error.to_string())
     }
 
     pub async fn sftp_rename(&self, sftp_id: &str, old: &str, new: &str) -> Result<(), String> {
-        let sessions = self.sessions.lock().await;
-        let session = find_sftp_session(&sessions, sftp_id)?;
+        let sftp_session = self.sftp_session(sftp_id).await?;
 
-        session
-            .sftp_sessions
-            .get(sftp_id)
-            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+        sftp_session
             .rename(old, new)
             .await
             .map_err(|error| error.to_string())
@@ -645,13 +637,9 @@ impl SshSessionManager {
         cancel: TransferCancellation,
         progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
     ) -> Result<u64, String> {
-        let sessions = self.sessions.lock().await;
-        let session = find_sftp_session(&sessions, sftp_id)?;
+        let sftp_session = self.sftp_session(sftp_id).await?;
 
-        session
-            .sftp_sessions
-            .get(sftp_id)
-            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+        sftp_session
             .upload(local_path, remote_path, transfer_id, cancel, progress_tx)
             .await
             .map_err(|error| error.to_string())
@@ -666,16 +654,17 @@ impl SshSessionManager {
         cancel: TransferCancellation,
         progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
     ) -> Result<u64, String> {
-        let sessions = self.sessions.lock().await;
-        let session = find_sftp_session(&sessions, sftp_id)?;
+        let sftp_session = self.sftp_session(sftp_id).await?;
 
-        session
-            .sftp_sessions
-            .get(sftp_id)
-            .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))?
+        sftp_session
             .download(remote_path, local_path, transfer_id, cancel, progress_tx)
             .await
             .map_err(|error| error.to_string())
+    }
+
+    async fn sftp_session(&self, sftp_id: &str) -> Result<Arc<SftpSession>, String> {
+        let sessions = self.sessions.lock().await;
+        find_sftp_session(&sessions, sftp_id)
     }
 
     pub async fn resize(&self, session_id: &str, cols: u32, rows: u32) -> Result<(), String> {
@@ -818,26 +807,41 @@ impl SshSessionManager {
         }
         Ok(())
     }
+
+    pub async fn contains_session(&self, session_id: &str) -> bool {
+        self.sessions.lock().await.contains_key(session_id)
+    }
+
+    pub async fn contains_sftp_session(&self, sftp_id: &str) -> bool {
+        self.sessions
+            .lock()
+            .await
+            .values()
+            .any(|session| session.sftp_sessions.contains_key(sftp_id))
+    }
 }
 
-fn find_sftp_session<'a>(
-    sessions: &'a HashMap<String, SshSession>,
+fn find_sftp_session(
+    sessions: &HashMap<String, SshSession>,
     sftp_id: &str,
-) -> Result<&'a SshSession, String> {
+) -> Result<Arc<SftpSession>, String> {
     sessions
         .values()
-        .find(|session| session.sftp_sessions.contains_key(sftp_id))
+        .find_map(|session| session.sftp_sessions.get(sftp_id).cloned())
         .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))
 }
 
-fn find_sftp_session_mut<'a>(
-    sessions: &'a mut HashMap<String, SshSession>,
+fn remove_sftp_session(
+    sessions: &mut HashMap<String, SshSession>,
     sftp_id: &str,
-) -> Result<&'a mut SshSession, String> {
-    sessions
-        .values_mut()
-        .find(|session| session.sftp_sessions.contains_key(sftp_id))
-        .ok_or_else(|| format!("SFTP session not found: {sftp_id}"))
+) -> Result<(String, Arc<SftpSession>), String> {
+    for (ssh_id, session) in sessions.iter_mut() {
+        if let Some(sftp_session) = session.sftp_sessions.remove(sftp_id) {
+            return Ok((ssh_id.clone(), sftp_session));
+        }
+    }
+
+    Err(format!("SFTP session not found: {sftp_id}"))
 }
 
 impl SshSession {
@@ -852,14 +856,9 @@ impl SshSession {
             .map_err(|error| error.to_string())?;
         let session_id = session.id().to_string();
 
-        self.sftp_sessions.insert(session_id.clone(), session);
+        self.sftp_sessions
+            .insert(session_id.clone(), Arc::new(session));
         Ok(session_id)
-    }
-
-    pub async fn close_sftp(&mut self, sftp_id: &str) -> Result<(), String> {
-        close_sftp_session(&mut self.sftp_sessions, sftp_id)
-            .await
-            .map_err(|error| error.to_string())
     }
 
     fn stop_runtime_tasks(
