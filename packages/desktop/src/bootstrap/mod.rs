@@ -1,4 +1,4 @@
-use specta_typescript::Typescript;
+use specta_typescript::{BigIntExportBehavior, Typescript};
 use tauri::Manager;
 use tauri_specta::{collect_commands, Builder};
 use tracing_subscriber::EnvFilter;
@@ -125,7 +125,10 @@ pub fn export_types() -> Result<(), Box<dyn std::error::Error>> {
     let builder = command_builder();
     let bindings_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("ui/src/bindings.ts");
 
-    builder.export(Typescript::default(), &bindings_path)?;
+    builder.export(
+        Typescript::default().bigint(BigIntExportBehavior::Number),
+        &bindings_path,
+    )?;
 
     let bindings = std::fs::read_to_string(&bindings_path)?;
     let globals_marker = "/** tauri-specta globals **/";

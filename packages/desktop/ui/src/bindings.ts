@@ -136,6 +136,142 @@ async portForwardList() : Promise<Result<PortForwardStatus[], string>> {
     else return { status: "error", error: String(e) };
 }
 },
+async sftpOpen(sessionId: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_open", { sessionId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async sftpClose(sessionId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_close", { sessionId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async sftpConnectDirect(host: string, port: number, username: string, password: string | null, privateKey: string | null, passphrase: string | null) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_connect_direct", { host, port, username, password, privateKey, passphrase }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async sftpHomeDir(sessionId: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_home_dir", { sessionId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async sftpListDir(sessionId: string, path: string) : Promise<Result<FileEntry[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_list_dir", { sessionId, path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async sftpStat(sessionId: string, path: string) : Promise<Result<FileEntry, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_stat", { sessionId, path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async sftpMkdir(sessionId: string, path: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_mkdir", { sessionId, path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async sftpRemove(sessionId: string, path: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_remove", { sessionId, path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async sftpRename(sessionId: string, oldPath: string, newPath: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_rename", { sessionId, oldPath, newPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async sftpUpload(sessionId: string, localPath: string, remotePath: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_upload", { sessionId, localPath, remotePath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async sftpDownload(sessionId: string, remotePath: string, localPath: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_download", { sessionId, remotePath, localPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async sftpCancelTransfer(transferId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_cancel_transfer", { transferId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async localListDir(path: string) : Promise<Result<FileEntry[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("local_list_dir", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async localStat(path: string) : Promise<Result<FileEntry, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("local_stat", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async localMkdir(path: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("local_mkdir", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async localRemove(path: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("local_remove", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async localRename(oldPath: string, newPath: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("local_rename", { oldPath, newPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async knownHostsGet() : Promise<Result<KnownHostsResponse, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("known_hosts_get") };
@@ -166,6 +302,8 @@ async knownHostsRemove(host: string, port: number) : Promise<Result<KnownHostsRe
 
 export type AppSettings = { api_url: string }
 export type DirectSshConnectInput = { host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null }
+export type FileEntry = { name: string; size: number; modified: number | null; file_type: FileType }
+export type FileType = "File" | "Dir" | "Symlink" | "Other"
 export type HostSystemInfo = { hostname: string | null; os: string | null; cpu_usage_percent: number | null; memory_total_bytes: number | null; memory_used_bytes: number | null; memory_usage_percent: number | null; disk_read_bytes_per_second: number | null; disk_write_bytes_per_second: number | null; network_rx_bytes_per_second: number | null; network_tx_bytes_per_second: number | null }
 export type HostTrustConfirmation = { host: string; port: number; algorithm: string; fingerprint: string }
 export type HostTrustMismatch = { host: string; port: number; expected_algorithm: string; expected_fingerprint: string; presented_algorithm: string; presented_fingerprint: string }
