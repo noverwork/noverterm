@@ -8,6 +8,9 @@ import type {
   TransferProgress,
 } from "$lib/types/sftp.js";
 
+const TRANSFER_PROGRESS_LOG_BYTES = 1024 * 1024;
+const TRANSFER_PROGRESS_LOG_MS = 2000;
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -18,6 +21,17 @@ function joinPath(basePath: string, name: string): string {
   }
 
   return `${basePath.replace(/\/+$/, "")}/${name}`;
+}
+
+function transferPercentage(progress: TransferProgress): number {
+  if (progress.total_bytes <= 0) return 0;
+
+  return (progress.bytes_transferred / progress.total_bytes) * 100;
+}
+
+interface TransferProgressLogState {
+  bytesTransferred: number;
+  loggedAt: number;
 }
 
 export interface ErrorToast {
@@ -50,6 +64,7 @@ export class SftpStore {
   private unlistenComplete: UnlistenFn | null = null;
   private unlistenError: UnlistenFn | null = null;
   private nextErrorId = 0;
+  private progressLogState = new Map<string, TransferProgressLogState>();
 
   showError(message: string, type: ErrorToast["type"] = "error"): void {
     this.lastError = message;
@@ -161,6 +176,7 @@ export class SftpStore {
     passphrase?: string;
   }): Promise<void> {
     try {
+      this.sshSessionId = null;
       this.sftpSessionId = await invoke<string>("sftp_connect_direct", {
         host: options.host,
         port: options.port,
@@ -340,7 +356,6 @@ export class SftpStore {
     target: "local" | "remote",
     entry: FileEntry,
   ): Promise<void> {
-    console.log("[SFTP] dropTransfer called", { source, target, entry, sessionId: this.sftpSessionId, isConnected: this.isConnected });
     if (entry.file_type !== "File") {
       this.showError("Only files can be transferred via drag-and-drop", "warning");
       return;
@@ -353,17 +368,14 @@ export class SftpStore {
       }
       const localPath = joinPath(this.localPath, entry.name);
       const remotePath = joinPath(this.remotePath, entry.name);
-      console.log("[SFTP] uploading", { localPath, remotePath });
       try {
-        const transferId = await invoke<string>("sftp_upload", {
+        await invoke<string>("sftp_upload", {
           sessionId: this.sftpSessionId,
           localPath,
           remotePath,
         });
-        console.log("[SFTP] upload started", { transferId });
         this.showError(`Uploading ${entry.name}...`, "info");
       } catch (error: unknown) {
-        console.error("[SFTP] upload failed", error);
         this.showError(errorMessage(error));
       }
     } else {
@@ -373,17 +385,14 @@ export class SftpStore {
       }
       const remotePath = joinPath(this.remotePath, entry.name);
       const localPath = joinPath(this.localPath, entry.name);
-      console.log("[SFTP] downloading", { remotePath, localPath });
       try {
-        const transferId = await invoke<string>("sftp_download", {
+        await invoke<string>("sftp_download", {
           sessionId: this.sftpSessionId,
           remotePath,
           localPath,
         });
-        console.log("[SFTP] download started", { transferId });
         this.showError(`Downloading ${entry.name}...`, "info");
       } catch (error: unknown) {
-        console.error("[SFTP] download failed", error);
         this.showError(errorMessage(error));
       }
     }
@@ -402,6 +411,7 @@ export class SftpStore {
     this.lastError = null;
     this.errorQueue = [];
     this.activeTransfers = new Map();
+    this.progressLogState.clear();
     this.selectedLocal = null;
     this.selectedRemote = null;
     this.sftpSessionId = null;
@@ -411,32 +421,44 @@ export class SftpStore {
 
   private async setupEventListeners(): Promise<void> {
     if (!this.unlistenProgress) {
+      console.info("[SFTP][Store] registering progress listener");
       this.unlistenProgress = await listen<TransferProgress>(
         "sftp://progress",
         (event) => {
           const progress = new Map(this.activeTransfers);
           progress.set(event.payload.transfer_id, event.payload);
           this.activeTransfers = progress;
+          this.logTransferProgress(event.payload);
         },
       );
     }
 
     if (!this.unlistenComplete) {
+      console.info("[SFTP][Store] registering complete listener");
       this.unlistenComplete = await listen<TransferComplete>(
         "sftp://complete",
         (event) => {
+          console.info("[SFTP][Store] complete event", event.payload);
+          this.progressLogState.delete(event.payload.transfer_id);
           const progress = new Map(this.activeTransfers);
           progress.delete(event.payload.transfer_id);
           this.activeTransfers = progress;
-          void this.refreshRemote();
+          if (event.payload.direction === "Download") {
+            void this.refreshLocal();
+          } else {
+            void this.refreshRemote();
+          }
         },
       );
     }
 
     if (!this.unlistenError) {
+      console.info("[SFTP][Store] registering error listener");
       this.unlistenError = await listen<TransferError>(
         "sftp://error",
         (event) => {
+          console.error("[SFTP][Store] error event", event.payload);
+          this.progressLogState.delete(event.payload.transfer_id);
           const progress = new Map(this.activeTransfers);
           progress.delete(event.payload.transfer_id);
           this.activeTransfers = progress;
@@ -448,12 +470,43 @@ export class SftpStore {
   }
 
   private async teardownEventListeners(): Promise<void> {
+    console.info("[SFTP][Store] tearing down transfer listeners");
     this.unlistenProgress?.();
     this.unlistenComplete?.();
     this.unlistenError?.();
     this.unlistenProgress = null;
     this.unlistenComplete = null;
     this.unlistenError = null;
+    this.progressLogState.clear();
+  }
+
+  private logTransferProgress(progress: TransferProgress): void {
+    const now = Date.now();
+    const previous = this.progressLogState.get(progress.transfer_id);
+    const bytesDelta = previous
+      ? progress.bytes_transferred - previous.bytesTransferred
+      : progress.bytes_transferred;
+    const elapsedMs = previous ? now - previous.loggedAt : TRANSFER_PROGRESS_LOG_MS;
+    const complete = progress.total_bytes > 0
+      && progress.bytes_transferred >= progress.total_bytes;
+
+    if (previous && !complete && bytesDelta < TRANSFER_PROGRESS_LOG_BYTES && elapsedMs < TRANSFER_PROGRESS_LOG_MS) {
+      return;
+    }
+
+    console.info("[SFTP][Store] progress event", {
+      transferId: progress.transfer_id,
+      direction: progress.direction,
+      bytesTransferred: progress.bytes_transferred,
+      totalBytes: progress.total_bytes,
+      percentage: transferPercentage(progress),
+      speedBps: progress.speed_bps,
+    });
+
+    this.progressLogState.set(progress.transfer_id, {
+      bytesTransferred: progress.bytes_transferred,
+      loggedAt: now,
+    });
   }
 }
 

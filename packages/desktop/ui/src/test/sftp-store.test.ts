@@ -143,6 +143,27 @@ describe("sftpStore", () => {
     expect(unlistenFns.get("sftp://error")).toHaveBeenCalledOnce();
   });
 
+  it("clears SSH session state when opening a direct SFTP connection", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === "sftp_connect_direct") return "direct-sftp-1";
+      if (cmd === "sftp_home_dir") return "/home/direct";
+      if (cmd === "sftp_list_dir") return [];
+      return undefined;
+    });
+    store.sshSessionId = "ssh-1";
+
+    await store.connectDirect({
+      host: "example.com",
+      port: 22,
+      username: "user",
+      password: "secret",
+    });
+
+    expect(store.sshSessionId).toBeNull();
+    expect(store.sftpSessionId).toBe("direct-sftp-1");
+    expect(store.isDirectConnection).toBe(true);
+  });
+
   it("navigates remote directory when SFTP is open", async () => {
     vi.mocked(invoke).mockResolvedValueOnce("sftp-1").mockResolvedValueOnce([testFile]);
 
@@ -184,8 +205,10 @@ describe("sftpStore", () => {
   });
 
   it("tracks progress events and removes completed transfers", async () => {
+    const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => undefined);
     vi.mocked(invoke).mockResolvedValue("sftp-1");
     await store.openSftp("ssh-1");
+    vi.mocked(invoke).mockClear();
 
     const progress: TransferProgress = {
       transfer_id: "transfer-1",
@@ -197,6 +220,7 @@ describe("sftpStore", () => {
 
     emitEvent("sftp://progress", progress);
     expect(store.activeTransfers.get("transfer-1")).toEqual(progress);
+    expect(debugSpy).not.toHaveBeenCalled();
 
     emitEvent("sftp://complete", {
       transfer_id: "transfer-1",
@@ -205,6 +229,37 @@ describe("sftpStore", () => {
     });
 
     expect(store.activeTransfers.has("transfer-1")).toBe(false);
+    expect(invoke).toHaveBeenCalledWith("sftp_list_dir", {
+      sessionId: "sftp-1",
+      path: store.remotePath,
+    });
+    expect(invoke).not.toHaveBeenCalledWith("local_list_dir", expect.anything());
+    debugSpy.mockRestore();
+  });
+
+  it("refreshes the local directory after a download completes", async () => {
+    vi.mocked(invoke).mockResolvedValue("sftp-1");
+    await store.openSftp("ssh-1");
+    store.localPath = "/downloads";
+    vi.mocked(invoke).mockClear();
+
+    emitEvent("sftp://progress", {
+      transfer_id: "transfer-2",
+      bytes_transferred: 50,
+      total_bytes: 100,
+      speed_bps: 10,
+      direction: "Download",
+    });
+
+    emitEvent("sftp://complete", {
+      transfer_id: "transfer-2",
+      total_bytes: 100,
+      direction: "Download",
+    });
+
+    expect(store.activeTransfers.has("transfer-2")).toBe(false);
+    expect(invoke).toHaveBeenCalledWith("local_list_dir", { path: "/downloads" });
+    expect(invoke).not.toHaveBeenCalledWith("sftp_list_dir", expect.anything());
   });
 
   it("removes failed transfers and exposes remote error", async () => {
