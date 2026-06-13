@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { FileEntry, TransferProgress } from "$lib/types/sftp.js";
+import type { TransferConflict } from "$lib/stores/sftp.svelte.js";
 
 import FileBrowser from "$lib/components/file-browser/FileBrowser.svelte";
 
@@ -20,6 +21,7 @@ type SftpStoreMock = {
     type: "error" | "warning" | "info";
   }>;
   activeTransfers: Map<string, TransferProgress>;
+  transferConflict: TransferConflict | null;
   selectedLocal: FileEntry | null;
   selectedRemote: FileEntry | null;
   sftpSessionId: string | null;
@@ -38,6 +40,8 @@ type SftpStoreMock = {
   startDownload: ReturnType<typeof vi.fn>;
   dropTransfer: ReturnType<typeof vi.fn>;
   cancelTransfer: ReturnType<typeof vi.fn>;
+  resolveTransferConflict: ReturnType<typeof vi.fn>;
+  cancelTransferConflict: ReturnType<typeof vi.fn>;
   dismissError: ReturnType<typeof vi.fn>;
 };
 
@@ -53,6 +57,7 @@ const { mockStore } = vi.hoisted(() => {
     remoteError: null,
     errorQueue: [],
     activeTransfers: new Map<string, TransferProgress>(),
+    transferConflict: null,
     selectedLocal: null,
     selectedRemote: null,
     sftpSessionId: "sftp-1",
@@ -71,6 +76,8 @@ const { mockStore } = vi.hoisted(() => {
     startDownload: vi.fn(),
     dropTransfer: vi.fn(),
     cancelTransfer: vi.fn(),
+    resolveTransferConflict: vi.fn(),
+    cancelTransferConflict: vi.fn(),
     dismissError: vi.fn(),
   };
   return { mockStore: store };
@@ -105,6 +112,7 @@ function resetMockStore(): void {
   mockStore.remoteError = null;
   mockStore.errorQueue = [];
   mockStore.activeTransfers = new Map<string, TransferProgress>();
+  mockStore.transferConflict = null;
   mockStore.selectedLocal = null;
   mockStore.selectedRemote = null;
   mockStore.sftpSessionId = "sftp-1";
@@ -123,6 +131,8 @@ function resetMockStore(): void {
   mockStore.startDownload.mockReset();
   mockStore.dropTransfer.mockReset();
   mockStore.cancelTransfer.mockReset();
+  mockStore.resolveTransferConflict.mockReset();
+  mockStore.cancelTransferConflict.mockReset();
   mockStore.dismissError.mockReset();
 }
 
@@ -315,5 +325,25 @@ describe("FileBrowser", () => {
 
     expect(mockStore.dropTransfer).toHaveBeenCalledTimes(1);
     expect(mockStore.dropTransfer).toHaveBeenCalledWith("local", "remote", entry);
+  });
+
+  it("renders transfer conflict actions", async () => {
+    mockStore.transferConflict = {
+      fileName: "report.pdf",
+      existingName: "report.pdf",
+      suggestedName: "report (1).pdf",
+      direction: "Upload",
+    };
+    renderFileBrowser();
+
+    expect(screen.getByTestId("transfer-conflict-dialog")).toBeTruthy();
+    expect(screen.getByTestId("transfer-conflict-original").textContent).toContain("report.pdf");
+    expect(screen.getByTestId("transfer-conflict-suggested").textContent).toContain("report (1).pdf");
+
+    await fireEvent.click(screen.getByTestId("transfer-conflict-rename"));
+    expect(mockStore.resolveTransferConflict).toHaveBeenCalledWith("rename");
+
+    await fireEvent.click(screen.getByTestId("transfer-conflict-overwrite"));
+    expect(mockStore.resolveTransferConflict).toHaveBeenCalledWith("overwrite");
   });
 });

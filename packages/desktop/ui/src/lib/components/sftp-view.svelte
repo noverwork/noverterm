@@ -5,6 +5,7 @@
   import TransferProgress from "./file-browser/TransferProgress.svelte";
   import CreateFolderDialog from "./file-browser/CreateFolderDialog.svelte";
   import RenameDialog from "./file-browser/RenameDialog.svelte";
+  import TransferConflictDialog from "./file-browser/TransferConflictDialog.svelte";
   import DeleteConfirmDialog from "./file-browser/DeleteConfirmDialog.svelte";
   import { sftpStore } from "$lib/stores/sftp.svelte.js";
   import type { ConnectionConfig } from "$lib/app-data-types.js";
@@ -185,6 +186,14 @@
       return;
     }
     void sftpStore.dropTransfer(payload.panel, panel, payload.entry);
+  }
+
+  async function handleTransferConflictOverwrite(): Promise<void> {
+    await sftpStore.resolveTransferConflict("overwrite");
+  }
+
+  async function handleTransferConflictRename(): Promise<void> {
+    await sftpStore.resolveTransferConflict("rename");
   }
 </script>
 
@@ -420,6 +429,13 @@
     onCancel={() => showCreateFolderDialog = null}
   />
 {/if}
+
+<TransferConflictDialog
+  conflict={sftpStore.transferConflict}
+  onOverwrite={handleTransferConflictOverwrite}
+  onRename={handleTransferConflictRename}
+  onCancel={() => sftpStore.cancelTransferConflict()}
+/>
 
 {#if showRenameDialog}
   <RenameDialog

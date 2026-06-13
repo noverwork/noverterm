@@ -34,6 +34,65 @@ interface TransferProgressLogState {
   loggedAt: number;
 }
 
+export type TransferConflictChoice = "overwrite" | "rename";
+
+export interface TransferConflict {
+  fileName: string;
+  existingName: string;
+  suggestedName: string;
+  direction: "Upload" | "Download";
+}
+
+interface PendingTransferConflict extends TransferConflict {
+  sourcePath: string;
+  targetPath: string;
+  renamedTargetPath: string;
+}
+
+function splitNameAndExtension(name: string): { baseName: string; extension: string } {
+  const dotIndex = name.lastIndexOf(".");
+  if (dotIndex <= 0) {
+    return { baseName: name, extension: "" };
+  }
+
+  return {
+    baseName: name.slice(0, dotIndex),
+    extension: name.slice(dotIndex),
+  };
+}
+
+function stripNumericCopySuffix(baseName: string): { rootName: string; nextIndex: number } {
+  const match = /^(.*) \((\d+)\)$/.exec(baseName);
+  if (!match) {
+    return { rootName: baseName, nextIndex: 1 };
+  }
+
+  const parsed = Number.parseInt(match[2] ?? "", 10);
+  return {
+    rootName: match[1] ?? baseName,
+    nextIndex: Number.isFinite(parsed) ? parsed + 1 : 1,
+  };
+}
+
+export function nextAvailableTransferName(name: string, entries: FileEntry[]): string {
+  const existingNames = new Set(entries.map((entry) => entry.name));
+  if (!existingNames.has(name)) {
+    return name;
+  }
+
+  const { baseName, extension } = splitNameAndExtension(name);
+  const { rootName, nextIndex } = stripNumericCopySuffix(baseName);
+  let index = nextIndex;
+  let candidate = `${rootName} (${index})${extension}`;
+
+  while (existingNames.has(candidate)) {
+    index += 1;
+    candidate = `${rootName} (${index})${extension}`;
+  }
+
+  return candidate;
+}
+
 export interface ErrorToast {
   id: string;
   message: string;
@@ -52,6 +111,7 @@ export class SftpStore {
   lastError = $state<string | null>(null);
   errorQueue = $state<ErrorToast[]>([]);
   activeTransfers = $state<Map<string, TransferProgress>>(new Map());
+  transferConflict = $state<TransferConflict | null>(null);
   selectedLocal = $state<FileEntry | null>(null);
   selectedRemote = $state<FileEntry | null>(null);
   sftpSessionId = $state<string | null>(null);
@@ -65,6 +125,7 @@ export class SftpStore {
   private unlistenError: UnlistenFn | null = null;
   private nextErrorId = 0;
   private progressLogState = new Map<string, TransferProgressLogState>();
+  private pendingTransferConflict: PendingTransferConflict | null = null;
 
   showError(message: string, type: ErrorToast["type"] = "error"): void {
     this.lastError = message;
@@ -136,6 +197,7 @@ export class SftpStore {
 
   async openSftp(sshSessionId: string): Promise<void> {
     try {
+      this.cancelTransferConflict();
       this.sshSessionId = sshSessionId;
       this.sftpSessionId = await invoke<string>("sftp_open", {
         sessionId: sshSessionId,
@@ -152,6 +214,7 @@ export class SftpStore {
 
   async closeSftp(): Promise<void> {
     try {
+      this.cancelTransferConflict();
       if (this.sftpSessionId) {
         await invoke("sftp_close", { sessionId: this.sftpSessionId });
         this.sftpSessionId = null;
@@ -176,6 +239,7 @@ export class SftpStore {
     passphrase?: string;
   }): Promise<void> {
     try {
+      this.cancelTransferConflict();
       this.sshSessionId = null;
       this.sftpSessionId = await invoke<string>("sftp_connect_direct", {
         host: options.host,
@@ -308,11 +372,28 @@ export class SftpStore {
       return undefined;
     }
 
+    const localPath = joinPath(this.localPath, localEntry.name);
+    const remotePath = joinPath(this.remotePath, localEntry.name);
+    const targetName = nextAvailableTransferName(localEntry.name, this.remoteFiles);
+
+    if (targetName !== localEntry.name) {
+      this.setTransferConflict({
+        fileName: localEntry.name,
+        existingName: localEntry.name,
+        suggestedName: targetName,
+        direction: "Upload",
+        sourcePath: localPath,
+        targetPath: remotePath,
+        renamedTargetPath: joinPath(this.remotePath, targetName),
+      });
+      return undefined;
+    }
+
     try {
-      return await invoke<string>("sftp_upload", {
-        sessionId: this.sftpSessionId,
-        localPath: joinPath(this.localPath, localEntry.name),
-        remotePath: joinPath(this.remotePath, localEntry.name),
+      return await this.invokePendingTransfer({
+        direction: "Upload",
+        sourcePath: localPath,
+        targetPath: remotePath,
       });
     } catch (error: unknown) {
       const message = errorMessage(error);
@@ -329,11 +410,28 @@ export class SftpStore {
       return undefined;
     }
 
+    const remotePath = joinPath(this.remotePath, remoteEntry.name);
+    const localPath = joinPath(this.localPath, remoteEntry.name);
+    const targetName = nextAvailableTransferName(remoteEntry.name, this.localFiles);
+
+    if (targetName !== remoteEntry.name) {
+      this.setTransferConflict({
+        fileName: remoteEntry.name,
+        existingName: remoteEntry.name,
+        suggestedName: targetName,
+        direction: "Download",
+        sourcePath: remotePath,
+        targetPath: localPath,
+        renamedTargetPath: joinPath(this.localPath, targetName),
+      });
+      return undefined;
+    }
+
     try {
-      return await invoke<string>("sftp_download", {
-        sessionId: this.sftpSessionId,
-        remotePath: joinPath(this.remotePath, remoteEntry.name),
-        localPath: joinPath(this.localPath, remoteEntry.name),
+      return await this.invokePendingTransfer({
+        direction: "Download",
+        sourcePath: remotePath,
+        targetPath: localPath,
       });
     } catch (error: unknown) {
       const message = errorMessage(error);
@@ -348,6 +446,38 @@ export class SftpStore {
       await invoke("sftp_cancel_transfer", { transferId });
     } catch (error: unknown) {
       this.showError(errorMessage(error));
+    }
+  }
+
+  cancelTransferConflict(): void {
+    this.transferConflict = null;
+    this.pendingTransferConflict = null;
+  }
+
+  async resolveTransferConflict(choice: TransferConflictChoice): Promise<string | undefined> {
+    const pending = this.pendingTransferConflict;
+    if (!pending) {
+      this.transferConflict = null;
+      return undefined;
+    }
+
+    this.transferConflict = null;
+    this.pendingTransferConflict = null;
+    const targetPath = choice === "rename" ? pending.renamedTargetPath : pending.targetPath;
+
+    try {
+      const transferId = await this.invokePendingTransfer({
+        direction: pending.direction,
+        sourcePath: pending.sourcePath,
+        targetPath,
+      });
+      const action = pending.direction === "Upload" ? "Uploading" : "Downloading";
+      const fileName = choice === "rename" ? pending.suggestedName : pending.fileName;
+      this.showError(`${action} ${fileName}...`, "info");
+      return transferId;
+    } catch (error: unknown) {
+      this.showError(errorMessage(error));
+      return undefined;
     }
   }
 
@@ -368,11 +498,25 @@ export class SftpStore {
       }
       const localPath = joinPath(this.localPath, entry.name);
       const remotePath = joinPath(this.remotePath, entry.name);
+      const targetName = nextAvailableTransferName(entry.name, this.remoteFiles);
+      if (targetName !== entry.name) {
+        this.setTransferConflict({
+          fileName: entry.name,
+          existingName: entry.name,
+          suggestedName: targetName,
+          direction: "Upload",
+          sourcePath: localPath,
+          targetPath: remotePath,
+          renamedTargetPath: joinPath(this.remotePath, targetName),
+        });
+        return;
+      }
+
       try {
-        await invoke<string>("sftp_upload", {
-          sessionId: this.sftpSessionId,
-          localPath,
-          remotePath,
+        await this.invokePendingTransfer({
+          direction: "Upload",
+          sourcePath: localPath,
+          targetPath: remotePath,
         });
         this.showError(`Uploading ${entry.name}...`, "info");
       } catch (error: unknown) {
@@ -385,11 +529,25 @@ export class SftpStore {
       }
       const remotePath = joinPath(this.remotePath, entry.name);
       const localPath = joinPath(this.localPath, entry.name);
+      const targetName = nextAvailableTransferName(entry.name, this.localFiles);
+      if (targetName !== entry.name) {
+        this.setTransferConflict({
+          fileName: entry.name,
+          existingName: entry.name,
+          suggestedName: targetName,
+          direction: "Download",
+          sourcePath: remotePath,
+          targetPath: localPath,
+          renamedTargetPath: joinPath(this.localPath, targetName),
+        });
+        return;
+      }
+
       try {
-        await invoke<string>("sftp_download", {
-          sessionId: this.sftpSessionId,
-          remotePath,
-          localPath,
+        await this.invokePendingTransfer({
+          direction: "Download",
+          sourcePath: remotePath,
+          targetPath: localPath,
         });
         this.showError(`Downloading ${entry.name}...`, "info");
       } catch (error: unknown) {
@@ -411,6 +569,8 @@ export class SftpStore {
     this.lastError = null;
     this.errorQueue = [];
     this.activeTransfers = new Map();
+    this.transferConflict = null;
+    this.pendingTransferConflict = null;
     this.progressLogState.clear();
     this.selectedLocal = null;
     this.selectedRemote = null;
@@ -506,6 +666,36 @@ export class SftpStore {
     this.progressLogState.set(progress.transfer_id, {
       bytesTransferred: progress.bytes_transferred,
       loggedAt: now,
+    });
+  }
+
+  private setTransferConflict(conflict: PendingTransferConflict): void {
+    this.pendingTransferConflict = conflict;
+    this.transferConflict = {
+      fileName: conflict.fileName,
+      existingName: conflict.existingName,
+      suggestedName: conflict.suggestedName,
+      direction: conflict.direction,
+    };
+  }
+
+  private async invokePendingTransfer(options: {
+    direction: "Upload" | "Download";
+    sourcePath: string;
+    targetPath: string;
+  }): Promise<string> {
+    if (options.direction === "Upload") {
+      return await invoke<string>("sftp_upload", {
+        sessionId: this.sftpSessionId,
+        localPath: options.sourcePath,
+        remotePath: options.targetPath,
+      });
+    }
+
+    return await invoke<string>("sftp_download", {
+      sessionId: this.sftpSessionId,
+      remotePath: options.sourcePath,
+      localPath: options.targetPath,
     });
   }
 }

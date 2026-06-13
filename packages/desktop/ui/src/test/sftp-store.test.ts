@@ -31,7 +31,11 @@ vi.mock("@tauri-apps/api/event", () => ({
 }));
 
 import { invoke } from "@tauri-apps/api/core";
-import { createSftpStore, type SftpStore } from "$lib/stores/sftp.svelte.js";
+import {
+  createSftpStore,
+  nextAvailableTransferName,
+  type SftpStore,
+} from "$lib/stores/sftp.svelte.js";
 
 const testFile: FileEntry = {
   name: "test.txt",
@@ -323,6 +327,70 @@ describe("sftpStore", () => {
       });
     });
 
+    it("prompts before uploading over an existing remote file", async () => {
+      vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        if (cmd === "sftp_connect_direct") return "sftp-1";
+        if (cmd === "sftp_home_dir") return "/home/user";
+        if (cmd === "sftp_list_dir") return [];
+        if (cmd === "sftp_upload") return "transfer-1";
+        return undefined;
+      });
+      await store.connectDirect({
+        host: "example.com",
+        port: 22,
+        username: "user",
+        password: "secret",
+      });
+      store.remoteFiles = [fileEntry, { ...fileEntry, name: "report (1).pdf" }];
+
+      vi.mocked(invoke).mockClear();
+      await store.dropTransfer("local", "remote", fileEntry);
+
+      expect(invoke).not.toHaveBeenCalledWith("sftp_upload", expect.anything());
+      expect(store.transferConflict).toEqual({
+        fileName: "report.pdf",
+        existingName: "report.pdf",
+        suggestedName: "report (2).pdf",
+        direction: "Upload",
+      });
+
+      await store.resolveTransferConflict("rename");
+
+      expect(invoke).toHaveBeenCalledWith("sftp_upload", {
+        sessionId: "sftp-1",
+        localPath: "~/report.pdf",
+        remotePath: "/home/user/report (2).pdf",
+      });
+      expect(store.transferConflict).toBeNull();
+    });
+
+    it("overwrites the original target when confirmed", async () => {
+      vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        if (cmd === "sftp_connect_direct") return "sftp-1";
+        if (cmd === "sftp_home_dir") return "/home/user";
+        if (cmd === "sftp_list_dir") return [];
+        if (cmd === "sftp_upload") return "transfer-1";
+        return undefined;
+      });
+      await store.connectDirect({
+        host: "example.com",
+        port: 22,
+        username: "user",
+        password: "secret",
+      });
+      store.remoteFiles = [fileEntry];
+
+      vi.mocked(invoke).mockClear();
+      await store.dropTransfer("local", "remote", fileEntry);
+      await store.resolveTransferConflict("overwrite");
+
+      expect(invoke).toHaveBeenCalledWith("sftp_upload", {
+        sessionId: "sftp-1",
+        localPath: "~/report.pdf",
+        remotePath: "/home/user/report.pdf",
+      });
+    });
+
     it("downloads a remote file when dropped to the local panel", async () => {
       vi.mocked(invoke).mockImplementation(async (cmd: string) => {
         if (cmd === "sftp_connect_direct") return "sftp-1";
@@ -345,6 +413,42 @@ describe("sftpStore", () => {
         sessionId: "sftp-1",
         remotePath: "/home/user/report.pdf",
         localPath: "~/report.pdf",
+      });
+    });
+
+    it("prompts before downloading over an existing local file", async () => {
+      vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        if (cmd === "sftp_connect_direct") return "sftp-1";
+        if (cmd === "sftp_home_dir") return "/home/user";
+        if (cmd === "sftp_list_dir") return [];
+        if (cmd === "sftp_download") return "transfer-2";
+        return undefined;
+      });
+      await store.connectDirect({
+        host: "example.com",
+        port: 22,
+        username: "user",
+        password: "secret",
+      });
+      store.localFiles = [fileEntry];
+
+      vi.mocked(invoke).mockClear();
+      await store.dropTransfer("remote", "local", fileEntry);
+
+      expect(invoke).not.toHaveBeenCalledWith("sftp_download", expect.anything());
+      expect(store.transferConflict).toEqual({
+        fileName: "report.pdf",
+        existingName: "report.pdf",
+        suggestedName: "report (1).pdf",
+        direction: "Download",
+      });
+
+      await store.resolveTransferConflict("rename");
+
+      expect(invoke).toHaveBeenCalledWith("sftp_download", {
+        sessionId: "sftp-1",
+        remotePath: "/home/user/report.pdf",
+        localPath: "~/report (1).pdf",
       });
     });
 
@@ -386,5 +490,26 @@ describe("sftpStore", () => {
         { type: "warning", message: expect.stringContaining("Connect to a server") },
       ]);
     });
+  });
+});
+
+describe("nextAvailableTransferName", () => {
+  function entry(name: string): FileEntry {
+    return { ...testFile, name };
+  }
+
+  it("adds numeric suffix before the extension", () => {
+    expect(nextAvailableTransferName("report.pdf", [entry("report.pdf")])).toBe("report (1).pdf");
+  });
+
+  it("increments an existing numeric suffix", () => {
+    expect(nextAvailableTransferName("report (1).pdf", [
+      entry("report (1).pdf"),
+      entry("report (2).pdf"),
+    ])).toBe("report (3).pdf");
+  });
+
+  it("handles names without extensions", () => {
+    expect(nextAvailableTransferName("README", [entry("README")])).toBe("README (1)");
   });
 });

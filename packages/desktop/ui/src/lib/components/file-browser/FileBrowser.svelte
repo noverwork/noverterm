@@ -17,6 +17,7 @@
   import DeleteConfirmDialog from "./DeleteConfirmDialog.svelte";
   import FileList from "./FileList.svelte";
   import RenameDialog from "./RenameDialog.svelte";
+  import TransferConflictDialog from "./TransferConflictDialog.svelte";
   import TransferProgress from "./TransferProgress.svelte";
 
   interface Props {
@@ -257,6 +258,14 @@
 
   async function handleCancelTransfer(transferId: string): Promise<void> {
     await sftpStore.cancelTransfer(transferId);
+  }
+
+  async function handleTransferConflictOverwrite(): Promise<void> {
+    await sftpStore.resolveTransferConflict("overwrite");
+  }
+
+  async function handleTransferConflictRename(): Promise<void> {
+    await sftpStore.resolveTransferConflict("rename");
   }
 
   const localSegments = $derived(breadcrumbSegments(sftpStore.localPath));
@@ -548,4 +557,11 @@
   itemName={entryToDelete?.name ?? ""}
   onConfirm={handleDelete}
   onCancel={closeDelete}
+/>
+
+<TransferConflictDialog
+  conflict={sftpStore.transferConflict}
+  onOverwrite={handleTransferConflictOverwrite}
+  onRename={handleTransferConflictRename}
+  onCancel={() => sftpStore.cancelTransferConflict()}
 />
