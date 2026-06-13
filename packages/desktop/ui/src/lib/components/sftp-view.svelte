@@ -1,5 +1,6 @@
 <script lang="ts">
   import { FolderOpen, Loader2, Server, X } from "@lucide/svelte";
+
   import FileList from "./file-browser/FileList.svelte";
   import TransferProgress from "./file-browser/TransferProgress.svelte";
   import CreateFolderDialog from "./file-browser/CreateFolderDialog.svelte";
@@ -73,18 +74,6 @@
     }
   }
 
-  async function handleUpload() {
-    if (sftpStore.selectedLocal && sftpStore.isConnected) {
-      await sftpStore.startUpload(sftpStore.selectedLocal);
-    }
-  }
-
-  async function handleDownload() {
-    if (sftpStore.selectedRemote && sftpStore.isConnected) {
-      await sftpStore.startDownload(sftpStore.selectedRemote);
-    }
-  }
-
   async function handleCreateFolder(name: string) {
     if (showCreateFolderDialog === "local") {
       await sftpStore.localMkdir(name);
@@ -120,6 +109,12 @@
     if (!event.dataTransfer) return;
     if (panel === "remote" && !sftpStore.isConnected) return;
     if (!event.dataTransfer.types.includes("application/x-sftp-entry")) return;
+    console.debug("[SFTP][SftpView] DOM drag over", {
+      panel,
+      types: Array.from(event.dataTransfer.types),
+      isConnected: sftpStore.isConnected,
+      remotePath: sftpStore.remotePath,
+    });
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
     if (dragOverPanel !== panel) {
@@ -140,22 +135,51 @@
   }
 
   function handleDrop(panel: "local" | "remote", event: DragEvent): void {
-    console.log("[SFTP] handleDrop", { panel, dataTransfer: event.dataTransfer?.types });
     event.preventDefault();
     dragOverPanel = null;
-    if (!event.dataTransfer) return;
+    if (!event.dataTransfer) {
+      console.warn("[SFTP][SftpView] DOM drop without dataTransfer", { panel });
+      return;
+    }
+
+    const types = Array.from(event.dataTransfer.types);
     const raw = event.dataTransfer.getData("application/x-sftp-entry");
-    console.log("[SFTP] handleDrop raw", { raw, types: Array.from(event.dataTransfer.types) });
-    if (!raw) return;
+    if (!raw) {
+      console.warn("[SFTP][SftpView] DOM drop without SFTP payload", {
+        panel,
+        types,
+      });
+      return;
+    }
+
     let payload: { panel: "local" | "remote"; entry: FileEntry };
     try {
       payload = JSON.parse(raw);
-    } catch (error) {
-      console.error("[SFTP] handleDrop parse error", error);
+    } catch {
+      console.warn("[SFTP][SftpView] DOM drop payload parse failed", {
+        panel,
+        raw,
+        types,
+      });
       return;
     }
-    console.log("[SFTP] handleDrop payload", { payload, targetPanel: panel });
-    if (payload.panel === panel) return;
+
+    console.info("[SFTP][SftpView] DOM drop payload", {
+      sourcePanel: payload.panel,
+      targetPanel: panel,
+      entry: payload.entry,
+      types,
+      isConnected: sftpStore.isConnected,
+      remotePath: sftpStore.remotePath,
+    });
+
+    if (payload.panel === panel) {
+      console.info("[SFTP][SftpView] ignored DOM drop within same panel", {
+        panel,
+        entry: payload.entry,
+      });
+      return;
+    }
     if (panel === "remote" && !sftpStore.isConnected) {
       connectError = "Connect to a server before dragging files to Remote";
       return;
@@ -236,9 +260,12 @@
       </div>
       <div
         class="flex-1 overflow-auto p-2 {dragOverPanel === 'local' ? 'bg-cyan-300/10 ring-2 ring-cyan-300/40 ring-inset rounded-lg' : ''}"
+        data-side="local"
         ondragover={(event) => handleDragOver("local", event)}
         ondragleave={(event) => handleDragLeave("local", event)}
         ondrop={(event) => handleDrop("local", event)}
+        role="region"
+        aria-label="Local file drop zone"
         data-testid="local-drop-zone"
       >
         <FileList
@@ -246,13 +273,14 @@
           selected={sftpStore.selectedLocal}
           loading={sftpStore.localLoading}
           panelId="local"
+          scrollKey={sftpStore.localPath}
           onSelect={handleLocalSelect}
           onNavigate={handleLocalNavigate}
         />
       </div>
     </div>
 
-    <div class="flex w-1/2 flex-col">
+    <div class="flex w-1/2 flex-col" data-side="remote">
       {#if !sftpStore.isConnected}
         <div class="flex flex-col border-b border-white/8 p-4">
           <h2 class="mb-3 text-sm font-medium text-white">Select a connection</h2>
@@ -355,9 +383,12 @@
         </div>
         <div
           class="flex-1 overflow-auto p-2 {dragOverPanel === 'remote' ? 'bg-cyan-300/10 ring-2 ring-cyan-300/40 ring-inset rounded-lg' : ''}"
+          data-side="remote"
           ondragover={(event) => handleDragOver("remote", event)}
           ondragleave={(event) => handleDragLeave("remote", event)}
           ondrop={(event) => handleDrop("remote", event)}
+          role="region"
+          aria-label="Remote file drop zone"
           data-testid="remote-drop-zone"
         >
           <FileList
@@ -365,6 +396,7 @@
             selected={sftpStore.selectedRemote}
             loading={sftpStore.remoteLoading}
             panelId="remote"
+            scrollKey={sftpStore.remotePath}
             onSelect={handleRemoteSelect}
             onNavigate={handleRemoteNavigate}
           />
@@ -374,40 +406,10 @@
   </div>
 
   {#if sftpStore.isConnected}
-    <div class="flex items-center justify-between border-t border-white/10 px-6 py-3">
-      <div class="flex items-center gap-2">
-        <button
-          type="button"
-          class="flex items-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm text-cyan-100 transition hover:bg-cyan-300/15 disabled:opacity-30"
-          onclick={handleUpload}
-          disabled={!sftpStore.selectedLocal}
-        >
-          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="17 8 12 3 7 8" />
-            <line x1="12" y1="3" x2="12" y2="15" />
-          </svg>
-          Upload
-        </button>
-        <button
-          type="button"
-          class="flex items-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm text-cyan-100 transition hover:bg-cyan-300/15 disabled:opacity-30"
-          onclick={handleDownload}
-          disabled={!sftpStore.selectedRemote}
-        >
-          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          Download
-        </button>
-      </div>
-      <TransferProgress
-        transfers={sftpStore.activeTransfers}
-        onCancel={(id) => sftpStore.cancelTransfer(id)}
-      />
-    </div>
+    <TransferProgress
+      transfers={sftpStore.activeTransfers}
+      onCancel={(id) => sftpStore.cancelTransfer(id)}
+    />
   {/if}
 </div>
 

@@ -1,14 +1,12 @@
 <script lang="ts">
   import {
     ChevronRight,
-    Download,
     FileEdit,
     FolderPlus,
     HardDrive,
     RefreshCw,
     Server,
     Trash2,
-    Upload,
   } from "@lucide/svelte";
 
   import { sftpStore } from "$lib/stores/sftp.svelte.js";
@@ -33,6 +31,7 @@
   let renameDialogOpen = $state(false);
   let deleteDialogOpen = $state(false);
   let activeSide = $state<Side>("local");
+  let dragOverPanel = $state<Side | null>(null);
   let entryToRename = $state<FileEntry | null>(null);
   let entryToDelete = $state<FileEntry | null>(null);
 
@@ -96,6 +95,85 @@
     } else {
       void sftpStore.refreshRemote();
     }
+  }
+
+  function handleDomDragOver(side: Side, event: DragEvent): void {
+    if (!event.dataTransfer) {
+      return;
+    }
+
+    if (!event.dataTransfer.types.includes("application/x-sftp-entry")) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    if (side === "remote" && sftpStore.sftpSessionId) {
+      dragOverPanel = "remote";
+    }
+  }
+
+  function handleDomDragLeave(side: Side, event: DragEvent): void {
+    if (event.currentTarget instanceof HTMLElement) {
+      const related = event.relatedTarget as Node | null;
+      if (related && event.currentTarget.contains(related)) {
+        return;
+      }
+    }
+
+    if (dragOverPanel === side) {
+      dragOverPanel = null;
+    }
+  }
+
+  function handleDomDrop(side: Side, event: DragEvent): void {
+    event.preventDefault();
+    dragOverPanel = null;
+    if (!event.dataTransfer) {
+      console.warn("[SFTP][FileBrowser] DOM drop without dataTransfer", { side });
+      return;
+    }
+
+    const types = Array.from(event.dataTransfer.types);
+    const raw = event.dataTransfer.getData("application/x-sftp-entry");
+    if (!raw) {
+      console.warn("[SFTP][FileBrowser] DOM drop without SFTP payload", {
+        side,
+        types,
+      });
+      return;
+    }
+
+    let payload: { panel: Side; entry: FileEntry };
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      console.warn("[SFTP][FileBrowser] DOM drop payload parse failed", {
+        side,
+        raw,
+        types,
+      });
+      return;
+    }
+
+    console.info("[SFTP][FileBrowser] DOM drop payload", {
+      sourcePanel: payload.panel,
+      targetPanel: side,
+      entry: payload.entry,
+      types,
+      sftpSessionId: sftpStore.sftpSessionId,
+      remotePath: sftpStore.remotePath,
+    });
+
+    if (payload.panel === side) {
+      console.info("[SFTP][FileBrowser] ignored DOM drop within same panel", {
+        side,
+        entry: payload.entry,
+      });
+      return;
+    }
+
+    void sftpStore.dropTransfer(payload.panel, side, payload.entry);
   }
 
   function openCreate(side: Side): void {
@@ -177,22 +255,6 @@
     }
   }
 
-  async function handleUpload(): Promise<void> {
-    const selected = sftpStore.selectedLocal;
-    if (!selected) {
-      return;
-    }
-    await sftpStore.startUpload(selected);
-  }
-
-  async function handleDownload(): Promise<void> {
-    const selected = sftpStore.selectedRemote;
-    if (!selected) {
-      return;
-    }
-    await sftpStore.startDownload(selected);
-  }
-
   async function handleCancelTransfer(transferId: string): Promise<void> {
     await sftpStore.cancelTransfer(transferId);
   }
@@ -213,6 +275,10 @@
       class="ide-panel flex min-h-0 flex-col overflow-hidden"
       data-testid="file-browser-local-panel"
       data-side="local"
+      aria-label="Local file drop zone"
+      ondragover={(event) => handleDomDragOver("local", event)}
+      ondragleave={(event) => handleDomDragLeave("local", event)}
+      ondrop={(event) => handleDomDrop("local", event)}
     >
       <header
         class="flex items-center gap-2 border-b border-white/10 px-4 py-3"
@@ -263,6 +329,8 @@
           files={sftpStore.localFiles}
           selected={sftpStore.selectedLocal}
           loading={sftpStore.localLoading}
+          panelId="local"
+          scrollKey={sftpStore.localPath}
           onSelect={(entry) => {
             sftpStore.selectedLocal = entry;
           }}
@@ -317,9 +385,13 @@
     </section>
 
     <section
-      class="ide-panel flex min-h-0 flex-col overflow-hidden"
+      class="ide-panel flex min-h-0 flex-col overflow-hidden {dragOverPanel === 'remote' ? 'ring-2 ring-cyan-300/40' : ''}"
       data-testid="file-browser-remote-panel"
       data-side="remote"
+      aria-label="Remote file drop zone"
+      ondragover={(event) => handleDomDragOver("remote", event)}
+      ondragleave={(event) => handleDomDragLeave("remote", event)}
+      ondrop={(event) => handleDomDrop("remote", event)}
     >
       <header
         class="flex items-center gap-2 border-b border-white/10 px-4 py-3"
@@ -379,6 +451,8 @@
           files={sftpStore.remoteFiles}
           selected={sftpStore.selectedRemote}
           loading={sftpStore.remoteLoading}
+          panelId="remote"
+          scrollKey={sftpStore.remotePath}
           onSelect={(entry) => {
             sftpStore.selectedRemote = entry;
           }}
@@ -429,30 +503,6 @@
           <Trash2 class="size-3.5" />
           Delete
         </button>
-        <div class="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            class="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-3 py-1.5 text-xs font-medium text-cyan-200 transition-colors hover:border-cyan-300/50 hover:bg-cyan-300/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40 disabled:cursor-not-allowed disabled:opacity-50"
-            onclick={handleUpload}
-            disabled={!sftpStore.selectedLocal || !sftpStore.sftpSessionId}
-            data-testid="remote-upload"
-            title={sftpStore.sftpSessionId ? "Upload selected local file to remote" : "Connect to a remote session first"}
-          >
-            <Upload class="size-3.5" />
-            Upload
-          </button>
-          <button
-            type="button"
-            class="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-3 py-1.5 text-xs font-medium text-cyan-200 transition-colors hover:border-cyan-300/50 hover:bg-cyan-300/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40 disabled:cursor-not-allowed disabled:opacity-50"
-            onclick={handleDownload}
-            disabled={!sftpStore.selectedRemote || !sftpStore.sftpSessionId}
-            data-testid="remote-download"
-            title={sftpStore.sftpSessionId ? "Download selected remote file to local" : "Connect to a remote session first"}
-          >
-            <Download class="size-3.5" />
-            Download
-          </button>
-        </div>
       </footer>
     </section>
   </div>

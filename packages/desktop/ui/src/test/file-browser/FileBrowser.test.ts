@@ -36,6 +36,7 @@ type SftpStoreMock = {
   remoteRename: ReturnType<typeof vi.fn>;
   startUpload: ReturnType<typeof vi.fn>;
   startDownload: ReturnType<typeof vi.fn>;
+  dropTransfer: ReturnType<typeof vi.fn>;
   cancelTransfer: ReturnType<typeof vi.fn>;
   dismissError: ReturnType<typeof vi.fn>;
 };
@@ -68,6 +69,7 @@ const { mockStore } = vi.hoisted(() => {
     remoteRename: vi.fn(),
     startUpload: vi.fn(),
     startDownload: vi.fn(),
+    dropTransfer: vi.fn(),
     cancelTransfer: vi.fn(),
     dismissError: vi.fn(),
   };
@@ -119,6 +121,7 @@ function resetMockStore(): void {
   mockStore.remoteRename.mockReset();
   mockStore.startUpload.mockReset();
   mockStore.startDownload.mockReset();
+  mockStore.dropTransfer.mockReset();
   mockStore.cancelTransfer.mockReset();
   mockStore.dismissError.mockReset();
 }
@@ -293,45 +296,24 @@ describe("FileBrowser", () => {
     expect(localDelete.disabled).toBe(false);
   });
 
-  it("disables upload/download when no sftp session", () => {
-    mockStore.sftpSessionId = null;
-    mockStore.selectedLocal = buildEntry({ name: "local.txt" });
-    mockStore.selectedRemote = buildEntry({ name: "remote.txt" });
+  it("uploads internal local file drops on the remote panel", async () => {
+    const entry = buildEntry({ name: "report.pdf" });
+    mockStore.localFiles = [entry];
     renderFileBrowser();
+    const remotePanel = screen.getByTestId("file-browser-remote-panel");
 
-    const upload = screen.getByTestId("remote-upload") as HTMLButtonElement;
-    const download = screen.getByTestId("remote-download") as HTMLButtonElement;
-    expect(upload.disabled).toBe(true);
-    expect(download.disabled).toBe(true);
-  });
+    await fireEvent.drop(remotePanel, {
+      dataTransfer: {
+        types: ["application/x-sftp-entry"],
+        getData: (type: string) =>
+          type === "application/x-sftp-entry"
+            ? JSON.stringify({ panel: "local", entry })
+            : "",
+        dropEffect: "copy",
+      },
+    });
 
-  it("upload invokes store.startUpload with the local selection", async () => {
-    const selected = buildEntry({ name: "report.pdf" });
-    mockStore.selectedLocal = selected;
-    mockStore.startUpload.mockResolvedValue("upload-1");
-    renderFileBrowser();
-
-    const upload = screen.getByTestId("remote-upload") as HTMLButtonElement;
-    expect(upload.disabled).toBe(false);
-
-    await fireEvent.click(upload);
-
-    expect(mockStore.startUpload).toHaveBeenCalledTimes(1);
-    expect(mockStore.startUpload).toHaveBeenCalledWith(selected);
-  });
-
-  it("download invokes store.startDownload with the remote selection", async () => {
-    const selected = buildEntry({ name: "data.json" });
-    mockStore.selectedRemote = selected;
-    mockStore.startDownload.mockResolvedValue("download-1");
-    renderFileBrowser();
-
-    const download = screen.getByTestId("remote-download") as HTMLButtonElement;
-    expect(download.disabled).toBe(false);
-
-    await fireEvent.click(download);
-
-    expect(mockStore.startDownload).toHaveBeenCalledTimes(1);
-    expect(mockStore.startDownload).toHaveBeenCalledWith(selected);
+    expect(mockStore.dropTransfer).toHaveBeenCalledTimes(1);
+    expect(mockStore.dropTransfer).toHaveBeenCalledWith("local", "remote", entry);
   });
 });
