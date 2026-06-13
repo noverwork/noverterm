@@ -286,6 +286,17 @@
               <span class={navCountBadgeClass("hosts")}>{connectionCount}</span>
             </Button>
           {/if}
+          {#if onSftp}
+            <Button
+              onclick={onSftp}
+              variant="outline"
+              size="sm"
+              class={navButtonClass("sftp")}
+            >
+              <FolderOpen class="size-3.5" />
+              SFTP
+            </Button>
+          {/if}
           {#if onManageKeys}
             <Button
               onclick={onManageKeys}
@@ -308,17 +319,6 @@
               <FileText class="size-3.5" />
               Snippets
               <span class={navCountBadgeClass("snippets")}>{snippetCount}</span>
-            </Button>
-          {/if}
-          {#if onSftp}
-            <Button
-              onclick={onSftp}
-              variant="outline"
-              size="sm"
-              class={navButtonClass("sftp")}
-            >
-              <FolderOpen class="size-3.5" />
-              SFTP
             </Button>
           {/if}
           {#if onPortForwards}
