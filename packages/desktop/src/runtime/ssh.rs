@@ -451,6 +451,7 @@ impl SshSessionManager {
         session.open_sftp().await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn connect_direct_sftp(
         &self,
         app: AppHandle,

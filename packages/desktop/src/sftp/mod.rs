@@ -35,6 +35,7 @@ pub async fn sftp_close(
 
 #[tauri::command]
 #[specta::specta]
+#[allow(clippy::too_many_arguments)]
 pub async fn sftp_connect_direct(
     app: AppHandle,
     host: String,

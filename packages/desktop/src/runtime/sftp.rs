@@ -1328,6 +1328,7 @@ pub async fn upload_sftp(
 }
 
 #[cfg(test)]
+#[allow(clippy::too_many_arguments)]
 async fn upload_mock(
     entries: &std::sync::Mutex<HashMap<String, MockEntry>>,
     upload_result: &Result<u64, String>,
@@ -1483,6 +1484,7 @@ pub async fn download_sftp(
 }
 
 #[cfg(test)]
+#[allow(clippy::too_many_arguments)]
 async fn download_mock(
     entries: &std::sync::Mutex<HashMap<String, MockEntry>>,
     remote_files: &std::sync::Mutex<HashMap<String, Vec<u8>>>,
