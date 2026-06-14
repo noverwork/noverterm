@@ -1,7 +1,9 @@
 <script lang="ts">
-  import { Settings, X } from "@lucide/svelte";
+  import { Settings, X, Download, CheckCircle } from "@lucide/svelte";
+  import { getVersion } from "@tauri-apps/api/app";
 
   import { Button } from "$lib/components/ui/button/index.js";
+  import { checkForAppUpdate } from "$lib/updater/auto-update.js";
 
   let {
     open,
@@ -10,6 +12,31 @@
     open: boolean;
     onClose: () => void;
   } = $props();
+
+  let appVersion = $state("");
+  let checking = $state(false);
+  let updateStatus = $state<"idle" | "checking" | "up-to-date" | "error">("idle");
+
+  $effect(() => {
+    if (open) {
+      getVersion().then((v) => (appVersion = v));
+    }
+  });
+
+  async function handleCheckUpdate() {
+    checking = true;
+    updateStatus = "checking";
+    try {
+      await checkForAppUpdate();
+      updateStatus = "up-to-date";
+      setTimeout(() => (updateStatus = "idle"), 3000);
+    } catch {
+      updateStatus = "error";
+      setTimeout(() => (updateStatus = "idle"), 3000);
+    } finally {
+      checking = false;
+    }
+  }
 </script>
 
 {#if open}
@@ -44,21 +71,45 @@
         </Button>
       </div>
 
-      <div class="px-6 py-8">
+      <div class="space-y-6 px-6 py-8">
         <div
-          class="rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-5 py-8 text-center"
+          class="rounded-[1.35rem] border border-white/10 bg-white/[0.025] px-5 py-5"
         >
-          <div
-            class="mx-auto grid size-12 place-items-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
-          >
-            <Settings class="size-5" />
+          <div class="flex items-center gap-3">
+            <div
+              class="grid size-10 place-items-center rounded-xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
+            >
+              <Settings class="size-4" />
+            </div>
+            <div class="flex-1">
+              <p class="text-sm font-semibold text-white">About Noverterm</p>
+              <p class="text-xs text-slate-500">Version {appVersion}</p>
+            </div>
           </div>
-          <p class="mt-4 text-sm font-semibold text-white">
-            Manage SSH trust from Known Hosts
-          </p>
-          <p class="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">
-            Trusted SSH fingerprints are available from the Known Hosts page in the sidebar.
-          </p>
+
+          <div class="mt-4 flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              class="flex-1 rounded-xl border-white/10 bg-white/5 text-sm text-white hover:bg-white/10 disabled:opacity-50"
+              onclick={handleCheckUpdate}
+              disabled={checking}
+            >
+              {#if checking}
+                <span class="animate-pulse">Checking...</span>
+              {:else if updateStatus === "up-to-date"}
+                <CheckCircle class="mr-1.5 size-3.5 text-emerald-400" />
+                <span class="text-emerald-400">Up to date</span>
+              {:else}
+                <Download class="mr-1.5 size-3.5" />
+                Check for updates
+              {/if}
+            </Button>
+          </div>
+
+          {#if updateStatus === "error"}
+            <p class="mt-2 text-xs text-rose-400">Failed to check for updates</p>
+          {/if}
         </div>
       </div>
     </div>

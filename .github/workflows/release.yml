@@ -14,34 +14,8 @@ env:
   API_URL: ${{ vars.API_URL }}
 
 jobs:
-  validate-version:
-    name: Validate version
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - id: version
-        name: Validate tag matches Tauri version
-        run: |
-          node <<'JS'
-          const fs = require('fs');
-          const ref = process.env.GITHUB_REF_NAME || '';
-          const version = JSON.parse(fs.readFileSync('packages/desktop/tauri.conf.json', 'utf8')).version;
-          if (ref && ref !== 'main') {
-            const tagVersion = ref.replace(/^v/, '');
-            if (tagVersion !== version) {
-              console.error(`tag ${ref} does not match tauri.conf.json version ${version}`);
-              process.exit(1);
-            }
-          }
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
-          JS
-
   build:
     name: Build - ${{ matrix.os }}
-    needs: validate-version
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -65,6 +39,23 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Inject version from tag
+        run: |
+          node <<'JS'
+          const fs = require('fs');
+          const tag = process.env.GITHUB_REF_NAME || '';
+          const version = tag.replace(/^v/, '');
+          if (!version) {
+            console.error('No version found in tag');
+            process.exit(1);
+          }
+          const confPath = 'packages/desktop/tauri.conf.json';
+          const conf = JSON.parse(fs.readFileSync(confPath, 'utf8'));
+          conf.version = version;
+          fs.writeFileSync(confPath, JSON.stringify(conf, null, 2) + '\n');
+          console.log(`Set version to ${version}`);
+          JS
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -98,7 +89,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: [validate-version, build]
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -108,7 +99,6 @@ jobs:
 
       - name: Generate updater manifest
         env:
-          VERSION: ${{ needs.validate-version.outputs.version }}
           RELEASE_TAG: ${{ github.ref_name }}
           REPOSITORY: ${{ github.repository }}
         run: |
@@ -133,6 +123,7 @@ jobs:
 
           const files = walk('dist');
           const tag = process.env.RELEASE_TAG;
+          const version = tag.replace(/^v/, '');
           const baseUrl = `https://github.com/${process.env.REPOSITORY}/releases/download/${tag}`;
           const macArchive = findFile(files, (file) => file.endsWith('.app.tar.gz'), 'macOS updater archive');
           const macSignature = `${macArchive}.sig`;
@@ -146,8 +137,8 @@ jobs:
           }
 
           const manifest = {
-            version: process.env.VERSION,
-            notes: `Noverterm ${process.env.VERSION}`,
+            version: version,
+            notes: `Noverterm ${version}`,
             pub_date: new Date().toISOString(),
             platforms: {
               'darwin-aarch64': {
@@ -168,7 +159,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: Noverterm ${{ needs.validate-version.outputs.version }}
+          name: Noverterm ${{ github.ref_name }}
           generate_release_notes: true
           files: |
             latest.json

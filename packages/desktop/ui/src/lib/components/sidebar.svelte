@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import {
     KeyRound,
     LogOut,
@@ -56,17 +55,6 @@
     snippetCount?: number;
     activeSection?: SidebarSection;
   } = $props();
-
-  let appVersion = $state<string | null>(null);
-
-  onMount(async () => {
-    try {
-      const { getVersion } = await import("@tauri-apps/api/app");
-      appVersion = await getVersion();
-    } catch {
-      appVersion = null;
-    }
-  });
 
   function navButtonClass(section: SidebarSection): string {
     if (activeSection === section) {
@@ -206,11 +194,6 @@
         >
           NOVERTERM
         </p>
-        {#if appVersion}
-          <p class="mt-1 text-[10px] font-medium text-slate-500">
-            v{appVersion}
-          </p>
-        {/if}
       </div>
     </button>
   </div>
