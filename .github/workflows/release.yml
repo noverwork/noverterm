@@ -50,10 +50,19 @@ jobs:
             console.error('No version found in tag');
             process.exit(1);
           }
+          
+          // Update tauri.conf.json
           const confPath = 'packages/desktop/tauri.conf.json';
           const conf = JSON.parse(fs.readFileSync(confPath, 'utf8'));
           conf.version = version;
           fs.writeFileSync(confPath, JSON.stringify(conf, null, 2) + '\n');
+          
+          // Update Cargo.toml
+          const cargoPath = 'packages/desktop/Cargo.toml';
+          let cargo = fs.readFileSync(cargoPath, 'utf8');
+          cargo = cargo.replace(/^version = ".*"/m, `version = "${version}"`);
+          fs.writeFileSync(cargoPath, cargo);
+          
           console.log(`Set version to ${version}`);
           JS
 
