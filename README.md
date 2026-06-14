@@ -29,7 +29,7 @@ Noverterm is different. Built on **Tauri 2** and **Rust**, it delivers:
 | **Port Forwarding** | Local & remote SSH tunneling with saved presets |
 | **SFTP File Transfer** | Drag & drop file browser, transfer progress, conflict resolution, create/rename/delete |
 | **Snippets** | Save and execute frequent commands across active sessions |
-| **SSH Key Manager** | Generate, import, and manage SSH keys |
+| **SSH Key Manager** | Import and manage SSH keys |
 | **Connection Groups** | Organize connections into folders |
 | **Cloud Sync** | Sync connections, keys, and settings across devices (email auth, password reset) |
 | **Auto-Update** | Built-in updater — download and install updates from GitHub Releases |
