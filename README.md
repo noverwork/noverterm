@@ -25,7 +25,7 @@ Noverterm is different. Built on **Tauri 2** and **Rust**, it delivers:
 | Feature | Description |
 |---------|-------------|
 | **SSH Connections** | Password & SSH key auth, host fingerprint verification, known hosts manager |
-| **Multi-Session Tabs** | Multiple SSH sessions in tabs, duplicate sessions, instant local terminal |
+| **Multi-Session Tabs** | Multiple SSH sessions in tabs, duplicate sessions, instant local terminal, one-click k9s/Claude Code/OpenCode |
 | **Port Forwarding** | Local & remote SSH tunneling with saved presets |
 | **SFTP File Transfer** | Drag & drop file browser, transfer progress, conflict resolution, create/rename/delete |
 | **Snippets** | Save and execute frequent commands across active sessions |
