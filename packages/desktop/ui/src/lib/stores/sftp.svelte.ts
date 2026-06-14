@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
 import { commands, type Result } from "../../bindings";
 import type {
@@ -84,7 +85,7 @@ function stripNumericCopySuffix(baseName: string): { rootName: string; nextIndex
 }
 
 export function nextAvailableTransferName(name: string, entries: FileEntry[]): string {
-  const existingNames = new Set(entries.map((entry) => entry.name));
+  const existingNames = new SvelteSet(entries.map((entry) => entry.name));
   if (!existingNames.has(name)) {
     return name;
   }
@@ -119,7 +120,7 @@ export class SftpStore {
   remoteError = $state<string | null>(null);
   lastError = $state<string | null>(null);
   errorQueue = $state<ErrorToast[]>([]);
-  activeTransfers = $state<Map<string, TransferProgress>>(new Map());
+  activeTransfers = $state<SvelteMap<string, TransferProgress>>(new SvelteMap());
   transferConflict = $state<TransferConflict | null>(null);
   selectedLocal = $state<FileEntry | null>(null);
   selectedRemote = $state<FileEntry | null>(null);
@@ -133,7 +134,7 @@ export class SftpStore {
   private unlistenComplete: UnlistenFn | null = null;
   private unlistenError: UnlistenFn | null = null;
   private nextErrorId = 0;
-  private progressLogState = new Map<string, TransferProgressLogState>();
+  private progressLogState = new SvelteMap<string, TransferProgressLogState>();
   private pendingTransferConflict: PendingTransferConflict | null = null;
 
   showError(message: string, type: ErrorToast["type"] = "error"): void {
@@ -576,7 +577,7 @@ export class SftpStore {
     this.remoteError = null;
     this.lastError = null;
     this.errorQueue = [];
-    this.activeTransfers = new Map();
+    this.activeTransfers = new SvelteMap();
     this.transferConflict = null;
     this.pendingTransferConflict = null;
     this.progressLogState.clear();
@@ -593,9 +594,7 @@ export class SftpStore {
       this.unlistenProgress = await listen<TransferProgress>(
         "sftp://progress",
         (event) => {
-          const progress = new Map(this.activeTransfers);
-          progress.set(event.payload.transfer_id, event.payload);
-          this.activeTransfers = progress;
+          this.activeTransfers.set(event.payload.transfer_id, event.payload);
           this.logTransferProgress(event.payload);
         },
       );
@@ -608,9 +607,7 @@ export class SftpStore {
         (event) => {
           console.info("[SFTP][Store] complete event", event.payload);
           this.progressLogState.delete(event.payload.transfer_id);
-          const progress = new Map(this.activeTransfers);
-          progress.delete(event.payload.transfer_id);
-          this.activeTransfers = progress;
+          this.activeTransfers.delete(event.payload.transfer_id);
           if (event.payload.direction === "Download") {
             void this.refreshLocal();
           } else {
@@ -627,9 +624,7 @@ export class SftpStore {
         (event) => {
           console.error("[SFTP][Store] error event", event.payload);
           this.progressLogState.delete(event.payload.transfer_id);
-          const progress = new Map(this.activeTransfers);
-          progress.delete(event.payload.transfer_id);
-          this.activeTransfers = progress;
+          this.activeTransfers.delete(event.payload.transfer_id);
           this.remoteError = event.payload.error;
           this.showError(event.payload.error);
         },

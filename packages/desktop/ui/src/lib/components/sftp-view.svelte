@@ -323,7 +323,7 @@
         <div class="flex flex-col border-b border-white/8 p-4">
           <h2 class="mb-3 text-sm font-medium text-white">Select a connection</h2>
           <div class="grid gap-2">
-            {#each connections as connection}
+            {#each connections as connection (connection.id)}
               <button
                 type="button"
                 class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-cyan-300/30 hover:bg-cyan-300/8 disabled:opacity-50"

@@ -117,19 +117,6 @@
     return date.toLocaleString();
   }
 
-  function fileIcon(type: FileType) {
-    switch (type) {
-      case "Dir":
-        return Folder;
-      case "File":
-        return FileText;
-      case "Symlink":
-        return Link2;
-      default:
-        return FileQuestion;
-    }
-  }
-
   function fileIconClass(type: FileType): string {
     switch (type) {
       case "Dir":
