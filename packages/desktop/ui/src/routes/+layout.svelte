@@ -10,7 +10,7 @@
   import { AlertCircle, Loader2 } from "@lucide/svelte";
 
   import AuthShell from "$lib/components/auth-shell.svelte";
-  import SessionViewSwitcher from "$lib/components/session-view-switcher.svelte";
+  
   import SettingsModal from "$lib/components/settings-modal.svelte";
   import Sidebar from "$lib/components/sidebar.svelte";
   import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
@@ -595,10 +595,9 @@
               {@render children()}
             {/if}
           {:else if isTerminalRoute}
-            <SessionViewSwitcher activeSession={app.activeSession}>
-              {#if !hasTerminalErrorOverlay && !hasTerminalDisconnectedOverlay}
-                {@render children()}
-              {/if}
+            {#if !hasTerminalErrorOverlay && !hasTerminalDisconnectedOverlay}
+              {@render children()}
+            {/if}
 
           {#if isTerminalRoute && app.mountedTerminalSessions.length > 0}
             <div
@@ -888,7 +887,6 @@
               </div>
             </div>
           {/if}
-            </SessionViewSwitcher>
           {:else}
             {@render children()}
           {/if}
