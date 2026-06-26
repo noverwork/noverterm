@@ -136,6 +136,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   const handleTerminalKey = createTerminalKeyHandler(
     () => terminal,
     {
+      sendInput,
       writeClipboard(selection) {
         void navigator.clipboard.writeText(selection).catch(() => undefined);
       },

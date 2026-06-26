@@ -4,10 +4,23 @@ export interface TerminalKeyboardTarget {
 }
 
 export interface TerminalKeyboardActions {
+  sendInput(data: string): void;
   writeClipboard(selection: string): void;
   openSearchPrompt(): void;
   repeatSearch(backwards: boolean): void;
   closeTerminal(): void;
+}
+
+function isShiftPrintableSymbol(event: KeyboardEvent) {
+  return (
+    event.shiftKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey &&
+    event.key.length === 1 &&
+    event.key.trim().length > 0 &&
+    !/^[a-zA-Z0-9]$/.test(event.key)
+  );
 }
 
 export function createTerminalKeyHandler(
@@ -28,6 +41,13 @@ export function createTerminalKeyHandler(
       event.key === "CapsLock"
     ) {
       return true;
+    }
+
+    if (isShiftPrintableSymbol(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      actions.sendInput(event.key);
+      return false;
     }
 
     const key = event.key.toLowerCase();

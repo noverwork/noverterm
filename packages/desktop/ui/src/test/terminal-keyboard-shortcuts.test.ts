@@ -25,6 +25,7 @@ function createTarget(selection = ""): TerminalKeyboardTarget {
 
 function createActions(): TerminalKeyboardActions {
   return {
+    sendInput: vi.fn(),
     writeClipboard: vi.fn(),
     openSearchPrompt: vi.fn(),
     repeatSearch: vi.fn(),
@@ -45,6 +46,30 @@ describe("terminal keyboard shortcuts", () => {
     expect(actions.repeatSearch).not.toHaveBeenCalled();
     expect(ctrlF.preventDefault).toHaveBeenCalledTimes(1);
     expect(ctrlG.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("sends shifted printable symbols directly", () => {
+    const actions = createActions();
+    const handler = createTerminalKeyHandler(() => createTarget(), actions);
+    const bang = createKeyEvent("!", { shiftKey: true });
+    const plus = createKeyEvent("+", { shiftKey: true });
+
+    expect(handler(bang)).toBe(false);
+    expect(handler(plus)).toBe(false);
+    expect(actions.sendInput).toHaveBeenNthCalledWith(1, "!");
+    expect(actions.sendInput).toHaveBeenNthCalledWith(2, "+");
+    expect(bang.preventDefault).toHaveBeenCalledTimes(1);
+    expect(plus.preventDefault).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes shifted letters through to xterm", () => {
+    const actions = createActions();
+    const handler = createTerminalKeyHandler(() => createTarget(), actions);
+    const upperC = createKeyEvent("C", { shiftKey: true });
+
+    expect(handler(upperC)).toBe(true);
+    expect(actions.sendInput).not.toHaveBeenCalled();
+    expect(upperC.preventDefault).not.toHaveBeenCalled();
   });
 
   it("uses Cmd+F and Cmd+G for terminal search", () => {
