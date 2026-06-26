@@ -1,0 +1,895 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Noverterm – Native SSH Terminal Client for macOS and Windows</title>
+    <meta
+      name="description"
+      content="Noverterm is a lightweight SSH terminal client for macOS and Windows built with Tauri and Rust. Supports SFTP, port forwarding, SSH keys, snippets, and cloud sync without Electron."
+    />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://noverwork.github.io/noverterm/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://noverwork.github.io/noverterm/" />
+    <meta property="og:title" content="Noverterm – Native SSH Terminal Client" />
+    <meta
+      property="og:description"
+      content="Fast native SSH client for macOS and Windows with SFTP, port forwarding, snippets, SSH key management, and cloud sync. No Electron."
+    />
+    <meta property="og:image" content="https://noverwork.github.io/noverterm/og-image.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Noverterm – Native SSH Terminal Client" />
+    <meta
+      name="twitter:description"
+      content="A lightweight Tauri + Rust SSH terminal client for macOS and Windows."
+    />
+    <meta name="twitter:image" content="https://noverwork.github.io/noverterm/og-image.svg" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f172a;
+        --panel: #111c31;
+        --panel-strong: #17233b;
+        --text: #f1f5f9;
+        --muted: #94a3b8;
+        --border: #334155;
+        --primary: #3b82f6;
+        --primary-strong: #2563eb;
+        --accent: #38bdf8;
+        --success: #22c55e;
+        --shadow: 0 24px 80px rgba(2, 8, 23, 0.5);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(59, 130, 246, 0.26), transparent 34rem),
+          radial-gradient(circle at top right, rgba(56, 189, 248, 0.14), transparent 30rem),
+          var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+        overflow-x: hidden;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      a:focus-visible,
+      button:focus-visible {
+        outline: 3px solid rgba(56, 189, 248, 0.8);
+        outline-offset: 4px;
+      }
+
+      .container {
+        width: min(1120px, calc(100% - 32px));
+        margin: 0 auto;
+      }
+
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+        background: rgba(15, 23, 42, 0.82);
+        backdrop-filter: blur(18px);
+      }
+
+      .nav-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 72px;
+        gap: 20px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+      }
+
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        border: 1px solid rgba(96, 165, 250, 0.4);
+        border-radius: 12px;
+        background: linear-gradient(135deg, #2563eb, #38bdf8);
+        box-shadow: 0 10px 30px rgba(37, 99, 235, 0.35);
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .nav-links a:hover {
+        color: var(--text);
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0 18px;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        font-weight: 700;
+        transition:
+          background 180ms ease,
+          border-color 180ms ease,
+          color 180ms ease;
+      }
+
+      .button-primary {
+        background: var(--primary-strong);
+        color: white;
+        box-shadow: 0 16px 34px rgba(37, 99, 235, 0.32);
+      }
+
+      .button-primary:hover {
+        background: var(--primary);
+      }
+
+      .button-secondary {
+        border-color: rgba(148, 163, 184, 0.28);
+        background: rgba(15, 23, 42, 0.7);
+        color: var(--text);
+      }
+
+      .button-secondary:hover {
+        border-color: rgba(148, 163, 184, 0.55);
+      }
+
+      .hero {
+        padding: 86px 0 72px;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(360px, 0.86fr);
+        align-items: center;
+        gap: 48px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        border-radius: 999px;
+        background: rgba(56, 189, 248, 0.08);
+        color: #bae6fd;
+        font-size: 0.9rem;
+        font-weight: 700;
+      }
+
+      .eyebrow-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--success);
+        box-shadow: 0 0 18px rgba(34, 197, 94, 0.8);
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        line-height: 1.05;
+        letter-spacing: -0.05em;
+      }
+
+      h1 {
+        max-width: 760px;
+        margin-top: 22px;
+        font-size: clamp(3rem, 8vw, 5.7rem);
+      }
+
+      .gradient-text {
+        background: linear-gradient(135deg, #f8fafc, #93c5fd 58%, #67e8f9);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .hero-copy {
+        max-width: 660px;
+        margin: 24px 0 0;
+        color: var(--muted);
+        font-size: 1.2rem;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        margin-top: 34px;
+      }
+
+      .hero-proof {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        margin-top: 28px;
+        color: #cbd5e1;
+        font-size: 0.94rem;
+      }
+
+      .proof-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .check {
+        color: var(--success);
+        font-weight: 900;
+      }
+
+      .terminal-card {
+        overflow: hidden;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 26px;
+        background: linear-gradient(180deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
+        box-shadow: var(--shadow);
+      }
+
+      .terminal-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 46px;
+        padding: 0 18px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+        background: rgba(15, 23, 42, 0.9);
+      }
+
+      .dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+      }
+
+      .dot-red {
+        background: #fb7185;
+      }
+
+      .dot-yellow {
+        background: #facc15;
+      }
+
+      .dot-green {
+        background: #22c55e;
+      }
+
+      .terminal-title {
+        margin-left: auto;
+        color: #94a3b8;
+        font-size: 0.85rem;
+      }
+
+      .terminal-body {
+        padding: 22px;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 0.92rem;
+        color: #dbeafe;
+      }
+
+      .prompt {
+        color: #38bdf8;
+      }
+
+      .muted-line {
+        color: #94a3b8;
+      }
+
+      .green-line {
+        color: #86efac;
+      }
+
+      .terminal-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 20px;
+      }
+
+      .mini-panel {
+        min-height: 112px;
+        padding: 14px;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        border-radius: 16px;
+        background: rgba(15, 23, 42, 0.65);
+      }
+
+      .mini-panel strong {
+        display: block;
+        margin-bottom: 8px;
+        color: #f8fafc;
+        font-family: inherit;
+      }
+
+      .section {
+        padding: 72px 0;
+      }
+
+      .section-header {
+        max-width: 760px;
+        margin-bottom: 34px;
+      }
+
+      .section-kicker {
+        margin-bottom: 12px;
+        color: var(--accent);
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.78rem;
+      }
+
+      h2 {
+        font-size: clamp(2rem, 4.8vw, 3.3rem);
+      }
+
+      .section-copy {
+        max-width: 680px;
+        margin: 16px 0 0;
+        color: var(--muted);
+        font-size: 1.08rem;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+
+      .feature-card,
+      .faq-card,
+      .compare-card {
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 22px;
+        background: rgba(17, 28, 49, 0.72);
+        box-shadow: 0 18px 50px rgba(2, 8, 23, 0.18);
+      }
+
+      .feature-card {
+        padding: 22px;
+      }
+
+      .icon {
+        display: grid;
+        place-items: center;
+        width: 42px;
+        height: 42px;
+        margin-bottom: 18px;
+        border-radius: 14px;
+        background: rgba(59, 130, 246, 0.16);
+        color: #93c5fd;
+      }
+
+      .feature-card h3,
+      .faq-card h3,
+      .compare-card h3 {
+        font-size: 1.15rem;
+        letter-spacing: -0.02em;
+      }
+
+      .feature-card p,
+      .faq-card p,
+      .compare-card p {
+        margin: 12px 0 0;
+        color: var(--muted);
+      }
+
+      .showcase {
+        display: grid;
+        grid-template-columns: 0.9fr 1.1fr;
+        gap: 18px;
+      }
+
+      .mock-window {
+        overflow: hidden;
+        min-height: 320px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 24px;
+        background: rgba(15, 23, 42, 0.9);
+        box-shadow: var(--shadow);
+      }
+
+      .mock-window.large {
+        grid-row: span 2;
+      }
+
+      .mock-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 16px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+        color: #cbd5e1;
+        font-size: 0.9rem;
+      }
+
+      .mock-body {
+        padding: 18px;
+      }
+
+      .connection-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .connection-row,
+      .file-row,
+      .forward-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.13);
+        border-radius: 14px;
+        background: rgba(30, 41, 59, 0.72);
+        color: #dbeafe;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 26px;
+        padding: 0 9px;
+        border-radius: 999px;
+        background: rgba(34, 197, 94, 0.12);
+        color: #86efac;
+        font-size: 0.78rem;
+        font-weight: 700;
+      }
+
+      .code-block {
+        margin: 16px 0 0;
+        padding: 18px;
+        border-radius: 16px;
+        background: #020617;
+        color: #bae6fd;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 0.88rem;
+      }
+
+      .compare-grid,
+      .faq-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+
+      .compare-card,
+      .faq-card {
+        padding: 22px;
+      }
+
+      .cta-panel {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 24px;
+        padding: 34px;
+        border: 1px solid rgba(96, 165, 250, 0.32);
+        border-radius: 30px;
+        background:
+          radial-gradient(circle at top left, rgba(59, 130, 246, 0.26), transparent 28rem),
+          rgba(17, 28, 49, 0.9);
+        box-shadow: var(--shadow);
+      }
+
+      .footer {
+        padding: 34px 0;
+        border-top: 1px solid rgba(148, 163, 184, 0.16);
+        color: var(--muted);
+      }
+
+      .footer-inner {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+      }
+
+      .footer a {
+        color: #cbd5e1;
+      }
+
+      @media (max-width: 900px) {
+        .hero-grid,
+        .showcase,
+        .cta-panel {
+          grid-template-columns: 1fr;
+        }
+
+        .feature-grid,
+        .compare-grid,
+        .faq-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .nav-links a:not(.button) {
+          display: none;
+        }
+      }
+
+      @media (max-width: 620px) {
+        .container {
+          width: min(100% - 24px, 1120px);
+        }
+
+        .hero {
+          padding-top: 54px;
+        }
+
+        .nav-inner {
+          min-height: 64px;
+        }
+
+        .brand span:last-child {
+          display: none;
+        }
+
+        .hero-actions,
+        .hero-actions .button,
+        .cta-panel .button {
+          width: 100%;
+        }
+
+        .feature-grid,
+        .compare-grid,
+        .faq-grid,
+        .terminal-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .terminal-card,
+        .mock-window {
+          border-radius: 18px;
+        }
+
+        .footer-inner {
+          flex-direction: column;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition: none !important;
+        }
+      }
+    </style>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Noverterm",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "macOS, Windows",
+        "description": "A lightweight SSH terminal client for macOS and Windows built with Tauri and Rust. Supports SFTP, port forwarding, SSH keys, snippets, and cloud sync.",
+        "downloadUrl": "https://github.com/noverwork/noverterm/releases",
+        "softwareVersion": "0.9.0",
+        "license": "https://github.com/noverwork/noverterm/blob/main/LICENSE",
+        "url": "https://noverwork.github.io/noverterm/",
+        "codeRepository": "https://github.com/noverwork/noverterm"
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Is Noverterm built with Electron?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Noverterm is built with Tauri 2 and Rust, so it avoids Electron's runtime overhead."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does Noverterm support SFTP?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Noverterm includes SFTP file transfer with drag and drop, transfer progress, and file operations."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Which platforms does Noverterm support?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Noverterm currently targets macOS and Windows. Linux support is planned."
+            }
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <nav class="nav" aria-label="Main navigation">
+      <div class="container nav-inner">
+        <a class="brand" href="#top" aria-label="Noverterm home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M4 7.5h16v9H4z" stroke="currentColor" stroke-width="2" />
+              <path d="m8 10 2 2-2 2M13 14h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+          <span>Noverterm</span>
+        </a>
+        <div class="nav-links">
+          <a href="#features">Features</a>
+          <a href="#screenshots">Screenshots</a>
+          <a href="#faq">FAQ</a>
+          <a class="button button-secondary" href="https://github.com/noverwork/noverterm">GitHub</a>
+        </div>
+      </div>
+    </nav>
+
+    <main id="top">
+      <section class="hero">
+        <div class="container hero-grid">
+          <div>
+            <div class="eyebrow"><span class="eyebrow-dot"></span>Native SSH client · No Electron</div>
+            <h1><span class="gradient-text">SSH terminal client</span> for macOS and Windows.</h1>
+            <p class="hero-copy">
+              Noverterm is a lightweight Tauri + Rust SSH terminal app with multi-session tabs,
+              SFTP file transfer, port forwarding, SSH key management, snippets, and cloud sync.
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="https://github.com/noverwork/noverterm/releases">Download latest release</a>
+              <a class="button button-secondary" href="https://github.com/noverwork/noverterm">View source on GitHub</a>
+            </div>
+            <div class="hero-proof" aria-label="Product highlights">
+              <span class="proof-item"><span class="check">✓</span> macOS + Windows</span>
+              <span class="proof-item"><span class="check">✓</span> SFTP built in</span>
+              <span class="proof-item"><span class="check">✓</span> Port forwarding</span>
+            </div>
+          </div>
+
+          <div class="terminal-card" aria-label="Noverterm SSH terminal preview" role="img">
+            <div class="terminal-bar">
+              <span class="dot dot-red"></span>
+              <span class="dot dot-yellow"></span>
+              <span class="dot dot-green"></span>
+              <span class="terminal-title">production · ssh</span>
+            </div>
+            <div class="terminal-body">
+              <div><span class="prompt">noverterm@local</span> ssh deploy@app-server</div>
+              <div class="muted-line">Authenticating with saved SSH key…</div>
+              <div class="green-line">Connected · fingerprint trusted</div>
+              <br />
+              <div><span class="prompt">deploy@app-server</span> systemctl status api</div>
+              <div class="green-line">● api.service active (running)</div>
+              <div class="terminal-grid">
+                <div class="mini-panel">
+                  <strong>SFTP</strong>
+                  <div class="muted-line">uploads/</div>
+                  <div>release.tar.gz</div>
+                  <div class="green-line">transfer complete</div>
+                </div>
+                <div class="mini-panel">
+                  <strong>Forward</strong>
+                  <div>localhost:5432</div>
+                  <div class="muted-line">→ db.internal:5432</div>
+                  <div class="green-line">listening</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <div class="container">
+          <div class="section-header">
+            <div class="section-kicker">Features</div>
+            <h2>Everything needed for daily SSH work.</h2>
+            <p class="section-copy">
+              Keep terminals, file transfer, tunnels, keys, and reusable commands in one native desktop app.
+            </p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <div class="icon" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M4 7h16v10H4z" stroke="currentColor" stroke-width="2" />
+                  <path d="m8 10 2 2-2 2M13 14h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </div>
+              <h3>Multi-session SSH tabs</h3>
+              <p>Open, duplicate, and switch between remote SSH sessions and local terminals quickly.</p>
+            </article>
+            <article class="feature-card">
+              <div class="icon" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M7 7h13M17 4l3 3-3 3M17 17H4M7 14l-3 3 3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </div>
+              <h3>SFTP file transfer</h3>
+              <p>Browse files, drag and drop uploads, resolve conflicts, and track transfer progress.</p>
+            </article>
+            <article class="feature-card">
+              <div class="icon" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M4 8h16M4 16h16M7 5 4 8l3 3M17 13l3 3-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </div>
+              <h3>Port forwarding</h3>
+              <p>Save local and remote SSH tunnels for databases, dashboards, and internal services.</p>
+            </article>
+            <article class="feature-card">
+              <div class="icon" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M14 7a4 4 0 1 1-2.7-3.8A4 4 0 0 1 14 7Z" stroke="currentColor" stroke-width="2" />
+                  <path d="m12.5 10.5 7 7M17 15l2-2M15 13l2-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+              </div>
+              <h3>SSH key management</h3>
+              <p>Import and organize SSH keys, host fingerprints, and connection authentication material.</p>
+            </article>
+            <article class="feature-card">
+              <div class="icon" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="2" />
+                  <path d="M8 9h8M8 13h5M8 17h7" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+              </div>
+              <h3>Snippets</h3>
+              <p>Save common commands and run them across active sessions without retyping.</p>
+            </article>
+            <article class="feature-card">
+              <div class="icon" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M7 18h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.4 1.7A3.2 3.2 0 0 0 7 18Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </div>
+              <h3>Cloud sync</h3>
+              <p>Sync connections, keys, and settings across devices with account-based backup.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="screenshots" class="section">
+        <div class="container">
+          <div class="section-header">
+            <div class="section-kicker">Product preview</div>
+            <h2>Terminal, SFTP, and tunnels in one workspace.</h2>
+            <p class="section-copy">
+              These previews mirror the main Noverterm workflow. Replace them with real screenshots when your release assets are ready.
+            </p>
+          </div>
+          <div class="showcase">
+            <div class="mock-window large" aria-label="Noverterm connections preview" role="img">
+              <div class="mock-head"><span>Connections</span><span class="badge">synced</span></div>
+              <div class="mock-body connection-list">
+                <div class="connection-row"><span>production-api</span><span>ssh</span></div>
+                <div class="connection-row"><span>staging-web</span><span>ssh</span></div>
+                <div class="connection-row"><span>local terminal</span><span>zsh</span></div>
+                <div class="code-block">
+                  $ ssh production-api<br />
+                  $ kubectl get pods<br />
+                  api-7d9c8f6d9c ready 1/1
+                </div>
+              </div>
+            </div>
+            <div class="mock-window" aria-label="Noverterm SFTP preview" role="img">
+              <div class="mock-head"><span>SFTP transfer</span><span class="badge">complete</span></div>
+              <div class="mock-body connection-list">
+                <div class="file-row"><span>release.tar.gz</span><span>42 MB</span></div>
+                <div class="file-row"><span>backup.sql</span><span>18 MB</span></div>
+                <div class="file-row"><span>config.yaml</span><span>4 KB</span></div>
+              </div>
+            </div>
+            <div class="mock-window" aria-label="Noverterm port forwarding preview" role="img">
+              <div class="mock-head"><span>Port forwarding</span><span class="badge">listening</span></div>
+              <div class="mock-body connection-list">
+                <div class="forward-row"><span>localhost:5432</span><span>Postgres</span></div>
+                <div class="forward-row"><span>localhost:8080</span><span>Admin UI</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="section-header">
+            <div class="section-kicker">Why native</div>
+            <h2>A lighter alternative to Electron SSH clients.</h2>
+          </div>
+          <div class="compare-grid">
+            <article class="compare-card">
+              <h3>Noverterm vs Electron SSH clients</h3>
+              <p>Tauri keeps the app lightweight by using native webviews and Rust instead of bundling Chromium.</p>
+            </article>
+            <article class="compare-card">
+              <h3>Noverterm vs Termius</h3>
+              <p>Noverterm focuses on a native desktop workflow with source-available code and local-first SSH tooling.</p>
+            </article>
+            <article class="compare-card">
+              <h3>Noverterm vs Tabby</h3>
+              <p>Noverterm targets SSH, SFTP, tunnels, keys, and snippets without the weight of an Electron runtime.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq" class="section">
+        <div class="container">
+          <div class="section-header">
+            <div class="section-kicker">FAQ</div>
+            <h2>Questions developers search for.</h2>
+          </div>
+          <div class="faq-grid">
+            <article class="faq-card">
+              <h3>Is Noverterm free?</h3>
+              <p>Yes for personal and internal company use under the Business Source License 1.1.</p>
+            </article>
+            <article class="faq-card">
+              <h3>Does Noverterm support Windows?</h3>
+              <p>Yes. Noverterm targets macOS and Windows, with Linux support planned.</p>
+            </article>
+            <article class="faq-card">
+              <h3>Does Noverterm support SFTP?</h3>
+              <p>Yes. It includes SFTP browsing, transfers, conflict handling, and file operations.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="cta-panel">
+            <div>
+              <div class="section-kicker">Download</div>
+              <h2>Try Noverterm today.</h2>
+              <p class="section-copy">Download the latest macOS or Windows build from GitHub Releases.</p>
+            </div>
+            <a class="button button-primary" href="https://github.com/noverwork/noverterm/releases">Get latest release</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container footer-inner">
+        <span>© 2026 Noverwork. Noverterm is source available under BSL 1.1.</span>
+        <span><a href="https://github.com/noverwork/noverterm">GitHub</a> · <a href="https://github.com/noverwork/noverterm/releases">Releases</a></span>
+      </div>
+    </footer>
+  </body>
+</html>
