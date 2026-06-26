@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Noverterm social preview</title>
+  <desc id="desc">Native SSH terminal client for macOS and Windows, built with Tauri and Rust.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a" />
+      <stop offset="0.52" stop-color="#111c31" />
+      <stop offset="1" stop-color="#0b1120" />
+    </linearGradient>
+    <radialGradient id="glow" cx="25%" cy="20%" r="70%">
+      <stop offset="0" stop-color="#3b82f6" stop-opacity="0.55" />
+      <stop offset="1" stop-color="#3b82f6" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <rect width="1200" height="630" fill="url(#glow)" />
+  <rect x="78" y="78" width="1044" height="474" rx="42" fill="#0f172a" fill-opacity="0.74" stroke="#334155" />
+  <g transform="translate(118 118)">
+    <rect width="86" height="86" rx="24" fill="#2563eb" />
+    <path d="M23 31h40v24H23z" fill="none" stroke="#fff" stroke-width="6" />
+    <path d="m34 39 7 7-7 7M49 53h15" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+  <text x="118" y="262" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="86" font-weight="800" letter-spacing="-4">Noverterm</text>
+  <text x="118" y="344" fill="#bfdbfe" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="700">Native SSH Terminal Client</text>
+  <text x="118" y="414" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="30">macOS · Windows · Tauri + Rust · No Electron</text>
+  <g transform="translate(780 132)">
+    <rect width="282" height="296" rx="26" fill="#020617" stroke="#334155" />
+    <rect width="282" height="48" rx="26" fill="#111827" />
+    <circle cx="31" cy="24" r="7" fill="#fb7185" />
+    <circle cx="54" cy="24" r="7" fill="#facc15" />
+    <circle cx="77" cy="24" r="7" fill="#22c55e" />
+    <text x="26" y="94" fill="#38bdf8" font-family="SFMono-Regular, Consolas, monospace" font-size="20">$ ssh production</text>
+    <text x="26" y="136" fill="#86efac" font-family="SFMono-Regular, Consolas, monospace" font-size="20">connected</text>
+    <text x="26" y="186" fill="#cbd5e1" font-family="SFMono-Regular, Consolas, monospace" font-size="20">SFTP ready</text>
+    <text x="26" y="228" fill="#cbd5e1" font-family="SFMono-Regular, Consolas, monospace" font-size="20">tunnel :5432</text>
+  </g>
+</svg>
