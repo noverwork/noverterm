@@ -8,6 +8,8 @@ Noverterm is a lightweight SSH terminal app with multi-session tabs, SFTP file t
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue)]()
 [![Release](https://img.shields.io/github/v/release/noverwork/noverterm)](https://github.com/noverwork/noverterm/releases)
 
+[Website](https://noverwork.github.io/noverterm/) · [Download](https://github.com/noverwork/noverterm/releases)
+
 ---
 
 ## Why Noverterm?
