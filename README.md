@@ -1,6 +1,8 @@
 # Noverterm
 
-**A native SSH terminal client built with Tauri 2 & Rust. No Electron, no bloat.**
+**A native SSH terminal client for macOS and Windows, built with Tauri 2 & Rust. No Electron, no bloat.**
+
+Noverterm is a lightweight SSH terminal app with multi-session tabs, SFTP file transfer, port forwarding, SSH key management, snippets, and cloud sync. It is designed as a fast, native alternative to Electron-based SSH clients.
 
 [![License](https://img.shields.io/badge/License-BSL_1.1-5f3dc4)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue)]()
