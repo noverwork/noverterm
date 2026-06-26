@@ -35,7 +35,7 @@ All `.svelte` files in this project MUST use Svelte 5 runes. No legacy syntax al
   const dispatch = createEventDispatcher();
 </script>
 
-<!-- ❌ NEVER — use onclick not on:click -->
+<!-- ❌ NEVER — use on:click (Svelte 4 legacy); use onclick instead -->
 <button on:click={handler}>  <!-- Svelte 4 -->
 <button onclick={handler}>   <!-- Svelte 5 -->
 ```
