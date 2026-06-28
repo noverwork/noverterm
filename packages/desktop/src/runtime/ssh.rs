@@ -12,7 +12,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::io::copy_bidirectional;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 use tokio::task::{JoinHandle, JoinSet};
 use tokio::time::timeout;
 use tracing::{info, warn};
@@ -31,6 +31,8 @@ const SSH_PROBE_OUTPUT_LIMIT: usize = 16 * 1024;
 
 const SSH_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(16);
 const SSH_OUTPUT_BUFFER_THRESHOLD: usize = 4096;
+const SSH_WRITE_QUEUE_CAPACITY: usize = 1024;
+const SSH_WRITE_MAX_BYTES: usize = 1024 * 1024;
 
 const SSH_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(10);
 const SSH_KEEPALIVE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -246,10 +248,17 @@ impl client::Handler for ClientHandler {
 
 pub struct SshSession {
     pub(crate) handle: Arc<Mutex<Handle<ClientHandler>>>,
-    pub(crate) channel_write: Option<ChannelWriteHalf<Msg>>,
+    write_tx: Option<mpsc::Sender<SshWriteRequest>>,
     sftp_sessions: HashMap<String, Arc<SftpSession>>,
     port_forwards: HashMap<String, SshPortForwardTask>,
     keepalive_task: Option<JoinHandle<()>>,
+    writer_task: Option<JoinHandle<()>>,
+}
+
+enum SshWriteRequest {
+    Data(Vec<u8>),
+    Resize { cols: u32, rows: u32 },
+    Close,
 }
 
 struct SshPortForwardTask {
@@ -327,6 +336,7 @@ impl SshSessionManager {
         info!(session_id, "Interactive shell started");
 
         let (channel_read, channel_write) = channel.split();
+        let (write_tx, write_rx) = mpsc::channel(SSH_WRITE_QUEUE_CAPACITY);
 
         let sid = session_id.clone();
         let sessions = self.sessions.clone();
@@ -336,6 +346,13 @@ impl SshSessionManager {
             read_loop(channel_read, sid, read_app, sessions).await;
         });
         info!(session_id, "Spawned SSH read loop");
+
+        let writer_task = tokio::spawn(run_shell_write_loop(
+            channel_write,
+            session_id.clone(),
+            write_rx,
+        ));
+        info!(session_id, "Spawned SSH write loop");
 
         let session_handle = Arc::new(Mutex::new(session));
         let keepalive_handle = session_handle.clone();
@@ -356,10 +373,11 @@ impl SshSessionManager {
             session_id.clone(),
             SshSession {
                 handle: session_handle,
-                channel_write: Some(channel_write),
+                write_tx: Some(write_tx),
                 sftp_sessions: HashMap::new(),
                 port_forwards: HashMap::new(),
                 keepalive_task: Some(keepalive_task),
+                writer_task: Some(writer_task),
             },
         );
 
@@ -418,20 +436,23 @@ impl SshSessionManager {
     }
 
     pub async fn write(&self, session_id: &str, data: Vec<u8>) -> Result<(), String> {
+        if data.len() > SSH_WRITE_MAX_BYTES {
+            return Err("SSH terminal input payload is too large".to_string());
+        }
+
         let sessions = self.sessions.lock().await;
         let session = sessions
             .get(session_id)
             .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
-        let channel_write = session
-            .channel_write
+        let write_tx = session
+            .write_tx
             .as_ref()
             .ok_or_else(|| "No shell channel available for this session".to_string())?;
 
-        channel_write
-            .data(&data[..])
-            .await
-            .map_err(|e| format!("Failed to write: {}", e))?;
+        write_tx
+            .try_send(SshWriteRequest::Data(data))
+            .map_err(map_ssh_write_queue_error)?;
 
         Ok(())
     }
@@ -539,10 +560,11 @@ impl SshSessionManager {
             sftp_session_id.clone(),
             SshSession {
                 handle: session_handle,
-                channel_write: None,
+                write_tx: None,
                 sftp_sessions: HashMap::from([(sftp_session_id.clone(), Arc::new(sftp_session))]),
                 port_forwards: HashMap::new(),
                 keepalive_task: Some(keepalive_task),
+                writer_task: None,
             },
         );
 
@@ -668,15 +690,14 @@ impl SshSessionManager {
             .get(session_id)
             .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
-        let channel_write = session
-            .channel_write
+        let write_tx = session
+            .write_tx
             .as_ref()
             .ok_or_else(|| "No shell channel available for this session".to_string())?;
 
-        channel_write
-            .window_change(cols, rows, 0, 0)
-            .await
-            .map_err(|e| format!("Failed to resize: {}", e))?;
+        write_tx
+            .try_send(SshWriteRequest::Resize { cols, rows })
+            .map_err(map_ssh_write_queue_error)?;
 
         info!(
             session_id,
@@ -786,9 +807,9 @@ impl SshSessionManager {
         let session = self.sessions.lock().await.remove(session_id);
         if let Some(mut session) = session {
             info!(session_id, "Disconnecting SSH session");
-            let stopped_forwards = session.stop_runtime_tasks(None, true);
-            if let Some(channel_write) = session.channel_write.as_ref() {
-                let _ = channel_write.close().await;
+            let stopped_forwards = session.stop_runtime_tasks(None, true, false);
+            if let Some(write_tx) = session.write_tx.as_ref() {
+                let _ = write_tx.try_send(SshWriteRequest::Close);
             }
             let _ = session
                 .handle
@@ -796,6 +817,7 @@ impl SshSessionManager {
                 .await
                 .disconnect(Disconnect::ByApplication, "Client disconnected", "")
                 .await;
+            session.abort_writer_task();
             for status in stopped_forwards {
                 emit_port_forward_event(&app, &status);
             }
@@ -860,9 +882,13 @@ impl SshSession {
         &mut self,
         error: Option<String>,
         abort_keepalive: bool,
+        abort_writer: bool,
     ) -> Vec<SshPortForwardStatus> {
         if abort_keepalive {
             self.abort_keepalive_task();
+        }
+        if abort_writer {
+            self.abort_writer_task();
         }
 
         self.port_forwards
@@ -876,6 +902,12 @@ impl SshSession {
 
     fn abort_keepalive_task(&mut self) {
         if let Some(task) = self.keepalive_task.take() {
+            task.abort();
+        }
+    }
+
+    fn abort_writer_task(&mut self) {
+        if let Some(task) = self.writer_task.take() {
             task.abort();
         }
     }
@@ -1145,6 +1177,40 @@ async fn read_loop(
     }
 }
 
+async fn run_shell_write_loop(
+    channel_write: ChannelWriteHalf<Msg>,
+    session_id: String,
+    mut write_rx: mpsc::Receiver<SshWriteRequest>,
+) {
+    while let Some(request) = write_rx.recv().await {
+        let result = match request {
+            SshWriteRequest::Data(data) => channel_write.data(&data[..]).await,
+            SshWriteRequest::Resize { cols, rows } => {
+                channel_write.window_change(cols, rows, 0, 0).await
+            }
+            SshWriteRequest::Close => {
+                let result = channel_write.close().await;
+                if let Err(error) = result {
+                    warn!(session_id, "Failed to close SSH write channel: {error}");
+                }
+                break;
+            }
+        };
+
+        if let Err(error) = result {
+            warn!(session_id, "SSH write loop failed: {error}");
+            break;
+        }
+    }
+}
+
+fn map_ssh_write_queue_error(error: mpsc::error::TrySendError<SshWriteRequest>) -> String {
+    match error {
+        mpsc::error::TrySendError::Full(_) => "SSH terminal input queue is full".to_string(),
+        mpsc::error::TrySendError::Closed(_) => "SSH write loop is no longer available".to_string(),
+    }
+}
+
 async fn remove_session_and_stop_port_forwards(
     sessions: Arc<Mutex<HashMap<String, SshSession>>>,
     session_id: &str,
@@ -1156,7 +1222,7 @@ async fn remove_session_and_stop_port_forwards(
         .lock()
         .await
         .remove(session_id)
-        .map(|mut session| session.stop_runtime_tasks(error, abort_keepalive))
+        .map(|mut session| session.stop_runtime_tasks(error, abort_keepalive, true))
         .unwrap_or_default();
 
     for status in stopped_forwards {

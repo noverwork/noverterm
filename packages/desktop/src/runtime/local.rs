@@ -2,17 +2,21 @@ use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize}
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::{Read, Write};
+use std::sync::mpsc;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex;
 use tracing::{info, warn};
 use uuid::Uuid;
 
+const LOCAL_WRITE_QUEUE_CAPACITY: usize = 1024;
+const LOCAL_WRITE_MAX_BYTES: usize = 1024 * 1024;
+
 pub struct LocalSession {
     #[allow(dead_code)]
     child: Box<dyn Child + Send + Sync>,
     master: Box<dyn MasterPty + Send>,
-    writer: Box<dyn Write + Send>,
+    writer_tx: mpsc::SyncSender<Vec<u8>>,
     killer: Arc<Mutex<Box<dyn portable_pty::ChildKiller + Send + Sync>>>,
 }
 
@@ -56,6 +60,7 @@ impl LocalSessionManager {
             .master
             .take_writer()
             .map_err(|e| format!("Failed to get PTY writer: {}", e))?;
+        let (writer_tx, writer_rx) = mpsc::sync_channel(LOCAL_WRITE_QUEUE_CAPACITY);
 
         let mut reader = pair
             .master
@@ -115,12 +120,15 @@ impl LocalSessionManager {
             let _ = sessions.blocking_lock().remove(&sid);
         });
 
+        let writer_sid = session_id.clone();
+        std::thread::spawn(move || run_local_write_loop(writer_sid, writer, writer_rx));
+
         self.sessions.lock().await.insert(
             session_id.clone(),
             LocalSession {
                 child,
                 master: pair.master,
-                writer,
+                writer_tx,
                 killer,
             },
         );
@@ -130,19 +138,19 @@ impl LocalSessionManager {
     }
 
     pub async fn write(&self, session_id: &str, data: Vec<u8>) -> Result<(), String> {
-        let mut sessions = self.sessions.lock().await;
+        if data.len() > LOCAL_WRITE_MAX_BYTES {
+            return Err("Local terminal input payload is too large".to_string());
+        }
+
+        let sessions = self.sessions.lock().await;
         let session = sessions
-            .get_mut(session_id)
+            .get(session_id)
             .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
         session
-            .writer
-            .write_all(&data)
-            .map_err(|e| format!("Failed to write: {}", e))?;
-        session
-            .writer
-            .flush()
-            .map_err(|e| format!("Failed to flush: {}", e))?;
+            .writer_tx
+            .try_send(data)
+            .map_err(map_local_write_queue_error)?;
 
         Ok(())
     }
@@ -175,6 +183,28 @@ impl LocalSessionManager {
             let _ = killer.kill();
         }
         Ok(())
+    }
+}
+
+fn run_local_write_loop(
+    session_id: String,
+    mut writer: Box<dyn Write + Send>,
+    writer_rx: mpsc::Receiver<Vec<u8>>,
+) {
+    while let Ok(data) = writer_rx.recv() {
+        if let Err(error) = writer.write_all(&data).and_then(|()| writer.flush()) {
+            warn!(session_id, "Local PTY write loop failed: {error}");
+            break;
+        }
+    }
+}
+
+fn map_local_write_queue_error(error: mpsc::TrySendError<Vec<u8>>) -> String {
+    match error {
+        mpsc::TrySendError::Full(_) => "Local terminal input queue is full".to_string(),
+        mpsc::TrySendError::Disconnected(_) => {
+            "Local terminal write loop is no longer available".to_string()
+        }
     }
 }
 
