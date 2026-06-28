@@ -498,15 +498,17 @@
                   >
                     <div
                       class={isActive
-                        ? `group flex shrink-0 items-center gap-2 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1.5 text-sm text-white transition hover:bg-cyan-300/14${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`
-                        : `group flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-3 py-1.5 text-sm text-slate-400 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`}
+                        ? `group relative flex shrink-0 items-center gap-2 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1.5 text-sm text-white transition hover:bg-cyan-300/14${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`
+                        : `group relative flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-3 py-1.5 text-sm text-slate-400 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`}
                     >
                       <button
                         type="button"
-                        class="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        class="absolute inset-0 cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50"
                         onmousedown={(event) => handleTabMouseDown(event, session.id)}
                         onclick={() => activateSession(session.id)}
-                      >
+                        aria-label={`Switch to ${session.name}`}
+                      ></button>
+                      <span class="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center gap-2 text-left">
                         <span
                           class={session.status === "connected"
                             ? "size-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_10px_rgb(52_211_153/0.55)]"
@@ -517,7 +519,7 @@
                                 : "size-2 shrink-0 rounded-full bg-red-400 shadow-[0_0_10px_rgb(248_113_113/0.45)]"}
                         ></span>
                         <span class="truncate font-medium">{session.name}</span>
-                      </button>
+                      </span>
                       <button
                         type="button"
                         class="flex size-5 shrink-0 items-center justify-center rounded text-slate-500 opacity-0 transition-opacity hover:bg-red-400/10 hover:text-red-300 group-hover:opacity-100"
