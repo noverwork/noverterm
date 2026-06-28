@@ -433,12 +433,6 @@ impl SshSessionManager {
             .await
             .map_err(|e| format!("Failed to write: {}", e))?;
 
-        info!(
-            session_id,
-            bytes = data.len(),
-            "Sent SSH input to remote channel"
-        );
-
         Ok(())
     }
 

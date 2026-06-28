@@ -98,14 +98,35 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   let controlResponseSuppressionDisposer: (() => void) | null = null;
   let initialSizeSynced = false;
   let revealFrame: number | null = null;
+  let inputFrame: number | null = null;
+  let pendingInput = "";
   let lastSearchTerm = "";
 
   const writeCmd = sessionType === "local" ? "local_write" : "ssh_write";
   const resizeCmd = sessionType === "local" ? "local_resize" : "ssh_resize";
 
-  function sendInput(data: string) {
+  function writeInput(data: string) {
     options.onOutput?.(data);
     invoke(writeCmd, { sessionId, data }).catch(() => void 0);
+  }
+
+  function flushPendingInput() {
+    if (pendingInput.length === 0 || disposed) return;
+
+    const data = pendingInput;
+    pendingInput = "";
+    writeInput(data);
+  }
+
+  function sendInput(data: string) {
+    pendingInput += data;
+
+    if (inputFrame !== null) return;
+
+    inputFrame = requestAnimationFrame(() => {
+      inputFrame = null;
+      flushPendingInput();
+    });
   }
 
   async function openExternalUrl(uri: string) {
@@ -222,7 +243,6 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     });
 
     terminal.onData((data) => {
-      console.info("[xterm:input]", { sessionId, bytes: data.length });
       const input = stripTerminalControlResponses(data);
       if (input.length > 0) {
         sendInput(input);
@@ -236,11 +256,6 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     outputUnlisten =
       options.subscribeOutput?.((payload) => {
         if (!terminal) return;
-        console.info("[xterm:output]", {
-          sessionId,
-          closed: payload.closed,
-          bytes: payload.output.length,
-        });
         if (payload.closed) {
           options.onClose?.();
         } else {
@@ -338,6 +353,11 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   }
 
   function dispose() {
+    if (inputFrame !== null) {
+      cancelAnimationFrame(inputFrame);
+      inputFrame = null;
+    }
+    flushPendingInput();
     disposed = true;
     if (revealFrame !== null) {
       cancelAnimationFrame(revealFrame);

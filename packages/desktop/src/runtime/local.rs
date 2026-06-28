@@ -144,7 +144,6 @@ impl LocalSessionManager {
             .flush()
             .map_err(|e| format!("Failed to flush: {}", e))?;
 
-        info!(session_id, bytes = data.len(), "Sent input to local PTY");
         Ok(())
     }
 
