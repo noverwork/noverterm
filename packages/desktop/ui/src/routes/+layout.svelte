@@ -503,7 +503,7 @@
                     >
                       <button
                         type="button"
-                        class="absolute inset-0 cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50"
+                        class="absolute inset-y-0 left-0 right-7 cursor-pointer rounded-l-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50"
                         onmousedown={(event) => handleTabMouseDown(event, session.id)}
                         onclick={() => activateSession(session.id)}
                         aria-label={`Switch to ${session.name}`}
@@ -522,7 +522,7 @@
                       </span>
                       <button
                         type="button"
-                        class="flex size-5 shrink-0 items-center justify-center rounded text-slate-500 opacity-0 transition-opacity hover:bg-red-400/10 hover:text-red-300 group-hover:opacity-100"
+                        class="relative z-20 flex size-6 shrink-0 items-center justify-center rounded text-slate-500 opacity-0 transition-opacity hover:bg-red-400/10 hover:text-red-300 group-hover:opacity-100"
                         onclick={(event) => {
                           event.stopPropagation();
                           void closeSessionAndNavigate(session.id);
