@@ -208,7 +208,14 @@
     });
     resizeObserver.observe(container);
 
+    // Returning to an idle window can leave a stale glyph atlas behind.
+    const handleWindowFocus = () => {
+      if (active) void scheduleReveal();
+    };
+    window.addEventListener("focus", handleWindowFocus);
+
     return () => {
+      window.removeEventListener("focus", handleWindowFocus);
       cancelScheduledReveal();
       resizeObserver?.disconnect();
       term?.dispose();

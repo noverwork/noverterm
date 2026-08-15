@@ -96,6 +96,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   let disposed = false;
   let selectionCallback: (() => void) | null = null;
   let controlResponseSuppressionDisposer: (() => void) | null = null;
+  let webglAddon: WebglAddon | null = null;
   let initialSizeSynced = false;
   let revealFrame: number | null = null;
   let inputFrame: number | null = null;
@@ -215,7 +216,16 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     terminal.loadAddon(searchAddon);
     terminal.loadAddon(new ClipboardAddon());
     loadImageAddon(terminal);
-    terminal.loadAddon(new WebglAddon());
+    webglAddon = new WebglAddon();
+    // WebKit drops WebGL contexts when the window is occluded or too many are
+    // live; disposing the addon falls back to the DOM renderer.
+    webglAddon.onContextLoss(() => {
+      console.warn("[xterm:webgl] context lost", { sessionId });
+      webglAddon?.dispose();
+      webglAddon = null;
+      refresh();
+    });
+    terminal.loadAddon(webglAddon);
     terminal.loadAddon(
       new WebLinksAddon((event, uri) => {
         event.preventDefault();
@@ -270,6 +280,10 @@ export function createTerminal(options: TerminalOptions): TerminalController {
 
   function refresh() {
     if (!terminal) return;
+
+    // The GPU may reclaim the glyph atlas while the window is occluded or
+    // idle, without reporting a context loss. Rebuild it before redrawing.
+    webglAddon?.clearTextureAtlas();
 
     if (terminal.rows > 0) {
       terminal.refresh(0, terminal.rows - 1);
@@ -369,6 +383,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     controlResponseSuppressionDisposer = null;
     terminal?.dispose();
     terminal = null;
+    webglAddon = null;
     fitAddon = null;
     searchAddon = null;
   }
