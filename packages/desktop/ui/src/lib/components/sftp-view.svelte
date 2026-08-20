@@ -103,6 +103,25 @@
     }
   }
 
+  function handlePathKeydown(
+    panel: "local" | "remote",
+    event: KeyboardEvent & { currentTarget: HTMLInputElement },
+  ) {
+    if (event.key === "Enter") {
+      const path = event.currentTarget.value.trim();
+      if (!path) return;
+      event.currentTarget.blur();
+      if (panel === "local") {
+        void sftpStore.navigateLocal(path);
+      } else {
+        void sftpStore.navigateRemote(path);
+      }
+    } else if (event.key === "Escape") {
+      event.currentTarget.value = panel === "local" ? sftpStore.localPath : sftpStore.remotePath;
+      event.currentTarget.blur();
+    }
+  }
+
   async function handleCreateFolder(name: string) {
     if (showCreateFolderDialog === "local") {
       await sftpStore.localMkdir(name);
@@ -241,11 +260,21 @@
   <div class="flex min-h-0 flex-1 overflow-hidden">
     <div class="flex w-1/2 flex-col border-r border-white/10">
       <div class="flex items-center justify-between border-b border-white/8 px-4 py-3">
-        <div class="flex items-center gap-2">
-          <span class="text-sm font-medium text-white">Local</span>
-          <span class="truncate text-xs text-slate-400">{sftpStore.localPath || "~"}</span>
+        <div class="flex min-w-0 flex-1 items-center gap-2">
+          <span class="shrink-0 text-sm font-medium text-white">Local</span>
+          <input
+            type="text"
+            class="min-w-0 flex-1 truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-xs text-slate-400 outline-none hover:border-white/10 focus:border-cyan-300/30 focus:bg-white/5 focus:text-white"
+            value={sftpStore.localPath}
+            placeholder="~"
+            spellcheck="false"
+            title="Type a path and press Enter"
+            aria-label="Local path"
+            data-testid="local-path-input"
+            onkeydown={(event) => handlePathKeydown("local", event)}
+          />
         </div>
-        <div class="flex items-center gap-1">
+        <div class="flex shrink-0 items-center gap-1">
           <button
             type="button"
             class="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
@@ -357,11 +386,21 @@
         </div>
       {:else}
         <div class="flex items-center justify-between border-b border-white/8 px-4 py-3">
-          <div class="flex items-center gap-2">
-            <span class="text-sm font-medium text-white">Remote</span>
-            <span class="truncate text-xs text-slate-400">{sftpStore.remotePath || "/"}</span>
+          <div class="flex min-w-0 flex-1 items-center gap-2">
+            <span class="shrink-0 text-sm font-medium text-white">Remote</span>
+            <input
+              type="text"
+              class="min-w-0 flex-1 truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-xs text-slate-400 outline-none hover:border-white/10 focus:border-cyan-300/30 focus:bg-white/5 focus:text-white"
+              value={sftpStore.remotePath}
+              placeholder="/"
+              spellcheck="false"
+              title="Type a path and press Enter"
+              aria-label="Remote path"
+              data-testid="remote-path-input"
+              onkeydown={(event) => handlePathKeydown("remote", event)}
+            />
           </div>
-          <div class="flex items-center gap-1">
+          <div class="flex shrink-0 items-center gap-1">
             <button
               type="button"
               class="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
