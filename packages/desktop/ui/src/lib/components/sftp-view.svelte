@@ -320,7 +320,7 @@
 
     <div class="flex w-1/2 flex-col" data-side="remote">
       {#if !sftpStore.isConnected}
-        <div class="flex flex-col border-b border-white/8 p-4">
+        <div class="flex min-h-0 flex-1 flex-col overflow-y-auto border-b border-white/8 p-4">
           <h2 class="mb-3 text-sm font-medium text-white">Select a connection</h2>
           <div class="grid gap-2">
             {#each connections as connection (connection.id)}
