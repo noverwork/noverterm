@@ -508,7 +508,7 @@ describe("sftpStore", () => {
       expect(invoke).not.toHaveBeenCalledWith("sftp_download", expect.anything());
     });
 
-    it("rejects non-file entries", async () => {
+    it("uploads directory entries", async () => {
       vi.mocked(invoke).mockResolvedValue("sftp-1");
       await store.openSftp("ssh-1");
 
@@ -521,10 +521,10 @@ describe("sftpStore", () => {
       };
       await store.dropTransfer("local", "remote", dirEntry);
 
-      expect(invoke).not.toHaveBeenCalledWith("sftp_upload", expect.anything());
-      expect(store.errorQueue).toMatchObject([
-        { type: "warning", message: expect.stringContaining("Only files") },
-      ]);
+      expect(invoke).toHaveBeenCalledWith(
+        "sftp_upload",
+        expect.objectContaining({ localPath: "~/documents" }),
+      );
     });
 
     it("warns when dropping to remote without an active connection", async () => {

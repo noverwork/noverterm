@@ -24,11 +24,13 @@ function renderFileList(options: {
   onSelect?: (entry: FileEntry) => void;
   onNavigate?: (entry: FileEntry) => void;
   onNavigateUp?: () => void;
+  onTransfer?: (entry: FileEntry) => void;
   scrollKey?: string;
 } = {}) {
   const onSelect = options.onSelect ?? vi.fn();
   const onNavigate = options.onNavigate ?? vi.fn();
   const onNavigateUp = options.onNavigateUp;
+  const onTransfer = options.onTransfer ?? vi.fn();
   const result = render(FileList, {
     props: {
       files: options.files ?? [],
@@ -38,12 +40,26 @@ function renderFileList(options: {
       onSelect,
       onNavigate,
       onNavigateUp,
+      onTransfer,
     },
   });
-  return { ...result, onSelect, onNavigate, onNavigateUp };
+  return { ...result, onSelect, onNavigate, onNavigateUp, onTransfer };
 }
 
 describe("FileList", () => {
+  it("double-click navigates into a directory and transfers a file", async () => {
+    const files = [buildEntry({ name: "docs", file_type: "Dir" }), buildEntry({ name: "a.txt" })];
+    const { onNavigate, onTransfer } = renderFileList({ files });
+
+    await fireEvent.dblClick(screen.getByText("docs"));
+    await fireEvent.dblClick(screen.getByText("a.txt"));
+
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+    expect(onNavigate).toHaveBeenCalledWith(expect.objectContaining({ name: "docs" }));
+    expect(onTransfer).toHaveBeenCalledTimes(1);
+    expect(onTransfer).toHaveBeenCalledWith(expect.objectContaining({ name: "a.txt" }));
+  });
+
   it("renders no file rows and no empty placeholder when no files", () => {
     renderFileList();
 
@@ -60,7 +76,7 @@ describe("FileList", () => {
     expect(screen.getByText("..")).toBeTruthy();
     expect(screen.queryByText("No files")).toBeNull();
 
-    await fireEvent.click(screen.getByText(".."));
+    await fireEvent.dblClick(screen.getByText(".."));
 
     expect(onNavigateUp).toHaveBeenCalledTimes(1);
   });

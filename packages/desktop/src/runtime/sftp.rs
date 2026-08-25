@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::{Duration, Instant};
@@ -282,6 +283,30 @@ impl SftpSession {
         cancel: TransferCancellation,
         progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
     ) -> Result<u64, SftpError> {
+        if is_local_dir(local_path).await {
+            return upload_dir(
+                self,
+                local_path,
+                remote_path,
+                transfer_id,
+                cancel,
+                progress_tx,
+            )
+            .await;
+        }
+
+        self.upload_file(local_path, remote_path, transfer_id, cancel, progress_tx)
+            .await
+    }
+
+    async fn upload_file(
+        &self,
+        local_path: &str,
+        remote_path: &str,
+        transfer_id: String,
+        cancel: TransferCancellation,
+        progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
+    ) -> Result<u64, SftpError> {
         match &self.inner {
             SftpSessionInner::Active(session) => {
                 upload_sftp(
@@ -317,6 +342,30 @@ impl SftpSession {
     }
 
     pub async fn download(
+        &self,
+        remote_path: &str,
+        local_path: &str,
+        transfer_id: String,
+        cancel: TransferCancellation,
+        progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
+    ) -> Result<u64, SftpError> {
+        if self.stat(remote_path).await?.file_type == FileType::Dir {
+            return download_dir(
+                self,
+                remote_path,
+                local_path,
+                transfer_id,
+                cancel,
+                progress_tx,
+            )
+            .await;
+        }
+
+        self.download_file(remote_path, local_path, transfer_id, cancel, progress_tx)
+            .await
+    }
+
+    async fn download_file(
         &self,
         remote_path: &str,
         local_path: &str,
@@ -1237,6 +1286,159 @@ async fn cleanup_failed_upload(
     }
 }
 
+async fn is_local_dir(path: &str) -> bool {
+    tokio::fs::metadata(path)
+        .await
+        .map(|metadata| metadata.is_dir())
+        .unwrap_or(false)
+}
+
+fn join_remote(parent: &str, name: &str) -> String {
+    format!("{}/{}", parent.trim_end_matches('/'), name)
+}
+
+/// Recursively upload a local directory tree to `remote_root`.
+///
+/// ponytail: files are sent one at a time and progress is emitted per finished
+/// file, so a huge file inside the tree shows no intra-file progress. Thread a
+/// shared ProgressEmitter through upload_sftp if that becomes a problem.
+async fn upload_dir(
+    session: &SftpSession,
+    local_root: &str,
+    remote_root: &str,
+    transfer_id: String,
+    cancel: TransferCancellation,
+    progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
+) -> Result<u64, SftpError> {
+    let mut pending = vec![(PathBuf::from(local_root), remote_root.to_string())];
+    let mut files: Vec<(PathBuf, String)> = Vec::new();
+    let mut total_bytes = 0;
+
+    while let Some((local_dir, remote_dir)) = pending.pop() {
+        match session.mkdir(&remote_dir).await {
+            Ok(()) | Err(SftpError::AlreadyExists) => {}
+            Err(error) => return Err(error),
+        }
+
+        let mut read_dir = tokio::fs::read_dir(&local_dir)
+            .await
+            .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
+        while let Some(entry) = read_dir
+            .next_entry()
+            .await
+            .map_err(|error| SftpError::OperationFailed(error.to_string()))?
+        {
+            let metadata = entry
+                .metadata()
+                .await
+                .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
+            let remote_path = join_remote(&remote_dir, &entry.file_name().to_string_lossy());
+            if metadata.is_dir() {
+                pending.push((entry.path(), remote_path));
+            } else if metadata.is_file() {
+                total_bytes += metadata.len();
+                files.push((entry.path(), remote_path));
+            }
+        }
+    }
+
+    let mut progress = ProgressEmitter::new(
+        transfer_id.clone(),
+        total_bytes,
+        TransferDirection::Upload,
+        progress_tx,
+    );
+    let mut bytes_transferred = 0;
+
+    for (local_path, remote_path) in files {
+        if cancel.is_cancelled() {
+            return Err(SftpError::OperationFailed(
+                cancel
+                    .reason()
+                    .unwrap_or_else(|| "upload cancelled".to_string()),
+            ));
+        }
+
+        bytes_transferred += session
+            .upload_file(
+                &local_path.to_string_lossy(),
+                &remote_path,
+                transfer_id.clone(),
+                cancel.clone(),
+                None,
+            )
+            .await?;
+        progress.maybe_emit(bytes_transferred);
+    }
+
+    progress.emit_final(bytes_transferred);
+    Ok(bytes_transferred)
+}
+
+/// Recursively download a remote directory tree into `local_root`.
+///
+/// ponytail: symlinks in the tree are skipped and progress granularity is
+/// per-file, same tradeoff as upload_dir.
+async fn download_dir(
+    session: &SftpSession,
+    remote_root: &str,
+    local_root: &str,
+    transfer_id: String,
+    cancel: TransferCancellation,
+    progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
+) -> Result<u64, SftpError> {
+    let mut pending = vec![(remote_root.to_string(), PathBuf::from(local_root))];
+    let mut files: Vec<(String, PathBuf)> = Vec::new();
+    let mut total_bytes = 0;
+
+    while let Some((remote_dir, local_dir)) = pending.pop() {
+        tokio::fs::create_dir_all(&local_dir)
+            .await
+            .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
+
+        for entry in session.list_dir(&remote_dir).await? {
+            let remote_path = join_remote(&remote_dir, &entry.name);
+            let local_path = local_dir.join(&entry.name);
+            match entry.file_type {
+                FileType::Dir => pending.push((remote_path, local_path)),
+                FileType::File => {
+                    total_bytes += entry.size;
+                    files.push((remote_path, local_path));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let mut progress = ProgressEmitter::new(
+        transfer_id.clone(),
+        total_bytes,
+        TransferDirection::Download,
+        progress_tx,
+    );
+    let mut bytes_transferred = 0;
+
+    for (remote_path, local_path) in files {
+        if cancel.is_cancelled() {
+            return Err(SftpError::OperationFailed("download cancelled".to_string()));
+        }
+
+        bytes_transferred += session
+            .download_file(
+                &remote_path,
+                &local_path.to_string_lossy(),
+                transfer_id.clone(),
+                cancel.clone(),
+                None,
+            )
+            .await?;
+        progress.maybe_emit(bytes_transferred);
+    }
+
+    progress.emit_final(bytes_transferred);
+    Ok(bytes_transferred)
+}
+
 pub async fn upload_sftp(
     session: &RusshSftpSession,
     local_path: &str,
@@ -1929,6 +2131,36 @@ mod tests {
                 Err(SftpError::OperationFailed(error)) if error.contains("cancelled")
             ));
             assert!(!session.mock_contains_path("/remote/cancel.bin"));
+        }
+
+        #[tokio::test]
+        async fn test_upload_directory_tree() {
+            let temp_dir = tempfile::tempdir().expect("temp dir should be created");
+            let nested = temp_dir.path().join("tree/nested");
+            tokio::fs::create_dir_all(&nested)
+                .await
+                .expect("nested dir should be created");
+            write_temp_file(&temp_dir.path().join("tree/root.bin"), 1024).await;
+            write_temp_file(&nested.join("leaf.bin"), 2048).await;
+            let local_root = temp_dir.path().join("tree").to_string_lossy().into_owned();
+            let session = SftpSession::mock("sftp-1");
+
+            let total = session
+                .upload(
+                    &local_root,
+                    "/remote/tree",
+                    "transfer-dir".to_string(),
+                    TransferCancellation::new(),
+                    None,
+                )
+                .await
+                .expect("directory upload should succeed");
+
+            assert_eq!(total, 1024 + 2048);
+            assert!(session.mock_contains_path("/remote/tree"));
+            assert!(session.mock_contains_path("/remote/tree/root.bin"));
+            assert!(session.mock_contains_path("/remote/tree/nested"));
+            assert!(session.mock_contains_path("/remote/tree/nested/leaf.bin"));
         }
 
         #[tokio::test]

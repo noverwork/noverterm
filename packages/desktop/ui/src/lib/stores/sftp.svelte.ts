@@ -495,10 +495,6 @@ export class SftpStore {
     target: "local" | "remote",
     entry: FileEntry,
   ): Promise<void> {
-    if (entry.file_type !== "File") {
-      this.showError("Only files can be transferred via drag-and-drop", "warning");
-      return;
-    }
     if (source === target) return;
     if (target === "remote") {
       if (!this.isConnected) {

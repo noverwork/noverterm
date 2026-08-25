@@ -343,6 +343,7 @@
           onSelect={handleLocalSelect}
           onNavigate={handleLocalNavigate}
           onNavigateUp={handleLocalNavigateUp}
+          onTransfer={(entry) => void sftpStore.dropTransfer("local", "remote", entry)}
         />
       </div>
     </div>
@@ -477,6 +478,7 @@
             onSelect={handleRemoteSelect}
             onNavigate={handleRemoteNavigate}
             onNavigateUp={handleRemoteNavigateUp}
+            onTransfer={(entry) => void sftpStore.dropTransfer("remote", "local", entry)}
           />
         </div>
       {/if}

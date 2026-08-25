@@ -25,6 +25,7 @@
     onSelect: (entry: FileEntry) => void;
     onNavigate: (entry: FileEntry) => void;
     onNavigateUp?: () => void;
+    onTransfer?: (entry: FileEntry) => void;
     onDragStart?: (entry: FileEntry, panel: "local" | "remote") => void;
   }
 
@@ -37,6 +38,7 @@
     onSelect,
     onNavigate,
     onNavigateUp,
+    onTransfer,
     onDragStart,
   }: Props = $props();
 
@@ -149,15 +151,13 @@
   function handleRowDoubleClick(entry: FileEntry): void {
     if (entry.file_type === "Dir") {
       onNavigate(entry);
+      return;
     }
+    onTransfer?.(entry);
   }
 
   function handleRowDragStart(event: DragEvent, entry: FileEntry): void {
     if (!event.dataTransfer) {
-      return;
-    }
-    if (entry.file_type !== "File") {
-      event.preventDefault();
       return;
     }
     const payload = JSON.stringify({ panel: panelId, entry });
@@ -287,12 +287,12 @@
         {#if onNavigateUp}
           <li>
             <div
-              class="grid w-full grid-cols-[minmax(0,1fr)_6rem_10rem] items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors text-slate-200 hover:bg-white/[0.05]"
+              class="grid w-full grid-cols-[minmax(0,1fr)_6rem_10rem] items-center gap-3 cursor-pointer rounded-xl px-3 py-2 text-left text-sm transition-colors text-slate-200 hover:bg-white/[0.05]"
               data-testid="file-row-parent"
               data-panel={panelId}
               role="button"
               tabindex="0"
-              onclick={onNavigateUp}
+              ondblclick={onNavigateUp}
               onkeydown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
@@ -303,7 +303,7 @@
               <span class="flex min-w-0 items-center gap-2">
                 <Folder class="size-4 shrink-0 text-cyan-200" />
                 <span
-                  class="min-w-0 flex-1 cursor-pointer truncate text-left font-medium text-white transition-colors hover:text-cyan-200"
+                  class="min-w-0 flex-1 truncate text-left font-medium text-white transition-colors hover:text-cyan-200"
                   title="Parent directory"
                 >
                   ..
@@ -317,7 +317,7 @@
         {#each sortedFiles as entry, index (rowKey(entry, index))}
           <li>
             <div
-              class="grid w-full grid-cols-[minmax(0,1fr)_6rem_10rem] items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors {isSelected(
+              class="grid w-full grid-cols-[minmax(0,1fr)_6rem_10rem] items-center gap-3 cursor-pointer rounded-xl px-3 py-2 text-left text-sm transition-colors {isSelected(
                 entry,
               )
                 ? 'bg-cyan-300/15 text-white ring-1 ring-cyan-300/30'
@@ -353,14 +353,14 @@
                 {/if}
                 {#if entry.file_type === "Dir"}
                   <span
-                    class="min-w-0 flex-1 cursor-pointer truncate text-left font-medium text-white transition-colors hover:text-cyan-200"
+                    class="min-w-0 flex-1 truncate text-left font-medium text-white transition-colors hover:text-cyan-200"
                     title={entry.name}
                   >
                     {displayName(entry.name)}
                   </span>
                 {:else}
                   <span
-                    class="min-w-0 flex-1 cursor-pointer truncate text-left text-slate-200 transition-colors hover:text-white"
+                    class="min-w-0 flex-1 truncate text-left text-slate-200 transition-colors hover:text-white"
                     title={entry.name}
                   >
                     {displayName(entry.name)}
