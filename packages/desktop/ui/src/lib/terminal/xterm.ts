@@ -206,6 +206,9 @@ export function createTerminal(options: TerminalOptions): TerminalController {
         width: 1,
       },
       allowProposedApi: true,
+      // TUI apps (herdr, k9s) enable mouse reporting, which swallows link
+      // clicks; Alt+click is the macOS escape hatch back to selection/links.
+      macOptionClickForcesSelection: true,
     });
     controlResponseSuppressionDisposer =
       registerTerminalControlResponseSuppression(terminal);
