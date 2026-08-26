@@ -143,6 +143,11 @@
     await goto(terminalPath);
   }
 
+  async function openHerdrTerminal() {
+    await app.openHerdrTerminal();
+    await goto(terminalPath);
+  }
+
   async function closeSessionAndNavigate(id: string) {
     await closeSessionIdsAndNavigate([id]);
   }
@@ -449,6 +454,7 @@
         onK9sTerminal={openK9sTerminal}
         onClaudeCodeTerminal={openClaudeCodeTerminal}
         onOpencodeTerminal={openOpencodeTerminal}
+        onHerdrTerminal={openHerdrTerminal}
         onManageKeys={() => goto("/keys")}
         onManageKnownHosts={() => goto("/known-hosts")}
         onPortForwards={() => goto("/forwards")}

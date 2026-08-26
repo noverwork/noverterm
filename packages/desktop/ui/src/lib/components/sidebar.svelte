@@ -8,7 +8,10 @@
     Terminal,
     FileText,
     FolderOpen,
+    LayoutGrid,
   } from "@lucide/svelte";
+
+  import type { Snippet } from "svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
 
@@ -19,6 +22,7 @@
     onK9sTerminal,
     onClaudeCodeTerminal,
     onOpencodeTerminal,
+    onHerdrTerminal,
     onManageKeys,
     onManageKnownHosts,
     onPortForwards,
@@ -39,6 +43,7 @@
     onK9sTerminal?: () => void;
     onClaudeCodeTerminal?: () => void;
     onOpencodeTerminal?: () => void;
+    onHerdrTerminal?: () => void;
     onManageKeys?: () => void;
     onManageKnownHosts?: () => void;
     onPortForwards?: () => void;
@@ -91,7 +96,44 @@
   function opencodeIconButtonClass(): string {
     return "rounded-2xl border-orange-300/12 bg-orange-300/[0.045] text-orange-200/85 hover:border-orange-300/22 hover:bg-orange-300/8 hover:text-orange-50";
   }
+
+  function herdrIconButtonClass(): string {
+    return "rounded-2xl border-rose-300/12 bg-rose-300/[0.045] text-rose-200/85 hover:border-rose-300/22 hover:bg-rose-300/8 hover:text-rose-50";
+  }
 </script>
+
+{#snippet terminalIcon()}
+  <Terminal class="size-4" />
+{/snippet}
+
+{#snippet herdrIcon()}
+  <LayoutGrid class="size-4" />
+{/snippet}
+
+{#snippet quickAction(
+  onclick: () => void,
+  buttonClass: string,
+  label: string,
+  icon: Snippet,
+)}
+  <div class="group/tip relative">
+    <Button
+      {onclick}
+      variant="outline"
+      size="icon-lg"
+      class={buttonClass}
+      aria-label={label}
+    >
+      {@render icon()}
+    </Button>
+    <span
+      class="pointer-events-none absolute left-0 top-full z-50 mt-2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950/95 px-2 py-1 text-[11px] font-medium text-slate-100 opacity-0 shadow-[0_8px_24px_rgb(0_0_0/0.45)] backdrop-blur transition-opacity duration-150 group-hover/tip:opacity-100"
+      aria-hidden="true"
+    >
+      {label}
+    </span>
+  </div>
+{/snippet}
 
 {#snippet claudeIcon()}
   <svg
@@ -199,55 +241,37 @@
   </div>
 
   <div class="border-b border-white/8 px-4 pb-4">
-    {#if onLocalTerminal || onK9sTerminal || onClaudeCodeTerminal || onOpencodeTerminal}
+    {#if onLocalTerminal || onK9sTerminal || onClaudeCodeTerminal || onOpencodeTerminal || onHerdrTerminal}
       <div class="flex items-center gap-2">
         {#if onLocalTerminal}
-          <Button
-            onclick={onLocalTerminal}
-            variant="outline"
-            size="icon-lg"
-            class={localTerminalIconButtonClass()}
-            aria-label="Open local terminal"
-            title="Local terminal"
-          >
-            <Terminal class="size-4" />
-          </Button>
+          {@render quickAction(
+            onLocalTerminal,
+            localTerminalIconButtonClass(),
+            "Local terminal",
+            terminalIcon,
+          )}
         {/if}
         {#if onK9sTerminal}
-          <Button
-            onclick={onK9sTerminal}
-            variant="outline"
-            size="icon-lg"
-            class={k9sIconButtonClass()}
-            aria-label="Open k9s terminal"
-            title="k9s terminal"
-          >
-            {@render k9sIcon()}
-          </Button>
+          {@render quickAction(onK9sTerminal, k9sIconButtonClass(), "k9s", k9sIcon)}
         {/if}
         {#if onClaudeCodeTerminal}
-          <Button
-            onclick={onClaudeCodeTerminal}
-            variant="outline"
-            size="icon-lg"
-            class={claudeCodeIconButtonClass()}
-            aria-label="Open Claude Code"
-            title="Claude Code"
-          >
-            {@render claudeIcon()}
-          </Button>
+          {@render quickAction(
+            onClaudeCodeTerminal,
+            claudeCodeIconButtonClass(),
+            "Claude Code",
+            claudeIcon,
+          )}
         {/if}
         {#if onOpencodeTerminal}
-          <Button
-            onclick={onOpencodeTerminal}
-            variant="outline"
-            size="icon-lg"
-            class={opencodeIconButtonClass()}
-            aria-label="Open OpenCode"
-            title="OpenCode"
-          >
-            {@render opencodeIcon()}
-          </Button>
+          {@render quickAction(
+            onOpencodeTerminal,
+            opencodeIconButtonClass(),
+            "OpenCode",
+            opencodeIcon,
+          )}
+        {/if}
+        {#if onHerdrTerminal}
+          {@render quickAction(onHerdrTerminal, herdrIconButtonClass(), "Herdr", herdrIcon)}
         {/if}
       </div>
     {/if}
