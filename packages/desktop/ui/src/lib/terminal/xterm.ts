@@ -98,7 +98,6 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   let controlResponseSuppressionDisposer: (() => void) | null = null;
   let webglAddon: WebglAddon | null = null;
   let initialSizeSynced = false;
-  let revealFrame: number | null = null;
   let inputFrame: number | null = null;
   let pendingInput = "";
   let lastSearchTerm = "";
@@ -296,23 +295,11 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   function reveal() {
     if (!terminal) return;
 
+    // Everything here runs synchronously so the repaint lands in the same frame
+    // the tab becomes visible. The viewport is left where the user had it.
     fitAddon?.fit();
-
-    if (revealFrame !== null) {
-      cancelAnimationFrame(revealFrame);
-    }
-
-    revealFrame = requestAnimationFrame(() => {
-      revealFrame = null;
-      if (!terminal || disposed) return;
-
-      if (terminal.buffer.active.type !== "alternate") {
-        terminal.scrollToBottom();
-      }
-
-      refresh();
-      terminal.focus();
-    });
+    refresh();
+    terminal.focus();
   }
 
   function copySelection() {
@@ -376,10 +363,6 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     }
     flushPendingInput();
     disposed = true;
-    if (revealFrame !== null) {
-      cancelAnimationFrame(revealFrame);
-      revealFrame = null;
-    }
     outputUnlisten?.();
     outputUnlisten = null;
     controlResponseSuppressionDisposer?.();

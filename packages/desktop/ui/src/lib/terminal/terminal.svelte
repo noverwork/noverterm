@@ -34,7 +34,6 @@
   let container = $state<HTMLDivElement | null>(null);
   let term: ReturnType<typeof createTerminal> | null = null;
   let resizeObserver: ResizeObserver | null = null;
-  let revealFrame: number | null = null;
   let revealGeneration = 0;
   let searchOpen = $state(false);
   let searchTerm = $state("");
@@ -117,11 +116,6 @@
 
   function cancelScheduledReveal() {
     revealGeneration += 1;
-
-    if (revealFrame !== null) {
-      cancelAnimationFrame(revealFrame);
-      revealFrame = null;
-    }
   }
 
   async function scheduleReveal() {
@@ -132,18 +126,9 @@
     if (generation !== revealGeneration || !active || !term || !container) return;
     if (container.clientWidth === 0 || container.clientHeight === 0) return;
 
-    if (revealFrame !== null) {
-      cancelAnimationFrame(revealFrame);
-    }
-
-    revealFrame = requestAnimationFrame(() => {
-      revealFrame = null;
-
-      if (!active || !term || !container) return;
-      if (container.clientWidth === 0 || container.clientHeight === 0) return;
-
-      term.reveal();
-    });
+    // Reveal synchronously: deferring to a frame lets the browser paint the
+    // newly visible tab with a stale canvas first, which reads as a flicker.
+    term.reveal();
   }
 
   $effect(() => {
@@ -188,9 +173,15 @@
     }
 
     resizeObserver = new ResizeObserver((entries) => {
-      if (!active) return;
       const [entry] = entries;
       if (entry && (entry.contentRect.width === 0 || entry.contentRect.height === 0)) return;
+
+      // Hidden tabs stay fitted so that switching to one never resizes the
+      // buffer, which would reflow the whole screen in front of the user.
+      if (!active) {
+        term?.fit();
+        return;
+      }
 
       void scheduleReveal();
     });

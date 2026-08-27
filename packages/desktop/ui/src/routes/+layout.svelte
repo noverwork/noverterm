@@ -607,59 +607,6 @@
               {@render children()}
             {/if}
 
-          {#if isTerminalRoute && app.mountedTerminalSessions.length > 0}
-            <div
-              class={isTerminalVisible
-                ? "absolute inset-0 z-10 flex h-full min-h-0 flex-col overflow-hidden p-3"
-                : "pointer-events-none absolute inset-0 z-10 flex h-full min-h-0 flex-col overflow-hidden p-3 opacity-0"}
-            >
-              <div
-                class="terminal-frame relative min-h-0 flex-1 overflow-hidden rounded-[1.35rem] border border-white/10 bg-[#080c13]/72 shadow-2xl shadow-black/45"
-              >
-                {#each app.mountedTerminalSessions as session (session.id)}
-                  <div
-                    class={isTerminalVisible &&
-                    session.id === app.visibleTerminalSessionId
-                      ? "absolute inset-0 z-10 min-h-0 overflow-hidden opacity-100 pointer-events-auto"
-                      : "absolute inset-0 z-0 min-h-0 overflow-hidden opacity-0 pointer-events-none"}
-                  >
-                    <TerminalView
-                      sessionId={session.id}
-                      sessionType={session.type}
-                      active={isTerminalVisible &&
-                        session.id === app.visibleTerminalSessionId}
-                      config={app.terminalConfig}
-                      subscribeOutput={(callback) =>
-                        app.sessionStore.subscribeSessionOutput(
-                          session.id,
-                          callback,
-                        )}
-                      onClose={() =>
-                        app.sessionStore.updateSession(session.id, {
-                          status: "disconnected",
-                        })}
-                      onRequestClose={() =>
-                        void closeSessionAndNavigate(session.id)}
-                    />
-                    {#if session.status === "connecting"}
-                      <div class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#080c13]/90">
-                        <Loader2
-                          class="mb-4 size-8 animate-spin text-amber-200"
-                        />
-                        <p class="text-sm font-semibold text-white">
-                          Connecting to {session.name}
-                        </p>
-                        <p class="mt-2 text-xs text-slate-500">
-                          Negotiating terminal session…
-                        </p>
-                      </div>
-                    {/if}
-                  </div>
-                {/each}
-              </div>
-            </div>
-          {/if}
-
           {#if isTerminalRoute && app.activeSession?.status === "disconnected"}
             <div class="absolute inset-0 z-20 flex h-full flex-col items-center justify-center p-8" aria-live="polite">
               <div class="w-full max-w-lg rounded-[2rem] border border-red-300/20 bg-red-400/8 p-8 text-center shadow-2xl shadow-black/30">
@@ -897,6 +844,59 @@
           {/if}
           {:else}
             {@render children()}
+          {/if}
+
+          {#if app.mountedTerminalSessions.length > 0}
+            <div
+              class={isTerminalVisible
+                ? "absolute inset-0 z-10 flex h-full min-h-0 flex-col overflow-hidden p-3"
+                : "pointer-events-none absolute inset-0 z-10 flex h-full min-h-0 flex-col overflow-hidden p-3 opacity-0"}
+            >
+              <div
+                class="terminal-frame relative min-h-0 flex-1 overflow-hidden rounded-[1.35rem] border border-white/10 bg-[#080c13]/72 shadow-2xl shadow-black/45"
+              >
+                {#each app.mountedTerminalSessions as session (session.id)}
+                  <div
+                    class={isTerminalVisible &&
+                    session.id === app.visibleTerminalSessionId
+                      ? "absolute inset-0 z-10 min-h-0 overflow-hidden opacity-100 pointer-events-auto"
+                      : "absolute inset-0 z-0 min-h-0 overflow-hidden opacity-0 pointer-events-none"}
+                  >
+                    <TerminalView
+                      sessionId={session.id}
+                      sessionType={session.type}
+                      active={isTerminalVisible &&
+                        session.id === app.visibleTerminalSessionId}
+                      config={app.terminalConfig}
+                      subscribeOutput={(callback) =>
+                        app.sessionStore.subscribeSessionOutput(
+                          session.id,
+                          callback,
+                        )}
+                      onClose={() =>
+                        app.sessionStore.updateSession(session.id, {
+                          status: "disconnected",
+                        })}
+                      onRequestClose={() =>
+                        void closeSessionAndNavigate(session.id)}
+                    />
+                    {#if session.status === "connecting"}
+                      <div class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#080c13]/90">
+                        <Loader2
+                          class="mb-4 size-8 animate-spin text-amber-200"
+                        />
+                        <p class="text-sm font-semibold text-white">
+                          Connecting to {session.name}
+                        </p>
+                        <p class="mt-2 text-xs text-slate-500">
+                          Negotiating terminal session…
+                        </p>
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            </div>
           {/if}
         </div>
       </div>
