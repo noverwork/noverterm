@@ -236,7 +236,7 @@ async fn spawn_transfer(
 
     let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
     let progress_app = app.clone();
-    tokio::spawn(async move {
+    let progress_task = tokio::spawn(async move {
         while let Some(progress) = progress_rx.recv().await {
             let _ = progress_app.emit("sftp://progress", progress);
         }
@@ -313,6 +313,12 @@ async fn spawn_transfer(
             .lock()
             .await
             .remove(&task_transfer_id);
+
+        // The transfer future owns progress_tx, so it is dropped by now and the
+        // forwarder ends. Awaiting it keeps the final progress event ahead of
+        // the complete/error event, otherwise a late 100% progress re-adds the
+        // transfer to the UI after it was removed.
+        let _ = progress_task.await;
 
         match result {
             Ok(total_bytes) => {
