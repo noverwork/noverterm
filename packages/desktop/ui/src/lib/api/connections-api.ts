@@ -1,19 +1,6 @@
-import {
-  HttpError,
-  requestWithAuth,
-  requestNoContentWithAuth,
-  withAuthorizedRetry,
-} from "./api-client.js";
+import { invoke } from "@tauri-apps/api/core";
 
-import type {
-  HostGroupRecord,
-  HostGroupWriteRequest,
-  HostWriteRequest,
-  KeyWriteRequest,
-  SshHostRecord,
-  SshKeyRecord,
-} from "./types.js";
-import { encryptSecret } from "$lib/crypto/vault.js";
+import type { HostGroupRecord, SshHostRecord } from "./types.js";
 import type {
   SaveConnectionInput,
   ConnectionConfig,
@@ -24,115 +11,41 @@ function trimOptional(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
-export async function saveBackendConnection(
+export async function saveConnection(
   connection: SaveConnectionInput,
 ): Promise<SshHostRecord> {
-  const trimmedPassword = trimOptional(connection.password);
-  const trimmedPrivateKey = trimOptional(connection.privateKey);
-  const trimmedPassphrase = trimOptional(connection.passphrase);
-  const encryptedPassword = trimmedPassword
-    ? await encryptSecret(trimmedPassword)
-    : (connection.preservedEncryptedPassword ?? null);
-  const encryptedPrivateKey = await encryptSecret(trimmedPrivateKey);
-  const encryptedPassphrase = await encryptSecret(trimmedPassphrase);
-
-  return withAuthorizedRetry(async (accessToken) => {
-    let sshKeyId =
-      connection.existingKeyId && connection.existingKeyId.trim()
-        ? connection.existingKeyId
-        : null;
-
-    if (encryptedPrivateKey) {
-      const keyInput: KeyWriteRequest = {
-        name: connection.keyName || `${connection.name} key`,
-        kind: "inline",
-        fingerprint: null,
-        encrypted_private_key: encryptedPrivateKey,
-        encrypted_passphrase: encryptedPassphrase,
-      };
-
-      const key = connection.existingKeyId
-        ? await requestWithAuth<SshKeyRecord>(
-            `/keys/${connection.existingKeyId}`,
-            accessToken,
-            { method: "PUT", body: JSON.stringify(keyInput) },
-          )
-        : await requestWithAuth<SshKeyRecord>("/keys", accessToken, {
-            method: "POST",
-            body: JSON.stringify(keyInput),
-          });
-
-      sshKeyId = key.id;
-    }
-
-    const hostInput: HostWriteRequest = {
+  return invoke<SshHostRecord>("host_save", {
+    connection: {
+      id: connection.id ?? null,
       name: connection.name,
       host: connection.host,
       port: connection.port,
       username: connection.username,
-      ssh_key_id: sshKeyId,
-      encrypted_password: encryptedPassword,
       group_id: trimOptional(connection.groupId),
-    };
-
-    return connection.id
-      ? requestWithAuth<SshHostRecord>(
-          `/hosts/${connection.id}`,
-          accessToken,
-          {
-            method: "PUT",
-            body: JSON.stringify(hostInput),
-          },
-        )
-      : requestWithAuth<SshHostRecord>("/hosts", accessToken, {
-          method: "POST",
-          body: JSON.stringify(hostInput),
-        });
+      password:
+        trimOptional(connection.password) ??
+        trimOptional(connection.preservedPassword),
+      private_key: trimOptional(connection.privateKey),
+      passphrase: trimOptional(connection.passphrase),
+      key_name: trimOptional(connection.keyName),
+      existing_key_id: trimOptional(connection.existingKeyId),
+    },
   });
 }
 
-export async function createBackendHostGroup(name: string): Promise<HostGroupRecord> {
-  return withAuthorizedRetry(async (accessToken) => {
-    const input: HostGroupWriteRequest = { name };
-    return await requestWithAuth<HostGroupRecord>("/host-groups", accessToken, {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
-  });
+export async function createHostGroup(name: string): Promise<HostGroupRecord> {
+  return invoke<HostGroupRecord>("host_group_create", { name });
 }
 
-export async function deleteBackendHostGroup(group: HostGroupRecord): Promise<void> {
-  await withAuthorizedRetry(async (accessToken) => {
-    await requestNoContentWithAuth(
-      `/host-groups/${encodeURIComponent(group.id)}`,
-      accessToken,
-      { method: "DELETE" },
-    );
-  });
+export async function deleteHostGroup(group: HostGroupRecord): Promise<void> {
+  await invoke("host_group_delete", { id: group.id });
 }
 
-export async function deleteBackendConnection(
+export async function deleteConnection(
   connection: ConnectionConfig,
 ): Promise<void> {
-  await withAuthorizedRetry(async (accessToken) => {
-    await requestNoContentWithAuth(
-      `/hosts/${encodeURIComponent(connection.id)}`,
-      accessToken,
-      { method: "DELETE" },
-    );
-
-    if (connection.sshKeyId) {
-      try {
-        await requestNoContentWithAuth(
-          `/keys/${encodeURIComponent(connection.sshKeyId)}`,
-          accessToken,
-          { method: "DELETE" },
-        );
-      } catch (error) {
-        if (!(error instanceof HttpError) || error.status !== 404) {
-          throw error;
-        }
-      }
-    }
+  await invoke("host_delete", {
+    id: connection.id,
+    sshKeyId: connection.sshKeyId,
   });
 }

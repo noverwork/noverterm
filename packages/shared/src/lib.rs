@@ -68,117 +68,7 @@ pub struct SshKeySecret {
 }
 
 // ============================================================================
-// Auth API Types
-// ============================================================================
-
-#[derive(Debug, Clone, Deserialize, TS)]
-#[ts(export, export_to = "login-request.ts")]
-pub struct LoginRequest {
-    pub email: String,
-    pub password: String,
-}
-
-#[derive(Debug, Clone, Deserialize, TS)]
-#[ts(export, export_to = "register-request.ts")]
-pub struct RegisterRequest {
-    pub email: String,
-    pub password: String,
-}
-
-#[derive(Debug, Clone, Deserialize, TS)]
-#[ts(export, export_to = "refresh-request.ts")]
-pub struct RefreshRequest {
-    pub refresh_token: String,
-}
-
-#[derive(Debug, Clone, Deserialize, TS)]
-#[ts(export, export_to = "logout-request.ts")]
-pub struct LogoutRequest {
-    pub refresh_token: String,
-}
-
-#[derive(Debug, Clone, Deserialize, TS)]
-#[ts(export, export_to = "forgot-password-request.ts")]
-pub struct ForgotPasswordRequest {
-    pub email: String,
-}
-
-#[derive(Debug, Clone, Deserialize, TS)]
-#[ts(export, export_to = "reset-password-request.ts")]
-pub struct ResetPasswordRequest {
-    pub token: String,
-    pub password: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "auth-response.ts")]
-pub struct AuthResponse {
-    pub access_token: String,
-    pub refresh_token: String,
-    pub access_token_expires_at: chrono::DateTime<chrono::Utc>,
-    pub email: String,
-}
-
-// ============================================================================
-// Host API Types
-// ============================================================================
-
-#[derive(Debug, Deserialize, TS)]
-#[ts(export, export_to = "host-write-request.ts")]
-pub struct HostWriteRequest {
-    pub name: String,
-    pub host: String,
-    pub port: i32,
-    pub username: String,
-    pub ssh_key_id: Option<String>,
-    pub encrypted_password: Option<String>,
-    #[serde(default)]
-    pub group_id: Option<String>,
-}
-
-// ============================================================================
-// Key API Types
-// ============================================================================
-
-#[derive(Debug, Deserialize, TS)]
-#[ts(export, export_to = "key-write-request.ts")]
-pub struct KeyWriteRequest {
-    pub name: String,
-    pub kind: String,
-    #[ts(optional = nullable)]
-    pub fingerprint: Option<String>,
-    pub encrypted_private_key: String,
-    pub encrypted_passphrase: Option<String>,
-}
-
-#[derive(Debug, Deserialize, TS)]
-#[ts(export, export_to = "key-update-request.ts")]
-pub struct KeyUpdateRequest {
-    pub name: String,
-    pub kind: String,
-    #[serde(default)]
-    #[ts(optional = nullable)]
-    pub fingerprint: Option<String>,
-    #[serde(default)]
-    #[ts(optional = nullable)]
-    pub encrypted_private_key: Option<String>,
-    #[serde(default)]
-    #[ts(optional = nullable)]
-    pub encrypted_passphrase: Option<String>,
-}
-
-// ============================================================================
-// Host Group API Types
-// ============================================================================
-
-#[derive(Debug, Deserialize, TS)]
-#[ts(export, export_to = "host-group-write-request.ts")]
-pub struct HostGroupWriteRequest {
-    pub name: String,
-}
-
-// ============================================================================
-// Snippet API Types
+// Snippet Types
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
@@ -191,7 +81,7 @@ pub struct SnippetRecord {
     pub body: String,
 }
 
-#[derive(Debug, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
 #[ts(export, export_to = "snippet-write-request.ts")]
 pub struct SnippetWriteRequest {
     pub host_id: String,

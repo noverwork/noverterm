@@ -2,7 +2,6 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { SvelteMap } from "svelte/reactivity";
 
 import { commands as tauriCommands } from "../../bindings.js";
-import { decryptSecret } from "$lib/crypto/vault.js";
 import type { ConnectionConfig, SavedPortForwardConfig } from "$lib/app-data-types.js";
 
 export interface PortForward {
@@ -96,21 +95,21 @@ async function connectionAuthInput(connection: ConnectionConfig): Promise<{
   switch (connection.auth?.kind) {
     case "password":
       return {
-        password: await decryptSecret(connection.auth.password),
+        password: connection.auth.password,
         privateKey: null,
         passphrase: null,
       };
     case "public_key":
       return {
         password: null,
-        privateKey: await decryptSecret(connection.auth.private_key),
-        passphrase: await decryptSecret(connection.auth.passphrase),
+        privateKey: connection.auth.private_key,
+        passphrase: connection.auth.passphrase,
       };
     case "public_key_and_password":
       return {
-        password: await decryptSecret(connection.auth.password),
-        privateKey: await decryptSecret(connection.auth.private_key),
-        passphrase: await decryptSecret(connection.auth.passphrase),
+        password: connection.auth.password,
+        privateKey: connection.auth.private_key,
+        passphrase: connection.auth.passphrase,
       };
     default:
       throw new Error("host has no connectable authentication material");

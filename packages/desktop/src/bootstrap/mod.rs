@@ -3,76 +3,11 @@ use tauri::Manager;
 use tauri_specta::{collect_commands, Builder};
 use tracing_subscriber::EnvFilter;
 
-use crate::auth::DesktopAuthManager;
 use crate::runtime::local::LocalSessionManager;
 use crate::runtime::port_forward::PortForwardManager;
 use crate::runtime::ssh::SshSessionManager;
-use crate::settings::SettingsManager;
 use crate::sftp::state::TransferState;
 use crate::trust::SshTrustStore;
-
-#[derive(Clone, serde::Serialize, specta::Type)]
-pub struct AppSettings {
-    pub api_url: String,
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn get_app_settings() -> Result<AppSettings, String> {
-    Ok(AppSettings {
-        api_url: env!("API_URL").to_string(),
-    })
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn bootstrap_restore(
-    auth_manager: tauri::State<'_, DesktopAuthManager>,
-) -> Result<Option<crate::auth::AuthBootstrapStatus>, String> {
-    auth_manager.restore().await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn bootstrap_load_metadata(
-    auth_manager: tauri::State<'_, DesktopAuthManager>,
-) -> Result<crate::auth::BootstrapMetadata, String> {
-    auth_manager.load_bootstrap_metadata().await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn bootstrap_save_connection(
-    connection: crate::auth::SaveConnectionInput,
-    auth_manager: tauri::State<'_, DesktopAuthManager>,
-) -> Result<shared::SshHostRecord, String> {
-    auth_manager.save_connection(connection).await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn bootstrap_delete_connection(
-    id: String,
-    ssh_key_id: Option<String>,
-    auth_manager: tauri::State<'_, DesktopAuthManager>,
-) -> Result<(), String> {
-    auth_manager.delete_connection(id).await?;
-
-    if let Some(ssh_key_id) = ssh_key_id {
-        auth_manager.delete_key(ssh_key_id).await?;
-    }
-
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn bootstrap_save_setting(
-    setting: shared::Setting,
-    auth_manager: tauri::State<'_, DesktopAuthManager>,
-) -> Result<shared::Setting, String> {
-    auth_manager.upsert_setting(setting).await
-}
 
 #[tauri::command]
 #[specta::specta]
@@ -83,7 +18,26 @@ pub fn greet(name: &str) -> String {
 fn command_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
         greet,
-        get_app_settings,
+        crate::store::db_backup,
+        crate::store::hosts::host_list,
+        crate::store::hosts::host_save,
+        crate::store::hosts::host_delete,
+        crate::store::groups::host_group_list,
+        crate::store::groups::host_group_create,
+        crate::store::groups::host_group_delete,
+        crate::store::keys::key_list,
+        crate::store::keys::key_create,
+        crate::store::keys::key_update,
+        crate::store::keys::key_delete,
+        crate::store::keys::key_secret,
+        crate::store::settings::get_all_settings,
+        crate::store::settings::get_setting,
+        crate::store::settings::set_setting,
+        crate::store::snippets::snippet_list,
+        crate::store::snippets::snippet_get,
+        crate::store::snippets::snippet_create,
+        crate::store::snippets::snippet_update,
+        crate::store::snippets::snippet_delete,
         crate::connect::ssh_connect_direct,
         crate::connect::ssh_confirm_host_trust,
         crate::connect::ssh_probe_host_info,
@@ -155,31 +109,26 @@ pub fn run() {
         .init();
 
     let specta_builder = command_builder();
-    let api_url = env!("API_URL").to_string();
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_fs::init())
         .setup(move |app| -> Result<(), Box<dyn std::error::Error>> {
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
 
-            let settings_path = app_data_dir.join("settings.json");
-            let settings = SettingsManager::new(settings_path);
-            app.manage(settings);
-
-            let auth_tokens_path = app_data_dir.join("auth").join("tokens.json");
-            let auth_manager =
-                DesktopAuthManager::from_backend_url(api_url.clone(), auth_tokens_path);
-            app.manage(auth_manager);
-
-            let trust_path = app_data_dir.join("trust").join("ssh_hosts.json");
-            let trust_store = SshTrustStore::new(trust_path)?;
-            app.manage(trust_store);
+            // Debug builds get their own database so `cargo make dev` cannot
+            // scribble over the installed app's connections and host keys.
+            let database_name = if cfg!(debug_assertions) {
+                "noverterm-dev.db"
+            } else {
+                "noverterm.db"
+            };
+            let pool = crate::store::init_pool(&app_data_dir.join(database_name))?;
+            app.manage(SshTrustStore::new(pool.clone()));
+            app.manage(pool);
 
             let ssh_manager = SshSessionManager::new();
             app.manage(ssh_manager);

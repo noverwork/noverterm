@@ -1,50 +1,28 @@
-import {
-  requestWithAuth,
-  requestNoContentWithAuth,
-  withAuthorizedRetry,
-} from "./api-client.js";
+import { invoke } from "@tauri-apps/api/core";
 
 import type { SnippetRecord, SnippetWriteRequest } from "./types.js";
 
 export async function listSnippets(): Promise<SnippetRecord[]> {
-  return withAuthorizedRetry(async (accessToken) => {
-    return requestWithAuth<SnippetRecord[]>("/snippets", accessToken);
-  });
+  return invoke<SnippetRecord[]>("snippet_list");
 }
 
 export async function getSnippet(id: string): Promise<SnippetRecord> {
-  return withAuthorizedRetry(async (accessToken) => {
-    return requestWithAuth<SnippetRecord>(`/snippets/${id}`, accessToken);
-  });
+  return invoke<SnippetRecord>("snippet_get", { id });
 }
 
 export async function createSnippet(
-  input: SnippetWriteRequest,
+  snippet: SnippetWriteRequest,
 ): Promise<SnippetRecord> {
-  return withAuthorizedRetry(async (accessToken) => {
-    return requestWithAuth<SnippetRecord>("/snippets", accessToken, {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
-  });
+  return invoke<SnippetRecord>("snippet_create", { snippet });
 }
 
 export async function updateSnippet(
   id: string,
-  input: SnippetWriteRequest,
+  snippet: SnippetWriteRequest,
 ): Promise<SnippetRecord> {
-  return withAuthorizedRetry(async (accessToken) => {
-    return requestWithAuth<SnippetRecord>(`/snippets/${id}`, accessToken, {
-      method: "PUT",
-      body: JSON.stringify(input),
-    });
-  });
+  return invoke<SnippetRecord>("snippet_update", { id, snippet });
 }
 
 export async function deleteSnippet(id: string): Promise<void> {
-  await withAuthorizedRetry(async (accessToken) => {
-    await requestNoContentWithAuth(`/snippets/${id}`, accessToken, {
-      method: "DELETE",
-    });
-  });
+  await invoke("snippet_delete", { id });
 }

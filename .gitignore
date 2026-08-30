@@ -34,3 +34,5 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 .sisyphus
+# ts-rs writes a duplicate of packages/desktop/ui/src/bindings here on cargo test
+packages/shared/bindings/

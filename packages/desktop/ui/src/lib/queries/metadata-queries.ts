@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/svelte-query";
 
-import { loadAppDataMetadataFromBackend } from "$lib/api/app-data-api.js";
+import { loadAppDataMetadata } from "$lib/api/app-data-api.js";
 import type {
   AppDataMetadata,
   HostGroupRecord,
@@ -13,14 +13,14 @@ import { queryKeys } from "./query-keys.js";
 export function appDataMetadataQueryOptions() {
   return queryOptions({
     queryKey: queryKeys.metadata(),
-    queryFn: loadAppDataMetadataFromBackend,
+    queryFn: loadAppDataMetadata,
   });
 }
 
 export function appDataSettingsQueryOptions() {
   return queryOptions({
     queryKey: queryKeys.metadata(),
-    queryFn: loadAppDataMetadataFromBackend,
+    queryFn: loadAppDataMetadata,
     select: (metadata: AppDataMetadata): Setting[] => metadata.settings,
   });
 }
@@ -28,7 +28,7 @@ export function appDataSettingsQueryOptions() {
 export function appDataHostsQueryOptions() {
   return queryOptions({
     queryKey: queryKeys.metadata(),
-    queryFn: loadAppDataMetadataFromBackend,
+    queryFn: loadAppDataMetadata,
     select: (metadata: AppDataMetadata): SshHostRecord[] => metadata.hosts,
   });
 }
@@ -36,7 +36,7 @@ export function appDataHostsQueryOptions() {
 export function appDataHostGroupsQueryOptions() {
   return queryOptions({
     queryKey: queryKeys.metadata(),
-    queryFn: loadAppDataMetadataFromBackend,
+    queryFn: loadAppDataMetadata,
     select: (metadata: AppDataMetadata): HostGroupRecord[] => metadata.host_groups,
   });
 }
@@ -44,7 +44,7 @@ export function appDataHostGroupsQueryOptions() {
 export function appDataKeysQueryOptions() {
   return queryOptions({
     queryKey: queryKeys.metadata(),
-    queryFn: loadAppDataMetadataFromBackend,
+    queryFn: loadAppDataMetadata,
     select: (metadata: AppDataMetadata): SshKeyRecord[] => metadata.keys,
   });
 }

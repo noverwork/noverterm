@@ -8,9 +8,166 @@ export const commands = {
 async greet(name: string) : Promise<string> {
     return await TAURI_INVOKE("greet", { name });
 },
-async getAppSettings() : Promise<Result<AppSettings, string>> {
+/**
+ * Writes a copy of the database to the user's download folder and returns the
+ * file name. `VACUUM INTO` is atomic and folds in the WAL, so unlike copying
+ * the file it is safe to run while the app is using the database.
+ */
+async dbBackup() : Promise<Result<string, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_app_settings") };
+    return { status: "ok", data: await TAURI_INVOKE("db_backup") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async hostList() : Promise<Result<SshHostRecord[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("host_list") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async hostSave(connection: SaveConnectionInput) : Promise<Result<SshHostRecord, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("host_save", { connection }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async hostDelete(id: string, sshKeyId: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("host_delete", { id, sshKeyId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async hostGroupList() : Promise<Result<HostGroupRecord[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("host_group_list") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async hostGroupCreate(name: string) : Promise<Result<HostGroupRecord, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("host_group_create", { name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async hostGroupDelete(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("host_group_delete", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async keyList() : Promise<Result<SshKeyRecord[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("key_list") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async keyCreate(key: KeyInput) : Promise<Result<SshKeyRecord, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("key_create", { key }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async keyUpdate(id: string, key: KeyUpdateInput) : Promise<Result<SshKeyRecord, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("key_update", { id, key }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async keyDelete(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("key_delete", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async keySecret(id: string) : Promise<Result<SshKeySecret, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("key_secret", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async getAllSettings() : Promise<Result<Setting[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_all_settings") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async getSetting(key: string) : Promise<Result<Setting | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_setting", { key }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async setSetting(setting: Setting) : Promise<Result<Setting, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_setting", { setting }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async snippetList() : Promise<Result<SnippetRecord[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("snippet_list") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async snippetGet(id: string) : Promise<Result<SnippetRecord, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("snippet_get", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async snippetCreate(snippet: SnippetWriteRequest) : Promise<Result<SnippetRecord, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("snippet_create", { snippet }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async snippetUpdate(id: string, snippet: SnippetWriteRequest) : Promise<Result<SnippetRecord, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("snippet_update", { id, snippet }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async snippetDelete(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("snippet_delete", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -300,19 +457,33 @@ async knownHostsRemove(host: string, port: number) : Promise<Result<KnownHostsRe
 
 /** user-defined types **/
 
-export type AppSettings = { api_url: string }
 export type DirectSshConnectInput = { host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null }
 export type FileEntry = { name: string; size: number; modified: number | null; file_type: FileType }
 export type FileType = "File" | "Dir" | "Symlink" | "Other"
+export type HostGroupRecord = { id: string; name: string }
 export type HostSystemInfo = { hostname: string | null; os: string | null; cpu_usage_percent: number | null; memory_total_bytes: number | null; memory_used_bytes: number | null; memory_usage_percent: number | null; disk_read_bytes_per_second: number | null; disk_write_bytes_per_second: number | null; network_rx_bytes_per_second: number | null; network_tx_bytes_per_second: number | null }
 export type HostTrustConfirmation = { host: string; port: number; algorithm: string; fingerprint: string }
 export type HostTrustMismatch = { host: string; port: number; expected_algorithm: string; expected_fingerprint: string; presented_algorithm: string; presented_fingerprint: string }
 export type HostTrustPrompt = { host: string; port: number; algorithm: string; fingerprint: string }
+export type KeyInput = { name: string; kind: string; fingerprint: string | null; private_key: string; passphrase: string | null }
+/**
+ * `private_key` is optional so a rename keeps the stored key; supplying one
+ * rotates it, and the passphrase then follows the new key rather than the old.
+ */
+export type KeyUpdateInput = { name: string; kind: string; fingerprint: string | null; private_key: string | null; passphrase: string | null }
 export type KnownHostsResponse = { hosts: TrustedSshHost[] }
 export type PortForwardStartInput = { name: string; host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null; bind_host: string; bind_port: number; target_host: string; target_port: number }
 export type PortForwardState = "connecting" | "listening" | "stopped" | "error"
 export type PortForwardStatus = { id: string; name: string; host: string; port: number; username: string; bind_host: string; bind_port: number; target_host: string; target_port: number; state: PortForwardState; error: string | null }
+export type SaveConnectionInput = { id: string | null; name: string; host: string; port: number; username: string; group_id?: string | null; password: string | null; private_key: string | null; passphrase: string | null; key_name: string | null; existing_key_id: string | null }
+export type Setting = { key: string; value: string }
+export type SnippetRecord = { id: string; host_id: string; host_name: string; title: string; body: string }
+export type SnippetWriteRequest = { host_id: string; title: string; body: string }
 export type SshConnectResponse = { status: "connected"; session_id: string } | { status: "trust_required"; prompt: HostTrustPrompt } | { status: "trust_mismatch"; mismatch: HostTrustMismatch }
+export type SshHostAuthMaterial = { kind: "password"; password: string } | { kind: "public_key"; private_key: string; passphrase: string | null } | { kind: "public_key_and_password"; private_key: string; passphrase: string | null; password: string }
+export type SshHostRecord = { id: string; name: string; host: string; port: number; username: string; ssh_key_id: string | null; group_id: string | null; auth: SshHostAuthMaterial | null }
+export type SshKeyRecord = { id: string; name: string; kind: string; fingerprint: string | null }
+export type SshKeySecret = { private_key: string; passphrase: string | null }
 export type SshLocalPortForwardInput = { session_id: string; bind_host: string; bind_port: number; target_host: string; target_port: number }
 export type SshPortForwardState = "listening" | "stopped" | "error"
 export type SshPortForwardStatus = { forward_id: string; session_id: string; bind_host: string; bind_port: number; target_host: string; target_port: number; status: SshPortForwardState; error: string | null }

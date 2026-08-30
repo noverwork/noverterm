@@ -75,19 +75,16 @@ The bundled app will be in `target/release/bundle/`.
 | **Desktop** | Tauri 2 |
 | **SSH** | Russh (pure Rust SSH library) |
 | **Async Runtime** | Tokio |
-| **API** | Axum (for cloud sync backend) |
-| **Database** | PostgreSQL + Diesel ORM |
+| **Database** | SQLite + Diesel ORM (local, in the app data folder) |
 
 ## Project Structure
 
 ```
 noverterm/
 ├── packages/
-│   ├── desktop/        # Tauri app (Rust + Svelte UI)
-│   ├── shared/         # Shared types between desktop & backend
-│   ├── backend/        # Cloud sync API server (Axum)
-│   ├── orm/            # Diesel ORM models
-│   └── migrator/       # Database migrations
+│   ├── desktop/        # Tauri app (Rust + Svelte UI), owns the SQLite database
+│   ├── shared/         # Types shared between the Rust commands and the UI
+│   └── orm/            # Diesel ORM models and schema
 ├── Cargo.toml          # Rust workspace
 └── Makefile.toml       # cargo-make tasks
 ```

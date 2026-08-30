@@ -1,20 +1,18 @@
-pub mod auth;
 pub mod bootstrap;
 pub mod connect;
 pub mod runtime;
-pub mod settings;
 pub mod sftp;
+pub mod store;
 pub mod trust;
 
 pub use bootstrap::{export_types, run};
 
 pub const FEATURE_BOUNDARIES: &[&str] = &[
-    "auth",
     "bootstrap",
+    "store",
     "runtime/ssh",
     "runtime/local",
     "trust",
-    "settings",
     "connect",
     "sftp",
 ];
@@ -32,12 +30,11 @@ mod tests {
         assert_eq!(
             feature_boundaries(),
             &[
-                "auth",
                 "bootstrap",
+                "store",
                 "runtime/ssh",
                 "runtime/local",
                 "trust",
-                "settings",
                 "connect",
                 "sftp",
             ]
