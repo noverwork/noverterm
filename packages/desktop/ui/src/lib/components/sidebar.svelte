@@ -1,7 +1,6 @@
 <script lang="ts">
   import {
     KeyRound,
-    LogOut,
     Network,
     Server,
     Settings,
@@ -30,9 +29,7 @@
     onGoHome,
     onSnippets,
     onSftp,
-    authEmail,
     onOpenSettings,
-    onLogout,
     connectionCount = 0,
     keyCount = 0,
     forwardCount = 0,
@@ -51,9 +48,7 @@
     onGoHome?: () => void;
     onSnippets?: () => void;
     onSftp?: () => void;
-    authEmail?: string;
     onOpenSettings?: () => void;
-    onLogout?: () => void;
     connectionCount?: number;
     keyCount?: number;
     forwardCount?: number;
@@ -361,18 +356,7 @@
       <div
         class="rounded-3xl border border-white/10 bg-white/[0.035] p-3 shadow-inner shadow-white/[0.02]"
       >
-        {#if authEmail}
-          <p class="truncate px-1 text-xs font-medium text-slate-300">
-            {authEmail}
-          </p>
-          <p
-            class="mt-1 px-1 text-[10px] uppercase tracking-[0.2em] text-slate-600"
-          >
-            Authenticated
-          </p>
-        {/if}
-
-        <div class="mt-3 grid gap-1.5">
+        <div class="grid gap-1.5">
           {#if onOpenSettings}
             <Button
               onclick={onOpenSettings}
@@ -385,17 +369,6 @@
             </Button>
           {/if}
 
-          {#if onLogout}
-            <Button
-              onclick={onLogout}
-              variant="ghost"
-              size="sm"
-              class="w-full justify-start gap-2 rounded-2xl text-slate-500 hover:bg-red-400/10 hover:text-red-300"
-            >
-              <LogOut class="size-3.5" />
-              Log out
-            </Button>
-          {/if}
         </div>
       </div>
     </div>

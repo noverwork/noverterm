@@ -1,8 +1,4 @@
-import {
-  isAuthExpiredError,
-  requestWithAuth,
-  withAuthorizedRetry,
-} from "./api-client.js";
+import { invoke } from "@tauri-apps/api/core";
 
 import type {
   AppDataMetadata,
@@ -12,22 +8,13 @@ import type {
   SshKeyRecord,
 } from "./types.js";
 
-export async function loadAppDataMetadataFromBackend(): Promise<AppDataMetadata> {
-  try {
-    return await withAuthorizedRetry(async (accessToken) => {
-      const [settings, hostGroups, hosts, keys] = await Promise.all([
-        requestWithAuth<Setting[]>("/settings", accessToken),
-        requestWithAuth<HostGroupRecord[]>("/host-groups", accessToken),
-        requestWithAuth<SshHostRecord[]>("/hosts", accessToken),
-        requestWithAuth<SshKeyRecord[]>("/keys", accessToken),
-      ]);
+export async function loadAppDataMetadata(): Promise<AppDataMetadata> {
+  const [settings, hostGroups, hosts, keys] = await Promise.all([
+    invoke<Setting[]>("get_all_settings"),
+    invoke<HostGroupRecord[]>("host_group_list"),
+    invoke<SshHostRecord[]>("host_list"),
+    invoke<SshKeyRecord[]>("key_list"),
+  ]);
 
-      return { settings, host_groups: hostGroups, hosts, keys };
-    });
-  } catch (error) {
-    if (isAuthExpiredError(error)) {
-      throw new Error("session expired", { cause: error });
-    }
-    throw error;
-  }
+  return { settings, host_groups: hostGroups, hosts, keys };
 }

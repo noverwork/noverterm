@@ -6,22 +6,18 @@ import {
   revealSshKeySecret,
   updateSshKey,
 } from "$lib/api/keys-api.js";
-import type {
-  KeyCreateRequest,
-  KeyUpdateRequest,
-  SshKeyRecord,
-} from "$lib/api/types.js";
+import type { KeyInput, KeyUpdateInput, SshKeyRecord } from "$lib/api/types.js";
 import { mutationKeys } from "./query-keys.js";
 
 export interface UpdateSshKeyInput {
   keyId: string;
-  key: KeyUpdateRequest;
+  key: KeyUpdateInput;
 }
 
 export function createKeyMutationOptions() {
   return mutationOptions({
     mutationKey: mutationKeys.createKey,
-    mutationFn: (key: KeyCreateRequest): Promise<SshKeyRecord> => createSshKey(key),
+    mutationFn: (key: KeyInput): Promise<SshKeyRecord> => createSshKey(key),
   });
 }
 

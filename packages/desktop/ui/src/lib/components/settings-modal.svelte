@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { Settings, X, Download, CheckCircle } from "@lucide/svelte";
+  import { Settings, X, Download, CheckCircle, DatabaseBackup } from "@lucide/svelte";
   import { getVersion } from "@tauri-apps/api/app";
+  import { invoke } from "@tauri-apps/api/core";
 
   import { Button } from "$lib/components/ui/button/index.js";
   import { checkForAppUpdate } from "$lib/updater/auto-update.js";
@@ -16,12 +17,30 @@
   let appVersion = $state("");
   let checking = $state(false);
   let updateStatus = $state<"idle" | "checking" | "up-to-date" | "error">("idle");
+  let backingUp = $state(false);
+  let backupNotice = $state<string | null>(null);
+  let backupError = $state<string | null>(null);
 
   $effect(() => {
     if (open) {
       getVersion().then((v) => (appVersion = v));
     }
   });
+
+  async function handleBackup() {
+    backingUp = true;
+    backupNotice = null;
+    backupError = null;
+
+    try {
+      const fileName = await invoke<string>("db_backup");
+      backupNotice = `Saved to Downloads/${fileName}`;
+    } catch (cause) {
+      backupError = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      backingUp = false;
+    }
+  }
 
   async function handleCheckUpdate() {
     checking = true;
@@ -109,6 +128,49 @@
 
           {#if updateStatus === "error"}
             <p class="mt-2 text-xs text-rose-400">Failed to check for updates</p>
+          {/if}
+        </div>
+
+        <div
+          class="rounded-[1.35rem] border border-white/10 bg-white/[0.025] px-5 py-5"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="grid size-10 place-items-center rounded-xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
+            >
+              <DatabaseBackup class="size-4" />
+            </div>
+            <div class="flex-1">
+              <p class="text-sm font-semibold text-white">Backup</p>
+              <p class="text-xs text-slate-500">
+                Connections, keys and snippets are stored in plain text — keep
+                the file somewhere private.
+              </p>
+            </div>
+          </div>
+
+          <div class="mt-4 flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              class="flex-1 rounded-xl border-white/10 bg-white/5 text-sm text-white hover:bg-white/10 disabled:opacity-50"
+              onclick={handleBackup}
+              disabled={backingUp}
+            >
+              {#if backingUp}
+                <span class="animate-pulse">Backing up...</span>
+              {:else}
+                <DatabaseBackup class="mr-1.5 size-3.5" />
+                Back up to Downloads
+              {/if}
+            </Button>
+          </div>
+
+          {#if backupNotice}
+            <p class="mt-2 text-xs text-emerald-400">{backupNotice}</p>
+          {/if}
+          {#if backupError}
+            <p class="mt-2 text-xs text-rose-400">{backupError}</p>
           {/if}
         </div>
       </div>

@@ -12,7 +12,6 @@ use crate::schema::host_snippets;
 pub struct HostSnippet {
     pub id: String,
     pub host_id: String,
-    pub owner_id: String,
     pub title: String,
     pub body: String,
     pub created_at: NaiveDateTime,
@@ -24,7 +23,6 @@ pub struct HostSnippet {
 pub struct NewHostSnippet {
     pub id: String,
     pub host_id: String,
-    pub owner_id: String,
     pub title: String,
     pub body: String,
     pub created_at: NaiveDateTime,

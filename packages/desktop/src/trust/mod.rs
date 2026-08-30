@@ -1,15 +1,17 @@
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-
+use chrono::Utc;
+use diesel::prelude::*;
+use orm::models::{NewTrustedHost, TrustedHost};
+use orm::schema::trusted_hosts;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use tokio::sync::RwLock;
 
+use crate::store::{internal_error, run_db, DbPool};
+
+/// Host keys the user has accepted, backed by the same database as everything
+/// else so a backup covers them too.
 #[derive(Debug, Clone)]
 pub struct SshTrustStore {
-    path: PathBuf,
-    records: Arc<RwLock<HashMap<String, TrustedSshHost>>>,
+    pool: DbPool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
@@ -53,41 +55,42 @@ pub struct TrustedSshHost {
     pub fingerprint: String,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
-struct TrustedSshHostsFile {
-    records: Vec<TrustedSshHost>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
 pub struct KnownHostsResponse {
     pub hosts: Vec<TrustedSshHost>,
 }
 
 impl SshTrustStore {
-    pub fn new(path: PathBuf) -> Result<Self, String> {
-        let records = load_records(&path)?;
-
-        Ok(Self {
-            path,
-            records: Arc::new(RwLock::new(records)),
-        })
+    pub fn new(pool: DbPool) -> Self {
+        Self { pool }
     }
 
     pub async fn confirm(&self, confirmation: HostTrustConfirmation) -> Result<(), String> {
-        let record = TrustedSshHost {
-            host: confirmation.host,
-            port: confirmation.port,
-            algorithm: confirmation.algorithm,
-            fingerprint: confirmation.fingerprint,
-        };
-
-        let snapshot = {
-            let mut records = self.records.write().await;
-            records.insert(record_key(&record.host, record.port), record);
-            snapshot_records(&records)
-        };
-
-        persist_records(&self.path, snapshot).await
+        let pool = self.pool.clone();
+        run_db(pool, move |connection| {
+            let now = Utc::now().naive_utc();
+            diesel::insert_into(trusted_hosts::table)
+                .values(&NewTrustedHost {
+                    host: confirmation.host,
+                    port: i32::from(confirmation.port),
+                    algorithm: confirmation.algorithm,
+                    fingerprint: confirmation.fingerprint,
+                    created_at: now,
+                    updated_at: now,
+                })
+                .on_conflict((trusted_hosts::host, trusted_hosts::port))
+                .do_update()
+                .set((
+                    trusted_hosts::algorithm.eq(diesel::upsert::excluded(trusted_hosts::algorithm)),
+                    trusted_hosts::fingerprint
+                        .eq(diesel::upsert::excluded(trusted_hosts::fingerprint)),
+                    trusted_hosts::updated_at.eq(now),
+                ))
+                .execute(connection)
+                .map(|_| ())
+                .map_err(internal_error)
+        })
+        .await
     }
 
     pub(crate) async fn evaluate(
@@ -97,8 +100,21 @@ impl SshTrustStore {
         algorithm: &str,
         fingerprint: &str,
     ) -> TrustCheck {
-        let records = self.records.read().await;
-        let Some(record) = records.get(&record_key(host, port)) else {
+        let pool = self.pool.clone();
+        let lookup_host = host.to_string();
+        let record = run_db(pool, move |connection| {
+            trusted_hosts::table
+                .filter(trusted_hosts::host.eq(lookup_host))
+                .filter(trusted_hosts::port.eq(i32::from(port)))
+                .first::<TrustedHost>(connection)
+                .optional()
+                .map_err(internal_error)
+        })
+        .await;
+
+        // A database error must not silently downgrade to "trusted"; treating it
+        // like an unknown host re-prompts instead.
+        let Ok(Some(record)) = record else {
             return TrustCheck::TrustRequired(HostTrustPrompt {
                 host: host.to_string(),
                 port,
@@ -113,30 +129,45 @@ impl SshTrustStore {
             TrustCheck::TrustMismatch(HostTrustMismatch {
                 host: host.to_string(),
                 port,
-                expected_algorithm: record.algorithm.clone(),
-                expected_fingerprint: record.fingerprint.clone(),
+                expected_algorithm: record.algorithm,
+                expected_fingerprint: record.fingerprint,
                 presented_algorithm: algorithm.to_string(),
                 presented_fingerprint: fingerprint.to_string(),
             })
         }
     }
 
-    pub async fn list(&self) -> Vec<TrustedSshHost> {
-        let records = self.records.read().await;
-        snapshot_records(&records)
+    pub async fn list(&self) -> Result<Vec<TrustedSshHost>, String> {
+        let pool = self.pool.clone();
+        run_db(pool, |connection| {
+            trusted_hosts::table
+                .order((trusted_hosts::host.asc(), trusted_hosts::port.asc()))
+                .load::<TrustedHost>(connection)
+                .map(|records| records.into_iter().map(to_record).collect())
+                .map_err(internal_error)
+        })
+        .await
     }
 
     pub async fn remove(&self, host: &str, port: u16) -> Result<(), String> {
-        let key = record_key(host, port);
-        let snapshot = {
-            let mut records = self.records.write().await;
-            records
-                .remove(&key)
-                .ok_or_else(|| format!("No trusted host found for {host}:{port}"))?;
-            snapshot_records(&records)
-        };
+        let pool = self.pool.clone();
+        let host = host.to_string();
+        run_db(pool, move |connection| {
+            let removed = diesel::delete(
+                trusted_hosts::table
+                    .filter(trusted_hosts::host.eq(&host))
+                    .filter(trusted_hosts::port.eq(i32::from(port))),
+            )
+            .execute(connection)
+            .map_err(internal_error)?;
 
-        persist_records(&self.path, snapshot).await
+            if removed == 0 {
+                return Err(format!("No trusted host found for {host}:{port}"));
+            }
+
+            Ok(())
+        })
+        .await
     }
 }
 
@@ -146,7 +177,7 @@ pub async fn known_hosts_get(
     trust_store: State<'_, SshTrustStore>,
 ) -> Result<KnownHostsResponse, String> {
     Ok(KnownHostsResponse {
-        hosts: trust_store.list().await,
+        hosts: trust_store.list().await?,
     })
 }
 
@@ -159,135 +190,18 @@ pub async fn known_hosts_remove(
 ) -> Result<KnownHostsResponse, String> {
     trust_store.remove(&host, port).await?;
     Ok(KnownHostsResponse {
-        hosts: trust_store.list().await,
+        hosts: trust_store.list().await?,
     })
 }
 
-fn load_records(path: &Path) -> Result<HashMap<String, TrustedSshHost>, String> {
-    if !path.exists() {
-        return Ok(HashMap::new());
+fn to_record(record: TrustedHost) -> TrustedSshHost {
+    TrustedSshHost {
+        host: record.host,
+        port: record.port as u16,
+        algorithm: record.algorithm,
+        fingerprint: record.fingerprint,
     }
-
-    let contents = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
-    let file = serde_json::from_str::<TrustedSshHostsFile>(&contents)
-        .map_err(|error| error.to_string())?;
-
-    Ok(file
-        .records
-        .into_iter()
-        .map(|record| (record_key(&record.host, record.port), record))
-        .collect())
-}
-
-fn snapshot_records(records: &HashMap<String, TrustedSshHost>) -> Vec<TrustedSshHost> {
-    let mut values = records.values().cloned().collect::<Vec<_>>();
-    values.sort_by(|left, right| {
-        left.host
-            .cmp(&right.host)
-            .then(left.port.cmp(&right.port))
-            .then(left.fingerprint.cmp(&right.fingerprint))
-    });
-    values
-}
-
-async fn persist_records(path: &Path, records: Vec<TrustedSshHost>) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|error| error.to_string())?;
-    }
-
-    let contents = serde_json::to_vec_pretty(&TrustedSshHostsFile { records })
-        .map_err(|error| error.to_string())?;
-    tokio::fs::write(path, contents)
-        .await
-        .map_err(|error| error.to_string())
-}
-
-fn record_key(host: &str, port: u16) -> String {
-    format!("{host}:{port}")
 }
 
 #[cfg(test)]
-mod tests {
-    use uuid::Uuid;
-
-    use super::{
-        HostTrustConfirmation, HostTrustMismatch, HostTrustPrompt, SshTrustStore, TrustCheck,
-    };
-
-    fn temp_path() -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("noverterm-trust-{}.json", Uuid::new_v4()))
-    }
-
-    #[tokio::test]
-    async fn trust_store_requires_first_use_then_persists_confirmation() {
-        let path = temp_path();
-        let store = SshTrustStore::new(path.clone()).expect("trust store should initialize");
-
-        let first_use = store
-            .evaluate("example.com", 22, "ssh-ed25519", "SHA256:first-fingerprint")
-            .await;
-        assert_eq!(
-            first_use,
-            TrustCheck::TrustRequired(HostTrustPrompt {
-                host: "example.com".to_string(),
-                port: 22,
-                algorithm: "ssh-ed25519".to_string(),
-                fingerprint: "SHA256:first-fingerprint".to_string(),
-            })
-        );
-
-        store
-            .confirm(HostTrustConfirmation {
-                host: "example.com".to_string(),
-                port: 22,
-                algorithm: "ssh-ed25519".to_string(),
-                fingerprint: "SHA256:first-fingerprint".to_string(),
-            })
-            .await
-            .expect("confirmation should persist");
-
-        let reloaded =
-            SshTrustStore::new(path.clone()).expect("reloaded trust store should initialize");
-        let trusted = reloaded
-            .evaluate("example.com", 22, "ssh-ed25519", "SHA256:first-fingerprint")
-            .await;
-        assert_eq!(trusted, TrustCheck::Trusted);
-
-        std::fs::remove_file(path).expect("temp trust file should be removable");
-    }
-
-    #[tokio::test]
-    async fn trust_store_blocks_fingerprint_mismatch() {
-        let path = temp_path();
-        let store = SshTrustStore::new(path.clone()).expect("trust store should initialize");
-
-        store
-            .confirm(HostTrustConfirmation {
-                host: "example.com".to_string(),
-                port: 22,
-                algorithm: "ssh-ed25519".to_string(),
-                fingerprint: "SHA256:expected".to_string(),
-            })
-            .await
-            .expect("confirmation should persist");
-
-        let mismatch = store
-            .evaluate("example.com", 22, "ssh-ed25519", "SHA256:presented")
-            .await;
-        assert_eq!(
-            mismatch,
-            TrustCheck::TrustMismatch(HostTrustMismatch {
-                host: "example.com".to_string(),
-                port: 22,
-                expected_algorithm: "ssh-ed25519".to_string(),
-                expected_fingerprint: "SHA256:expected".to_string(),
-                presented_algorithm: "ssh-ed25519".to_string(),
-                presented_fingerprint: "SHA256:presented".to_string(),
-            })
-        );
-
-        std::fs::remove_file(path).expect("temp trust file should be removable");
-    }
-}
+mod tests;

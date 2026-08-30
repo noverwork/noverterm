@@ -11,7 +11,6 @@
   import type { SshKeyRecord } from "$lib/api/types.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
-  import { decryptSecret } from "$lib/crypto/vault.js";
 
   let {
     connection = null,
@@ -50,8 +49,6 @@
 
   let keyName = $state("");
   let initializedConnectionId = $state<string | null>(null);
-  let isLoadingSavedPassword = $state(false);
-  let savedPasswordError = $state<string | null>(null);
   let showPassword = $state(false);
 
   $effect(() => {
@@ -62,15 +59,13 @@
 
     initializedConnectionId = connectionId;
     keyName = "";
-    savedPasswordError = null;
-    isLoadingSavedPassword = false;
     showPassword = false;
     $formData = {
       name: connection?.name ?? "",
       host: connection?.host ?? "",
       port: connection?.port ?? 22,
       username: connection?.username ?? "",
-      password: "",
+      password: connection ? (savedPasswordFor(connection) ?? "") : "",
       privateKey: "",
       passphrase: "",
       useSshKey: Boolean(connection?.sshKeyId),
@@ -78,10 +73,6 @@
       selectedKeyId: connection?.sshKeyId ?? null,
       existingPassword: Boolean(connection?.hasPassword),
     };
-
-    if (connection) {
-      void loadSavedPassword(connection);
-    }
   });
 
   const formTitle = $derived(connection ? "Edit connection" : "New connection");
@@ -90,14 +81,10 @@
       return "Saving…";
     }
 
-    if (isLoadingSavedPassword) {
-      return "Loading password…";
-    }
-
     return connection ? "Save changes" : "Save";
   });
 
-  function encryptedPasswordFor(connection: ConnectionConfig): string | null {
+  function savedPasswordFor(connection: ConnectionConfig): string | null {
     if (
       connection.auth?.kind === "password" ||
       connection.auth?.kind === "public_key_and_password"
@@ -106,35 +93,6 @@
     }
 
     return null;
-  }
-
-  async function loadSavedPassword(connection: ConnectionConfig) {
-    const encryptedPassword = encryptedPasswordFor(connection);
-    if (!encryptedPassword) {
-      return;
-    }
-
-    const connectionId = connection.id;
-    isLoadingSavedPassword = true;
-    savedPasswordError = null;
-
-    try {
-      const password = await decryptSecret(encryptedPassword);
-      if (initializedConnectionId !== connectionId) {
-        return;
-      }
-
-      $formData.password = password ?? "";
-    } catch (cause) {
-      if (initializedConnectionId === connectionId) {
-        savedPasswordError =
-          cause instanceof Error ? cause.message : "Failed to load saved password";
-      }
-    } finally {
-      if (initializedConnectionId === connectionId) {
-        isLoadingSavedPassword = false;
-      }
-    }
   }
 
   const selectedKeyWillBeUsed = $derived(
@@ -169,7 +127,7 @@
 
   async function handleSubmit() {
     const result = connectionSchema.safeParse($formData);
-    if (!result.success || isSaving || isLoadingSavedPassword) {
+    if (!result.success || isSaving) {
       return;
     }
 
@@ -390,15 +348,13 @@
                   id="conn-password"
                   type={showPassword ? "text" : "password"}
                   bind:value={$formData.password}
-                  placeholder={isLoadingSavedPassword
-                    ? "Loading saved password"
-                    : connection?.hasPassword
-                      ? "Saved password"
-                      : "Leave blank for key-only auth"}
+                  placeholder={connection?.hasPassword
+                    ? "Saved password"
+                    : "Leave blank for key-only auth"}
                   class={$errors.password
                     ? "border-destructive bg-black/20 pr-11 text-white placeholder:text-slate-500"
                     : "border-white/10 bg-black/20 pr-11 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"}
-                  disabled={isSaving || isLoadingSavedPassword}
+                  disabled={isSaving}
                 />
                 <button
                   type="button"
@@ -406,7 +362,7 @@
                   onclick={() => {
                     showPassword = !showPassword;
                   }}
-                  disabled={isSaving || isLoadingSavedPassword || !$formData.password}
+                  disabled={isSaving || !$formData.password}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   title={showPassword ? "Hide password" : "Show password"}
                 >
@@ -417,11 +373,6 @@
                   {/if}
                 </button>
               </div>
-              {#if savedPasswordError}
-                <p class="text-xs text-destructive" role="alert">
-                  {savedPasswordError}
-                </p>
-              {/if}
               {#if $errors.password}
                 <p class="text-xs text-destructive" role="alert">
                   {$errors.password}
@@ -439,7 +390,7 @@
                   : "flex w-full cursor-pointer items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-left transition-colors hover:bg-white/[0.06]"}
                 onclick={toggleSshKey}
                 aria-pressed={$formData.useSshKey}
-                disabled={isSaving || isLoadingSavedPassword}
+                disabled={isSaving}
               >
                 <div
                   class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white/6 text-cyan-200"

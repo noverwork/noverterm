@@ -6,8 +6,6 @@ import {
   type QueryClient,
 } from "@tanstack/svelte-query";
 
-import { loadAppSettings } from "$lib/api/api-client.js";
-import type { AuthSessionStatus } from "$lib/api/auth-api.js";
 import type { HostGroupRecord, SshKeyRecord } from "$lib/api/types.js";
 import {
   buildNovertermConfig,
@@ -20,7 +18,6 @@ import {
   uniqueRecentConnectionIds,
 } from "$lib/app-data-mappers.js";
 import type {
-  AppDataPhase,
   ConnectionConfig,
   SaveConnectionInput,
   SavePortForwardInput,
@@ -33,18 +30,13 @@ import {
   deleteConnectionMutationOptions,
   deleteHostGroupMutationOptions,
   deleteKeyMutationOptions,
-  forgotPasswordMutationOptions,
-  loginMutationOptions,
-  logoutMutationOptions,
   queryKeys,
-  registerMutationOptions,
-  resetPasswordMutationOptions,
-  restoreSessionMutationOptions,
   revealKeySecretMutationOptions,
   saveConnectionMutationOptions,
   updateKeyMutationOptions,
   upsertSettingMutationOptions,
 } from "$lib/queries/index.js";
+import type { HostTrustConfirmation } from "../../bindings.js";
 import { createPortForwardStore } from "$lib/stores/port-forward.svelte.js";
 import {
   createSessionStore,
@@ -61,9 +53,6 @@ export function createAppShellStore(queryClient: QueryClient) {
   const sessionStore = createSessionStore();
   const portForwardStore = createPortForwardStore();
 
-  let authPhase = $state<AppDataPhase>("loading");
-  let authStatus = $state<AuthSessionStatus | null>(null);
-  let authError = $state<string | null>(null);
   let showSettings = $state(false);
   let connectionFormError = $state<string | null>(null);
   let connectionSaving = $state(false);
@@ -75,37 +64,10 @@ export function createAppShellStore(queryClient: QueryClient) {
   let sessionOrder = $state<string[]>([]);
 
   const metadataQuery = createQuery(
-    () => ({
-      ...appDataMetadataQueryOptions(),
-      enabled: authPhase === "authenticated",
-    }),
+    () => appDataMetadataQueryOptions(),
     () => queryClient,
   );
 
-  const restoreSessionMutation = createMutation(
-    () => restoreSessionMutationOptions(),
-    () => queryClient,
-  );
-  const loginMutation = createMutation(
-    () => loginMutationOptions(),
-    () => queryClient,
-  );
-  const registerMutation = createMutation(
-    () => registerMutationOptions(),
-    () => queryClient,
-  );
-  const logoutMutation = createMutation(
-    () => logoutMutationOptions(),
-    () => queryClient,
-  );
-  const forgotPasswordMutation = createMutation(
-    () => forgotPasswordMutationOptions(),
-    () => queryClient,
-  );
-  const resetPasswordMutation = createMutation(
-    () => resetPasswordMutationOptions(),
-    () => queryClient,
-  );
   const saveConnectionMutation = createMutation(
     () => saveConnectionMutationOptions(),
     () => queryClient,
@@ -232,11 +194,6 @@ export function createAppShellStore(queryClient: QueryClient) {
     return await fetchAppDataMetadata();
   }
 
-  async function clearAppDataCache() {
-    await queryClient.cancelQueries({ queryKey: queryKeys.appData });
-    queryClient.removeQueries({ queryKey: queryKeys.appData });
-  }
-
   function currentSettings() {
     return metadata?.settings ?? [];
   }
@@ -244,28 +201,12 @@ export function createAppShellStore(queryClient: QueryClient) {
   async function init() {
     startupLoading = true;
     startupError = null;
-    authPhase = "loading";
-    authError = null;
 
     try {
-      await loadAppSettings();
       await sessionStore.init();
-      const restoredAuthStatus = await restoreSessionMutation.mutateAsync();
-
-      if (restoredAuthStatus === null) {
-        authPhase = "unauthenticated";
-        authStatus = null;
-        await clearAppDataCache();
-        return;
-      }
-
-      authStatus = restoredAuthStatus;
-      authPhase = "authenticated";
       await fetchAppDataMetadata();
     } catch (error) {
-      authPhase = "error";
-      authError = errorMessage(error);
-      startupError = authError;
+      startupError = errorMessage(error);
     } finally {
       startupLoading = false;
     }
@@ -274,54 +215,6 @@ export function createAppShellStore(queryClient: QueryClient) {
   function cleanup() {
     sessionStore.cleanup();
     portForwardStore.cleanup();
-  }
-
-  async function login(email: string, password: string) {
-    authPhase = "loading";
-    authError = null;
-
-    try {
-      authStatus = await loginMutation.mutateAsync({ email, password });
-      authPhase = "authenticated";
-      await fetchAppDataMetadata();
-    } catch (error) {
-      authPhase = "unauthenticated";
-      authStatus = null;
-      authError = errorMessage(error);
-      await clearAppDataCache();
-    }
-  }
-
-  async function signup(email: string, password: string) {
-    authPhase = "loading";
-    authError = null;
-
-    try {
-      authStatus = await registerMutation.mutateAsync({ email, password });
-      authPhase = "authenticated";
-      await fetchAppDataMetadata();
-    } catch (error) {
-      authPhase = "unauthenticated";
-      authStatus = null;
-      authError = errorMessage(error);
-      await clearAppDataCache();
-    }
-  }
-
-  async function forgotPassword(email: string) {
-    await forgotPasswordMutation.mutateAsync(email);
-  }
-
-  async function resetAccountPassword(token: string, password: string) {
-    await resetPasswordMutation.mutateAsync({ token, password });
-  }
-
-  async function logout() {
-    await logoutMutation.mutateAsync();
-    authPhase = "unauthenticated";
-    authStatus = null;
-    authError = null;
-    await clearAppDataCache();
   }
 
   async function connectSavedConnection(
@@ -461,7 +354,7 @@ export function createAppShellStore(queryClient: QueryClient) {
       existingKeyId: connection.sshKeyId,
       ...(connection.auth?.kind === "password" ||
       connection.auth?.kind === "public_key_and_password"
-        ? { preservedEncryptedPassword: connection.auth.password }
+        ? { preservedPassword: connection.auth.password }
         : {}),
     });
   }
@@ -470,8 +363,9 @@ export function createAppShellStore(queryClient: QueryClient) {
     await createKeyMutation.mutateAsync({
       name,
       kind: "inline",
-      encrypted_private_key: privateKey,
-      encrypted_passphrase: passphrase || null,
+      fingerprint: null,
+      private_key: privateKey,
+      passphrase: passphrase || null,
     });
     await refreshMetadata();
   }
@@ -487,8 +381,9 @@ export function createAppShellStore(queryClient: QueryClient) {
       key: {
         name,
         kind: "inline",
-        ...(privateKey ? { encrypted_private_key: privateKey } : {}),
-        ...(privateKey ? { encrypted_passphrase: passphrase || null } : {}),
+        fingerprint: null,
+        private_key: privateKey || null,
+        passphrase: privateKey ? passphrase || null : null,
       },
     });
     await refreshMetadata();
@@ -657,8 +552,10 @@ export function createAppShellStore(queryClient: QueryClient) {
     return false;
   }
 
-  async function trustActiveHost(): Promise<boolean> {
-    if (!activeSession?.trustPrompt || !activeSession.connectionId) {
+  async function confirmTrustAndRetry(
+    confirmation: HostTrustConfirmation,
+  ): Promise<boolean> {
+    if (!activeSession?.connectionId) {
       return false;
     }
 
@@ -671,18 +568,12 @@ export function createAppShellStore(queryClient: QueryClient) {
       return false;
     }
 
-    const prompt = activeSession.trustPrompt;
     const failedSessionId = activeSession.id;
     trustConfirming = true;
     trustError = null;
 
     try {
-      await sessionStore.confirmHostTrust({
-        host: prompt.host,
-        port: prompt.port,
-        algorithm: prompt.algorithm,
-        fingerprint: prompt.fingerprint,
-      });
+      await sessionStore.confirmHostTrust(confirmation);
       await sessionStore.retrySavedConnection(
         failedSessionId,
         connection,
@@ -697,6 +588,34 @@ export function createAppShellStore(queryClient: QueryClient) {
     } finally {
       trustConfirming = false;
     }
+  }
+
+  async function trustActiveHost(): Promise<boolean> {
+    const prompt = activeSession?.trustPrompt;
+    if (!prompt) {
+      return false;
+    }
+
+    return await confirmTrustAndRetry({
+      host: prompt.host,
+      port: prompt.port,
+      algorithm: prompt.algorithm,
+      fingerprint: prompt.fingerprint,
+    });
+  }
+
+  async function trustNewHostKey(): Promise<boolean> {
+    const mismatch = activeSession?.trustMismatch;
+    if (!mismatch) {
+      return false;
+    }
+
+    return await confirmTrustAndRetry({
+      host: mismatch.host,
+      port: mismatch.port,
+      algorithm: mismatch.presented_algorithm,
+      fingerprint: mismatch.presented_fingerprint,
+    });
   }
 
   async function runSnippet(
@@ -741,9 +660,6 @@ export function createAppShellStore(queryClient: QueryClient) {
   return {
     sessionStore,
     portForwardStore,
-    get authStatus() {
-      return authStatus;
-    },
     get showSettings() {
       return showSettings;
     },
@@ -763,24 +679,13 @@ export function createAppShellStore(queryClient: QueryClient) {
       return visibleTerminalSessionId;
     },
     get isLoading() {
-      return (
-        startupLoading ||
-        authPhase === "loading" ||
-        (authPhase === "authenticated" && metadataQuery.isPending)
-      );
-    },
-    get isUnauthenticated() {
-      return authPhase === "unauthenticated";
+      return startupLoading || metadataQuery.isPending;
     },
     get isError() {
-      return (
-        startupError !== null ||
-        authPhase === "error" ||
-        metadataQuery.isError
-      );
+      return startupError !== null || metadataQuery.isError;
     },
     get error() {
-      return startupError ?? authError ?? metadataQuery.error?.message ?? null;
+      return startupError ?? metadataQuery.error?.message ?? null;
     },
     get activeSession() {
       return activeSession;
@@ -808,11 +713,6 @@ export function createAppShellStore(queryClient: QueryClient) {
     },
     init,
     cleanup,
-    login,
-    signup,
-    forgotPassword,
-    resetAccountPassword,
-    logout,
     connectSavedConnection,
     connectLocalTerminal,
     openK9sTerminal,
@@ -840,6 +740,7 @@ export function createAppShellStore(queryClient: QueryClient) {
     duplicateSession,
     retryActiveConnection,
     trustActiveHost,
+    trustNewHostKey,
     runSnippet,
     openSettings,
     closeSettings,

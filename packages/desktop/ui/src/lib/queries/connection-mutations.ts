@@ -1,10 +1,10 @@
 import { mutationOptions } from "@tanstack/svelte-query";
 
 import {
-  createBackendHostGroup,
-  deleteBackendConnection,
-  deleteBackendHostGroup,
-  saveBackendConnection,
+  createHostGroup,
+  deleteConnection,
+  deleteHostGroup,
+  saveConnection,
 } from "$lib/api/connections-api.js";
 import type { HostGroupRecord, SshHostRecord } from "$lib/api/types.js";
 import type {
@@ -17,7 +17,7 @@ export function saveConnectionMutationOptions() {
   return mutationOptions({
     mutationKey: mutationKeys.saveConnection,
     mutationFn: (connection: SaveConnectionInput): Promise<SshHostRecord> =>
-      saveBackendConnection(connection),
+      saveConnection(connection),
   });
 }
 
@@ -25,20 +25,20 @@ export function deleteConnectionMutationOptions() {
   return mutationOptions({
     mutationKey: mutationKeys.deleteConnection,
     mutationFn: (connection: ConnectionConfig): Promise<void> =>
-      deleteBackendConnection(connection),
+      deleteConnection(connection),
   });
 }
 
 export function createHostGroupMutationOptions() {
   return mutationOptions({
     mutationKey: mutationKeys.createHostGroup,
-    mutationFn: createBackendHostGroup,
+    mutationFn: createHostGroup,
   });
 }
 
 export function deleteHostGroupMutationOptions() {
   return mutationOptions({
     mutationKey: mutationKeys.deleteHostGroup,
-    mutationFn: (group: HostGroupRecord): Promise<void> => deleteBackendHostGroup(group),
+    mutationFn: (group: HostGroupRecord): Promise<void> => deleteHostGroup(group),
   });
 }

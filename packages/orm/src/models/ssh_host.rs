@@ -16,11 +16,10 @@ pub struct SshHost {
     pub port: i32,
     pub username: String,
     pub ssh_key_id: Option<String>,
-    pub encrypted_password: Option<String>,
+    pub password: Option<String>,
+    pub group_id: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
-    pub owner_id: String,
-    pub group_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Insertable)]
@@ -32,11 +31,10 @@ pub struct NewSshHost {
     pub port: i32,
     pub username: String,
     pub ssh_key_id: Option<String>,
-    pub encrypted_password: Option<String>,
+    pub password: Option<String>,
+    pub group_id: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
-    pub owner_id: String,
-    pub group_id: Option<String>,
 }
 
 #[derive(Debug, Clone, AsChangeset)]
@@ -47,7 +45,7 @@ pub struct UpdateSshHost {
     pub port: i32,
     pub username: String,
     pub ssh_key_id: Option<Option<String>>,
-    pub encrypted_password: Option<Option<String>>,
-    pub updated_at: NaiveDateTime,
+    pub password: Option<Option<String>>,
     pub group_id: Option<Option<String>>,
+    pub updated_at: NaiveDateTime,
 }

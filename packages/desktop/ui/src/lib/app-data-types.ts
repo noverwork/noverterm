@@ -1,11 +1,5 @@
 import type { SshHostAuthMaterial } from "$lib/api/types.js";
 
-export type AppDataPhase =
-  | "loading"
-  | "authenticated"
-  | "unauthenticated"
-  | "error";
-
 export interface TerminalConfig {
   fontSize: number;
   fontFamily: string;
@@ -54,7 +48,7 @@ export interface SaveConnectionInput {
   port: number;
   username: string;
   password?: string;
-  preservedEncryptedPassword?: string;
+  preservedPassword?: string;
   privateKey?: string;
   passphrase?: string;
   keyName?: string;

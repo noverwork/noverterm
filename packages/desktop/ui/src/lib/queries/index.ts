@@ -1,4 +1,3 @@
-export * from "./auth-mutations.js";
 export * from "./connection-mutations.js";
 export * from "./metadata-queries.js";
 export * from "./query-keys.js";

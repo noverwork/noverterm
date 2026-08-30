@@ -10,12 +10,6 @@ export const queryKeys = {
 };
 
 export const mutationKeys = {
-  restoreSession: ["auth", "restore"] as const,
-  login: ["auth", "login"] as const,
-  register: ["auth", "register"] as const,
-  logout: ["auth", "logout"] as const,
-  forgotPassword: ["auth", "forgot-password"] as const,
-  resetPassword: ["auth", "reset-password"] as const,
   saveConnection: ["app-data", "connections", "save"] as const,
   deleteConnection: ["app-data", "connections", "delete"] as const,
   createHostGroup: ["app-data", "host-groups", "create"] as const,

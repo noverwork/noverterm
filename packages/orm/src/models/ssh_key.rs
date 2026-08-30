@@ -11,11 +11,10 @@ pub struct SshKey {
     pub name: String,
     pub kind: String,
     pub fingerprint: Option<String>,
-    pub encrypted_private_key: String,
-    pub encrypted_passphrase: Option<String>,
+    pub private_key: String,
+    pub passphrase: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
-    pub owner_id: String,
 }
 
 #[derive(Debug, Clone, Insertable)]
@@ -25,11 +24,10 @@ pub struct NewSshKey {
     pub name: String,
     pub kind: String,
     pub fingerprint: Option<String>,
-    pub encrypted_private_key: String,
-    pub encrypted_passphrase: Option<String>,
+    pub private_key: String,
+    pub passphrase: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
-    pub owner_id: String,
 }
 
 #[derive(Debug, Clone, AsChangeset)]
@@ -38,7 +36,7 @@ pub struct UpdateSshKey {
     pub name: String,
     pub kind: String,
     pub fingerprint: Option<String>,
-    pub encrypted_private_key: String,
-    pub encrypted_passphrase: Option<String>,
+    pub private_key: String,
+    pub passphrase: Option<String>,
     pub updated_at: NaiveDateTime,
 }

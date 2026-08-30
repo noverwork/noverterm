@@ -9,7 +9,6 @@
   import { QueryClient, QueryClientProvider } from "@tanstack/svelte-query";
   import { AlertCircle, Loader2 } from "@lucide/svelte";
 
-  import AuthShell from "$lib/components/auth-shell.svelte";
   
   import SettingsModal from "$lib/components/settings-modal.svelte";
   import Sidebar from "$lib/components/sidebar.svelte";
@@ -189,6 +188,10 @@
   async function retryActiveConnection() {
     await app.retryActiveConnection();
     await goto(terminalPath);
+  }
+
+  async function trustNewHostKey() {
+    await app.trustNewHostKey();
   }
 
   async function trustActiveHost() {
@@ -403,18 +406,9 @@
     <div class="flex min-h-screen items-center justify-center bg-background">
       <div class="flex flex-col items-center gap-4">
         <Loader2 class="size-8 animate-spin text-primary" />
-        <p class="text-sm text-muted-foreground">Restoring session...</p>
+        <p class="text-sm text-muted-foreground">Loading...</p>
       </div>
     </div>
-  {:else if app.isUnauthenticated}
-    <AuthShell
-      onLogin={app.login}
-      onSignup={app.signup}
-      onForgotPassword={app.forgotPassword}
-      onResetPassword={app.resetAccountPassword}
-      isLoading={app.isLoading}
-      error={app.error}
-    />
   {:else if app.isError}
     <div
       class="auth-shell flex min-h-screen items-center justify-center px-4 py-8"
@@ -462,9 +456,7 @@
         onSftp={() => goto("/sftp")}
         onNewConnection={() => goto("/connections")}
         onGoHome={goHome}
-        authEmail={app.authStatus?.email ?? ""}
         onOpenSettings={app.openSettings}
-        onLogout={app.logout}
         connectionCount={app.connections.length}
         keyCount={app.keys.length}
         forwardCount={app.savedPortForwards.length}
@@ -808,10 +800,30 @@
                       man-in-the-middle risk. Not updating trust automatically.
                     </p>
                   </div>
-                  <div class="mt-6 flex justify-center">
+                  {#if app.trustError}
+                    <p
+                      class="mt-4 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200"
+                    >
+                      {app.trustError}
+                    </p>
+                  {/if}
+                  <div class="mt-6 flex flex-wrap justify-center gap-3">
+                    {#if app.activeSession.connectionId}
+                      <Button
+                        onclick={trustNewHostKey}
+                        disabled={app.trustConfirming}
+                        class="gap-2 rounded-2xl bg-red-300 px-5 text-red-950 hover:bg-red-200"
+                      >
+                        {#if app.trustConfirming}
+                          <Loader2 class="size-4 animate-spin" />
+                        {/if}
+                        Delete &amp; trust new key
+                      </Button>
+                    {/if}
                     <Button
+                      variant="outline"
                       onclick={retryActiveConnection}
-                      class="gap-2 rounded-2xl bg-red-300 px-5 text-red-950 hover:bg-red-200"
+                      class="rounded-2xl border-white/10 bg-white/4 px-5 text-white hover:bg-white/8"
                     >
                       Retry session
                     </Button>

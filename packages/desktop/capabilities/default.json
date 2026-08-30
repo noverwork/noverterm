@@ -8,17 +8,6 @@
     "opener:default",
     "store:default",
     "process:default",
-    "updater:default",
-    "fs:default",
-    "fs:read-all",
-    "fs:write-all",
-    {
-      "identifier": "http:default",
-      "allow": [
-        { "url": "http://127.0.0.1:*" },
-        { "url": "http://localhost:*" },
-        { "url": "https://*" }
-      ]
-    }
+    "updater:default"
   ]
 }

@@ -3,7 +3,6 @@
 diesel::table! {
     host_groups (id) {
         id -> Text,
-        owner_id -> Text,
         name -> Text,
         created_at -> Timestamp,
         updated_at -> Timestamp,
@@ -14,9 +13,17 @@ diesel::table! {
     host_snippets (id) {
         id -> Text,
         host_id -> Text,
-        owner_id -> Text,
         title -> Text,
         body -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    settings (key) {
+        key -> Text,
+        value -> Text,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }
@@ -27,14 +34,24 @@ diesel::table! {
         id -> Text,
         name -> Text,
         host -> Text,
-        port -> Int4,
+        port -> Integer,
         username -> Text,
         ssh_key_id -> Nullable<Text>,
-        encrypted_password -> Nullable<Text>,
+        password -> Nullable<Text>,
+        group_id -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
-        owner_id -> Text,
-        group_id -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    trusted_hosts (host, port) {
+        host -> Text,
+        port -> Integer,
+        algorithm -> Text,
+        fingerprint -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -44,46 +61,22 @@ diesel::table! {
         name -> Text,
         kind -> Text,
         fingerprint -> Nullable<Text>,
-        encrypted_private_key -> Text,
-        encrypted_passphrase -> Nullable<Text>,
-        created_at -> Timestamp,
-        updated_at -> Timestamp,
-        owner_id -> Text,
-    }
-}
-
-diesel::table! {
-    user_settings (id) {
-        id -> Text,
-        owner_id -> Text,
-        key -> Text,
-        value -> Text,
+        private_key -> Text,
+        passphrase -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }
 }
 
-diesel::table! {
-    users (id) {
-        id -> Text,
-        email -> Text,
-        password_hash -> Text,
-        created_at -> Timestamp,
-        updated_at -> Timestamp,
-    }
-}
-
-diesel::joinable!(host_groups -> users (owner_id));
-diesel::joinable!(host_snippets -> users (owner_id));
-diesel::joinable!(ssh_hosts -> users (owner_id));
-diesel::joinable!(ssh_keys -> users (owner_id));
-diesel::joinable!(user_settings -> users (owner_id));
+diesel::joinable!(host_snippets -> ssh_hosts (host_id));
+diesel::joinable!(ssh_hosts -> host_groups (group_id));
+diesel::joinable!(ssh_hosts -> ssh_keys (ssh_key_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     host_groups,
     host_snippets,
+    settings,
     ssh_hosts,
     ssh_keys,
-    user_settings,
-    users,
+    trusted_hosts,
 );
