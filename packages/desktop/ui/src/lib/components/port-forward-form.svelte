@@ -1,11 +1,14 @@
 <script lang="ts">
-  import { ChevronDown, Loader2, Network, Plus, Server, Trash2 } from "@lucide/svelte";
+  import { ArrowDown, ChevronDown, Network, Plus, Server, Trash2 } from "@lucide/svelte";
 
   import type {
     PortForwardRecord,
     PortForwardWriteRequest,
   } from "$lib/api/types.js";
   import type { ConnectionConfig } from "$lib/app-data-types.js";
+  import FormSection from "$lib/components/form-section.svelte";
+  import FormShell from "$lib/components/form-shell.svelte";
+  import { fieldClass, SELECT_CLASS } from "$lib/components/form-styles.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
 
@@ -121,7 +124,8 @@
     return port;
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(event: SubmitEvent) {
+    event.preventDefault();
     error = null;
 
     if (!selectedConnection) {
@@ -176,300 +180,202 @@
   }
 </script>
 
-<div
-  class="workspace-canvas flex h-full min-h-0 flex-col overflow-hidden px-5 py-6 lg:px-8"
+<FormShell
+  eyebrow="Network"
+  title={formTitle}
+  description="Save a reusable SSH tunnel from a local bind port to a target reachable from the selected host."
+  formId="port-forward-form"
+  {submitLabel}
+  {error}
+  busy={isSaving}
+  onsubmit={handleSubmit}
+  {onCancel}
 >
-  <section
-    class="ide-panel flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-white sm:p-6"
+  <FormSection
+    icon={Server}
+    title="Saved connection"
+    hint="Target host is resolved from this SSH server, not your local machine."
   >
-    <div
-      class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between"
-    >
-      <div>
-        <p class="section-title text-cyan-200/70">Network</p>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight">{formTitle}</h1>
-        <p class="mt-2 text-sm text-slate-500">
-          Save a reusable SSH tunnel from a local bind port to a target reachable
-          from the selected host.
+    {#if sortedConnections.length === 0}
+      <div
+        class="rounded-2xl border border-dashed border-white/10 bg-white/[0.025] px-4 py-6 text-center"
+      >
+        <Server class="mx-auto mb-3 size-8 text-slate-600" />
+        <p class="text-sm text-slate-400">No saved connections yet.</p>
+        <p class="mt-1 text-xs text-slate-500">
+          Create a Host in <span class="text-cyan-300/80">Connections</span> first,
+          then return here to save a tunnel.
         </p>
       </div>
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        class="rounded-2xl text-slate-300 hover:bg-white/8 hover:text-white"
-        onclick={onCancel}
-        disabled={isSaving}
-      >
-        Cancel
-      </Button>
-    </div>
-
-    <div class="min-h-0 flex-1 overflow-y-auto pr-1">
-      {#if error}
-        <div
-          class="mt-5 rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-          role="alert"
+    {:else}
+      <div class="space-y-2">
+        <label for="pf-connection" class="text-sm font-medium text-slate-100"
+          >Connection</label
         >
-          {error}
+        <div class="relative">
+          <select
+            id="pf-connection"
+            bind:value={selectedConnectionId}
+            class={SELECT_CLASS}
+            disabled={isSaving}
+          >
+            <option value="" class="bg-slate-900">— Select a saved connection —</option>
+            {#each sortedConnections as connection (connection.id)}
+              <option value={connection.id} class="bg-slate-900">
+                {connection.name} ({connection.username}@{connection.host}:{connection.port})
+              </option>
+            {/each}
+          </select>
+          <ChevronDown
+            class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+          />
+        </div>
+      </div>
+
+      {#if selectedConnection}
+        <div class="rounded-2xl border border-white/8 bg-black/15 px-3 py-2.5">
+          <p class="truncate text-sm font-medium text-white">
+            {selectedConnection.name}
+          </p>
+          <p class="mt-0.5 truncate font-mono text-[11px] text-slate-400">
+            {selectedConnection.username}@{selectedConnection.host}:{selectedConnection.port}
+          </p>
+          <p class="mt-0.5 text-[11px] text-slate-500">
+            {getAuthLabel(selectedConnection)}
+          </p>
         </div>
       {/if}
 
-      <form
-        class="mt-5 rounded-[1.35rem] border border-cyan-300/24 bg-cyan-300/8 p-5 shadow-[0_16px_42px_rgb(34_211_238/0.08)]"
-        onsubmit={(event) => {
-          event.preventDefault();
-          void handleSubmit();
-        }}
-      >
-        <div class="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <div class="space-y-4">
-            <div class="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
-              <div class="flex items-center gap-3">
-                <div
-                  class="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
-                >
-                  <Server class="size-5" />
-                </div>
-                <div>
-                  <h3
-                    class="text-xs font-medium uppercase tracking-[0.16em] text-slate-500"
-                  >
-                    Saved Connection
-                  </h3>
-                  <p class="mt-1 text-xs text-slate-400">
-                    Target host is resolved from this SSH server, not your local
-                    machine.
-                  </p>
-                </div>
-              </div>
+      <div class="space-y-2">
+        <label for="pf-name" class="text-sm font-medium text-slate-100">Name</label>
+        <Input
+          id="pf-name"
+          bind:value={formName}
+          placeholder="My tunnel"
+          class={fieldClass()}
+          disabled={isSaving}
+        />
+      </div>
+    {/if}
+  </FormSection>
 
-              {#if sortedConnections.length === 0}
-                <div
-                  class="mt-4 rounded-2xl border border-dashed border-white/10 bg-white/[0.025] px-4 py-6 text-center"
-                >
-                  <Server class="mx-auto mb-3 size-8 text-slate-600" />
-                  <p class="text-sm text-slate-400">No saved connections yet.</p>
-                  <p class="mt-1 text-xs text-slate-500">
-                    Create a Host in <span class="text-cyan-300/80"
-                      >Connections</span
-                    > first, then return here to save a tunnel.
-                  </p>
-                </div>
-              {:else}
-                <div class="mt-4 space-y-2">
-                  <label for="pf-connection" class="text-sm font-medium text-slate-100">Connection</label>
-                  <div class="relative">
-                    <select
-                      id="pf-connection"
-                      bind:value={selectedConnectionId}
-                      class="flex h-11 w-full appearance-none rounded-2xl border border-white/10 bg-black/20 px-3 py-1 pr-10 text-sm text-white shadow-sm transition-colors hover:bg-white/[0.06] focus-visible:border-cyan-300/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={isSaving}
-                    >
-                      <option value="" class="bg-slate-900">— Select a saved connection —</option>
-                      {#each sortedConnections as connection (connection.id)}
-                        <option value={connection.id} class="bg-slate-900">
-                          {connection.name} ({connection.username}@{connection.host}:{connection.port})
-                        </option>
-                      {/each}
-                    </select>
-                    <ChevronDown class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                  </div>
-                </div>
+  <FormSection
+    icon={Network}
+    title="Forward route"
+    hint="Bind locally, then connect to the target from the SSH host. All ports in this forward start and stop together."
+  >
+    {#each rows as row, index (index)}
+      <div class="rounded-2xl border border-white/8 bg-black/15 p-3">
+        <div class="flex items-center justify-between">
+          <span
+            class="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500"
+          >
+            Port {index + 1}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            class="rounded-xl text-slate-400 hover:bg-destructive/10 hover:text-destructive"
+            onclick={() => removeRow(index)}
+            disabled={isSaving || rows.length === 1}
+            aria-label={`Remove port ${index + 1}`}
+          >
+            <Trash2 class="size-3" />
+          </Button>
+        </div>
 
-                {#if selectedConnection}
-                  <div class="mt-3 rounded-2xl border border-white/8 bg-white/[0.035] p-3">
-                    <div class="flex items-start gap-2.5">
-                      <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-cyan-300/14 bg-cyan-300/8 text-cyan-200">
-                        <Server class="size-4" />
-                      </div>
-                      <div class="min-w-0 flex-1">
-                        <p class="truncate text-sm font-medium text-white">
-                          {selectedConnection.name}
-                        </p>
-                        <p class="mt-0.5 truncate font-mono text-[11px] text-slate-400">
-                          {selectedConnection.username}@{selectedConnection.host}:{selectedConnection.port}
-                        </p>
-                        <p class="mt-0.5 text-[11px] text-slate-500">
-                          {getAuthLabel(selectedConnection)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                {/if}
-              {/if}
-            </div>
-
+        <div class="mt-3 grid gap-2">
+          <div class="grid grid-cols-[1fr_7rem] gap-3">
             <div class="space-y-2">
-              <label for="pf-name" class="text-sm font-medium text-slate-100"
-                >Name</label
+              <label
+                for={`pf-bind-host-${index}`}
+                class="text-sm font-medium text-slate-100">Bind host</label
               >
               <Input
-                id="pf-name"
-                bind:value={formName}
-                placeholder="My tunnel"
-                class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
+                id={`pf-bind-host-${index}`}
+                bind:value={row.bind_host}
+                placeholder="127.0.0.1"
+                autocapitalize="none"
+                autocomplete="off"
+                autocorrect="off"
+                spellcheck="false"
+                class={fieldClass(false, "font-mono")}
                 disabled={isSaving}
+              />
+            </div>
+            <div class="space-y-2">
+              <label
+                for={`pf-bind-port-${index}`}
+                class="text-sm font-medium text-slate-100">Bind port</label
+              >
+              <Input
+                id={`pf-bind-port-${index}`}
+                bind:value={row.bind_port}
+                type="number"
+                inputmode="numeric"
+                min="1"
+                max="65535"
+                class={fieldClass(false, "font-mono")}
+                disabled={isSaving}
+                oninput={() => onBindPortInput(row)}
               />
             </div>
           </div>
 
-          <div class="space-y-4">
-            <div class="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
-              <div class="flex items-center gap-3">
-                <div
-                  class="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
-                >
-                  <Network class="size-5" />
-                </div>
-                <div>
-                  <h3
-                    class="text-xs font-medium uppercase tracking-[0.16em] text-slate-500"
-                  >
-                    Forward Route
-                  </h3>
-                  <p class="mt-1 text-xs text-slate-400">
-                    Bind locally, then connect to the target from the SSH host. All ports
-          in this forward start and stop together.
-                  </p>
-                </div>
-              </div>
+          <div class="flex items-center justify-center py-1" aria-hidden="true">
+            <ArrowDown class="size-4 text-slate-600" />
+          </div>
 
-              <div class="mt-4 space-y-3">
-                {#each rows as row, index (index)}
-                  <div class="rounded-2xl border border-white/8 bg-black/15 p-3">
-                    <div class="flex items-center justify-between">
-                      <span
-                        class="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500"
-                      >
-                        Port {index + 1}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="xs"
-                        class="rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
-                        onclick={() => removeRow(index)}
-                        disabled={isSaving || rows.length === 1}
-                        aria-label={`Remove port ${index + 1}`}
-                      >
-                        <Trash2 class="size-3" />
-                      </Button>
-                    </div>
-
-                    <div class="mt-2 grid gap-3">
-                      <div class="grid grid-cols-[1fr_6rem] gap-3">
-                        <div class="space-y-2">
-                          <label
-                            for={`pf-bind-host-${index}`}
-                            class="text-sm font-medium text-slate-100">Bind Host</label
-                          >
-                          <Input
-                            id={`pf-bind-host-${index}`}
-                            bind:value={row.bind_host}
-                            placeholder="127.0.0.1"
-                            class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                            disabled={isSaving}
-                          />
-                        </div>
-                        <div class="space-y-2">
-                          <label
-                            for={`pf-bind-port-${index}`}
-                            class="text-sm font-medium text-slate-100">Bind Port</label
-                          >
-                          <Input
-                            id={`pf-bind-port-${index}`}
-                            bind:value={row.bind_port}
-                            type="number"
-                            min="1"
-                            max="65535"
-                            class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                            disabled={isSaving}
-                            oninput={() => onBindPortInput(row)}
-                          />
-                        </div>
-                      </div>
-
-                      <div class="flex items-center justify-center">
-                        <span class="text-lg text-slate-600">↓</span>
-                      </div>
-
-                      <div class="grid grid-cols-[1fr_6rem] gap-3">
-                        <div class="space-y-2">
-                          <label
-                            for={`pf-target-host-${index}`}
-                            class="text-sm font-medium text-slate-100"
-                            >Target Host</label
-                          >
-                          <Input
-                            id={`pf-target-host-${index}`}
-                            bind:value={row.target_host}
-                            placeholder="127.0.0.1"
-                            class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                            disabled={isSaving}
-                          />
-                        </div>
-                        <div class="space-y-2">
-                          <label
-                            for={`pf-target-port-${index}`}
-                            class="text-sm font-medium text-slate-100"
-                            >Target Port</label
-                          >
-                          <Input
-                            id={`pf-target-port-${index}`}
-                            bind:value={row.target_port}
-                            type="number"
-                            min="1"
-                            max="65535"
-                            class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                            disabled={isSaving}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                {/each}
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  class="gap-1.5 rounded-2xl bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/18 hover:text-white"
-                  onclick={addRow}
-                  disabled={isSaving}
-                >
-                  <Plus class="size-3.5" />
-                  Add port
-                </Button>
-              </div>
+          <div class="grid grid-cols-[1fr_7rem] gap-3">
+            <div class="space-y-2">
+              <label
+                for={`pf-target-host-${index}`}
+                class="text-sm font-medium text-slate-100">Target host</label
+              >
+              <Input
+                id={`pf-target-host-${index}`}
+                bind:value={row.target_host}
+                placeholder="127.0.0.1"
+                autocapitalize="none"
+                autocomplete="off"
+                autocorrect="off"
+                spellcheck="false"
+                class={fieldClass(false, "font-mono")}
+                disabled={isSaving}
+              />
             </div>
-
-            <div class="flex flex-wrap items-center gap-2 pt-1">
-              <Button
-                type="submit"
-                class="rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200"
-                disabled={isSaving}
+            <div class="space-y-2">
+              <label
+                for={`pf-target-port-${index}`}
+                class="text-sm font-medium text-slate-100">Target port</label
               >
-                {#if isSaving}
-                  <Loader2 class="size-4 animate-spin" />
-                {/if}
-                {submitLabel}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                class="rounded-2xl text-slate-300 hover:bg-white/8 hover:text-white"
-                onclick={onCancel}
+              <Input
+                id={`pf-target-port-${index}`}
+                bind:value={row.target_port}
+                type="number"
+                inputmode="numeric"
+                min="1"
+                max="65535"
+                class={fieldClass(false, "font-mono")}
                 disabled={isSaving}
-              >
-                Cancel
-              </Button>
+              />
             </div>
           </div>
         </div>
-      </form>
-    </div>
-  </section>
-</div>
+      </div>
+    {/each}
+
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      class="gap-1.5 rounded-2xl bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/18 hover:text-white"
+      onclick={addRow}
+      disabled={isSaving}
+    >
+      <Plus class="size-3.5" />
+      Add port
+    </Button>
+  </FormSection>
+</FormShell>
