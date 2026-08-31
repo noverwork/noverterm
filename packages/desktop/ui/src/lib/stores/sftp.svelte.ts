@@ -51,9 +51,12 @@ export interface TransferConflict {
   existingName: string;
   suggestedName: string;
   direction: "Upload" | "Download";
+  isDirectory: boolean;
+  /** Paths inside the folder that already exist; null while still scanning. */
+  conflictingFiles: string[] | null;
 }
 
-interface PendingTransferConflict extends TransferConflict {
+interface PendingTransferConflict extends Omit<TransferConflict, "conflictingFiles"> {
   sourcePath: string;
   targetPath: string;
   renamedTargetPath: string;
@@ -391,6 +394,7 @@ export class SftpStore {
         existingName: localEntry.name,
         suggestedName: targetName,
         direction: "Upload",
+        isDirectory: localEntry.file_type === "Dir",
         sourcePath: localPath,
         targetPath: remotePath,
         renamedTargetPath: joinPath(this.remotePath, targetName),
@@ -429,6 +433,7 @@ export class SftpStore {
         existingName: remoteEntry.name,
         suggestedName: targetName,
         direction: "Download",
+        isDirectory: remoteEntry.file_type === "Dir",
         sourcePath: remotePath,
         targetPath: localPath,
         renamedTargetPath: joinPath(this.localPath, targetName),
@@ -510,6 +515,7 @@ export class SftpStore {
           existingName: entry.name,
           suggestedName: targetName,
           direction: "Upload",
+          isDirectory: entry.file_type === "Dir",
           sourcePath: localPath,
           targetPath: remotePath,
           renamedTargetPath: joinPath(this.remotePath, targetName),
@@ -541,6 +547,7 @@ export class SftpStore {
           existingName: entry.name,
           suggestedName: targetName,
           direction: "Download",
+          isDirectory: entry.file_type === "Dir",
           sourcePath: remotePath,
           targetPath: localPath,
           renamedTargetPath: joinPath(this.localPath, targetName),
@@ -675,7 +682,31 @@ export class SftpStore {
       existingName: conflict.existingName,
       suggestedName: conflict.suggestedName,
       direction: conflict.direction,
+      isDirectory: conflict.isDirectory,
+      conflictingFiles: conflict.isDirectory ? null : [],
     };
+
+    if (conflict.isDirectory) {
+      void this.loadFolderConflicts(conflict);
+    }
+  }
+
+  /** Fill in which files inside a folder an overwrite would clobber. */
+  private async loadFolderConflicts(conflict: PendingTransferConflict): Promise<void> {
+    let files: string[] = [];
+    try {
+      files = await invoke<string[]>("sftp_transfer_conflicts", {
+        sessionId: this.sftpSessionId,
+        direction: conflict.direction,
+        sourcePath: conflict.sourcePath,
+        targetPath: conflict.targetPath,
+      });
+    } catch (error: unknown) {
+      console.warn("[SFTP][Store] folder conflict scan failed", errorMessage(error));
+    }
+
+    if (this.pendingTransferConflict !== conflict || !this.transferConflict) return;
+    this.transferConflict = { ...this.transferConflict, conflictingFiles: files };
   }
 
   private async invokePendingTransfer(options: {

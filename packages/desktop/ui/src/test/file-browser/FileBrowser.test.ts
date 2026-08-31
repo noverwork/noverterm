@@ -359,6 +359,8 @@ describe("FileBrowser", () => {
       existingName: "report.pdf",
       suggestedName: "report (1).pdf",
       direction: "Upload",
+      isDirectory: false,
+      conflictingFiles: [],
     };
     renderFileBrowser();
 

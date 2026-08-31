@@ -48,12 +48,12 @@
             <AlertTriangle class="size-5" />
           </div>
           <div class="min-w-0 flex-1">
-            <p class="section-title text-amber-200/80">File already exists</p>
+            <p class="section-title text-amber-200/80">{conflict.isDirectory ? "Folder" : "File"} already exists</p>
             <h2 id="transfer-conflict-dialog-title" class="mt-2 text-xl font-semibold tracking-tight text-white">
               Choose how to continue
             </h2>
             <p id="transfer-conflict-dialog-description" class="mt-2 text-sm leading-6 text-slate-400">
-              A file named <span class="font-mono text-slate-200">{conflict.existingName}</span> already exists at the {conflict.direction === "Upload" ? "remote" : "local"} destination.
+              A {conflict.isDirectory ? "folder" : "file"} named <span class="font-mono text-slate-200">{conflict.existingName}</span> already exists at the {conflict.direction === "Upload" ? "remote" : "local"} destination.
             </p>
           </div>
         </div>
@@ -66,6 +66,25 @@
             {conflict.fileName}
           </p>
         </div>
+
+        {#if conflict.isDirectory}
+          <div class="rounded-2xl border border-amber-300/15 bg-amber-300/[0.05] px-4 py-3" data-testid="transfer-conflict-inner">
+            {#if conflict.conflictingFiles === null}
+              <p class="text-xs font-medium uppercase tracking-[0.16em] text-amber-200/70">Checking folder contents…</p>
+            {:else if conflict.conflictingFiles.length === 0}
+              <p class="text-xs font-medium uppercase tracking-[0.16em] text-amber-200/70">No files inside would be overwritten</p>
+            {:else}
+              <p class="text-xs font-medium uppercase tracking-[0.16em] text-amber-200/70">
+                Overwrite replaces {conflict.conflictingFiles.length} existing {conflict.conflictingFiles.length === 1 ? "file" : "files"}
+              </p>
+              <ul class="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-sm text-amber-50">
+                {#each conflict.conflictingFiles as path (path)}
+                  <li class="truncate">{path}</li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
+        {/if}
 
         <div class="rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.06] px-4 py-3">
           <p class="text-xs font-medium uppercase tracking-[0.16em] text-cyan-200/70">Rename option</p>

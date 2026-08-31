@@ -123,6 +123,27 @@ pub async fn sftp_rename(
         .await
 }
 
+/// Relative paths inside a folder transfer that already exist at the
+/// destination, so the UI can say what an overwrite would clobber.
+#[tauri::command]
+#[specta::specta]
+pub async fn sftp_transfer_conflicts(
+    session_id: String,
+    direction: TransferDirection,
+    source_path: String,
+    target_path: String,
+    ssh_manager: State<'_, SshSessionManager>,
+) -> Result<Vec<String>, String> {
+    let (source_path, target_path) = match direction {
+        TransferDirection::Upload => (normalize_local_path(&source_path)?, target_path),
+        TransferDirection::Download => (source_path, normalize_local_path(&target_path)?),
+    };
+
+    ssh_manager
+        .sftp_transfer_conflicts(&session_id, direction, &source_path, &target_path)
+        .await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn sftp_upload(
