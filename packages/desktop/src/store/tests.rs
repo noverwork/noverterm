@@ -376,3 +376,94 @@ async fn a_reopened_database_still_has_everything() {
         shared::SshHostAuthMaterial::Password { password } if password == "hunter2"
     ));
 }
+
+fn mapping(bind_port: i32, target_port: i32) -> shared::PortForwardMappingInput {
+    shared::PortForwardMappingInput {
+        bind_host: "127.0.0.1".to_string(),
+        bind_port,
+        target_host: "127.0.0.1".to_string(),
+        target_port,
+    }
+}
+
+#[tokio::test]
+async fn a_port_forward_preset_keeps_its_mappings_in_order_and_dies_with_its_host() {
+    let (app, _directory) = test_app();
+
+    let host = super::hosts::host_save(connection_input("prod"), app.state())
+        .await
+        .expect("save connection");
+
+    let created = super::port_forwards::port_forward_preset_create(
+        shared::PortForwardWriteRequest {
+            name: "stack".to_string(),
+            host_id: host.id.clone(),
+            mappings: vec![mapping(8080, 80), mapping(5432, 5432), mapping(6379, 6379)],
+        },
+        app.state(),
+    )
+    .await
+    .expect("create preset");
+
+    let presets = super::port_forwards::port_forward_preset_list(app.state())
+        .await
+        .expect("list presets");
+    assert_eq!(presets.len(), 1);
+    assert_eq!(presets[0].host_name, "prod");
+    assert_eq!(
+        presets[0]
+            .mappings
+            .iter()
+            .map(|mapping| mapping.bind_port)
+            .collect::<Vec<_>>(),
+        vec![8080, 5432, 6379]
+    );
+
+    // A save replaces the whole mapping set, so the dropped rows must not linger.
+    super::port_forwards::port_forward_preset_update(
+        created.id.clone(),
+        shared::PortForwardWriteRequest {
+            name: "stack".to_string(),
+            host_id: host.id.clone(),
+            mappings: vec![mapping(6379, 6379), mapping(8080, 80)],
+        },
+        app.state(),
+    )
+    .await
+    .expect("update preset");
+
+    let presets = super::port_forwards::port_forward_preset_list(app.state())
+        .await
+        .expect("list presets");
+    assert_eq!(
+        presets[0]
+            .mappings
+            .iter()
+            .map(|mapping| mapping.bind_port)
+            .collect::<Vec<_>>(),
+        vec![6379, 8080]
+    );
+
+    let duplicate = super::port_forwards::port_forward_preset_create(
+        shared::PortForwardWriteRequest {
+            name: "clash".to_string(),
+            host_id: host.id.clone(),
+            mappings: vec![mapping(8080, 80), mapping(8080, 81)],
+        },
+        app.state(),
+    )
+    .await;
+    assert!(
+        duplicate.is_err(),
+        "duplicate bind addresses must be rejected"
+    );
+
+    super::hosts::host_delete(host.id, None, app.state())
+        .await
+        .expect("delete host");
+
+    let presets = super::port_forwards::port_forward_preset_list(app.state())
+        .await
+        .expect("list presets");
+    assert!(presets.is_empty(), "presets cascade with their host");
+}

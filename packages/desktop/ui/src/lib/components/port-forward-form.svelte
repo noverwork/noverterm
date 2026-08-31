@@ -1,33 +1,47 @@
 <script lang="ts">
-  import { ChevronDown, Loader2, Network, Server } from "@lucide/svelte";
+  import { ChevronDown, Loader2, Network, Plus, Server, Trash2 } from "@lucide/svelte";
 
   import type {
-    ConnectionConfig,
-    SavePortForwardInput,
-    SavedPortForwardConfig,
-  } from "$lib/app-data-types.js";
+    PortForwardRecord,
+    PortForwardWriteRequest,
+  } from "$lib/api/types.js";
+  import type { ConnectionConfig } from "$lib/app-data-types.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
 
   interface Props {
     connections: ConnectionConfig[];
-    forward?: SavedPortForwardConfig | null;
-    onSave: (input: SavePortForwardInput) => void | Promise<void>;
+    forward?: PortForwardRecord | null;
+    onSave: (
+      input: { id?: string } & PortForwardWriteRequest,
+    ) => void | Promise<void>;
     onCancel: () => void;
   }
 
   let { connections, forward = null, onSave, onCancel }: Props = $props();
+
+  interface MappingRow {
+    bind_host: string;
+    bind_port: string | number;
+    target_host: string;
+    target_port: string | number;
+  }
+
+  function emptyRow(): MappingRow {
+    return {
+      bind_host: "127.0.0.1",
+      bind_port: "",
+      target_host: "127.0.0.1",
+      target_port: "",
+    };
+  }
 
   let error = $state<string | null>(null);
   let isSaving = $state(false);
   let initializedForwardId = $state<string | null>(null);
   let selectedConnectionId = $state("");
   let formName = $state("");
-  let formBindHost = $state("127.0.0.1");
-  let formBindPort = $state("");
-  let formTargetHost = $state("127.0.0.1");
-  let formTargetPort = $state("");
-  let autoFilledTargetPort = $state(false);
+  let rows = $state<MappingRow[]>([emptyRow()]);
 
   let sortedConnections = $derived(
     [...connections].sort((left, right) => left.name.localeCompare(right.name)),
@@ -57,20 +71,17 @@
     }
 
     initializedForwardId = forwardId;
-    selectedConnectionId = forward?.connectionId ?? "";
+    selectedConnectionId = forward?.host_id ?? "";
     formName = forward?.name ?? "";
-    formBindHost = forward?.bind_host ?? "127.0.0.1";
-    formBindPort = forward ? String(forward.bind_port) : "";
-    formTargetHost = forward?.target_host ?? "127.0.0.1";
-    formTargetPort = forward ? String(forward.target_port) : "";
-    autoFilledTargetPort = false;
+    rows = forward
+      ? forward.mappings.map((mapping) => ({
+          bind_host: mapping.bind_host,
+          bind_port: String(mapping.bind_port),
+          target_host: mapping.target_host,
+          target_port: String(mapping.target_port),
+        }))
+      : [emptyRow()];
     error = null;
-  });
-
-  $effect(() => {
-    if (formBindPort && autoFilledTargetPort) {
-      formTargetPort = String(formBindPort);
-    }
   });
 
   function getAuthLabel(connection: ConnectionConfig): string {
@@ -84,13 +95,21 @@
     }
   }
 
-  function onBindPortInput() {
-    autoFilledTargetPort = true;
-    formTargetPort = String(formBindPort);
+  function onBindPortInput(row: MappingRow) {
+    row.target_port = row.bind_port;
   }
 
-  function parsePort(value: string, label: string): number {
-    const trimmedValue = value.trim();
+  function addRow() {
+    rows = [...rows, emptyRow()];
+  }
+
+  function removeRow(index: number) {
+    rows = rows.filter((_, candidate) => candidate !== index);
+  }
+
+  // `type="number"` inputs bind a number, so this takes whatever the row holds.
+  function parsePort(value: string | number, label: string): number {
+    const trimmedValue = String(value ?? "").trim();
     if (!/^\d+$/.test(trimmedValue)) {
       throw new Error(`${label} must be a number from 1 to 65535`);
     }
@@ -115,27 +134,38 @@
       return;
     }
 
-    if (!String(formBindPort).trim()) {
-      error = "Bind port is required";
-      return;
-    }
-
-    if (!String(formTargetPort).trim()) {
-      error = "Target port is required";
+    if (rows.length === 0) {
+      error = "Add at least one port mapping";
       return;
     }
 
     isSaving = true;
 
     try {
+      const seenBindAddresses: string[] = [];
+      const mappings = rows.map((row, index) => {
+        const label = `Row ${index + 1}`;
+        const bindHost = row.bind_host.trim();
+        const bindPort = parsePort(row.bind_port, `${label}: Bind port`);
+        const bindAddress = `${bindHost}:${bindPort}`;
+        if (seenBindAddresses.includes(bindAddress)) {
+          throw new Error(`${label}: ${bindAddress} is already used above`);
+        }
+        seenBindAddresses.push(bindAddress);
+
+        return {
+          bind_host: bindHost,
+          bind_port: bindPort,
+          target_host: row.target_host.trim(),
+          target_port: parsePort(row.target_port, `${label}: Target port`),
+        };
+      });
+
       await onSave({
         ...(forward?.id ? { id: forward.id } : {}),
         name: formName.trim(),
-        connectionId: selectedConnection.id,
-        bind_host: formBindHost.trim(),
-        bind_port: parsePort(String(formBindPort), "Bind port"),
-        target_host: formTargetHost.trim(),
-        target_port: parsePort(String(formTargetPort), "Target port"),
+        host_id: selectedConnection.id,
+        mappings,
       });
     } catch (cause) {
       error =
@@ -300,81 +330,118 @@
                     Forward Route
                   </h3>
                   <p class="mt-1 text-xs text-slate-400">
-                    Bind locally, then connect to the target from the SSH host.
+                    Bind locally, then connect to the target from the SSH host. All ports
+          in this forward start and stop together.
                   </p>
                 </div>
               </div>
 
-              <div class="mt-4 grid gap-3">
-                <div class="grid grid-cols-[1fr_6rem] gap-3">
-                  <div class="space-y-2">
-                    <label
-                      for="pf-bind-host"
-                      class="text-sm font-medium text-slate-100">Bind Host</label
-                    >
-                    <Input
-                      id="pf-bind-host"
-                      bind:value={formBindHost}
-                      placeholder="127.0.0.1"
-                      class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                      disabled={isSaving}
-                    />
-                  </div>
-                  <div class="space-y-2">
-                    <label
-                      for="pf-bind-port"
-                      class="text-sm font-medium text-slate-100">Bind Port</label
-                    >
-                    <Input
-                      id="pf-bind-port"
-                      bind:value={formBindPort}
-                      type="number"
-                      min="1"
-                      max="65535"
-                      class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                      disabled={isSaving}
-                      oninput={onBindPortInput}
-                    />
-                  </div>
-                </div>
+              <div class="mt-4 space-y-3">
+                {#each rows as row, index (index)}
+                  <div class="rounded-2xl border border-white/8 bg-black/15 p-3">
+                    <div class="flex items-center justify-between">
+                      <span
+                        class="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500"
+                      >
+                        Port {index + 1}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        class="rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
+                        onclick={() => removeRow(index)}
+                        disabled={isSaving || rows.length === 1}
+                        aria-label={`Remove port ${index + 1}`}
+                      >
+                        <Trash2 class="size-3" />
+                      </Button>
+                    </div>
 
-                <div class="flex items-center justify-center">
-                  <span class="text-lg text-slate-600">↓</span>
-                </div>
+                    <div class="mt-2 grid gap-3">
+                      <div class="grid grid-cols-[1fr_6rem] gap-3">
+                        <div class="space-y-2">
+                          <label
+                            for={`pf-bind-host-${index}`}
+                            class="text-sm font-medium text-slate-100">Bind Host</label
+                          >
+                          <Input
+                            id={`pf-bind-host-${index}`}
+                            bind:value={row.bind_host}
+                            placeholder="127.0.0.1"
+                            class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
+                            disabled={isSaving}
+                          />
+                        </div>
+                        <div class="space-y-2">
+                          <label
+                            for={`pf-bind-port-${index}`}
+                            class="text-sm font-medium text-slate-100">Bind Port</label
+                          >
+                          <Input
+                            id={`pf-bind-port-${index}`}
+                            bind:value={row.bind_port}
+                            type="number"
+                            min="1"
+                            max="65535"
+                            class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
+                            disabled={isSaving}
+                            oninput={() => onBindPortInput(row)}
+                          />
+                        </div>
+                      </div>
 
-                <div class="grid grid-cols-[1fr_6rem] gap-3">
-                  <div class="space-y-2">
-                    <label
-                      for="pf-target-host"
-                      class="text-sm font-medium text-slate-100"
-                      >Target Host</label
-                    >
-                    <Input
-                      id="pf-target-host"
-                      bind:value={formTargetHost}
-                      placeholder="127.0.0.1"
-                      class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                      disabled={isSaving}
-                    />
+                      <div class="flex items-center justify-center">
+                        <span class="text-lg text-slate-600">↓</span>
+                      </div>
+
+                      <div class="grid grid-cols-[1fr_6rem] gap-3">
+                        <div class="space-y-2">
+                          <label
+                            for={`pf-target-host-${index}`}
+                            class="text-sm font-medium text-slate-100"
+                            >Target Host</label
+                          >
+                          <Input
+                            id={`pf-target-host-${index}`}
+                            bind:value={row.target_host}
+                            placeholder="127.0.0.1"
+                            class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
+                            disabled={isSaving}
+                          />
+                        </div>
+                        <div class="space-y-2">
+                          <label
+                            for={`pf-target-port-${index}`}
+                            class="text-sm font-medium text-slate-100"
+                            >Target Port</label
+                          >
+                          <Input
+                            id={`pf-target-port-${index}`}
+                            bind:value={row.target_port}
+                            type="number"
+                            min="1"
+                            max="65535"
+                            class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
+                            disabled={isSaving}
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div class="space-y-2">
-                    <label
-                      for="pf-target-port"
-                      class="text-sm font-medium text-slate-100"
-                      >Target Port</label
-                    >
-                    <Input
-                      id="pf-target-port"
-                      bind:value={formTargetPort}
-                      type="number"
-                      min="1"
-                      max="65535"
-                      class="border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
-                      disabled={isSaving}
-                      oninput={() => (autoFilledTargetPort = false)}
-                    />
-                  </div>
-                </div>
+                {/each}
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  class="gap-1.5 rounded-2xl bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/18 hover:text-white"
+                  onclick={addRow}
+                  disabled={isSaving}
+                >
+                  <Plus class="size-3.5" />
+                  Add port
+                </Button>
               </div>
             </div>
 

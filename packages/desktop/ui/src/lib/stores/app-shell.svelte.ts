@@ -6,22 +6,22 @@ import {
   type QueryClient,
 } from "@tanstack/svelte-query";
 
-import type { HostGroupRecord, SshKeyRecord } from "$lib/api/types.js";
+import type {
+  HostGroupRecord,
+  PortForwardRecord,
+  PortForwardWriteRequest,
+  SshKeyRecord,
+} from "$lib/api/types.js";
 import {
   buildNovertermConfig,
-  createPortForwardId,
-  parseNovertermConfig,
   parseRecentConnectionIds,
   selectConnections,
-  selectSavedPortForwards,
   selectTerminalConfig,
   uniqueRecentConnectionIds,
 } from "$lib/app-data-mappers.js";
 import type {
   ConnectionConfig,
   SaveConnectionInput,
-  SavePortForwardInput,
-  SavedPortForwardConfig,
 } from "$lib/app-data-types.js";
 import {
   appDataMetadataQueryOptions,
@@ -30,9 +30,11 @@ import {
   deleteConnectionMutationOptions,
   deleteHostGroupMutationOptions,
   deleteKeyMutationOptions,
+  deletePortForwardMutationOptions,
   queryKeys,
   revealKeySecretMutationOptions,
   saveConnectionMutationOptions,
+  savePortForwardMutationOptions,
   updateKeyMutationOptions,
   upsertSettingMutationOptions,
 } from "$lib/queries/index.js";
@@ -104,13 +106,21 @@ export function createAppShellStore(queryClient: QueryClient) {
     () => upsertSettingMutationOptions(),
     () => queryClient,
   );
+  const savePortForwardMutation = createMutation(
+    () => savePortForwardMutationOptions(),
+    () => queryClient,
+  );
+  const deletePortForwardMutation = createMutation(
+    () => deletePortForwardMutationOptions(),
+    () => queryClient,
+  );
 
   const metadata = $derived(metadataQuery.data ?? null);
   const terminalConfig = $derived(selectTerminalConfig(metadata));
   const connections = $derived(selectConnections(metadata));
   const hostGroups = $derived(metadata?.host_groups ?? []);
   const keys = $derived(metadata?.keys ?? []);
-  const savedPortForwards = $derived(selectSavedPortForwards(metadata));
+  const savedPortForwards = $derived(metadata?.port_forwards ?? []);
 
   const activeSession = $derived(
     sessionStore.activeSessionId
@@ -412,35 +422,18 @@ export function createAppShellStore(queryClient: QueryClient) {
     await refreshMetadata();
   }
 
-  async function savePortForward(input: SavePortForwardInput) {
-    const settings = currentSettings();
-    const existingForwards =
-      parseNovertermConfig(settings).savedPortForwards ?? [];
-    const savedForward: SavedPortForwardConfig = {
-      id: input.id ?? createPortForwardId(),
-      name: input.name,
-      connectionId: input.connectionId,
-      bind_host: input.bind_host,
-      bind_port: input.bind_port,
-      target_host: input.target_host,
-      target_port: input.target_port,
-    };
-    const nextForwards = [
-      savedForward,
-      ...existingForwards.filter((forward) => forward.id !== savedForward.id),
-    ];
-
-    await upsertSettingMutation.mutateAsync({
-      key: "noverterm-config",
-      value: buildNovertermConfig(settings, { savedPortForwards: nextForwards }),
-    });
+  async function savePortForward(
+    input: { id?: string } & PortForwardWriteRequest,
+  ) {
+    const { id, ...forward } = input;
+    const saved = await savePortForwardMutation.mutateAsync({ id, forward });
     await refreshMetadata();
-    return savedForward;
+    return saved;
   }
 
-  async function startSavedPortForward(forward: SavedPortForwardConfig) {
+  async function startSavedPortForward(forward: PortForwardRecord) {
     const connection = connections.find(
-      (candidate) => candidate.id === forward.connectionId,
+      (candidate) => candidate.id === forward.host_id,
     );
     if (!connection) {
       throw new Error(
@@ -463,15 +456,7 @@ export function createAppShellStore(queryClient: QueryClient) {
   }
 
   async function deleteSavedPortForward(forwardId: string) {
-    const settings = currentSettings();
-    const nextForwards = (
-      parseNovertermConfig(settings).savedPortForwards ?? []
-    ).filter((forward) => forward.id !== forwardId);
-
-    await upsertSettingMutation.mutateAsync({
-      key: "noverterm-config",
-      value: buildNovertermConfig(settings, { savedPortForwards: nextForwards }),
-    });
+    await deletePortForwardMutation.mutateAsync(forwardId);
     await refreshMetadata();
   }
 

@@ -1,5 +1,6 @@
 export * from "./connection-mutations.js";
 export * from "./metadata-queries.js";
+export * from "./port-forward-mutations.js";
 export * from "./query-keys.js";
 export * from "./settings-mutations.js";
 export * from "./ssh-key-mutations.js";

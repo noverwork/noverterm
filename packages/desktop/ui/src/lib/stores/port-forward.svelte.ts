@@ -2,7 +2,8 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { SvelteMap } from "svelte/reactivity";
 
 import { commands as tauriCommands } from "../../bindings.js";
-import type { ConnectionConfig, SavedPortForwardConfig } from "$lib/app-data-types.js";
+import type { PortForwardRecord } from "$lib/api/types.js";
+import type { ConnectionConfig } from "$lib/app-data-types.js";
 
 export interface PortForward {
   id: string;
@@ -42,7 +43,7 @@ export interface PortForwardConnectionCreateInput {
 }
 
 export interface PortForwardPresetStartInput {
-  preset: SavedPortForwardConfig;
+  preset: PortForwardRecord;
   connection: ConnectionConfig;
 }
 
@@ -71,7 +72,29 @@ const state: PortForwardState = $state({
 let eventUnlisten: UnlistenFn | null = null;
 let initPromise: Promise<void> | null = null;
 
+/// A preset starts one tunnel per mapping, and they live or die together: this
+/// maps every runtime id to the others started alongside it, so the first
+/// failure can tear the rest down. Backend forwards carry no group of their own.
+const groupSiblings = new SvelteMap<string, string[]>();
+
+function forgetGroup(forwardId: string) {
+  for (const sibling of groupSiblings.get(forwardId) ?? []) {
+    groupSiblings.delete(sibling);
+  }
+  groupSiblings.delete(forwardId);
+}
+
 function updateForward(status: PortForwardStatusEvent) {
+  if (status.state === "error") {
+    const siblings = groupSiblings.get(status.id) ?? [];
+    forgetGroup(status.id);
+    for (const sibling of siblings) {
+      void stopForward(sibling).catch(() => {
+        // The group is already failing; a sibling that refuses to stop adds nothing.
+      });
+    }
+  }
+
   state.forwards.set(status.id, {
     id: status.id,
     name: status.name,
@@ -114,6 +137,30 @@ async function connectionAuthInput(connection: ConnectionConfig): Promise<{
     default:
       throw new Error("host has no connectable authentication material");
   }
+}
+
+async function stopForward(forwardId: string): Promise<PortForward> {
+  forgetGroup(forwardId);
+  const result = await tauriCommands.portForwardStop(forwardId);
+
+  if (result.status === "error") {
+    throw new Error(result.error);
+  }
+
+  updateForward(result.data);
+  return {
+    id: result.data.id,
+    name: result.data.name,
+    host: result.data.host,
+    port: result.data.port,
+    username: result.data.username,
+    bind_host: result.data.bind_host,
+    bind_port: result.data.bind_port,
+    target_host: result.data.target_host,
+    target_port: result.data.target_port,
+    state: result.data.state,
+    error: result.data.error,
+  };
 }
 
 export function createPortForwardStore() {
@@ -194,38 +241,43 @@ export function createPortForwardStore() {
     });
   }
 
-  async function startSavedForward(input: PortForwardPresetStartInput): Promise<PortForward> {
-    return startFromConnection({
-      connection: input.connection,
-      name: input.preset.name,
-      bind_host: input.preset.bind_host,
-      bind_port: input.preset.bind_port,
-      target_host: input.preset.target_host,
-      target_port: input.preset.target_port,
-    });
-  }
+  /// Starts every mapping in the preset as one group. A mapping that fails
+  /// outright takes the whole group down; one that fails later (a bind clash
+  /// only surfaces on the status event) is rolled back by `updateForward`.
+  async function startSavedForward(
+    input: PortForwardPresetStartInput,
+  ): Promise<PortForward[]> {
+    const started: PortForward[] = [];
 
-  async function stop(forwardId: string): Promise<PortForward> {
-    const result = await tauriCommands.portForwardStop(forwardId);
-
-    if (result.status === "error") {
-      throw new Error(result.error);
+    try {
+      for (const mapping of input.preset.mappings) {
+        started.push(
+          await startFromConnection({
+            connection: input.connection,
+            name: input.preset.name,
+            bind_host: mapping.bind_host,
+            bind_port: mapping.bind_port,
+            target_host: mapping.target_host,
+            target_port: mapping.target_port,
+          }),
+        );
+      }
+    } catch (cause) {
+      await Promise.allSettled(started.map((forward) => stopForward(forward.id)));
+      throw cause;
     }
 
-    updateForward(result.data);
-    return {
-      id: result.data.id,
-      name: result.data.name,
-      host: result.data.host,
-      port: result.data.port,
-      username: result.data.username,
-      bind_host: result.data.bind_host,
-      bind_port: result.data.bind_port,
-      target_host: result.data.target_host,
-      target_port: result.data.target_port,
-      state: result.data.state,
-      error: result.data.error,
-    };
+    const ids = started.map((forward) => forward.id);
+    if (ids.length > 1) {
+      for (const id of ids) {
+        groupSiblings.set(
+          id,
+          ids.filter((sibling) => sibling !== id),
+        );
+      }
+    }
+
+    return started;
   }
 
   async function list(): Promise<PortForward[]> {
@@ -249,6 +301,7 @@ export function createPortForwardStore() {
   }
 
   function remove(forwardId: string) {
+    forgetGroup(forwardId);
     state.forwards.delete(forwardId);
   }
 
@@ -258,6 +311,7 @@ export function createPortForwardStore() {
       eventUnlisten = null;
     }
     initPromise = null;
+    groupSiblings.clear();
     state.forwards.clear();
   }
 
@@ -269,7 +323,7 @@ export function createPortForwardStore() {
     start,
     startFromConnection,
     startSavedForward,
-    stop,
+    stop: stopForward,
     list,
     getPortForwards,
     remove,

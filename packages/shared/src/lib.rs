@@ -88,3 +88,34 @@ pub struct SnippetWriteRequest {
     pub title: String,
     pub body: String,
 }
+
+// ============================================================================
+// Port Forward Preset Types
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
+#[ts(export, export_to = "port-forward-mapping-input.ts")]
+pub struct PortForwardMappingInput {
+    pub bind_host: String,
+    pub bind_port: i32,
+    pub target_host: String,
+    pub target_port: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
+#[ts(export, export_to = "port-forward-record.ts")]
+pub struct PortForwardRecord {
+    pub id: String,
+    pub name: String,
+    pub host_id: String,
+    pub host_name: String,
+    pub mappings: Vec<PortForwardMappingInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
+#[ts(export, export_to = "port-forward-write-request.ts")]
+pub struct PortForwardWriteRequest {
+    pub name: String,
+    pub host_id: String,
+    pub mappings: Vec<PortForwardMappingInput>,
+}

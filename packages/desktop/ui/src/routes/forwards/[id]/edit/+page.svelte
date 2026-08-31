@@ -5,7 +5,7 @@
 
   import PortForwardForm from "$lib/components/port-forward-form.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
-  import type { SavePortForwardInput } from "$lib/app-data-types.js";
+  import type { PortForwardWriteRequest } from "$lib/api/types.js";
   import { getAppShellContext } from "$lib/stores/app-shell.svelte.js";
 
   const app = getAppShellContext();
@@ -14,7 +14,7 @@
       null,
   );
 
-  async function handleSave(input: SavePortForwardInput) {
+  async function handleSave(input: { id?: string } & PortForwardWriteRequest) {
     await app.savePortForward(input);
     await goto("/forwards");
   }
