@@ -20,26 +20,6 @@ export interface ConnectionConfig {
   auth: SshHostAuthMaterial | null;
 }
 
-export interface SavedPortForwardConfig {
-  id: string;
-  name: string;
-  connectionId: string;
-  bind_host: string;
-  bind_port: number;
-  target_host: string;
-  target_port: number;
-}
-
-export interface SavePortForwardInput {
-  id?: string;
-  name: string;
-  connectionId: string;
-  bind_host: string;
-  bind_port: number;
-  target_host: string;
-  target_port: number;
-}
-
 export interface SaveConnectionInput {
   id?: string;
   name: string;

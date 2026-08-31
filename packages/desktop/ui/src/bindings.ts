@@ -133,6 +133,38 @@ async setSetting(setting: Setting) : Promise<Result<Setting, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+async portForwardPresetList() : Promise<Result<PortForwardRecord[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("port_forward_preset_list") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async portForwardPresetCreate(forward: PortForwardWriteRequest) : Promise<Result<PortForwardRecord, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("port_forward_preset_create", { forward }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async portForwardPresetUpdate(id: string, forward: PortForwardWriteRequest) : Promise<Result<PortForwardRecord, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("port_forward_preset_update", { id, forward }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async portForwardPresetDelete(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("port_forward_preset_delete", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async snippetList() : Promise<Result<SnippetRecord[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("snippet_list") };
@@ -472,9 +504,12 @@ export type KeyInput = { name: string; kind: string; fingerprint: string | null;
  */
 export type KeyUpdateInput = { name: string; kind: string; fingerprint: string | null; private_key: string | null; passphrase: string | null }
 export type KnownHostsResponse = { hosts: TrustedSshHost[] }
+export type PortForwardMappingInput = { bind_host: string; bind_port: number; target_host: string; target_port: number }
+export type PortForwardRecord = { id: string; name: string; host_id: string; host_name: string; mappings: PortForwardMappingInput[] }
 export type PortForwardStartInput = { name: string; host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null; bind_host: string; bind_port: number; target_host: string; target_port: number }
 export type PortForwardState = "connecting" | "listening" | "stopped" | "error"
 export type PortForwardStatus = { id: string; name: string; host: string; port: number; username: string; bind_host: string; bind_port: number; target_host: string; target_port: number; state: PortForwardState; error: string | null }
+export type PortForwardWriteRequest = { name: string; host_id: string; mappings: PortForwardMappingInput[] }
 export type SaveConnectionInput = { id: string | null; name: string; host: string; port: number; username: string; group_id?: string | null; password: string | null; private_key: string | null; passphrase: string | null; key_name: string | null; existing_key_id: string | null }
 export type Setting = { key: string; value: string }
 export type SnippetRecord = { id: string; host_id: string; host_name: string; title: string; body: string }

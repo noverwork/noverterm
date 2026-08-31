@@ -1,6 +1,7 @@
 pub mod groups;
 pub mod hosts;
 pub mod keys;
+pub mod port_forwards;
 pub mod settings;
 pub mod snippets;
 

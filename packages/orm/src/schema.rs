@@ -21,6 +21,28 @@ diesel::table! {
 }
 
 diesel::table! {
+    port_forward_mappings (id) {
+        id -> Text,
+        forward_id -> Text,
+        position -> Integer,
+        bind_host -> Text,
+        bind_port -> Integer,
+        target_host -> Text,
+        target_port -> Integer,
+    }
+}
+
+diesel::table! {
+    port_forwards (id) {
+        id -> Text,
+        name -> Text,
+        host_id -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     settings (key) {
         key -> Text,
         value -> Text,
@@ -69,12 +91,16 @@ diesel::table! {
 }
 
 diesel::joinable!(host_snippets -> ssh_hosts (host_id));
+diesel::joinable!(port_forward_mappings -> port_forwards (forward_id));
+diesel::joinable!(port_forwards -> ssh_hosts (host_id));
 diesel::joinable!(ssh_hosts -> host_groups (group_id));
 diesel::joinable!(ssh_hosts -> ssh_keys (ssh_key_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     host_groups,
     host_snippets,
+    port_forward_mappings,
+    port_forwards,
     settings,
     ssh_hosts,
     ssh_keys,

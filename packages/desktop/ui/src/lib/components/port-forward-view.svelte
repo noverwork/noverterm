@@ -11,19 +11,18 @@
 
   import DeleteConfirmDialog from "$lib/components/delete-confirm-dialog.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
-  import type {
-    ConnectionConfig,
-    SavedPortForwardConfig,
-  } from "$lib/app-data-types.js";
+  import type { PortForwardRecord } from "$lib/api/types.js";
+  import type { ConnectionConfig } from "$lib/app-data-types.js";
+  import { groupState, runtimeForwardsFor } from "$lib/port-forward-group.js";
   import type { PortForward } from "$lib/stores/port-forward.svelte.js";
 
   interface Props {
     connections: ConnectionConfig[];
-    savedForwards: SavedPortForwardConfig[];
+    savedForwards: PortForwardRecord[];
     forwards: PortForward[];
     onNew: () => void | Promise<void>;
-    onEdit: (forward: SavedPortForwardConfig) => void | Promise<void>;
-    onForward: (forward: SavedPortForwardConfig) => Promise<PortForward>;
+    onEdit: (forward: PortForwardRecord) => void | Promise<void>;
+    onForward: (forward: PortForwardRecord) => Promise<PortForward[]>;
     onStop: (forwardId: string) => Promise<PortForward>;
     onDeleteSaved: (forwardId: string) => Promise<void>;
     onDeleteRuntime: (forwardId: string) => Promise<void>;
@@ -45,7 +44,7 @@
   let forwardingPresetIds = $state<string[]>([]);
   let deletingSavedForwardIds = $state<string[]>([]);
   let deletingRuntimeForwardIds = $state<string[]>([]);
-  let pendingDeleteTarget = $state<SavedPortForwardConfig | null>(null);
+  let pendingDeleteTarget = $state<PortForwardRecord | null>(null);
 
   let sortedSavedForwards = $derived(
     [...savedForwards].sort((left, right) =>
@@ -54,43 +53,25 @@
   );
 
   function connectionForForward(
-    forward: SavedPortForwardConfig,
+    forward: PortForwardRecord,
   ): ConnectionConfig | null {
     return (
-      connections.find(
-        (connection) => connection.id === forward.connectionId,
-      ) ?? null
+      connections.find((connection) => connection.id === forward.host_id) ?? null
     );
   }
 
-  function runtimeForwardFor(
-    savedForward: SavedPortForwardConfig,
+  function runtimesFor(
+    savedForward: PortForwardRecord,
     connection: ConnectionConfig | null,
-  ): PortForward | null {
-    if (!connection) {
-      return null;
-    }
-
-    return (
-      forwards.find(
-        (forward) =>
-          forward.name === savedForward.name &&
-          forward.host === connection.host &&
-          forward.port === connection.port &&
-          forward.username === connection.username &&
-          forward.bind_host === savedForward.bind_host &&
-          forward.bind_port === savedForward.bind_port &&
-          forward.target_host === savedForward.target_host &&
-          forward.target_port === savedForward.target_port,
-      ) ?? null
-    );
+  ): (PortForward | null)[] {
+    return runtimeForwardsFor(savedForward, connection, forwards);
   }
 
-  function cardClass(runtimeForward: PortForward | null): string {
+  function cardClass(state: PortForward["state"] | null): string {
     const base =
       "group rounded-[1.35rem] border bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055]";
 
-    switch (runtimeForward?.state) {
+    switch (state) {
       case "listening":
         return `${base} forward-card--listening border-emerald-300/55`;
       case "connecting":
@@ -102,7 +83,7 @@
     }
   }
 
-  async function handleForward(savedForward: SavedPortForwardConfig) {
+  async function handleForward(savedForward: PortForwardRecord) {
     error = null;
     forwardingPresetIds = [...forwardingPresetIds, savedForward.id];
 
@@ -118,26 +99,37 @@
     }
   }
 
-  async function handleStopRuntime(forward: PortForward) {
+  async function handleStopGroup(
+    savedForward: PortForwardRecord,
+    runtimes: (PortForward | null)[],
+  ) {
     error = null;
-    deletingRuntimeForwardIds = [...deletingRuntimeForwardIds, forward.id];
+    deletingRuntimeForwardIds = [
+      ...deletingRuntimeForwardIds,
+      savedForward.id,
+    ];
 
     try {
-      if (forward.state === "connecting" || forward.state === "listening") {
-        await onStop(forward.id);
+      for (const forward of runtimes) {
+        if (!forward) {
+          continue;
+        }
+        if (forward.state === "connecting" || forward.state === "listening") {
+          await onStop(forward.id);
+        }
+        await onDeleteRuntime(forward.id);
       }
-      await onDeleteRuntime(forward.id);
     } catch (cause) {
       error =
         cause instanceof Error ? cause.message : "Failed to stop port forward";
     } finally {
       deletingRuntimeForwardIds = deletingRuntimeForwardIds.filter(
-        (id) => id !== forward.id,
+        (id) => id !== savedForward.id,
       );
     }
   }
 
-  function requestDeleteSaved(forward: SavedPortForwardConfig) {
+  function requestDeleteSaved(forward: PortForwardRecord) {
     pendingDeleteTarget = forward;
     error = null;
   }
@@ -150,7 +142,7 @@
     await confirmDeleteSaved(pendingDeleteTarget);
   }
 
-  async function confirmDeleteSaved(forward: SavedPortForwardConfig) {
+  async function confirmDeleteSaved(forward: PortForwardRecord) {
     deletingSavedForwardIds = [...deletingSavedForwardIds, forward.id];
 
     try {
@@ -268,9 +260,10 @@
               <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {#each sortedSavedForwards as savedForward (savedForward.id)}
                   {@const connection = connectionForForward(savedForward)}
-                  {@const runtimeForward = runtimeForwardFor(savedForward, connection)}
-                  {@const badge = runtimeForward ? stateBadge(runtimeForward.state) : null}
-                  <article class={cardClass(runtimeForward)}>
+                  {@const runtimes = runtimesFor(savedForward, connection)}
+                  {@const state = groupState(runtimes)}
+                  {@const badge = state ? stateBadge(state) : null}
+                  <article class={cardClass(state)}>
                     <div class="flex items-start gap-3">
                       <div
                         class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
@@ -305,35 +298,46 @@
                     </div>
 
                     <div
-                      class="mt-3 rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-xs"
+                      class="mt-3 space-y-1.5 rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-xs"
                     >
-                      <span class="font-mono text-cyan-100"
-                        >{savedForward.bind_host}:{savedForward.bind_port}</span
-                      >
-                      <span class="mx-2 text-slate-600">→</span>
-                      <span class="font-mono text-slate-300"
-                        >{savedForward.target_host}:{savedForward.target_port}</span
-                      >
+                      {#each savedForward.mappings as mapping, index (index)}
+                        {@const runtime = runtimes[index]}
+                        <div>
+                          <div class="flex items-center">
+                            <span
+                              class="mr-2 inline-block size-1.5 shrink-0 rounded-full {runtime
+                                ? stateBadge(runtime.state).tone
+                                : 'bg-slate-600'}"
+                            ></span>
+                            <span class="font-mono text-cyan-100"
+                              >{mapping.bind_host}:{mapping.bind_port}</span
+                            >
+                            <span class="mx-2 text-slate-600">→</span>
+                            <span class="font-mono text-slate-300"
+                              >{mapping.target_host}:{mapping.target_port}</span
+                            >
+                          </div>
+                          {#if runtime?.error}
+                            <p class="mt-0.5 pl-3.5 text-red-300">
+                              {runtime.error}
+                            </p>
+                          {/if}
+                        </div>
+                      {/each}
                     </div>
 
-                    {#if runtimeForward?.error}
-                      <p class="mt-2 text-xs text-red-300">
-                        {runtimeForward.error}
-                      </p>
-                    {/if}
-
                     <div class="mt-4 flex items-center gap-2">
-                      {#if runtimeForward}
+                      {#if state}
                         <Button
                           variant="ghost"
                           size="xs"
                           class="gap-1.5 rounded-xl text-slate-400 hover:bg-amber-400/10 hover:text-amber-300"
-                          onclick={() => handleStopRuntime(runtimeForward)}
+                          onclick={() => handleStopGroup(savedForward, runtimes)}
                           disabled={deletingRuntimeForwardIds.includes(
-                            runtimeForward.id,
+                            savedForward.id,
                           )}
                         >
-                          {#if deletingRuntimeForwardIds.includes(runtimeForward.id)}
+                          {#if deletingRuntimeForwardIds.includes(savedForward.id)}
                             <Loader2 class="size-3 animate-spin" />
                           {:else}
                             <Square class="size-3" />
@@ -362,7 +366,7 @@
                         size="xs"
                         class="gap-1.5 rounded-xl text-slate-400 hover:bg-white/8 hover:text-white"
                         onclick={() => onEdit(savedForward)}
-                        disabled={runtimeForward !== null}
+                        disabled={state !== null}
                       >
                         <Pencil class="size-3" />
                         Edit
@@ -372,7 +376,7 @@
                         size="xs"
                         class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
                         onclick={() => requestDeleteSaved(savedForward)}
-                        disabled={runtimeForward !== null ||
+                        disabled={state !== null ||
                           deletingSavedForwardIds.includes(savedForward.id)}
                       >
                         {#if deletingSavedForwardIds.includes(savedForward.id)}

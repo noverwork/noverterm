@@ -19,6 +19,8 @@ export const mutationKeys = {
   deleteKey: ["app-data", "keys", "delete"] as const,
   revealKeySecret: ["app-data", "keys", "reveal-secret"] as const,
   upsertSetting: ["app-data", "settings", "upsert"] as const,
+  savePortForward: ["app-data", "port-forwards", "save"] as const,
+  deletePortForward: ["app-data", "port-forwards", "delete"] as const,
   createSnippet: ["snippets", "create"] as const,
   updateSnippet: ["snippets", "update"] as const,
   deleteSnippet: ["snippets", "delete"] as const,

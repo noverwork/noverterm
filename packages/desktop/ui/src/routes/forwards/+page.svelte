@@ -3,7 +3,7 @@
   import { goto } from "$app/navigation";
 
   import PortForwardView from "$lib/components/port-forward-view.svelte";
-  import type { SavedPortForwardConfig } from "$lib/app-data-types.js";
+  import type { PortForwardRecord } from "$lib/api/types.js";
   import { getAppShellContext } from "$lib/stores/app-shell.svelte.js";
 
   const app = getAppShellContext();
@@ -16,7 +16,7 @@
     await goto("/forwards/new");
   }
 
-  async function handleEditForward(forward: SavedPortForwardConfig) {
+  async function handleEditForward(forward: PortForwardRecord) {
     await goto(`/forwards/${forward.id}/edit`);
   }
 </script>
