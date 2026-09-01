@@ -23,7 +23,7 @@ use crate::trust::{HostTrustMismatch, HostTrustPrompt, SshTrustStore, TrustCheck
 use super::keys::{is_rsa_key, load_key_pair, rsa_hash_candidates};
 use super::sftp::{
     open_sftp_session, sftp_client_config, FileEntry, SftpSession, TransferCancellation,
-    TransferProgress,
+    TransferDirection, TransferProgress,
 };
 
 const SSH_PROBE_TIMEOUT: Duration = Duration::from_secs(8);
@@ -641,6 +641,21 @@ impl SshSessionManager {
 
         sftp_session
             .rename(old, new)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    pub async fn sftp_transfer_conflicts(
+        &self,
+        sftp_id: &str,
+        direction: TransferDirection,
+        source_path: &str,
+        target_path: &str,
+    ) -> Result<Vec<String>, String> {
+        let sftp_session = self.sftp_session(sftp_id).await?;
+
+        sftp_session
+            .transfer_conflicts(direction, source_path, target_path)
             .await
             .map_err(|error| error.to_string())
     }

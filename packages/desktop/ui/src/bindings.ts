@@ -397,6 +397,18 @@ async sftpRename(sessionId: string, oldPath: string, newPath: string) : Promise<
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Relative paths inside a folder transfer that already exist at the
+ * destination, so the UI can say what an overwrite would clobber.
+ */
+async sftpTransferConflicts(sessionId: string, direction: TransferDirection, sourcePath: string, targetPath: string) : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_transfer_conflicts", { sessionId, direction, sourcePath, targetPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async sftpUpload(sessionId: string, localPath: string, remotePath: string) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("sftp_upload", { sessionId, localPath, remotePath }) };
@@ -523,6 +535,7 @@ export type SshLocalPortForwardInput = { session_id: string; bind_host: string; 
 export type SshPortForwardState = "listening" | "stopped" | "error"
 export type SshPortForwardStatus = { forward_id: string; session_id: string; bind_host: string; bind_port: number; target_host: string; target_port: number; status: SshPortForwardState; error: string | null }
 export type SshProbeHostInfoResponse = { status: "success"; info: HostSystemInfo } | { status: "trust_required"; prompt: HostTrustPrompt } | { status: "trust_mismatch"; mismatch: HostTrustMismatch }
+export type TransferDirection = "Upload" | "Download"
 export type TrustedSshHost = { host: string; port: number; algorithm: string; fingerprint: string }
 
 /** tauri-specta globals **/

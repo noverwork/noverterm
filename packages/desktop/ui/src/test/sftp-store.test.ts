@@ -396,6 +396,8 @@ describe("sftpStore", () => {
         existingName: "report.pdf",
         suggestedName: "report (2).pdf",
         direction: "Upload",
+        isDirectory: false,
+        conflictingFiles: [],
       });
 
       await store.resolveTransferConflict("rename");
@@ -485,6 +487,8 @@ describe("sftpStore", () => {
         existingName: "report.pdf",
         suggestedName: "report (1).pdf",
         direction: "Download",
+        isDirectory: false,
+        conflictingFiles: [],
       });
 
       await store.resolveTransferConflict("rename");

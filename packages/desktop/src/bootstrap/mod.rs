@@ -66,6 +66,7 @@ fn command_builder() -> Builder<tauri::Wry> {
         crate::sftp::sftp_mkdir,
         crate::sftp::sftp_remove,
         crate::sftp::sftp_rename,
+        crate::sftp::sftp_transfer_conflicts,
         crate::sftp::sftp_upload,
         crate::sftp::sftp_download,
         crate::sftp::sftp_cancel_transfer,

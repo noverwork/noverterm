@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -273,6 +273,69 @@ impl SftpSession {
             #[cfg(test)]
             SftpSessionInner::Mock { .. } => Ok("/mock/home".to_string()),
         }
+    }
+
+    /// Relative file paths that exist in both trees, so a folder transfer can
+    /// tell the user which files an overwrite would clobber.
+    pub async fn transfer_conflicts(
+        &self,
+        direction: TransferDirection,
+        source_path: &str,
+        target_path: &str,
+    ) -> Result<Vec<String>, SftpError> {
+        let (source, target) = match direction {
+            TransferDirection::Upload => (
+                list_local_tree(source_path).await?,
+                self.list_remote_tree(target_path).await?,
+            ),
+            TransferDirection::Download => (
+                self.list_remote_tree(source_path).await?,
+                list_local_tree(target_path).await?,
+            ),
+        };
+
+        let target: HashSet<String> = target.into_iter().collect();
+        let mut conflicts = source
+            .into_iter()
+            .filter(|relative| target.contains(relative))
+            .collect::<Vec<_>>();
+        conflicts.sort();
+        Ok(conflicts)
+    }
+
+    /// File paths under `root`, relative to it. Empty when `root` is not a directory.
+    async fn list_remote_tree(&self, root: &str) -> Result<Vec<String>, SftpError> {
+        match self.stat(root).await {
+            Ok(entry) if entry.file_type == FileType::Dir => {}
+            Ok(_) | Err(SftpError::NotFound(_)) => return Ok(Vec::new()),
+            Err(error) => return Err(error),
+        }
+
+        let mut pending = vec![String::new()];
+        let mut files = Vec::new();
+
+        while let Some(relative) = pending.pop() {
+            let dir = if relative.is_empty() {
+                root.to_string()
+            } else {
+                join_remote(root, &relative)
+            };
+
+            for entry in self.list_dir(&dir).await? {
+                let child = if relative.is_empty() {
+                    entry.name.clone()
+                } else {
+                    format!("{relative}/{}", entry.name)
+                };
+                match entry.file_type {
+                    FileType::Dir => pending.push(child),
+                    FileType::File => files.push(child),
+                    _ => {}
+                }
+            }
+        }
+
+        Ok(files)
     }
 
     pub async fn upload(
@@ -666,14 +729,18 @@ pub async fn stat_sftp(session: &RusshSftpSession, path: &str) -> Result<FileEnt
 
 pub async fn mkdir_sftp(session: &RusshSftpSession, path: &str) -> Result<(), SftpError> {
     let resolved_path = resolve_remote_path(session, path).await?;
-    session.create_dir(&resolved_path).await.map_err(|error| {
-        let message = error.to_string();
-        if message.to_lowercase().contains("exists") {
-            SftpError::AlreadyExists
-        } else {
-            classify_sftp_error("write", path, message)
+    match session.create_dir(&resolved_path).await {
+        Ok(()) => Ok(()),
+        // OpenSSH reports EEXIST as the generic SSH_FX_FAILURE ("Failure"), so
+        // the message never mentions "exists": confirm with a stat instead.
+        Err(error) => {
+            if session.metadata(&resolved_path).await.is_ok() {
+                Err(SftpError::AlreadyExists)
+            } else {
+                Err(classify_sftp_error("write", path, error))
+            }
         }
-    })
+    }
 }
 
 fn file_entry_from_metadata(name: String, metadata: &Metadata) -> FileEntry {
@@ -1291,6 +1358,52 @@ async fn is_local_dir(path: &str) -> bool {
         .await
         .map(|metadata| metadata.is_dir())
         .unwrap_or(false)
+}
+
+/// File paths under `root`, relative to it. Empty when `root` is not a directory.
+async fn list_local_tree(root: &str) -> Result<Vec<String>, SftpError> {
+    if !is_local_dir(root).await {
+        return Ok(Vec::new());
+    }
+
+    let mut pending = vec![String::new()];
+    let mut files = Vec::new();
+
+    while let Some(relative) = pending.pop() {
+        let dir = if relative.is_empty() {
+            PathBuf::from(root)
+        } else {
+            PathBuf::from(root).join(&relative)
+        };
+
+        let mut read_dir = tokio::fs::read_dir(&dir)
+            .await
+            .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
+        while let Some(entry) = read_dir
+            .next_entry()
+            .await
+            .map_err(|error| SftpError::OperationFailed(error.to_string()))?
+        {
+            let metadata = entry
+                .metadata()
+                .await
+                .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let child = if relative.is_empty() {
+                name
+            } else {
+                format!("{relative}/{name}")
+            };
+
+            if metadata.is_dir() {
+                pending.push(child);
+            } else if metadata.is_file() {
+                files.push(child);
+            }
+        }
+    }
+
+    Ok(files)
 }
 
 fn join_remote(parent: &str, name: &str) -> String {
@@ -2027,6 +2140,73 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn test_transfer_conflicts_lists_files_present_on_both_sides() {
+        let temp_dir = tempfile::tempdir().expect("temp dir should be created");
+        let local_root = temp_dir.path().join("tree");
+        tokio::fs::create_dir_all(local_root.join("nested"))
+            .await
+            .expect("nested dir should be created");
+        write_temp_file(&local_root.join("root.bin"), 16).await;
+        write_temp_file(&local_root.join("nested/leaf.bin"), 16).await;
+        write_temp_file(&local_root.join("only-local.bin"), 16).await;
+        let local_root = local_root.to_string_lossy().into_owned();
+
+        let session = SftpSession::mock_with_entries(
+            "sftp-1",
+            HashMap::from([
+                ("/remote/tree".to_string(), MockEntry::directory(None)),
+                (
+                    "/remote/tree/root.bin".to_string(),
+                    MockEntry::file(16, None),
+                ),
+                (
+                    "/remote/tree/nested".to_string(),
+                    MockEntry::directory(None),
+                ),
+                (
+                    "/remote/tree/nested/leaf.bin".to_string(),
+                    MockEntry::file(16, None),
+                ),
+                (
+                    "/remote/tree/only-remote.bin".to_string(),
+                    MockEntry::file(16, None),
+                ),
+            ]),
+        );
+
+        let uploading = session
+            .transfer_conflicts(TransferDirection::Upload, &local_root, "/remote/tree")
+            .await
+            .expect("upload conflicts should be listed");
+        assert_eq!(uploading, vec!["nested/leaf.bin", "root.bin"]);
+
+        let downloading = session
+            .transfer_conflicts(TransferDirection::Download, "/remote/tree", &local_root)
+            .await
+            .expect("download conflicts should be listed");
+        assert_eq!(downloading, vec!["nested/leaf.bin", "root.bin"]);
+    }
+
+    #[tokio::test]
+    async fn test_transfer_conflicts_empty_when_destination_is_missing() {
+        let temp_dir = tempfile::tempdir().expect("temp dir should be created");
+        let local_root = temp_dir.path().join("tree");
+        tokio::fs::create_dir_all(&local_root)
+            .await
+            .expect("dir should be created");
+        write_temp_file(&local_root.join("root.bin"), 16).await;
+        let local_root = local_root.to_string_lossy().into_owned();
+        let session = SftpSession::mock("sftp-1");
+
+        let conflicts = session
+            .transfer_conflicts(TransferDirection::Upload, &local_root, "/remote/tree")
+            .await
+            .expect("missing destination should not error");
+
+        assert!(conflicts.is_empty());
+    }
+
     mod upload {
         use super::*;
 
@@ -2161,6 +2341,34 @@ mod tests {
             assert!(session.mock_contains_path("/remote/tree/root.bin"));
             assert!(session.mock_contains_path("/remote/tree/nested"));
             assert!(session.mock_contains_path("/remote/tree/nested/leaf.bin"));
+        }
+
+        #[tokio::test]
+        async fn test_upload_directory_tree_over_existing_remote_dir() {
+            let temp_dir = tempfile::tempdir().expect("temp dir should be created");
+            tokio::fs::create_dir_all(temp_dir.path().join("tree"))
+                .await
+                .expect("dir should be created");
+            write_temp_file(&temp_dir.path().join("tree/root.bin"), 1024).await;
+            let local_root = temp_dir.path().join("tree").to_string_lossy().into_owned();
+            let session = SftpSession::mock_with_entries(
+                "sftp-1",
+                HashMap::from([("/remote/tree".to_string(), MockEntry::directory(None))]),
+            );
+
+            let total = session
+                .upload(
+                    &local_root,
+                    "/remote/tree",
+                    "transfer-dir".to_string(),
+                    TransferCancellation::new(),
+                    None,
+                )
+                .await
+                .expect("upload into an existing remote directory should succeed");
+
+            assert_eq!(total, 1024);
+            assert!(session.mock_contains_path("/remote/tree/root.bin"));
         }
 
         #[tokio::test]
