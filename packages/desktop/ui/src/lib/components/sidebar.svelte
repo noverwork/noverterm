@@ -56,20 +56,15 @@
     activeSection?: SidebarSection;
   } = $props();
 
+  const TOOLTIP_CLASS =
+    "pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950/95 px-2 py-1 text-[11px] font-medium text-slate-100 opacity-0 shadow-[0_8px_24px_rgb(0_0_0/0.45)] backdrop-blur transition-opacity duration-150 group-hover/tip:opacity-100";
+
   function navButtonClass(section: SidebarSection): string {
     if (activeSection === section) {
-      return "h-10 w-full justify-start gap-2 rounded-2xl border-cyan-300/35 bg-cyan-300/12 text-cyan-50 shadow-[0_10px_30px_rgb(34_211_238/0.16)] ring-1 ring-cyan-300/10 hover:border-cyan-300/45 hover:bg-cyan-300/16 hover:text-white";
+      return "h-10 w-full justify-center rounded-2xl px-0 border-cyan-300/35 bg-cyan-300/12 text-cyan-50 shadow-[0_10px_30px_rgb(34_211_238/0.16)] ring-1 ring-cyan-300/10 hover:border-cyan-300/45 hover:bg-cyan-300/16 hover:text-white";
     }
 
-    return "h-10 w-full justify-start gap-2 rounded-2xl border-white/10 bg-white/[0.035] text-slate-200 hover:border-cyan-300/30 hover:bg-cyan-300/8 hover:text-white";
-  }
-
-  function navCountBadgeClass(section: SidebarSection): string {
-    if (activeSection === section) {
-      return "ml-auto rounded-full bg-cyan-200/20 px-1.5 py-0.5 text-[10px] text-cyan-50";
-    }
-
-    return "ml-auto rounded-full bg-cyan-300/12 px-1.5 py-0.5 text-[10px] text-cyan-200";
+    return "h-10 w-full justify-center rounded-2xl px-0 border-white/10 bg-white/[0.035] text-slate-200 hover:border-cyan-300/30 hover:bg-cyan-300/8 hover:text-white";
   }
 
   function localTerminalIconButtonClass(): string {
@@ -94,6 +89,10 @@
 
   function herdrIconButtonClass(): string {
     return "rounded-2xl border-rose-300/12 bg-rose-300/[0.045] text-rose-200/85 hover:border-rose-300/22 hover:bg-rose-300/8 hover:text-rose-50";
+  }
+
+  function withCount(label: string, count?: number): string {
+    return count === undefined ? label : `${label} (${count})`;
   }
 </script>
 
@@ -121,13 +120,53 @@
     >
       {@render icon()}
     </Button>
-    <span
-      class="pointer-events-none absolute left-0 top-full z-50 mt-2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950/95 px-2 py-1 text-[11px] font-medium text-slate-100 opacity-0 shadow-[0_8px_24px_rgb(0_0_0/0.45)] backdrop-blur transition-opacity duration-150 group-hover/tip:opacity-100"
-      aria-hidden="true"
-    >
+    <span class={TOOLTIP_CLASS} aria-hidden="true">
       {label}
     </span>
   </div>
+{/snippet}
+
+{#snippet navItem(
+  onclick: () => void,
+  section: SidebarSection,
+  label: string,
+  icon: Snippet,
+  count?: number,
+)}
+  <div class="group/tip relative">
+    <Button
+      {onclick}
+      variant="outline"
+      size="sm"
+      class={navButtonClass(section)}
+      aria-label={withCount(label, count)}
+    >
+      {@render icon()}
+    </Button>
+    <span class={TOOLTIP_CLASS} aria-hidden="true">
+      {withCount(label, count)}
+    </span>
+  </div>
+{/snippet}
+
+{#snippet serverIcon()}
+  <Server class="size-3.5" />
+{/snippet}
+
+{#snippet sftpIcon()}
+  <FolderOpen class="size-3.5" />
+{/snippet}
+
+{#snippet keyIcon()}
+  <KeyRound class="size-3.5" />
+{/snippet}
+
+{#snippet snippetIcon()}
+  <FileText class="size-3.5" />
+{/snippet}
+
+{#snippet forwardIcon()}
+  <Network class="size-3.5" />
 {/snippet}
 
 {#snippet claudeIcon()}
@@ -207,16 +246,16 @@
 {/snippet}
 
 <aside
-  class="sidebar relative flex w-[18rem] shrink-0 flex-col overflow-hidden border-r border-white/10 shadow-[18px_0_60px_rgb(0_0_0/0.28)] backdrop-blur-2xl"
+  class="sidebar relative z-30 flex w-[4.5rem] shrink-0 flex-col border-r border-white/10 shadow-[18px_0_60px_rgb(0_0_0/0.28)] backdrop-blur-2xl"
 >
   <div
     class="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-cyan-300/25 to-transparent"
   ></div>
 
-  <div class="flex items-center justify-between px-4 pt-4 pb-3">
+  <div class="flex items-center justify-center px-3 pt-4 pb-3">
     <button
       type="button"
-      class="flex min-w-0 cursor-pointer items-center gap-3 rounded-2xl text-left transition-colors hover:bg-white/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/30"
+      class="cursor-pointer rounded-2xl transition-colors hover:bg-white/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/30"
       onclick={onGoHome}
       aria-label="Go to Connections"
     >
@@ -225,19 +264,12 @@
       >
         <img src="/favicon.png" alt="" class="size-7 rounded-xl" />
       </div>
-      <div class="min-w-0">
-        <p
-          class="truncate text-sm font-semibold uppercase tracking-[0.28em] text-white"
-        >
-          NOVERTERM
-        </p>
-      </div>
     </button>
   </div>
 
-  <div class="border-b border-white/8 px-4 pb-4">
+  <div class="border-b border-white/8 px-3 pb-4">
     {#if onLocalTerminal || onK9sTerminal || onClaudeCodeTerminal || onOpencodeTerminal || onHerdrTerminal}
-      <div class="flex items-center gap-2">
+      <div class="flex flex-col items-center gap-2">
         {#if onLocalTerminal}
           {@render quickAction(
             onLocalTerminal,
@@ -273,104 +305,46 @@
   </div>
 
   <div class="flex min-h-0 flex-1 flex-col">
-    <div class="px-4 py-4">
+    <div class="px-3 py-4">
       <div class="grid gap-2">
-        <div class="grid gap-2">
-          {#if onNewConnection}
-            <Button
-              onclick={onNewConnection}
-              variant="outline"
-              size="sm"
-              class={navButtonClass("hosts")}
-            >
-              <Server class="size-3.5" />
-              Connections
-              <span class={navCountBadgeClass("hosts")}>{connectionCount}</span>
-            </Button>
-          {/if}
-          {#if onSftp}
-            <Button
-              onclick={onSftp}
-              variant="outline"
-              size="sm"
-              class={navButtonClass("sftp")}
-            >
-              <FolderOpen class="size-3.5" />
-              SFTP
-            </Button>
-          {/if}
-          {#if onManageKeys}
-            <Button
-              onclick={onManageKeys}
-              variant="outline"
-              size="sm"
-              class={navButtonClass("keys")}
-            >
-              <KeyRound class="size-3.5" />
-              Keys
-              <span class={navCountBadgeClass("keys")}>{keyCount}</span>
-            </Button>
-          {/if}
-          {#if onSnippets}
-            <Button
-              onclick={onSnippets}
-              variant="outline"
-              size="sm"
-              class={navButtonClass("snippets")}
-            >
-              <FileText class="size-3.5" />
-              Snippets
-              <span class={navCountBadgeClass("snippets")}>{snippetCount}</span>
-            </Button>
-          {/if}
-          {#if onPortForwards}
-            <Button
-              onclick={onPortForwards}
-              variant="outline"
-              size="sm"
-              class={navButtonClass("forwards")}
-            >
-              <Network class="size-3.5" />
-              Forwards
-              <span class={navCountBadgeClass("forwards")}>{forwardCount}</span>
-            </Button>
-          {/if}
-          {#if onManageKnownHosts}
-            <Button
-              onclick={onManageKnownHosts}
-              variant="outline"
-              size="sm"
-              class={navButtonClass("known-hosts")}
-            >
-              <Server class="size-3.5" />
-              Known Hosts
-            </Button>
-          {/if}
-        </div>
+        {#if onNewConnection}
+          {@render navItem(onNewConnection, "hosts", "Connections", serverIcon, connectionCount)}
+        {/if}
+        {#if onSftp}
+          {@render navItem(onSftp, "sftp", "SFTP", sftpIcon)}
+        {/if}
+        {#if onManageKeys}
+          {@render navItem(onManageKeys, "keys", "Keys", keyIcon, keyCount)}
+        {/if}
+        {#if onSnippets}
+          {@render navItem(onSnippets, "snippets", "Snippets", snippetIcon, snippetCount)}
+        {/if}
+        {#if onPortForwards}
+          {@render navItem(onPortForwards, "forwards", "Forwards", forwardIcon, forwardCount)}
+        {/if}
+        {#if onManageKnownHosts}
+          {@render navItem(onManageKnownHosts, "known-hosts", "Known Hosts", serverIcon)}
+        {/if}
       </div>
     </div>
 
     <div class="flex-1"></div>
 
     <div class="border-t border-white/10 p-3">
-      <div
-        class="rounded-3xl border border-white/10 bg-white/[0.035] p-3 shadow-inner shadow-white/[0.02]"
-      >
-        <div class="grid gap-1.5">
-          {#if onOpenSettings}
-            <Button
-              onclick={onOpenSettings}
-              variant="ghost"
-              size="sm"
-              class="w-full justify-start gap-2 rounded-2xl text-slate-300 hover:bg-white/7 hover:text-white"
-            >
-              <Settings class="size-3.5" />
-              Settings
-            </Button>
-          {/if}
-
+      {#if onOpenSettings}
+        <div class="group/tip relative">
+          <Button
+            onclick={onOpenSettings}
+            variant="ghost"
+            size="sm"
+            class="h-10 w-full justify-center rounded-2xl px-0 text-slate-300 hover:bg-white/7 hover:text-white"
+            aria-label="Settings"
+          >
+            <Settings class="size-3.5" />
+          </Button>
+          <span class={TOOLTIP_CLASS} aria-hidden="true">Settings</span>
         </div>
-      </div>
+      {/if}
     </div>
   </div>
 </aside>

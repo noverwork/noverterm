@@ -5,12 +5,15 @@
     Pencil,
     Play,
     Plus,
+    Search,
     Square,
     Trash2,
   } from "@lucide/svelte";
 
   import DeleteConfirmDialog from "$lib/components/delete-confirm-dialog.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
+  import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
+  import { Input } from "$lib/components/ui/input/index.js";
   import type { PortForwardRecord } from "$lib/api/types.js";
   import type { ConnectionConfig } from "$lib/app-data-types.js";
   import { groupState, runtimeForwardsFor } from "$lib/port-forward-group.js";
@@ -45,12 +48,37 @@
   let deletingSavedForwardIds = $state<string[]>([]);
   let deletingRuntimeForwardIds = $state<string[]>([]);
   let pendingDeleteTarget = $state<PortForwardRecord | null>(null);
+  let searchQuery = $state("");
 
   let sortedSavedForwards = $derived(
     [...savedForwards].sort((left, right) =>
       left.name.localeCompare(right.name),
     ),
   );
+
+  let visibleForwards = $derived.by(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return sortedSavedForwards;
+    }
+    return sortedSavedForwards.filter((forward) => {
+      if (forward.name.toLowerCase().includes(query)) {
+        return true;
+      }
+      const connection = connectionForForward(forward);
+      if (
+        connection &&
+        `${connection.username}@${connection.host}`.toLowerCase().includes(query)
+      ) {
+        return true;
+      }
+      return forward.mappings.some(
+        (mapping) =>
+          `${mapping.bind_host}:${mapping.bind_port}`.toLowerCase().includes(query) ||
+          `${mapping.target_host}:${mapping.target_port}`.toLowerCase().includes(query),
+      );
+    });
+  });
 
   function connectionForForward(
     forward: PortForwardRecord,
@@ -67,9 +95,17 @@
     return runtimeForwardsFor(savedForward, connection, forwards);
   }
 
+  function isBusy(id: string): boolean {
+    return (
+      forwardingPresetIds.includes(id) ||
+      deletingRuntimeForwardIds.includes(id) ||
+      deletingSavedForwardIds.includes(id)
+    );
+  }
+
   function cardClass(state: PortForward["state"] | null): string {
     const base =
-      "group rounded-[1.35rem] border bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055]";
+      "group cursor-pointer rounded-[1.35rem] border bg-white/[0.03] px-4 py-4 transition hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40";
 
     switch (state) {
       case "listening":
@@ -79,7 +115,23 @@
       case "error":
         return `${base} forward-card--error border-red-300/55`;
       default:
-        return `${base} border-white/8`;
+        return `${base} border-white/8 hover:border-cyan-300/30`;
+    }
+  }
+
+  function handleCardActivate(
+    savedForward: PortForwardRecord,
+    connection: ConnectionConfig | null,
+    runtimes: (PortForward | null)[],
+    state: PortForward["state"] | null,
+  ) {
+    if (isBusy(savedForward.id)) {
+      return;
+    }
+    if (state) {
+      void handleStopGroup(savedForward, runtimes);
+    } else if (connection) {
+      void handleForward(savedForward);
     }
   }
 
@@ -227,15 +279,30 @@
         </p>
       </div>
 
-      <Button
-        onclick={onNew}
-        variant="default"
-        size="sm"
-        class="gap-2 self-start rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200"
-      >
-        <Plus class="size-3.5" />
-        New Forward
-      </Button>
+      <div class="flex items-center gap-2 self-start">
+        <div class="relative">
+          <Search
+            class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-500"
+          />
+          <Input
+            type="search"
+            bind:value={searchQuery}
+            placeholder="Search forwards"
+            aria-label="Search port forwards"
+            class="h-8 w-48 rounded-2xl border-white/10 bg-white/[0.03] pl-8 text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40 focus-visible:ring-cyan-300/20"
+          />
+        </div>
+
+        <Button
+          onclick={onNew}
+          variant="default"
+          size="sm"
+          class="gap-2 rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+        >
+          <Plus class="size-3.5" />
+          New Forward
+        </Button>
+      </div>
     </div>
 
     {#if error}
@@ -254,144 +321,184 @@
         >
           No saved forwards yet
         </div>
+      {:else if visibleForwards.length === 0}
+        <div
+          class="rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground"
+        >
+          No forwards match your search.
+        </div>
       {:else}
-        <div class="space-y-6">
-          <section>
-              <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {#each sortedSavedForwards as savedForward (savedForward.id)}
-                  {@const connection = connectionForForward(savedForward)}
-                  {@const runtimes = runtimesFor(savedForward, connection)}
-                  {@const state = groupState(runtimes)}
-                  {@const badge = state ? stateBadge(state) : null}
-                  <article class={cardClass(state)}>
-                    <div class="flex items-start gap-3">
-                      <div
-                        class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
-                      >
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {#each visibleForwards as savedForward (savedForward.id)}
+            {@const connection = connectionForForward(savedForward)}
+            {@const runtimes = runtimesFor(savedForward, connection)}
+            {@const state = groupState(runtimes)}
+            {@const badge = state ? stateBadge(state) : null}
+            <ContextMenu.Root>
+              <ContextMenu.Trigger class="contents">
+                <div
+                  role="button"
+                  tabindex="0"
+                  aria-label={state
+                    ? `Stop ${savedForward.name}`
+                    : `Start ${savedForward.name}`}
+                  onclick={() =>
+                    handleCardActivate(savedForward, connection, runtimes, state)}
+                  onkeydown={(event) => {
+                    if (event.key === "Enter") {
+                      handleCardActivate(savedForward, connection, runtimes, state);
+                    }
+                  }}
+                  class={cardClass(state)}
+                >
+                  <div class="flex items-start gap-3">
+                    <div
+                      class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
+                    >
+                      {#if isBusy(savedForward.id)}
+                        <Loader2 class="size-5 animate-spin" />
+                      {:else}
                         <Network class="size-5" />
-                      </div>
+                      {/if}
+                    </div>
 
-                      <div class="min-w-0 flex-1">
-                        <div class="flex items-center gap-2">
-                          <p class="truncate text-sm font-medium text-white">
-                            {savedForward.name}
-                          </p>
-                          {#if badge}
-                            <span
-                              class="shrink-0 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide {badge.text}"
-                            >
-                              <span
-                                class="mr-1 inline-block size-1.5 shrink-0 rounded-full {badge.tone}"
-                              ></span>
-                              {badge.label}
-                            </span>
-                          {/if}
-                        </div>
-                        <p class="mt-1 truncate text-xs text-slate-400">
-                          {#if connection}
-                            {connection.username}@{connection.host}:{connection.port}
-                          {:else}
-                            Missing connection
-                          {/if}
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-2">
+                        <p class="truncate text-sm font-medium text-white">
+                          {savedForward.name}
                         </p>
+                        {#if badge}
+                          <span
+                            class="shrink-0 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide {badge.text}"
+                          >
+                            <span
+                              class="mr-1 inline-block size-1.5 shrink-0 rounded-full {badge.tone}"
+                            ></span>
+                            {badge.label}
+                          </span>
+                        {/if}
                       </div>
+                      <p class="mt-1 truncate text-xs text-slate-400">
+                        {#if connection}
+                          {connection.username}@{connection.host}:{connection.port}
+                        {:else}
+                          Missing connection
+                        {/if}
+                      </p>
                     </div>
 
                     <div
-                      class="mt-3 space-y-1.5 rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-xs"
+                      class="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
                     >
-                      {#each savedForward.mappings as mapping, index (index)}
-                        {@const runtime = runtimes[index]}
-                        <div>
-                          <div class="flex items-center">
-                            <span
-                              class="mr-2 inline-block size-1.5 shrink-0 rounded-full {runtime
-                                ? stateBadge(runtime.state).tone
-                                : 'bg-slate-600'}"
-                            ></span>
-                            <span class="font-mono text-cyan-100"
-                              >{mapping.bind_host}:{mapping.bind_port}</span
-                            >
-                            <span class="mx-2 text-slate-600">→</span>
-                            <span class="font-mono text-slate-300"
-                              >{mapping.target_host}:{mapping.target_port}</span
-                            >
-                          </div>
-                          {#if runtime?.error}
-                            <p class="mt-0.5 pl-3.5 text-red-300">
-                              {runtime.error}
-                            </p>
-                          {/if}
-                        </div>
-                      {/each}
-                    </div>
-
-                    <div class="mt-4 flex items-center gap-2">
-                      {#if state}
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          class="gap-1.5 rounded-xl text-slate-400 hover:bg-amber-400/10 hover:text-amber-300"
-                          onclick={() => handleStopGroup(savedForward, runtimes)}
-                          disabled={deletingRuntimeForwardIds.includes(
-                            savedForward.id,
-                          )}
-                        >
-                          {#if deletingRuntimeForwardIds.includes(savedForward.id)}
-                            <Loader2 class="size-3 animate-spin" />
-                          {:else}
-                            <Square class="size-3" />
-                          {/if}
-                          Stop
-                        </Button>
-                      {:else}
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          class="gap-1.5 rounded-xl bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/18 hover:text-white"
-                          onclick={() => handleForward(savedForward)}
-                          disabled={!connection ||
-                            forwardingPresetIds.includes(savedForward.id)}
-                        >
-                          {#if forwardingPresetIds.includes(savedForward.id)}
-                            <Loader2 class="size-3 animate-spin" />
-                          {:else}
-                            <Play class="size-3" />
-                          {/if}
-                          Forward
-                        </Button>
-                      {/if}
                       <Button
                         variant="ghost"
-                        size="xs"
-                        class="gap-1.5 rounded-xl text-slate-400 hover:bg-white/8 hover:text-white"
-                        onclick={() => onEdit(savedForward)}
+                        size="icon-sm"
+                        class="rounded-xl text-slate-400 hover:bg-white/8 hover:text-white"
+                        aria-label={`Edit ${savedForward.name}`}
                         disabled={state !== null}
+                        onclick={(event) => {
+                          event.stopPropagation();
+                          void onEdit(savedForward);
+                        }}
                       >
-                        <Pencil class="size-3" />
-                        Edit
+                        <Pencil class="size-3.5" />
                       </Button>
                       <Button
                         variant="ghost"
-                        size="xs"
-                        class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
-                        onclick={() => requestDeleteSaved(savedForward)}
+                        size="icon-sm"
+                        class="rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
+                        aria-label={`Delete ${savedForward.name}`}
                         disabled={state !== null ||
                           deletingSavedForwardIds.includes(savedForward.id)}
+                        onclick={(event) => {
+                          event.stopPropagation();
+                          requestDeleteSaved(savedForward);
+                        }}
                       >
-                        {#if deletingSavedForwardIds.includes(savedForward.id)}
-                          <Loader2 class="size-3 animate-spin" />
-                        {:else}
-                          <Trash2 class="size-3" />
-                        {/if}
-                        Delete
+                        <Trash2 class="size-3.5" />
                       </Button>
                     </div>
-                  </article>
-                {/each}
-              </div>
-            </section>
+                  </div>
 
+                  <div
+                    class="mt-3 space-y-1.5 rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-xs"
+                  >
+                    {#each savedForward.mappings as mapping, index (index)}
+                      {@const runtime = runtimes[index]}
+                      <div>
+                        <div class="flex items-center">
+                          <span
+                            class="mr-2 inline-block size-1.5 shrink-0 rounded-full {runtime
+                              ? stateBadge(runtime.state).tone
+                              : 'bg-slate-600'}"
+                          ></span>
+                          <span class="font-mono text-cyan-100"
+                            >{mapping.bind_host}:{mapping.bind_port}</span
+                          >
+                          <span class="mx-2 text-slate-600">→</span>
+                          <span class="font-mono text-slate-300"
+                            >{mapping.target_host}:{mapping.target_port}</span
+                          >
+                        </div>
+                        {#if runtime?.error}
+                          <p class="mt-0.5 pl-3.5 text-red-300">
+                            {runtime.error}
+                          </p>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              </ContextMenu.Trigger>
+
+              <ContextMenu.Content
+                class="min-w-44 border-white/10 bg-slate-950/96 text-slate-100 shadow-2xl shadow-black/45"
+              >
+                <ContextMenu.Label class="max-w-56 truncate text-slate-400">
+                  {savedForward.name}
+                </ContextMenu.Label>
+                <ContextMenu.Separator class="bg-white/10" />
+                {#if state}
+                  <ContextMenu.Item
+                    class="cursor-pointer focus:bg-amber-400/10 focus:text-amber-200"
+                    disabled={deletingRuntimeForwardIds.includes(savedForward.id)}
+                    onclick={() => void handleStopGroup(savedForward, runtimes)}
+                  >
+                    <Square class="size-3.5" />
+                    Stop
+                  </ContextMenu.Item>
+                {:else}
+                  <ContextMenu.Item
+                    class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                    disabled={!connection ||
+                      forwardingPresetIds.includes(savedForward.id)}
+                    onclick={() => void handleForward(savedForward)}
+                  >
+                    <Play class="size-3.5" />
+                    Forward
+                  </ContextMenu.Item>
+                {/if}
+                <ContextMenu.Item
+                  class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                  disabled={state !== null}
+                  onclick={() => void onEdit(savedForward)}
+                >
+                  <Pencil class="size-3.5" />
+                  Edit
+                </ContextMenu.Item>
+                <ContextMenu.Separator class="bg-white/10" />
+                <ContextMenu.Item
+                  class="cursor-pointer text-red-300 focus:bg-red-400/10 focus:text-red-200"
+                  disabled={state !== null ||
+                    deletingSavedForwardIds.includes(savedForward.id)}
+                  onclick={() => requestDeleteSaved(savedForward)}
+                >
+                  <Trash2 class="size-3.5" />
+                  Delete
+                </ContextMenu.Item>
+              </ContextMenu.Content>
+            </ContextMenu.Root>
+          {/each}
         </div>
       {/if}
     </div>
