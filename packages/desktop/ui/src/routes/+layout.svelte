@@ -464,7 +464,7 @@
       />
 
       <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-[#080c13]/72">
-        <div class="relative h-10 shrink-0 border-b border-white/10">
+        <div class="relative h-11 shrink-0 border-b border-white/10">
           {#if canScrollSessionTabsLeft}
             <div class="pointer-events-none absolute inset-y-0 left-0 z-20 flex w-12 items-center bg-gradient-to-r from-[#080c13] via-[#080c13]/90 to-transparent pl-1 text-cyan-200/45" aria-hidden="true">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4">
@@ -477,7 +477,7 @@
             bind:this={sessionTabsElement}
             role="group"
             aria-label="Active terminal sessions"
-            class="session-tabs flex h-full items-center gap-1 overflow-x-auto px-4"
+            class="session-tabs flex h-full items-center gap-1 overflow-x-auto px-3"
             onscroll={updateSessionTabScrollIndicators}
             onpointerleave={stopSessionTabAutoScroll}
           >
@@ -496,8 +496,8 @@
                   >
                     <div
                       class={isActive
-                        ? `group relative flex shrink-0 items-center gap-2 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1.5 text-sm text-white transition hover:bg-cyan-300/14${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`
-                        : `group relative flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-3 py-1.5 text-sm text-slate-400 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`}
+                        ? `group relative flex shrink-0 items-center gap-2 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-sm text-white transition hover:bg-cyan-300/14${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`
+                        : `group relative flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-3 py-1 text-sm text-slate-400 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`}
                     >
                       <button
                         type="button"
