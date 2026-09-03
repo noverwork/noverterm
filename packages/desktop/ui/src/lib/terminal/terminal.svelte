@@ -187,14 +187,18 @@
     });
     resizeObserver.observe(container);
 
-    // Returning to an idle window can leave a stale glyph atlas behind.
-    const handleWindowFocus = () => {
-      if (active) void scheduleReveal();
+    // Returning to an idle window can leave a stale glyph atlas behind. The
+    // window can also be occluded without ever losing focus (Space switch,
+    // display sleep), which only visibilitychange reports.
+    const handleRepaint = () => {
+      if (active && document.visibilityState === "visible") void scheduleReveal();
     };
-    window.addEventListener("focus", handleWindowFocus);
+    window.addEventListener("focus", handleRepaint);
+    document.addEventListener("visibilitychange", handleRepaint);
 
     return () => {
-      window.removeEventListener("focus", handleWindowFocus);
+      window.removeEventListener("focus", handleRepaint);
+      document.removeEventListener("visibilitychange", handleRepaint);
       cancelScheduledReveal();
       resizeObserver?.disconnect();
       term?.dispose();
