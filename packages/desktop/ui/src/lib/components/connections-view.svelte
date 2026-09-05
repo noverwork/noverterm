@@ -330,7 +330,7 @@
       </div>
     {/if}
 
-    <div class="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
+    <div class="-mx-2 mt-6 min-h-0 flex-1 overflow-y-auto px-2">
       {#if sortedConnections.length === 0}
         <div
           class="flex h-full min-h-[16rem] items-center justify-center rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground"
