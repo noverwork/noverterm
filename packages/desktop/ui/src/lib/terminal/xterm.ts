@@ -10,10 +10,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { TerminalConfig } from "$lib/app-data-types.js";
 import { createTerminalKeyHandler } from "./keyboard-shortcuts.js";
-import {
-  registerTerminalControlResponseSuppression,
-  stripTerminalControlResponses,
-} from "./terminal-control-responses.js";
 
 import type {
   SessionType,
@@ -95,7 +91,11 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   let outputUnlisten: (() => void) | null = null;
   let disposed = false;
   let selectionCallback: (() => void) | null = null;
-  let controlResponseSuppressionDisposer: (() => void) | null = null;
+  // Count of transcript chunks still queued in xterm's write buffer. Replies
+  // xterm generates while re-parsing recorded queries (DA1, CPR, DECRQM, OSC
+  // color) must not reach the pty: the program that asked is long gone and
+  // the shell would echo them into the prompt.
+  let replayWritesPending = 0;
   let webglAddon: WebglAddon | null = null;
   let initialSizeSynced = false;
   let inputFrame: number | null = null;
@@ -209,8 +209,6 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       // clicks; Alt+click is the macOS escape hatch back to selection/links.
       macOptionClickForcesSelection: true,
     });
-    controlResponseSuppressionDisposer =
-      registerTerminalControlResponseSuppression(terminal);
 
     fitAddon = new FitAddon();
     searchAddon = new SearchAddon();
@@ -255,25 +253,35 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     });
 
     terminal.onData((data) => {
-      const input = stripTerminalControlResponses(data);
-      if (input.length > 0) {
-        sendInput(input);
-      }
+      if (replayWritesPending > 0) return;
+      sendInput(data);
     });
 
     terminal.onSelectionChange(() => {
       selectionCallback?.();
     });
 
+    let replaying = true;
     outputUnlisten =
       options.subscribeOutput?.((payload) => {
         if (!terminal) return;
         if (payload.closed) {
           options.onClose?.();
+          return;
+        }
+        const bytes = new Uint8Array(payload.output);
+        if (replaying) {
+          replayWritesPending += 1;
+          terminal.write(bytes, () => {
+            replayWritesPending -= 1;
+          });
         } else {
-          terminal.write(new Uint8Array(payload.output));
+          terminal.write(bytes);
         }
       }) ?? null;
+    // subscribeOutput replays the recorded transcript synchronously before
+    // returning; everything after this point is live output.
+    replaying = false;
   }
 
   function fit() {
@@ -365,8 +373,6 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     disposed = true;
     outputUnlisten?.();
     outputUnlisten = null;
-    controlResponseSuppressionDisposer?.();
-    controlResponseSuppressionDisposer = null;
     terminal?.dispose();
     terminal = null;
     webglAddon = null;
