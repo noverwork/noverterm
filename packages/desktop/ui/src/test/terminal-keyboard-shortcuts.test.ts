@@ -72,6 +72,25 @@ describe("terminal keyboard shortcuts", () => {
     expect(upperC.preventDefault).not.toHaveBeenCalled();
   });
 
+  it("leaves other Enter combinations and keyup to xterm", () => {
+    const actions = createActions();
+    const handler = createTerminalKeyHandler(() => createTarget(), actions);
+    for (const options of [
+      {},
+      { shiftKey: true, ctrlKey: true },
+      { shiftKey: true, metaKey: true },
+      { shiftKey: true, altKey: true },
+    ]) {
+      expect(
+        handler(new KeyboardEvent("keydown", { key: "Enter", ...options })),
+      ).toBe(true);
+    }
+    expect(
+      handler(new KeyboardEvent("keyup", { key: "Enter", shiftKey: true })),
+    ).toBe(true);
+    expect(actions.sendInput).not.toHaveBeenCalled();
+  });
+
   it("uses Cmd+F and Cmd+G for terminal search", () => {
     const actions = createActions();
     const handler = createTerminalKeyHandler(() => createTarget(), actions);
@@ -92,7 +111,10 @@ describe("terminal keyboard shortcuts", () => {
 
   it("copies selected text on Ctrl+C or Cmd+C", () => {
     const actions = createActions();
-    const handler = createTerminalKeyHandler(() => createTarget("selected"), actions);
+    const handler = createTerminalKeyHandler(
+      () => createTarget("selected"),
+      actions,
+    );
     const ctrlC = createKeyEvent("c", { ctrlKey: true });
     const metaC = createKeyEvent("c", { metaKey: true });
 

@@ -1,23 +1,31 @@
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
-use serde::Serialize;
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::sync::mpsc;
-use std::sync::Arc;
-use tauri::{AppHandle, Emitter};
-use tokio::sync::Mutex;
-use tracing::{info, warn};
+use std::sync::{mpsc, Arc};
+use tokio::sync::{oneshot, Mutex};
+use tracing::info;
 use uuid::Uuid;
 
-const LOCAL_WRITE_QUEUE_CAPACITY: usize = 1024;
+use super::terminal_output::{OutputSession, TerminalOutput, OUTPUT_CHUNK_BYTES};
+
+const LOCAL_WRITE_QUEUE_CAPACITY: usize = 16;
 const LOCAL_WRITE_MAX_BYTES: usize = 1024 * 1024;
 
 pub struct LocalSession {
     #[allow(dead_code)]
     child: Box<dyn Child + Send + Sync>,
-    master: Box<dyn MasterPty + Send>,
-    writer_tx: mpsc::SyncSender<Vec<u8>>,
+    writer_tx: mpsc::SyncSender<LocalWriteRequest>,
     killer: Arc<Mutex<Box<dyn portable_pty::ChildKiller + Send + Sync>>>,
+}
+
+struct LocalWriteRequest {
+    operation: LocalOperation,
+    completion: oneshot::Sender<Result<(), String>>,
+}
+
+enum LocalOperation {
+    Data(Vec<u8>),
+    Resize { cols: u32, rows: u32 },
 }
 
 #[derive(Default)]
@@ -30,110 +38,100 @@ impl LocalSessionManager {
         Self::default()
     }
 
-    pub async fn connect(&self, app: AppHandle, cols: u32, rows: u32) -> Result<String, String> {
-        let session_id = Uuid::new_v4().to_string();
-        info!(session_id, "Starting local terminal session");
-
-        let pty_system = native_pty_system();
-        let pair = pty_system
-            .openpty(PtySize {
-                rows: rows as u16,
-                cols: cols as u16,
-                pixel_width: 0,
-                pixel_height: 0,
-            })
-            .map_err(|e| format!("Failed to open PTY: {}", e))?;
-
+    pub async fn connect(
+        &self,
+        output: &TerminalOutput,
+        cols: u32,
+        rows: u32,
+    ) -> Result<String, String> {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
         let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
         let mut cmd = CommandBuilder::new(&shell);
         cmd.arg("-l");
         cmd.cwd(&home);
         cmd.env("TERM", "xterm-256color");
+        self.spawn_command(output, cols, rows, cmd).await
+    }
 
-        let child = pair
-            .slave
-            .spawn_command(cmd)
-            .map_err(|e| format!("Failed to spawn shell: {}", e))?;
+    async fn spawn_command(
+        &self,
+        output: &TerminalOutput,
+        cols: u32,
+        rows: u32,
+        cmd: CommandBuilder,
+    ) -> Result<String, String> {
+        let session_id = Uuid::new_v4().to_string();
+        let output = output.open(session_id.clone())?;
+        info!(session_id, "Starting local terminal session");
+
+        let pair = native_pty_system()
+            .openpty(PtySize {
+                rows: rows as u16,
+                cols: cols as u16,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|e| format!("Failed to open PTY: {e}"))?;
 
         let writer = pair
             .master
             .take_writer()
-            .map_err(|e| format!("Failed to get PTY writer: {}", e))?;
-        let (writer_tx, writer_rx) = mpsc::sync_channel(LOCAL_WRITE_QUEUE_CAPACITY);
-
+            .map_err(|e| format!("Failed to get PTY writer: {e}"))?;
         let mut reader = pair
             .master
             .try_clone_reader()
-            .map_err(|e| format!("Failed to clone PTY reader: {}", e))?;
-
+            .map_err(|e| format!("Failed to clone PTY reader: {e}"))?;
+        let child = pair
+            .slave
+            .spawn_command(cmd)
+            .map_err(|e| format!("Failed to spawn shell: {e}"))?;
+        // Keeping the parent's slave open prevents EOF after the shell exits.
+        drop(pair.slave);
+        let (writer_tx, writer_rx) = mpsc::sync_channel(LOCAL_WRITE_QUEUE_CAPACITY);
         let killer: Arc<Mutex<Box<dyn portable_pty::ChildKiller + Send + Sync>>> =
             Arc::new(Mutex::new(child.clone_killer()));
-
-        let sid = session_id.clone();
-        let sessions = self.sessions.clone();
-        let app_clone = app.clone();
-
-        std::thread::spawn(move || {
-            let mut buf = [0u8; 4096];
-            loop {
-                match reader.read(&mut buf) {
-                    Ok(0) => {
-                        info!(session_id = %sid, "PTY reader EOF");
-                        let _ = app_clone.emit(
-                            "local_output",
-                            LocalOutputEvent {
-                                session_id: sid.clone(),
-                                output: Vec::new(),
-                                closed: true,
-                            },
-                        );
-                        break;
-                    }
-                    Ok(n) => {
-                        let output = buf[..n].to_vec();
-                        if let Err(e) = app_clone.emit(
-                            "local_output",
-                            LocalOutputEvent {
-                                session_id: sid.clone(),
-                                output,
-                                closed: false,
-                            },
-                        ) {
-                            warn!(session_id = %sid, "Failed to emit local_output: {}", e);
-                        }
-                    }
-                    Err(e) => {
-                        warn!(session_id = %sid, "PTY read error: {}", e);
-                        let _ = app_clone.emit(
-                            "local_output",
-                            LocalOutputEvent {
-                                session_id: sid.clone(),
-                                output: Vec::new(),
-                                closed: true,
-                            },
-                        );
-                        break;
-                    }
-                }
-            }
-            let _ = sessions.blocking_lock().remove(&sid);
-        });
-
-        let writer_sid = session_id.clone();
-        std::thread::spawn(move || run_local_write_loop(writer_sid, writer, writer_rx));
-
         self.sessions.lock().await.insert(
             session_id.clone(),
             LocalSession {
                 child,
-                master: pair.master,
                 writer_tx,
-                killer,
+                killer: killer.clone(),
             },
         );
 
-        info!(session_id, "Local terminal session started");
+        let stop_output = output.clone();
+        tokio::spawn(async move {
+            stop_output.stopped().await;
+            let _ = killer.lock().await.kill();
+        });
+        let writer_output = output.clone();
+        std::thread::spawn(move || {
+            run_local_write_loop(writer, pair.master, writer_rx, writer_output)
+        });
+
+        let sid = session_id.clone();
+        let sessions = self.sessions.clone();
+        std::thread::spawn(move || {
+            let mut buf = [0u8; OUTPUT_CHUNK_BYTES];
+            let error = loop {
+                match reader.read(&mut buf) {
+                    Ok(0) => break None,
+                    Ok(n) => {
+                        if let Err(error) = tauri::async_runtime::block_on(output.send(&buf[..n])) {
+                            break Some(error);
+                        }
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                    // Unix PTYs report EIO when the final slave closes.
+                    #[cfg(target_os = "linux")]
+                    Err(error) if error.raw_os_error() == Some(5) => break None,
+                    Err(error) => break Some(format!("PTY read failed: {error}")),
+                }
+            };
+            let _ = output.close(error);
+            sessions.blocking_lock().remove(&sid);
+        });
+
         Ok(session_id)
     }
 
@@ -141,86 +139,165 @@ impl LocalSessionManager {
         if data.len() > LOCAL_WRITE_MAX_BYTES {
             return Err("Local terminal input payload is too large".to_string());
         }
-
-        let sessions = self.sessions.lock().await;
-        let session = sessions
-            .get(session_id)
-            .ok_or_else(|| format!("Session not found: {}", session_id))?;
-
-        session
-            .writer_tx
-            .try_send(data)
-            .map_err(map_local_write_queue_error)?;
-
-        Ok(())
+        self.request(session_id, LocalOperation::Data(data)).await
     }
 
     pub async fn resize(&self, session_id: &str, cols: u32, rows: u32) -> Result<(), String> {
-        let sessions = self.sessions.lock().await;
-        let session = sessions
-            .get(session_id)
-            .ok_or_else(|| format!("Session not found: {}", session_id))?;
+        self.request(session_id, LocalOperation::Resize { cols, rows })
+            .await
+    }
 
-        session
-            .master
-            .resize(PtySize {
-                rows: rows as u16,
-                cols: cols as u16,
-                pixel_width: 0,
-                pixel_height: 0,
-            })
-            .map_err(|e| format!("Failed to resize PTY: {}", e))?;
-
-        info!(session_id, cols, rows, "Resized local terminal PTY");
-        Ok(())
+    async fn request(&self, session_id: &str, operation: LocalOperation) -> Result<(), String> {
+        let (completion, result) = oneshot::channel();
+        {
+            let sessions = self.sessions.lock().await;
+            let session = sessions
+                .get(session_id)
+                .ok_or_else(|| format!("Session not found: {session_id}"))?;
+            session
+                .writer_tx
+                .try_send(LocalWriteRequest {
+                    operation,
+                    completion,
+                })
+                .map_err(|error| match error {
+                    mpsc::TrySendError::Full(_) => "Local terminal input queue is full".to_string(),
+                    mpsc::TrySendError::Disconnected(_) => {
+                        "Local terminal write loop is no longer available".to_string()
+                    }
+                })?;
+        }
+        result
+            .await
+            .map_err(|_| "Local terminal write loop stopped before completing input".to_string())?
     }
 
     pub async fn disconnect(&self, session_id: &str) -> Result<(), String> {
-        let mut sessions = self.sessions.lock().await;
-        if let Some(session) = sessions.remove(session_id) {
-            info!(session_id, "Disconnecting local terminal session");
-            let mut killer = session.killer.lock().await;
-            let _ = killer.kill();
+        let session = self.sessions.lock().await.remove(session_id);
+        if let Some(session) = session {
+            session
+                .killer
+                .lock()
+                .await
+                .kill()
+                .map_err(|e| format!("Failed to stop local terminal: {e}"))?;
         }
         Ok(())
     }
 }
 
 fn run_local_write_loop(
-    session_id: String,
     mut writer: Box<dyn Write + Send>,
-    writer_rx: mpsc::Receiver<Vec<u8>>,
+    master: Box<dyn MasterPty + Send>,
+    writer_rx: mpsc::Receiver<LocalWriteRequest>,
+    output: Arc<OutputSession>,
 ) {
-    while let Ok(data) = writer_rx.recv() {
-        if let Err(error) = writer.write_all(&data).and_then(|()| writer.flush()) {
-            warn!(session_id, "Local PTY write loop failed: {error}");
+    while let Ok(request) = writer_rx.recv() {
+        let result = match request.operation {
+            LocalOperation::Data(data) => write_local_data(writer.as_mut(), &data),
+            LocalOperation::Resize { cols, rows } => master
+                .resize(PtySize {
+                    rows: rows as u16,
+                    cols: cols as u16,
+                    pixel_width: 0,
+                    pixel_height: 0,
+                })
+                .map_err(|e| format!("Failed to resize PTY: {e}")),
+        };
+        if let Err(error) = &result {
+            output.fail(error.clone());
+        }
+        let failed = result.is_err();
+        let _ = request.completion.send(result);
+        if failed {
             break;
         }
     }
 }
 
-fn map_local_write_queue_error(error: mpsc::TrySendError<Vec<u8>>) -> String {
-    match error {
-        mpsc::TrySendError::Full(_) => "Local terminal input queue is full".to_string(),
-        mpsc::TrySendError::Disconnected(_) => {
-            "Local terminal write loop is no longer available".to_string()
-        }
-    }
-}
-
-#[derive(Clone, Serialize)]
-pub struct LocalOutputEvent {
-    pub session_id: String,
-    pub output: Vec<u8>,
-    pub closed: bool,
+fn write_local_data(writer: &mut dyn Write, data: &[u8]) -> Result<(), String> {
+    writer
+        .write_all(data)
+        .and_then(|()| writer.flush())
+        .map_err(|e| format!("Local PTY write failed: {e}"))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::LocalSessionManager;
+    use super::*;
 
     #[test]
-    fn local_session_manager_is_constructible() {
-        let _ = LocalSessionManager::new();
+    fn local_write_reports_flush_failure() {
+        struct FlushFailure;
+        impl Write for FlushFailure {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Err(std::io::ErrorKind::BrokenPipe.into())
+            }
+        }
+        assert!(write_local_data(&mut FlushFailure, b"key").is_err());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn local_pty_streams_binary_output_and_closes_after_final_bytes() {
+        use std::time::Duration;
+        use tauri::ipc::{Channel, InvokeResponseBody};
+
+        let output = TerminalOutput::default();
+        let (frames, mut received) = tokio::sync::mpsc::unbounded_channel();
+        output
+            .subscribe(Channel::new(move |body| {
+                let InvokeResponseBody::Raw(bytes) = body else {
+                    panic!("expected raw output")
+                };
+                frames.send(bytes).expect("PTY receiver alive");
+                Ok(())
+            }))
+            .expect("subscribe");
+        let manager = LocalSessionManager::new();
+        let home = tempfile::tempdir().expect("isolated PTY home");
+        let mut command = CommandBuilder::new("/bin/sh");
+        command.arg("-s");
+        command.cwd(home.path());
+        command.env("HOME", home.path());
+        command.env("ENV", "/dev/null");
+        command.env("HISTFILE", "/dev/null");
+        let id = manager
+            .spawn_command(&output, 80, 24, command)
+            .await
+            .expect("spawn PTY");
+        let result = tokio::time::timeout(Duration::from_secs(10), async {
+            manager
+                .write(
+                    &id,
+                    b"printf '%s%s\\n' 'noverterm-pty-' 'verified'; exit\n".to_vec(),
+                )
+                .await
+                .expect("write shell command");
+            let mut data = Vec::new();
+            loop {
+                let frame = received.recv().await.expect("PTY output");
+                assert_eq!(&frame[1..37], id.as_bytes());
+                match frame[0] {
+                    0 => {
+                        data.extend_from_slice(&frame[37..]);
+                        output.ack(&id, (frame.len() - 37) as u32).expect("ack");
+                        assert!(data.len() <= 256 * 1024, "unexpected shell startup output");
+                    }
+                    1 => break,
+                    2 => panic!("PTY error: {}", String::from_utf8_lossy(&frame[37..])),
+                    _ => panic!("invalid frame kind"),
+                }
+            }
+            assert!(data
+                .windows(b"noverterm-pty-verified".len())
+                .any(|window| window == b"noverterm-pty-verified"));
+        })
+        .await;
+        let _ = manager.disconnect(&id).await;
+        result.expect("PTY close before timeout");
     }
 }

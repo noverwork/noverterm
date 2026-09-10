@@ -9,7 +9,36 @@ use crate::runtime::ssh::{
     AuthMethod, SshConnectRequest, SshConnectResponse, SshLocalPortForwardInput,
     SshPortForwardStatus, SshProbeHostInfoResponse, SshSessionManager,
 };
+use crate::runtime::terminal_output::{TerminalFrame, TerminalOutput};
 use crate::trust::{HostTrustConfirmation, SshTrustStore};
+
+#[tauri::command]
+#[specta::specta]
+pub fn terminal_output_subscribe(
+    on_output: tauri::ipc::Channel<TerminalFrame>,
+    output: State<'_, TerminalOutput>,
+) -> Result<(), String> {
+    output.subscribe(on_output)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn terminal_output_ack(
+    session_id: String,
+    bytes: u32,
+    output: State<'_, TerminalOutput>,
+) -> Result<(), String> {
+    output.ack(&session_id, bytes)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn terminal_output_unsubscribe(
+    channel_id: u32,
+    output: State<'_, TerminalOutput>,
+) -> Result<(), String> {
+    output.unsubscribe(channel_id)
+}
 
 #[derive(Debug, serde::Deserialize, specta::Type)]
 pub struct DirectSshConnectInput {
@@ -133,12 +162,12 @@ pub async fn ssh_stop_port_forward(
 #[tauri::command]
 #[specta::specta]
 pub async fn local_connect(
-    app: AppHandle,
+    output: State<'_, TerminalOutput>,
     cols: u32,
     rows: u32,
     local_manager: State<'_, LocalSessionManager>,
 ) -> Result<String, String> {
-    local_manager.connect(app, cols, rows).await
+    local_manager.connect(&output, cols, rows).await
 }
 
 #[tauri::command]

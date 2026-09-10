@@ -6,10 +6,15 @@ import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
-import { invoke } from "@tauri-apps/api/core";
+import { commands } from "../../bindings.js";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { TerminalConfig } from "$lib/app-data-types.js";
 import { createTerminalKeyHandler } from "./keyboard-shortcuts.js";
+import { writeTerminalInput } from "./input.js";
+import {
+  createKittyKeyboardProtocol,
+  type KittyKeyboardProtocol,
+} from "./kitty-keyboard.js";
 
 import type {
   SessionType,
@@ -22,6 +27,7 @@ interface TerminalOptions {
   config: TerminalConfig;
   onOutput?: (data: string) => void;
   onClose?: () => void;
+  onError?: (message: string) => void;
   onRequestClose?: () => void;
   onSearchRequest?: () => void;
   subscribeOutput?: (callback: TerminalOutputCallback) => () => void;
@@ -90,42 +96,44 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   let searchAddon: SearchAddon | null = null;
   let outputUnlisten: (() => void) | null = null;
   let disposed = false;
+  let inputFailed = false;
+  let keyboardProtocol: KittyKeyboardProtocol | null = null;
   let selectionCallback: (() => void) | null = null;
   // Count of transcript chunks still queued in xterm's write buffer. Replies
   // xterm generates while re-parsing recorded queries (DA1, CPR, DECRQM, OSC
   // color) must not reach the pty: the program that asked is long gone and
   // the shell would echo them into the prompt.
   let replayWritesPending = 0;
+  let userInput = false;
   let webglAddon: WebglAddon | null = null;
   let initialSizeSynced = false;
-  let inputFrame: number | null = null;
-  let pendingInput = "";
   let lastSearchTerm = "";
 
-  const writeCmd = sessionType === "local" ? "local_write" : "ssh_write";
-  const resizeCmd = sessionType === "local" ? "local_resize" : "ssh_resize";
+  const resize =
+    sessionType === "local" ? commands.localResize : commands.sshResize;
 
-  function writeInput(data: string) {
-    options.onOutput?.(data);
-    invoke(writeCmd, { sessionId, data }).catch(() => void 0);
-  }
-
-  function flushPendingInput() {
-    if (pendingInput.length === 0 || disposed) return;
-
-    const data = pendingInput;
-    pendingInput = "";
-    writeInput(data);
+  function reportError(error: unknown) {
+    if (disposed) return;
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[terminal:io]", sessionId, message);
+    options.onError?.(message);
   }
 
   function sendInput(data: string) {
-    pendingInput += data;
+    if (disposed || inputFailed || data.length === 0) return;
+    options.onOutput?.(data);
+    void writeTerminalInput(sessionId, sessionType, data).catch(
+      (error: unknown) => {
+        inputFailed = true;
+        reportError(error);
+      },
+    );
+  }
 
-    if (inputFrame !== null) return;
-
-    inputFrame = requestAnimationFrame(() => {
-      inputFrame = null;
-      flushPendingInput();
+  function markUserInput() {
+    userInput = true;
+    queueMicrotask(() => {
+      userInput = false;
     });
   }
 
@@ -167,6 +175,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
         options.onRequestClose?.();
       },
     },
+    () => keyboardProtocol,
   );
 
   function syncInitialSize() {
@@ -179,11 +188,11 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       cols: terminal.cols,
       rows: terminal.rows,
     });
-    invoke(resizeCmd, {
-      sessionId,
-      cols: terminal.cols,
-      rows: terminal.rows,
-    }).catch(() => void 0);
+    void resize(sessionId, terminal.cols, terminal.rows)
+      .then((result) => {
+        if (result.status === "error") reportError(result.error);
+      })
+      .catch(reportError);
   }
 
   function init(container: HTMLElement) {
@@ -233,14 +242,26 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       }),
     );
 
+    keyboardProtocol = createKittyKeyboardProtocol(
+      terminal,
+      sendInput,
+      () => replayWritesPending === 0 && !disposed,
+    );
     terminal.attachCustomKeyEventHandler(handleTerminalKey);
 
     terminal.onResize(({ cols, rows }) => {
       console.info("[xterm:resize]", { sessionId, cols, rows });
-      invoke(resizeCmd, { sessionId, cols, rows }).catch(() => void 0);
+      void resize(sessionId, cols, rows)
+        .then((result) => {
+          if (result.status === "error") reportError(result.error);
+        })
+        .catch(reportError);
     });
 
     terminal.open(container);
+    keyboardProtocol.attachInputListeners();
+    terminal.onKey(markUserInput);
+    terminal.element?.addEventListener("paste", markUserInput, true);
     requestAnimationFrame(() => {
       syncInitialSize();
       if (!terminal) return;
@@ -253,8 +274,12 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     });
 
     terminal.onData((data) => {
-      if (replayWritesPending > 0) return;
-      sendInput(data);
+      // Parser replies start with ESC. Keyboard/paste events and committed
+      // text must still reach the PTY while the transcript is being parsed.
+      if (replayWritesPending > 0 && !userInput && data.startsWith("\x1b"))
+        return;
+      const input = keyboardProtocol?.encodeInput(data) ?? data;
+      sendInput(input);
     });
 
     terminal.onSelectionChange(() => {
@@ -263,21 +288,24 @@ export function createTerminal(options: TerminalOptions): TerminalController {
 
     let replaying = true;
     outputUnlisten =
-      options.subscribeOutput?.((payload) => {
-        if (!terminal) return;
-        if (payload.closed) {
-          options.onClose?.();
+      options.subscribeOutput?.((payload, consumed) => {
+        if (!terminal) {
+          consumed?.();
           return;
         }
-        const bytes = new Uint8Array(payload.output);
-        if (replaying) {
-          replayWritesPending += 1;
-          terminal.write(bytes, () => {
-            replayWritesPending -= 1;
-          });
-        } else {
-          terminal.write(bytes);
-        }
+        if (replaying) replayWritesPending += 1;
+        const isReplay = replaying;
+        terminal.write(payload.output, () => {
+          if (isReplay) replayWritesPending -= 1;
+          consumed?.();
+          if (disposed) return;
+          if (payload.error) {
+            inputFailed = true;
+            reportError(payload.error);
+          } else if (payload.closed) {
+            options.onClose?.();
+          }
+        });
       }) ?? null;
     // subscribeOutput replays the recorded transcript synchronously before
     // returning; everything after this point is live output.
@@ -315,7 +343,8 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   }
 
   function paste(text: string) {
-    terminal?.paste(text);
+    markUserInput();
+    keyboardProtocol?.paste(text);
   }
 
   function clear() {
@@ -365,14 +394,12 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   }
 
   function dispose() {
-    if (inputFrame !== null) {
-      cancelAnimationFrame(inputFrame);
-      inputFrame = null;
-    }
-    flushPendingInput();
     disposed = true;
     outputUnlisten?.();
     outputUnlisten = null;
+    terminal?.element?.removeEventListener("paste", markUserInput, true);
+    keyboardProtocol?.dispose();
+    keyboardProtocol = null;
     terminal?.dispose();
     terminal = null;
     webglAddon = null;

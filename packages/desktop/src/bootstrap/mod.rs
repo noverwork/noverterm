@@ -6,6 +6,7 @@ use tracing_subscriber::EnvFilter;
 use crate::runtime::local::LocalSessionManager;
 use crate::runtime::port_forward::PortForwardManager;
 use crate::runtime::ssh::SshSessionManager;
+use crate::runtime::terminal_output::TerminalOutput;
 use crate::sftp::state::TransferState;
 use crate::trust::SshTrustStore;
 
@@ -42,6 +43,9 @@ fn command_builder() -> Builder<tauri::Wry> {
         crate::store::snippets::snippet_create,
         crate::store::snippets::snippet_update,
         crate::store::snippets::snippet_delete,
+        crate::connect::terminal_output_subscribe,
+        crate::connect::terminal_output_ack,
+        crate::connect::terminal_output_unsubscribe,
         crate::connect::ssh_connect_direct,
         crate::connect::ssh_confirm_host_trust,
         crate::connect::ssh_probe_host_info,
@@ -95,9 +99,13 @@ pub fn export_types() -> Result<(), Box<dyn std::error::Error>> {
         .split(globals_marker)
         .next()
         .ok_or("failed to locate tauri-specta globals section")?
-        .replace("error: e  as any", "error: String(e)");
+        .replace("error: e  as any", "error: String(e)")
+        .replace(
+            "export type TAURI_CHANNEL<TSend> = null",
+            "export type TAURI_CHANNEL<TSend> = Channel<TSend>",
+        );
     let sanitized_bindings = format!(
-        "{prefix}{globals_marker}\n\nimport {{ invoke as TAURI_INVOKE }} from \"@tauri-apps/api/core\";\n\nexport type Result<T, E> =\n\t| {{ status: \"ok\"; data: T }}\n\t| {{ status: \"error\"; error: E }};\n"
+        "{prefix}{globals_marker}\n\nimport {{ invoke as TAURI_INVOKE, type Channel }} from \"@tauri-apps/api/core\";\n\nexport type Result<T, E> =\n\t| {{ status: \"ok\"; data: T }}\n\t| {{ status: \"error\"; error: E }};\n"
     );
 
     std::fs::write(bindings_path, sanitized_bindings)?;
@@ -134,6 +142,7 @@ pub fn run() {
             let pool = crate::store::init_pool(&app_data_dir.join(database_name))?;
             app.manage(SshTrustStore::new(pool.clone()));
             app.manage(pool);
+            app.manage(TerminalOutput::default());
 
             let ssh_manager = SshSessionManager::new();
             app.manage(ssh_manager);

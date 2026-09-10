@@ -39,20 +39,16 @@ HTMLCanvasElement.prototype.getContext = (() =>
   )) as unknown as HTMLCanvasElement["getContext"];
 
 const enc = new TextEncoder();
-const bytes = (s: string) => Array.from(enc.encode(s));
+const bytes = (s: string) => enc.encode(s);
 // DA1 sentinel + DECRQM 2026 + CPR + OSC 11 query, like omp's startup probe.
 const PROBE = "\x1b[?u\x1b[c\x1b[?2026$p\x1b[c\x1b[6n\x1b]11;?\x07";
 
 // xterm parses writes asynchronously; a trailing write's callback marks the
 // point where every earlier chunk has been parsed and its replies emitted.
-// The extra frame lets sendInput's rAF batch flush to onOutput.
 async function settle(controller: TerminalController) {
   const parsed = Promise.withResolvers<void>();
   controller.terminal!.write("", () => parsed.resolve());
   await parsed.promise;
-  const frame = Promise.withResolvers<void>();
-  requestAnimationFrame(() => frame.resolve());
-  await frame.promise;
 }
 
 describe("terminal query replies", () => {
@@ -84,9 +80,21 @@ describe("terminal query replies", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     term.init(container);
+    term.terminal!.input("typed", true);
+    term.paste("\x1b[pasted");
+    container.querySelector("textarea")!.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "ArrowDown",
+        code: "ArrowDown",
+        keyCode: 40,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
 
     await settle(term);
-    expect(sent).toEqual([]);
+    expect(sent).toEqual(["typed", "\x1b[pasted", "\x1b[B"]);
+    sent.length = 0;
 
     live!({ session_id: "s", output: bytes(PROBE), closed: false });
     await settle(term);
@@ -96,5 +104,123 @@ describe("terminal query replies", () => {
     expect(replies).toContain("\x1b[2;9R"); // CPR: row 2, after "prompt$ "
     expect(replies).toContain("\x1b]11;rgb:"); // OSC 11 background colour
     term.dispose();
+  });
+
+  it("distinguishes Shift+Enter from Enter in a TUI", async () => {
+    const sent: string[] = [];
+    const term = createTerminal({
+      sessionId: "keyboard",
+      sessionType: "local",
+      config: {
+        fontSize: 12,
+        fontFamily: "monospace",
+        cursorStyle: "block",
+        cursorBlink: false,
+        scrollback: 100,
+      },
+      onOutput: (data) => sent.push(data),
+    });
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    try {
+      term.init(container);
+      term.terminal!.write("\x1b[?1049h");
+      await settle(term);
+      const textarea = container.querySelector("textarea")!;
+      for (const shiftKey of [true, false]) {
+        textarea.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "Enter",
+            code: "Enter",
+            keyCode: 13,
+            shiftKey,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      }
+      expect(sent).toEqual(["\x1b[13;2u", "\r"]);
+    } finally {
+      term.dispose();
+      container.remove();
+    }
+  });
+
+  it.each(["local", "ssh"] as const)(
+    "sends %s input immediately",
+    (sessionType) => {
+      const sent: string[] = [];
+      const term = createTerminal({
+        sessionId: "input",
+        sessionType,
+        config: {
+          fontSize: 12,
+          fontFamily: "monospace",
+          cursorStyle: "block",
+          cursorBlink: false,
+          scrollback: 100,
+        },
+        onOutput: (data) => sent.push(data),
+      });
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      try {
+        term.init(container);
+        term.terminal!.input("a", true);
+        term.terminal!.input("b", true);
+        expect(sent).toEqual(["a", "b"]);
+      } finally {
+        term.dispose();
+        container.remove();
+      }
+    },
+  );
+
+  it("acknowledges parsed output and preserves final bytes before closing", async () => {
+    let live: TerminalOutputCallback | undefined;
+    let parsed = false;
+    let finalLine = "";
+    const term = createTerminal({
+      sessionId: "final-output",
+      sessionType: "local",
+      config: {
+        fontSize: 12,
+        fontFamily: "monospace",
+        cursorStyle: "block",
+        cursorBlink: false,
+        scrollback: 100,
+      },
+      subscribeOutput(callback) {
+        live = callback;
+        return () => {};
+      },
+      onClose() {
+        finalLine = term
+          .terminal!.buffer.active.getLine(0)!
+          .translateToString(true);
+      },
+    });
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    try {
+      term.init(container);
+      live!(
+        {
+          session_id: "final-output",
+          output: bytes("last bytes"),
+          closed: true,
+        },
+        () => {
+          parsed = true;
+        },
+      );
+      expect(parsed).toBe(false);
+      await settle(term);
+      expect(parsed).toBe(true);
+      expect(finalLine).toBe("last bytes");
+    } finally {
+      term.dispose();
+      container.remove();
+    }
   });
 });

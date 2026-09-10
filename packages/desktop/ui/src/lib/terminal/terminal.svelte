@@ -5,7 +5,10 @@
   import { Input } from "$lib/components/ui/input/index.js";
   import { createTerminal } from "./xterm.js";
   import type { TerminalConfig } from "$lib/app-data-types.js";
-  import type { SessionType, TerminalOutputCallback } from "$lib/stores/session.svelte.js";
+  import type {
+    SessionType,
+    TerminalOutputCallback,
+  } from "$lib/stores/session.svelte.js";
 
   let {
     sessionId,
@@ -14,6 +17,7 @@
     config,
     onOutput,
     onClose,
+    onError,
     onRequestClose,
     subscribeOutput,
     onSelectionChange,
@@ -25,6 +29,7 @@
     config: TerminalConfig;
     onOutput?: (data: string) => void;
     onClose?: () => void;
+    onError?: (message: string) => void;
     onRequestClose?: () => void;
     subscribeOutput?: (callback: TerminalOutputCallback) => () => void;
     onSelectionChange?: () => void;
@@ -123,7 +128,8 @@
 
     await tick();
 
-    if (generation !== revealGeneration || !active || !term || !container) return;
+    if (generation !== revealGeneration || !active || !term || !container)
+      return;
     if (container.clientWidth === 0 || container.clientHeight === 0) return;
 
     // Reveal synchronously: deferring to a frame lets the browser paint the
@@ -154,6 +160,7 @@
       config,
       onOutput,
       onClose,
+      onError,
       onRequestClose,
       onSearchRequest: () => {
         void openSearch();
@@ -174,7 +181,11 @@
 
     resizeObserver = new ResizeObserver((entries) => {
       const [entry] = entries;
-      if (entry && (entry.contentRect.width === 0 || entry.contentRect.height === 0)) return;
+      if (
+        entry &&
+        (entry.contentRect.width === 0 || entry.contentRect.height === 0)
+      )
+        return;
 
       // Hidden tabs stay fitted so that switching to one never resizes the
       // buffer, which would reflow the whole screen in front of the user.

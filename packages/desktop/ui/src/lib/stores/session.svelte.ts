@@ -1,3 +1,4 @@
+import { Channel } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { SvelteDate, SvelteMap, SvelteSet } from "svelte/reactivity";
 
@@ -11,6 +12,7 @@ import type {
 } from "../../bindings.js";
 import { createDirectSshConnectInput } from "$lib/services/ssh-connection-input.js";
 import type { ConnectionConfig } from "$lib/app-data-types.js";
+import { writeTerminalInput } from "$lib/terminal/input.js";
 
 export type SessionType = "ssh" | "local";
 export type SessionStatus =
@@ -22,15 +24,24 @@ export type SessionStatus =
 
 export interface TerminalOutputPayload {
   session_id: string;
-  output: number[];
+  output: Uint8Array;
   closed: boolean;
+  error?: string;
 }
 
-export type TerminalOutputCallback = (payload: TerminalOutputPayload) => void;
+export type TerminalOutputCallback = (
+  payload: TerminalOutputPayload,
+  consumed?: () => void,
+) => void;
 
 interface TerminalTranscript {
-  chunks: number[][];
-  byteLength: number;
+  chunks: Uint8Array[];
+  tailLength: number;
+}
+
+interface OutputSubscriber {
+  callback: TerminalOutputCallback;
+  pending: Set<() => void>;
 }
 
 export interface DirectConnectionInput {
@@ -79,41 +90,77 @@ const state: SessionState = $state({
   activeSessionId: null,
 });
 
-let eventUnlisten: UnlistenFn | null = null;
-let localEventUnlisten: UnlistenFn | null = null;
+let outputChannel: Channel<unknown> | null = null;
 let portForwardEventUnlisten: UnlistenFn | null = null;
 let initPromise: Promise<void> | null = null;
+let outputGeneration = 0;
 
-const pendingOutput = new SvelteMap<string, TerminalOutputPayload[]>();
+const closedOutput = new SvelteMap<string, TerminalOutputPayload>();
+const removedSessions = new SvelteSet<string>();
 const terminalTranscripts = new SvelteMap<string, TerminalTranscript>();
-const outputSubscribers = new SvelteMap<
-  string,
-  SvelteSet<TerminalOutputCallback>
->();
-
-const MAX_TRANSCRIPT_BYTES_PER_SESSION = 10 * 1024 * 1024;
+const outputSubscribers = new SvelteMap<string, Set<OutputSubscriber>>();
+const outputDecoder = new TextDecoder();
+const TRANSCRIPT_CHUNK_BYTES = 64 * 1024;
+const MAX_TRANSCRIPT_CHUNKS = 160;
 
 function appendTerminalTranscript(payload: TerminalOutputPayload) {
-  if (payload.output.length === 0) {
-    return;
-  }
-
+  if (payload.output.length === 0) return;
   const transcript = terminalTranscripts.get(payload.session_id) ?? {
     chunks: [],
-    byteLength: 0,
+    tailLength: TRANSCRIPT_CHUNK_BYTES,
   };
-  transcript.chunks.push(payload.output);
-  transcript.byteLength += payload.output.length;
-
-  while (
-    transcript.byteLength > MAX_TRANSCRIPT_BYTES_PER_SESSION &&
-    transcript.chunks.length > 0
-  ) {
-    const [removedChunk] = transcript.chunks.splice(0, 1);
-    transcript.byteLength -= removedChunk.length;
+  let offset = 0;
+  while (offset < payload.output.length) {
+    if (transcript.tailLength === TRANSCRIPT_CHUNK_BYTES) {
+      transcript.chunks.push(new Uint8Array(TRANSCRIPT_CHUNK_BYTES));
+      transcript.tailLength = 0;
+      if (transcript.chunks.length > MAX_TRANSCRIPT_CHUNKS) {
+        transcript.chunks.shift();
+      }
+    }
+    const length = Math.min(
+      TRANSCRIPT_CHUNK_BYTES - transcript.tailLength,
+      payload.output.length - offset,
+    );
+    transcript.chunks[transcript.chunks.length - 1].set(
+      payload.output.subarray(offset, offset + length),
+      transcript.tailLength,
+    );
+    transcript.tailLength += length;
+    offset += length;
   }
-
   terminalTranscripts.set(payload.session_id, transcript);
+}
+
+function reportSessionError(sessionId: string, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const session = state.sessions.get(sessionId);
+  if (session) {
+    state.sessions.set(sessionId, {
+      ...session,
+      status: "error",
+      error: message,
+    });
+  }
+  console.error("[terminal]", sessionId, message);
+}
+
+function handleOutputFrame(frame: unknown) {
+  if (!(frame instanceof ArrayBuffer)) {
+    throw new Error("Invalid terminal output frame");
+  }
+  const bytes = new Uint8Array(frame);
+  if (bytes.length < 37 || bytes[0] > 2) {
+    throw new Error("Invalid terminal output frame");
+  }
+  const sessionId = outputDecoder.decode(bytes.subarray(1, 37));
+  handleTerminalOutput({
+    session_id: sessionId,
+    output: bytes[0] === 0 ? bytes.subarray(37) : new Uint8Array(),
+    closed: bytes[0] !== 0,
+    error:
+      bytes[0] === 2 ? outputDecoder.decode(bytes.subarray(37)) : undefined,
+  });
 }
 
 function updatePortForward(status: LocalPortForward) {
@@ -121,31 +168,69 @@ function updatePortForward(status: LocalPortForward) {
 }
 
 function handleTerminalOutput(payload: TerminalOutputPayload) {
-  if (!payload.closed) {
+  const removed = removedSessions.has(payload.session_id);
+  if (!removed) {
     appendTerminalTranscript(payload);
+    if (payload.closed) closedOutput.set(payload.session_id, payload);
+  } else if (payload.closed) {
+    removedSessions.delete(payload.session_id);
   }
 
   const subscribers = outputSubscribers.get(payload.session_id);
-  if (subscribers && subscribers.size > 0) {
-    for (const subscriber of subscribers) {
-      subscriber(payload);
+  let remaining = subscribers?.size ?? 0;
+  const acknowledge = () => {
+    if (payload.output.length === 0) return;
+    void tauriCommands
+      .terminalOutputAck(payload.session_id, payload.output.length)
+      .then((result) => {
+        if (result.status === "error") {
+          reportSessionError(payload.session_id, result.error);
+        }
+      })
+      .catch((error: unknown) => reportSessionError(payload.session_id, error));
+  };
+  if (removed) {
+    acknowledge();
+    return;
+  }
+  if (remaining === 0) {
+    acknowledge();
+  } else {
+    // Every view must finish parsing before the backend can reuse its credit.
+    for (const subscriber of Array.from(subscribers!)) {
+      let consumed = false;
+      const done = () => {
+        if (consumed) return;
+        consumed = true;
+        subscriber.pending.delete(done);
+        if (--remaining === 0) acknowledge();
+      };
+      subscriber.pending.add(done);
+      if (!outputSubscribers.get(payload.session_id)?.has(subscriber)) {
+        done();
+        continue;
+      }
+      try {
+        subscriber.callback(payload, done);
+      } catch (error) {
+        done();
+        reportSessionError(payload.session_id, error);
+      }
     }
-  } else if (payload.closed) {
-    const output = pendingOutput.get(payload.session_id) ?? [];
-    output.push(payload);
-    pendingOutput.set(payload.session_id, output);
   }
 
   const session = state.sessions.get(payload.session_id);
-  if (session) {
-    state.sessions.set(payload.session_id, {
-      ...session,
-      status: payload.closed
-        ? "disconnected"
-        : session.status === "connecting"
-          ? "connected"
-          : session.status,
-    });
+  if (payload.error) {
+    reportSessionError(payload.session_id, payload.error);
+  } else if (session && session.status !== "error") {
+    const status = payload.closed
+      ? "disconnected"
+      : session.status === "connecting"
+        ? "connected"
+        : session.status;
+    if (status !== session.status) {
+      state.sessions.set(payload.session_id, { ...session, status });
+    }
   }
 }
 
@@ -209,42 +294,41 @@ function connectResponseSessionUpdates(
 
 export function createSessionStore() {
   async function init() {
-    if (eventUnlisten && localEventUnlisten && portForwardEventUnlisten) return;
+    if (outputChannel && portForwardEventUnlisten) return;
     if (initPromise) return initPromise;
+    const generation = outputGeneration;
 
     initPromise = (async () => {
-      if (!eventUnlisten) {
-        eventUnlisten = await listen(
-          "ssh_output",
-          (event: { payload: TerminalOutputPayload }) => {
-            handleTerminalOutput(event.payload);
-          },
-        );
-      }
-
-      if (!localEventUnlisten) {
-        localEventUnlisten = await listen(
-          "local_output",
-          (event: { payload: TerminalOutputPayload }) => {
-            handleTerminalOutput(event.payload);
-          },
-        );
+      if (!outputChannel) {
+        const channel = new Channel<unknown>(handleOutputFrame);
+        const result = await tauriCommands.terminalOutputSubscribe(channel);
+        if (result.status === "error") throw new Error(result.error);
+        if (generation !== outputGeneration) {
+          await tauriCommands.terminalOutputUnsubscribe(channel.id);
+          throw new Error("Terminal output subscription cancelled");
+        }
+        outputChannel = channel;
       }
 
       if (!portForwardEventUnlisten) {
-        portForwardEventUnlisten = await listen(
+        const unlisten = await listen(
           "ssh_port_forward",
           (event: { payload: LocalPortForward }) => {
             updatePortForward(event.payload);
           },
         );
+        if (generation !== outputGeneration) {
+          unlisten();
+          throw new Error("Terminal output subscription cancelled");
+        }
+        portForwardEventUnlisten = unlisten;
       }
     })();
 
     try {
       await initPromise;
     } finally {
-      initPromise = null;
+      if (generation === outputGeneration) initPromise = null;
     }
   }
 
@@ -260,10 +344,31 @@ export function createSessionStore() {
     }
   }
 
+  function finishConnection(pendingSessionId: string, sessionId: string) {
+    const session = state.sessions.get(pendingSessionId);
+    if (!session) return sessionId;
+    const closed = closedOutput.get(sessionId);
+    state.sessions.delete(pendingSessionId);
+    state.sessions.set(sessionId, {
+      ...session,
+      id: sessionId,
+      status: closed?.error ? "error" : closed ? "disconnected" : "connected",
+      error: closed?.error,
+      trustPrompt: undefined,
+      trustMismatch: undefined,
+    });
+    state.activeSessionId = sessionId;
+    return sessionId;
+  }
+
   function removeSession(id: string) {
     state.sessions.delete(id);
-    pendingOutput.delete(id);
+    if (!closedOutput.has(id)) removedSessions.add(id);
+    closedOutput.delete(id);
     terminalTranscripts.delete(id);
+    for (const subscriber of outputSubscribers.get(id) ?? []) {
+      for (const done of subscriber.pending) done();
+    }
     outputSubscribers.delete(id);
     for (const [forwardId, forward] of state.portForwards.entries()) {
       if (forward.session_id === id) {
@@ -301,28 +406,34 @@ export function createSessionStore() {
     callback: TerminalOutputCallback,
   ) {
     const subscribers =
-      outputSubscribers.get(sessionId) ??
-      new SvelteSet<TerminalOutputCallback>();
-    subscribers.add(callback);
+      outputSubscribers.get(sessionId) ?? new SvelteSet<OutputSubscriber>();
+    const subscriber: OutputSubscriber = { callback, pending: new SvelteSet() };
+    subscribers.add(subscriber);
     outputSubscribers.set(sessionId, subscribers);
 
-    const transcript = terminalTranscripts.get(sessionId);
-    if (transcript) {
-      for (const output of transcript.chunks) {
-        callback({ session_id: sessionId, output, closed: false });
+    try {
+      const transcript = terminalTranscripts.get(sessionId);
+      if (transcript) {
+        for (let index = 0; index < transcript.chunks.length; index++) {
+          const chunk = transcript.chunks[index];
+          const output =
+            index === transcript.chunks.length - 1
+              ? chunk.subarray(0, transcript.tailLength)
+              : chunk;
+          callback({ session_id: sessionId, output, closed: false });
+        }
       }
-    }
-
-    const buffered = pendingOutput.get(sessionId);
-    if (buffered) {
-      pendingOutput.delete(sessionId);
-      for (const payload of buffered) {
-        callback(payload);
-      }
+      const closed = closedOutput.get(sessionId);
+      if (closed) callback(closed);
+    } catch (error) {
+      subscribers.delete(subscriber);
+      if (subscribers.size === 0) outputSubscribers.delete(sessionId);
+      throw error;
     }
 
     return () => {
-      subscribers.delete(callback);
+      subscribers.delete(subscriber);
+      for (const done of subscriber.pending) done();
       if (subscribers.size === 0) {
         outputSubscribers.delete(sessionId);
       }
@@ -414,23 +525,7 @@ export function createSessionStore() {
       throw new Error(updates.error ?? "SSH connection failed");
     }
 
-    const sessionId = result.data.session_id;
-    const session = state.sessions.get(pendingSessionId);
-    if (!session) {
-      return sessionId;
-    }
-
-    state.sessions.delete(pendingSessionId);
-    state.sessions.set(sessionId, {
-      ...session,
-      id: sessionId,
-      status: "connected",
-      error: undefined,
-      trustPrompt: undefined,
-      trustMismatch: undefined,
-    });
-    state.activeSessionId = sessionId;
-    return sessionId;
+    return finishConnection(pendingSessionId, result.data.session_id);
   }
 
   async function connectDirect(
@@ -477,23 +572,7 @@ export function createSessionStore() {
       throw new Error(updates.error ?? "SSH connection failed");
     }
 
-    const sessionId = result.data.session_id;
-    const session = state.sessions.get(tempId);
-    if (!session) {
-      return sessionId;
-    }
-
-    state.sessions.delete(tempId);
-    state.sessions.set(sessionId, {
-      ...session,
-      id: sessionId,
-      status: "connected",
-      error: undefined,
-      trustPrompt: undefined,
-      trustMismatch: undefined,
-    });
-    state.activeSessionId = sessionId;
-    return sessionId;
+    return finishConnection(tempId, result.data.session_id);
   }
 
   async function connectLocal(
@@ -523,21 +602,7 @@ export function createSessionStore() {
       throw new Error(result.error);
     }
 
-    const sessionId = result.data;
-    const session = state.sessions.get(tempId);
-    if (!session) {
-      return sessionId;
-    }
-
-    state.sessions.delete(tempId);
-    state.sessions.set(sessionId, {
-      ...session,
-      id: sessionId,
-      status: "connected",
-      error: undefined,
-    });
-    state.activeSessionId = sessionId;
-    return sessionId;
+    return finishConnection(tempId, result.data);
   }
 
   async function disconnectSession(sessionId: string) {
@@ -556,10 +621,12 @@ export function createSessionStore() {
 
   async function writeSession(sessionId: string, data: string) {
     const session = state.sessions.get(sessionId);
-    if (session?.type === "local") {
-      await tauriCommands.localWrite(sessionId, data);
-    } else {
-      await tauriCommands.sshWrite(sessionId, data);
+    if (!session) throw new Error("Session not found");
+    try {
+      await writeTerminalInput(sessionId, session.type, data);
+    } catch (error) {
+      reportSessionError(sessionId, error);
+      throw error;
     }
   }
 
@@ -626,21 +693,28 @@ export function createSessionStore() {
   }
 
   function cleanup() {
-    if (eventUnlisten) {
-      eventUnlisten();
-      eventUnlisten = null;
-    }
-    if (localEventUnlisten) {
-      localEventUnlisten();
-      localEventUnlisten = null;
+    outputGeneration += 1;
+    if (outputChannel) {
+      const channel = outputChannel;
+      outputChannel = null;
+      channel.onmessage = () => {};
+      void tauriCommands
+        .terminalOutputUnsubscribe(channel.id)
+        .catch(console.error);
     }
     if (portForwardEventUnlisten) {
       portForwardEventUnlisten();
       portForwardEventUnlisten = null;
     }
     initPromise = null;
-    pendingOutput.clear();
+    closedOutput.clear();
+    removedSessions.clear();
     terminalTranscripts.clear();
+    for (const subscribers of outputSubscribers.values()) {
+      for (const subscriber of subscribers) {
+        for (const done of subscriber.pending) done();
+      }
+    }
     outputSubscribers.clear();
   }
 

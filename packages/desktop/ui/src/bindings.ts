@@ -205,6 +205,30 @@ async snippetDelete(id: string) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+async terminalOutputSubscribe(onOutput: TAURI_CHANNEL<unknown>) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("terminal_output_subscribe", { onOutput }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async terminalOutputAck(sessionId: string, bytes: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("terminal_output_ack", { sessionId, bytes }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async terminalOutputUnsubscribe(channelId: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("terminal_output_unsubscribe", { channelId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async sshConnectDirect(input: DirectSshConnectInput, cols: number, rows: number) : Promise<Result<SshConnectResponse, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ssh_connect_direct", { input, cols, rows }) };
@@ -535,12 +559,13 @@ export type SshLocalPortForwardInput = { session_id: string; bind_host: string; 
 export type SshPortForwardState = "listening" | "stopped" | "error"
 export type SshPortForwardStatus = { forward_id: string; session_id: string; bind_host: string; bind_port: number; target_host: string; target_port: number; status: SshPortForwardState; error: string | null }
 export type SshProbeHostInfoResponse = { status: "success"; info: HostSystemInfo } | { status: "trust_required"; prompt: HostTrustPrompt } | { status: "trust_mismatch"; mismatch: HostTrustMismatch }
+export type TAURI_CHANNEL<TSend> = Channel<TSend>
 export type TransferDirection = "Upload" | "Download"
 export type TrustedSshHost = { host: string; port: number; algorithm: string; fingerprint: string }
 
 /** tauri-specta globals **/
 
-import { invoke as TAURI_INVOKE } from "@tauri-apps/api/core";
+import { invoke as TAURI_INVOKE, type Channel } from "@tauri-apps/api/core";
 
 export type Result<T, E> =
 	| { status: "ok"; data: T }

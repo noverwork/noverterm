@@ -1,3 +1,5 @@
+import type { KittyKeyboardProtocol } from "./kitty-keyboard.js";
+
 export interface TerminalKeyboardTarget {
   hasSelection(): boolean;
   getSelection(): string;
@@ -26,68 +28,87 @@ function isShiftPrintableSymbol(event: KeyboardEvent) {
 export function createTerminalKeyHandler(
   getTerminal: () => TerminalKeyboardTarget | null,
   actions: TerminalKeyboardActions,
+  getProtocol: () => KittyKeyboardProtocol | null = () => null,
 ) {
+  const shortcutKeys = new Set<string>();
   return (event: KeyboardEvent): boolean => {
     const terminal = getTerminal();
-    if (!terminal || event.type !== "keydown") return true;
+    if (!terminal || event.isComposing || event.keyCode === 229) return true;
+    const keyId = event.code || event.key.toLowerCase();
+    if (event.type === "keyup" && shortcutKeys.delete(keyId)) return false;
+    const protocol = getProtocol();
+    if (event.type !== "keydown")
+      return protocol?.handleKeyEvent(event) ?? true;
+    if (!event.repeat) shortcutKeys.delete(keyId);
 
-    // Let modifier keys pass through so xterm.js tracks internal modifier state
-    // correctly. Without this, the first Shift/Ctrl/Alt/Meta press may be lost.
+    const key = event.key.toLowerCase();
+    const command = event.metaKey && !event.ctrlKey && !event.altKey;
+    const control = event.ctrlKey && !event.metaKey && !event.altKey;
+    let action: (() => void) | undefined;
     if (
-      event.key === "Shift" ||
-      event.key === "Control" ||
-      event.key === "Alt" ||
-      event.key === "Meta" ||
-      event.key === "CapsLock"
+      key === "c" &&
+      !event.shiftKey &&
+      (command || control) &&
+      terminal.hasSelection()
     ) {
-      return true;
+      const selection = terminal.getSelection();
+      if (selection)
+        action = () => {
+          actions.writeClipboard(selection);
+        };
+    } else if (key === "f" && !event.shiftKey && (command || control)) {
+      action = () => {
+        actions.openSearchPrompt();
+      };
+    } else if (key === "w" && !event.shiftKey && command) {
+      action = () => {
+        actions.closeTerminal();
+      };
+    } else if (key === "g" && command) {
+      action = () => {
+        actions.repeatSearch(event.shiftKey);
+      };
     }
+    if (action) {
+      event.preventDefault();
+      event.stopPropagation();
+      shortcutKeys.add(keyId);
+      if (!event.repeat) action();
+      return false;
+    }
+    // Native paste remains a paste event, never a Kitty key/text event.
+    if (key === "v" && (command || (control && event.shiftKey))) return true;
+    if (
+      event.key === "Insert" &&
+      event.shiftKey &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.metaKey
+    )
+      return true;
+    if (protocol?.handleKeyEvent(event) === false) return false;
 
-    if (isShiftPrintableSymbol(event)) {
+    // xterm encodes Shift+Enter as CR; retain compatibility outside negotiation.
+    if (
+      !protocol?.flags &&
+      event.key === "Enter" &&
+      event.shiftKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      actions.sendInput("\x1b[13;2u");
+      return false;
+    }
+    // Negotiated key reporting gets first refusal, including shifted symbols.
+    if (!(protocol && protocol.flags & 8) && isShiftPrintableSymbol(event)) {
       event.preventDefault();
       event.stopPropagation();
       actions.sendInput(event.key);
       return false;
     }
-
-    const key = event.key.toLowerCase();
-    if (key === "c") {
-      const isCopyShortcut = event.metaKey || event.ctrlKey;
-      if (!isCopyShortcut) return true;
-      if (!terminal.hasSelection()) return true;
-
-      const selection = terminal.getSelection();
-      if (!selection) return true;
-
-      event.preventDefault();
-      event.stopPropagation();
-      actions.writeClipboard(selection);
-      return false;
-    }
-
-    if (key === "f" && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault();
-      event.stopPropagation();
-      actions.openSearchPrompt();
-      return false;
-    }
-
-    if (key === "w" && event.metaKey) {
-      event.preventDefault();
-      event.stopPropagation();
-      actions.closeTerminal();
-      return false;
-    }
-
-    if (!event.metaKey) return true;
-
-    if (key === "g") {
-      event.preventDefault();
-      event.stopPropagation();
-      actions.repeatSearch(event.shiftKey);
-      return false;
-    }
-
     return true;
   };
 }

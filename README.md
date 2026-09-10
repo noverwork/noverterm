@@ -30,6 +30,8 @@ Noverterm is different. Built on **Tauri 2** and **Rust**, it delivers:
 |---------|-------------|
 | **SSH Connections** | Password & SSH key auth, host fingerprint verification, known hosts manager |
 | **Multi-Session Tabs** | Multiple SSH sessions in tabs, duplicate sessions, instant local terminal, one-click k9s/Claude Code/OpenCode |
+| **Terminal I/O** | Immediate idle SSH output, bounded binary streaming, ordered input with visible write failures |
+| **TUI Keyboard** | Negotiated Kitty keyboard protocol, modifier/repeat/release events, IME text and paste handling |
 | **Port Forwarding** | Local & remote SSH tunneling with saved presets |
 | **SFTP File Transfer** | Drag & drop file browser, transfer progress, conflict resolution, create/rename/delete |
 | **Snippets** | Save and execute frequent commands across active sessions |
@@ -38,6 +40,10 @@ Noverterm is different. Built on **Tauri 2** and **Rust**, it delivers:
 | **Cloud Sync** | Sync connections, keys, and settings across devices (email auth, password reset) |
 | **Auto-Update** | Built-in updater — download and install updates from GitHub Releases |
 | **Modern UI** | Dark theme, responsive layout, keyboard shortcuts, context menus |
+
+Keyboard encoding uses the layout information exposed by the WebView. On WebKit,
+previously unseen shifted punctuation on non-US layouts may lack its unshifted
+key value; the browser-reported key and physical alternate remain available.
 
 ### 🚧 In Progress
 

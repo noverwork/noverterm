@@ -9,10 +9,10 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::copy_bidirectional;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio::task::{JoinHandle, JoinSet};
 use tokio::time::timeout;
 use tracing::{info, warn};
@@ -25,13 +25,13 @@ use super::sftp::{
     open_sftp_session, sftp_client_config, FileEntry, SftpSession, TransferCancellation,
     TransferDirection, TransferProgress,
 };
+use super::terminal_output::{OutputSession, TerminalOutput, OUTPUT_CHUNK_BYTES};
 
 const SSH_PROBE_TIMEOUT: Duration = Duration::from_secs(8);
 const SSH_PROBE_OUTPUT_LIMIT: usize = 16 * 1024;
 
-const SSH_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(16);
-const SSH_OUTPUT_BUFFER_THRESHOLD: usize = 4096;
-const SSH_WRITE_QUEUE_CAPACITY: usize = 1024;
+const SSH_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(2);
+const SSH_WRITE_QUEUE_CAPACITY: usize = 16;
 const SSH_WRITE_MAX_BYTES: usize = 1024 * 1024;
 
 const SSH_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(10);
@@ -253,12 +253,17 @@ pub struct SshSession {
     port_forwards: HashMap<String, SshPortForwardTask>,
     keepalive_task: Option<JoinHandle<()>>,
     writer_task: Option<JoinHandle<()>>,
+    output: Option<Arc<OutputSession>>,
 }
 
-enum SshWriteRequest {
+struct SshWriteRequest {
+    operation: SshWriteOperation,
+    completion: oneshot::Sender<Result<(), String>>,
+}
+
+enum SshWriteOperation {
     Data(Vec<u8>),
     Resize { cols: u32, rows: u32 },
-    Close,
 }
 
 struct SshPortForwardTask {
@@ -335,41 +340,43 @@ impl SshSessionManager {
             .map_err(|e| format!("Failed to start shell: {}", e))?;
         info!(session_id, "Interactive shell started");
 
+        let output = app.state::<TerminalOutput>().open(session_id.clone())?;
         let (channel_read, channel_write) = channel.split();
         let (write_tx, write_rx) = mpsc::channel(SSH_WRITE_QUEUE_CAPACITY);
-
+        // Hold the map until insertion so an immediately exiting shell cannot
+        // remove its entry before it exists.
+        let mut sessions_guard = self.sessions.lock().await;
         let sid = session_id.clone();
         let sessions = self.sessions.clone();
         let read_app = app.clone();
-
+        let read_output = output.clone();
         tokio::spawn(async move {
-            read_loop(channel_read, sid, read_app, sessions).await;
+            read_loop(channel_read, sid, read_app, sessions, read_output).await;
         });
-        info!(session_id, "Spawned SSH read loop");
-
         let writer_task = tokio::spawn(run_shell_write_loop(
             channel_write,
-            session_id.clone(),
             write_rx,
+            output.clone(),
         ));
-        info!(session_id, "Spawned SSH write loop");
 
         let session_handle = Arc::new(Mutex::new(session));
         let keepalive_handle = session_handle.clone();
         let keepalive_sessions = self.sessions.clone();
         let keepalive_app = app.clone();
         let ka_session_id = session_id.clone();
+        let keepalive_output = output.clone();
         let keepalive_task = tokio::spawn(async move {
             keepalive_loop(
                 keepalive_handle,
                 ka_session_id,
                 keepalive_app,
                 keepalive_sessions,
+                Some(keepalive_output),
             )
             .await;
         });
 
-        self.sessions.lock().await.insert(
+        sessions_guard.insert(
             session_id.clone(),
             SshSession {
                 handle: session_handle,
@@ -378,6 +385,7 @@ impl SshSessionManager {
                 port_forwards: HashMap::new(),
                 keepalive_task: Some(keepalive_task),
                 writer_task: Some(writer_task),
+                output: Some(output),
             },
         );
 
@@ -439,22 +447,35 @@ impl SshSessionManager {
         if data.len() > SSH_WRITE_MAX_BYTES {
             return Err("SSH terminal input payload is too large".to_string());
         }
+        self.shell_request(session_id, SshWriteOperation::Data(data))
+            .await
+    }
 
-        let sessions = self.sessions.lock().await;
-        let session = sessions
-            .get(session_id)
-            .ok_or_else(|| format!("Session not found: {}", session_id))?;
-
-        let write_tx = session
-            .write_tx
-            .as_ref()
-            .ok_or_else(|| "No shell channel available for this session".to_string())?;
-
-        write_tx
-            .try_send(SshWriteRequest::Data(data))
-            .map_err(map_ssh_write_queue_error)?;
-
-        Ok(())
+    async fn shell_request(
+        &self,
+        session_id: &str,
+        operation: SshWriteOperation,
+    ) -> Result<(), String> {
+        let (completion, result) = oneshot::channel();
+        {
+            let sessions = self.sessions.lock().await;
+            let session = sessions
+                .get(session_id)
+                .ok_or_else(|| format!("Session not found: {session_id}"))?;
+            let write_tx = session
+                .write_tx
+                .as_ref()
+                .ok_or("No shell channel available for this session")?;
+            write_tx
+                .try_send(SshWriteRequest {
+                    operation,
+                    completion,
+                })
+                .map_err(map_ssh_write_queue_error)?;
+        }
+        result
+            .await
+            .map_err(|_| "SSH write loop stopped before completing input".to_string())?
     }
 
     pub async fn open_sftp(&self, session_id: &str) -> Result<String, String> {
@@ -552,6 +573,7 @@ impl SshSessionManager {
                 ka_session_id,
                 keepalive_app,
                 keepalive_sessions,
+                None,
             )
             .await;
         });
@@ -565,6 +587,7 @@ impl SshSessionManager {
                 port_forwards: HashMap::new(),
                 keepalive_task: Some(keepalive_task),
                 writer_task: None,
+                output: None,
             },
         );
 
@@ -700,26 +723,8 @@ impl SshSessionManager {
     }
 
     pub async fn resize(&self, session_id: &str, cols: u32, rows: u32) -> Result<(), String> {
-        let sessions = self.sessions.lock().await;
-        let session = sessions
-            .get(session_id)
-            .ok_or_else(|| format!("Session not found: {}", session_id))?;
-
-        let write_tx = session
-            .write_tx
-            .as_ref()
-            .ok_or_else(|| "No shell channel available for this session".to_string())?;
-
-        write_tx
-            .try_send(SshWriteRequest::Resize { cols, rows })
-            .map_err(map_ssh_write_queue_error)?;
-
-        info!(
-            session_id,
-            cols, rows, "Sent terminal resize to remote channel"
-        );
-
-        Ok(())
+        self.shell_request(session_id, SshWriteOperation::Resize { cols, rows })
+            .await
     }
 
     pub async fn start_local_port_forward(
@@ -822,20 +827,28 @@ impl SshSessionManager {
         let session = self.sessions.lock().await.remove(session_id);
         if let Some(mut session) = session {
             info!(session_id, "Disconnecting SSH session");
-            let stopped_forwards = session.stop_runtime_tasks(None, true, false);
-            if let Some(write_tx) = session.write_tx.as_ref() {
-                let _ = write_tx.try_send(SshWriteRequest::Close);
+            let stopped_forwards = session.stop_runtime_tasks(None, true, true);
+            let result = timeout(SSH_KEEPALIVE_TIMEOUT, async {
+                session
+                    .handle
+                    .lock()
+                    .await
+                    .disconnect(Disconnect::ByApplication, "Client disconnected", "")
+                    .await
+            })
+            .await
+            .map_err(|_| "SSH disconnect timed out".to_string())
+            .and_then(|result| result.map_err(|e| format!("SSH disconnect failed: {e}")));
+            if let Some(output) = &session.output {
+                if let Err(error) = &result {
+                    output.fail(error.clone());
+                }
+                output.stop();
             }
-            let _ = session
-                .handle
-                .lock()
-                .await
-                .disconnect(Disconnect::ByApplication, "Client disconnected", "")
-                .await;
-            session.abort_writer_task();
             for status in stopped_forwards {
                 emit_port_forward_event(&app, &status);
             }
+            result?;
         }
         Ok(())
     }
@@ -1054,44 +1067,79 @@ async fn keepalive_loop(
     session_id: String,
     app: AppHandle,
     sessions: Arc<Mutex<HashMap<String, SshSession>>>,
+    output: Option<Arc<OutputSession>>,
 ) {
     let mut interval = tokio::time::interval(SSH_KEEPALIVE_INTERVAL);
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-
-    loop {
+    let error = loop {
         interval.tick().await;
-
-        let ping_result = timeout(SSH_KEEPALIVE_TIMEOUT, async {
+        match timeout(SSH_KEEPALIVE_TIMEOUT, async {
             handle.lock().await.send_ping().await
         })
-        .await;
+        .await
+        {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => break format!("SSH keepalive failed: {error}"),
+            Err(_) => break "SSH keepalive timed out".to_string(),
+        }
+    };
+    warn!(session_id, %error);
+    if let Some(output) = output {
+        // Let the reader flush its current batch before emitting the error.
+        output.fail(error);
+    } else {
+        remove_session_and_stop_port_forwards(sessions, &session_id, &app, Some(error), false)
+            .await;
+    }
+}
 
-        match ping_result {
-            Ok(Ok(())) => info!(session_id, "SSH keepalive ping succeeded"),
-            Ok(Err(error)) => {
-                warn!(session_id, error = %error, "SSH keepalive ping failed");
-                break;
-            }
-            Err(_) => {
-                warn!(
-                    session_id,
-                    timeout_ms = SSH_KEEPALIVE_TIMEOUT.as_millis(),
-                    "SSH keepalive ping timed out"
-                );
-                break;
-            }
+struct OutputBatch {
+    bytes: Vec<u8>,
+    last_flush: Option<tokio::time::Instant>,
+}
+
+impl OutputBatch {
+    fn new() -> Self {
+        Self {
+            bytes: Vec::with_capacity(OUTPUT_CHUNK_BYTES),
+            last_flush: None,
         }
     }
 
-    emit_ssh_closed_event(&app, &session_id);
-    remove_session_and_stop_port_forwards(
-        sessions,
-        &session_id,
-        &app,
-        Some("SSH keepalive failed".to_string()),
-        false,
-    )
-    .await;
+    fn deadline(&self) -> tokio::time::Instant {
+        self.last_flush.unwrap_or_else(tokio::time::Instant::now) + SSH_OUTPUT_FLUSH_INTERVAL
+    }
+
+    async fn push(&mut self, mut data: &[u8], output: &OutputSession) -> Result<(), String> {
+        // Idle output is never held for a batching timer.
+        if self.bytes.is_empty()
+            && self
+                .last_flush
+                .is_none_or(|last| last.elapsed() >= SSH_OUTPUT_FLUSH_INTERVAL)
+        {
+            output.send(data).await?;
+            self.last_flush = Some(tokio::time::Instant::now());
+            return Ok(());
+        }
+        while !data.is_empty() {
+            let take = data.len().min(OUTPUT_CHUNK_BYTES - self.bytes.len());
+            self.bytes.extend_from_slice(&data[..take]);
+            data = &data[take..];
+            if self.bytes.len() == OUTPUT_CHUNK_BYTES {
+                self.flush(output).await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn flush(&mut self, output: &OutputSession) -> Result<(), String> {
+        if !self.bytes.is_empty() {
+            output.send(&self.bytes).await?;
+            self.bytes.clear();
+            self.last_flush = Some(tokio::time::Instant::now());
+        }
+        Ok(())
+    }
 }
 
 async fn read_loop(
@@ -1099,121 +1147,60 @@ async fn read_loop(
     session_id: String,
     app: AppHandle,
     sessions: Arc<Mutex<HashMap<String, SshSession>>>,
+    output: Arc<OutputSession>,
 ) {
-    let mut buffer = Vec::with_capacity(SSH_OUTPUT_BUFFER_THRESHOLD);
-    let mut flush_interval = tokio::time::interval(SSH_OUTPUT_FLUSH_INTERVAL);
-    flush_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-
-    async fn flush_buffer(buffer: &mut Vec<u8>, session_id: &str, app: &AppHandle, closed: bool) {
-        if buffer.is_empty() && !closed {
-            return;
-        }
-
-        let output = std::mem::take(buffer);
-        let event = SshOutputEvent {
-            session_id: session_id.to_string(),
-            output,
-            closed,
-        };
-
-        let bytes = event.output.len();
-        info!(session_id, bytes, "Emitted aggregated SSH output");
-
-        if let Err(e) = app.emit("ssh_output", event) {
-            warn!(session_id, "Failed to emit ssh_output: {}", e);
-        }
-    }
-
-    loop {
+    let mut batch = OutputBatch::new();
+    let error = loop {
         tokio::select! {
-            msg = channel_read.wait() => {
-                match msg {
-                    Some(ChannelMsg::Data { ref data }) => {
-                        buffer.extend_from_slice(data);
-                        if buffer.len() >= SSH_OUTPUT_BUFFER_THRESHOLD {
-                            flush_buffer(&mut buffer, &session_id, &app, false).await;
-                        }
+            biased;
+            _ = output.stopped() => break None,
+            _ = tokio::time::sleep_until(batch.deadline()), if !batch.bytes.is_empty() => {
+                if let Err(error) = batch.flush(&output).await { break Some(error); }
+            }
+            message = channel_read.wait() => {
+                match message {
+                    Some(ChannelMsg::Data { data } | ChannelMsg::ExtendedData { data, .. }) => {
+                        if let Err(error) = batch.push(&data, &output).await { break Some(error); }
                     }
-                    Some(ChannelMsg::Eof) => {
-                        info!(session_id, "Channel EOF received");
-                        flush_buffer(&mut buffer, &session_id, &app, true).await;
-                        remove_session_and_stop_port_forwards(
-                            sessions.clone(),
-                            &session_id,
-                            &app,
-                            Some("SSH session closed".to_string()),
-                            true,
-                        )
-                        .await;
-                        break;
-                    }
-                    Some(ChannelMsg::Close) => {
-                        info!(session_id, "Channel closed");
-                        flush_buffer(&mut buffer, &session_id, &app, true).await;
-                        remove_session_and_stop_port_forwards(
-                            sessions.clone(),
-                            &session_id,
-                            &app,
-                            Some("SSH session closed".to_string()),
-                            true,
-                        )
-                        .await;
-                        break;
-                    }
-                    Some(ChannelMsg::ExitStatus { exit_status }) => {
-                        info!(session_id, "Exit status: {}", exit_status);
-                    }
-                    Some(ChannelMsg::Success) => {
-                        info!(session_id, "Received SSH channel success message");
-                    }
-                    Some(ChannelMsg::Failure) => {
-                        warn!(session_id, "Received SSH channel failure message");
-                    }
+                    Some(ChannelMsg::Eof | ChannelMsg::Close) | None => break None,
+                    Some(ChannelMsg::Failure) => break Some("SSH channel request failed".to_string()),
                     Some(_) => {}
-                    None => {
-                        info!(session_id, "Channel stream ended");
-                        flush_buffer(&mut buffer, &session_id, &app, true).await;
-                        remove_session_and_stop_port_forwards(
-                            sessions.clone(),
-                            &session_id,
-                            &app,
-                            Some("SSH session ended".to_string()),
-                            true,
-                        )
-                        .await;
-                        break;
-                    }
                 }
             }
-            _ = flush_interval.tick() => {
-                flush_buffer(&mut buffer, &session_id, &app, false).await;
-            }
         }
+    };
+    let flush_error = batch.flush(&output).await.err();
+    let error = error.or(flush_error);
+    if let Err(close_error) = output.close(error.clone()) {
+        warn!(session_id, %close_error, "Failed to close terminal output");
     }
+    remove_session_and_stop_port_forwards(sessions, &session_id, &app, error, true).await;
 }
 
 async fn run_shell_write_loop(
     channel_write: ChannelWriteHalf<Msg>,
-    session_id: String,
     mut write_rx: mpsc::Receiver<SshWriteRequest>,
+    output: Arc<OutputSession>,
 ) {
-    while let Some(request) = write_rx.recv().await {
-        let result = match request {
-            SshWriteRequest::Data(data) => channel_write.data(&data[..]).await,
-            SshWriteRequest::Resize { cols, rows } => {
-                channel_write.window_change(cols, rows, 0, 0).await
-            }
-            SshWriteRequest::Close => {
-                let result = channel_write.close().await;
-                if let Err(error) = result {
-                    warn!(session_id, "Failed to close SSH write channel: {error}");
+    while let Some(request) = tokio::select! {
+        _ = output.stopped() => None,
+        request = write_rx.recv() => request,
+    } {
+        let result = tokio::select! {
+            _ = output.stopped() => Err("SSH session closed before completing input".to_string()),
+            result = async {
+                match request.operation {
+                    SshWriteOperation::Data(data) => channel_write.data(&data[..]).await,
+                    SshWriteOperation::Resize { cols, rows } => channel_write.window_change(cols, rows, 0, 0).await,
                 }
-                break;
-            }
+            } => result.map_err(|e| format!("SSH terminal write failed: {e}")),
         };
-
-        if let Err(error) = result {
-            warn!(session_id, "SSH write loop failed: {error}");
+        if let Err(error) = &result {
+            output.fail(error.clone());
+        }
+        let failed = result.is_err();
+        let _ = request.completion.send(result);
+        if failed {
             break;
         }
     }
@@ -1233,27 +1220,24 @@ async fn remove_session_and_stop_port_forwards(
     error: Option<String>,
     abort_keepalive: bool,
 ) {
-    let stopped_forwards = sessions
-        .lock()
-        .await
-        .remove(session_id)
-        .map(|mut session| session.stop_runtime_tasks(error, abort_keepalive, true))
-        .unwrap_or_default();
-
+    let session = sessions.lock().await.remove(session_id);
+    let stopped_forwards = if let Some(mut session) = session {
+        let stopped = session.stop_runtime_tasks(error, abort_keepalive, true);
+        let _ = timeout(SSH_KEEPALIVE_TIMEOUT, async {
+            session
+                .handle
+                .lock()
+                .await
+                .disconnect(Disconnect::ByApplication, "Terminal closed", "")
+                .await
+        })
+        .await;
+        stopped
+    } else {
+        Vec::new()
+    };
     for status in stopped_forwards {
         emit_port_forward_event(app, &status);
-    }
-}
-
-fn emit_ssh_closed_event(app: &AppHandle, session_id: &str) {
-    let event = SshOutputEvent {
-        session_id: session_id.to_string(),
-        output: Vec::new(),
-        closed: true,
-    };
-
-    if let Err(error) = app.emit("ssh_output", event) {
-        warn!(session_id, "Failed to emit ssh_output close event: {error}");
     }
 }
 
@@ -1615,13 +1599,6 @@ async fn map_connect_error(
     }
 }
 
-#[derive(Clone, Serialize)]
-pub struct SshOutputEvent {
-    pub session_id: String,
-    pub output: Vec<u8>,
-    pub closed: bool,
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -1630,11 +1607,58 @@ mod tests {
 
     use crate::trust::{HostTrustMismatch, HostTrustPrompt, TrustCheck};
 
-    use super::{map_connect_error, parse_host_system_info, SshConnectResponse, SshSessionManager};
+    use super::{map_connect_error, parse_host_system_info, OutputBatch, SshConnectResponse};
 
-    #[test]
-    fn ssh_session_manager_is_constructible() {
-        let _ = SshSessionManager::new();
+    #[tokio::test]
+    async fn idle_output_is_immediate_and_burst_flush_preserves_final_bytes() {
+        use crate::runtime::terminal_output::{TerminalOutput, OUTPUT_CHUNK_BYTES};
+        use std::future::Future;
+        use std::task::Poll;
+        use tauri::ipc::{Channel, InvokeResponseBody};
+
+        let frames = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let received = frames.clone();
+        let transport = TerminalOutput::default();
+        transport
+            .subscribe(Channel::new(move |body| {
+                let InvokeResponseBody::Raw(bytes) = body else {
+                    panic!("expected raw bytes")
+                };
+                received.lock().expect("frames").push(bytes);
+                Ok(())
+            }))
+            .expect("subscribe");
+        let output = transport
+            .open(uuid::Uuid::new_v4().to_string())
+            .expect("open");
+        let mut batch = OutputBatch::new();
+        {
+            let first = batch.push(b"prompt", &output);
+            tokio::pin!(first);
+            assert!(matches!(
+                std::future::poll_fn(|cx| Poll::Ready(first.as_mut().poll(cx))).await,
+                Poll::Ready(Ok(()))
+            ));
+        }
+        assert_eq!(&frames.lock().expect("frames")[0][37..], b"prompt");
+        batch
+            .push(&vec![7; OUTPUT_CHUNK_BYTES + 3], &output)
+            .await
+            .expect("burst");
+        batch.flush(&output).await.expect("flush EOF");
+        output.close(None).expect("close");
+        let frames = frames.lock().expect("frames");
+        assert!(frames
+            .iter()
+            .all(|frame| frame.len() <= 37 + OUTPUT_CHUNK_BYTES));
+        let bytes: Vec<u8> = frames
+            .iter()
+            .filter(|frame| frame[0] == 0)
+            .flat_map(|frame| frame[37..].iter().copied())
+            .collect();
+        assert_eq!(&bytes[..6], b"prompt");
+        assert_eq!(&bytes[6..], vec![7; OUTPUT_CHUNK_BYTES + 3]);
+        assert_eq!(frames.last().expect("close")[0], 1);
     }
 
     #[test]
