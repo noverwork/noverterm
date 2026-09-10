@@ -284,6 +284,19 @@ export function createAppShellStore(queryClient: QueryClient) {
     }
   }
 
+  async function openOmpTerminal(): Promise<boolean> {
+    try {
+      const sessionId = await sessionStore.connectLocal("omp");
+      await sessionStore.writeSession(
+        sessionId,
+        "mkdir -p ~/noverterm/agent && cd ~/noverterm/agent && omp\n",
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function openHerdrTerminal(): Promise<boolean> {
     try {
       const sessionId = await sessionStore.connectLocal("Herdr");
@@ -703,6 +716,7 @@ export function createAppShellStore(queryClient: QueryClient) {
     openK9sTerminal,
     openClaudeCodeTerminal,
     openOpencodeTerminal,
+    openOmpTerminal,
     openHerdrTerminal,
     activateSession,
     resetConnectionFormError,

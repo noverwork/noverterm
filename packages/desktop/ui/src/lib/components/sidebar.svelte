@@ -21,6 +21,7 @@
     onK9sTerminal,
     onClaudeCodeTerminal,
     onOpencodeTerminal,
+    onOmpTerminal,
     onHerdrTerminal,
     onManageKeys,
     onManageKnownHosts,
@@ -40,6 +41,7 @@
     onK9sTerminal?: () => void;
     onClaudeCodeTerminal?: () => void;
     onOpencodeTerminal?: () => void;
+    onOmpTerminal?: () => void;
     onHerdrTerminal?: () => void;
     onManageKeys?: () => void;
     onManageKnownHosts?: () => void;
@@ -212,6 +214,10 @@
   </svg>
 {/snippet}
 
+{#snippet ompIcon()}
+  <span class="text-base font-semibold leading-none" aria-hidden="true">π</span>
+{/snippet}
+
 {#snippet k9sIcon()}
   <svg
     viewBox="0 0 24 24"
@@ -268,7 +274,7 @@
   </div>
 
   <div class="border-b border-white/8 px-3 pb-4">
-    {#if onLocalTerminal || onK9sTerminal || onClaudeCodeTerminal || onOpencodeTerminal || onHerdrTerminal}
+    {#if onLocalTerminal || onK9sTerminal || onClaudeCodeTerminal || onOpencodeTerminal || onOmpTerminal || onHerdrTerminal}
       <div class="flex flex-col items-center gap-2">
         {#if onLocalTerminal}
           {@render quickAction(
@@ -295,6 +301,14 @@
             opencodeIconButtonClass(),
             "OpenCode",
             opencodeIcon,
+          )}
+        {/if}
+        {#if onOmpTerminal}
+          {@render quickAction(
+            onOmpTerminal,
+            claudeCodeIconButtonClass(),
+            "omp",
+            ompIcon,
           )}
         {/if}
         {#if onHerdrTerminal}

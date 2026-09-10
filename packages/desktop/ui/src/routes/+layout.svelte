@@ -141,6 +141,11 @@
     await goto(terminalPath);
   }
 
+  async function openOmpTerminal() {
+    await app.openOmpTerminal();
+    await goto(terminalPath);
+  }
+
   async function openHerdrTerminal() {
     await app.openHerdrTerminal();
     await goto(terminalPath);
@@ -463,6 +468,7 @@
         onK9sTerminal={openK9sTerminal}
         onClaudeCodeTerminal={openClaudeCodeTerminal}
         onOpencodeTerminal={openOpencodeTerminal}
+        onOmpTerminal={openOmpTerminal}
         onHerdrTerminal={openHerdrTerminal}
         onManageKeys={() => goto("/keys")}
         onManageKnownHosts={() => goto("/known-hosts")}
