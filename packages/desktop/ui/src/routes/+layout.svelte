@@ -959,36 +959,38 @@
                       ? "absolute inset-0 z-10 min-h-0 overflow-hidden opacity-100 pointer-events-auto"
                       : "absolute inset-0 z-0 min-h-0 overflow-hidden opacity-0 pointer-events-none"}
                   >
-                    <TerminalView
-                      sessionId={session.id}
-                      sessionType={session.type}
-                      active={isTerminalVisible &&
-                        session.id === app.visibleTerminalSessionId}
-                      config={app.terminalConfig}
-                      subscribeOutput={(callback) =>
-                        app.sessionStore.subscribeSessionOutput(
-                          session.id,
-                          callback,
-                        )}
-                      onClose={() => {
-                        if (
-                          app.sessionStore.sessions.get(session.id)?.status !==
-                          "error"
-                        ) {
+                    <!-- A connecting session still has a placeholder id the backend rejects. -->
+                    {#if session.status !== "connecting"}
+                      <TerminalView
+                        sessionId={session.id}
+                        sessionType={session.type}
+                        active={isTerminalVisible &&
+                          session.id === app.visibleTerminalSessionId}
+                        config={app.terminalConfig}
+                        subscribeOutput={(callback) =>
+                          app.sessionStore.subscribeSessionOutput(
+                            session.id,
+                            callback,
+                          )}
+                        onClose={() => {
+                          if (
+                            app.sessionStore.sessions.get(session.id)
+                              ?.status !== "error"
+                          ) {
+                            app.sessionStore.updateSession(session.id, {
+                              status: "disconnected",
+                            });
+                          }
+                        }}
+                        onError={(error) =>
                           app.sessionStore.updateSession(session.id, {
-                            status: "disconnected",
-                          });
-                        }
-                      }}
-                      onError={(error) =>
-                        app.sessionStore.updateSession(session.id, {
-                          status: "error",
-                          error,
-                        })}
-                      onRequestClose={() =>
-                        void closeSessionAndNavigate(session.id)}
-                    />
-                    {#if session.status === "connecting"}
+                            status: "error",
+                            error,
+                          })}
+                        onRequestClose={() =>
+                          void closeSessionAndNavigate(session.id)}
+                      />
+                    {:else}
                       <div
                         class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#080c13]/90"
                       >
