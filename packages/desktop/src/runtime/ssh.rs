@@ -1,7 +1,6 @@
 use russh::client::{self, AuthResult, Handle, Msg};
 use russh::keys::ssh_key::HashAlg;
 use russh::keys::ssh_key::PublicKey;
-use russh::Preferred;
 use russh::{ChannelMsg, ChannelReadHalf, ChannelWriteHalf, Disconnect};
 use russh_sftp::client::SftpSession as RusshSftpSession;
 use serde::{Deserialize, Serialize};
@@ -38,16 +37,14 @@ const SSH_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(10);
 const SSH_KEEPALIVE_TIMEOUT: Duration = Duration::from_secs(5);
 
 fn client_config(inactivity_timeout: Option<Duration>) -> Arc<client::Config> {
+    // No zlib: russh 0.59's zlib path stalls under high-throughput incompressible
+    // data (a bulk SFTP upload of an already-compressed file), which wedges the
+    // whole transport and drops the session mid-transfer. Terminal output is
+    // low-volume, so losing compression there is negligible; OpenSSH's own client
+    // defaults compression off for the same reasons.
+    // ponytail: drop-zlib workaround; revisit if russh fixes the compressor.
     Arc::new(client::Config {
         inactivity_timeout,
-        preferred: Preferred {
-            compression: std::borrow::Cow::Borrowed(&[
-                russh::compression::ZLIB,
-                russh::compression::ZLIB_LEGACY,
-                russh::compression::NONE,
-            ]),
-            ..Preferred::DEFAULT
-        },
         ..<_>::default()
     })
 }

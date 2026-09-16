@@ -887,10 +887,18 @@ pub async fn rename_sftp(
         })
 }
 
-const SFTP_MAX_CONCURRENT_WRITES: usize = 1;
+// One write in flight caps throughput at UPLOAD_CHUNK_SIZE per round trip, so a
+// 16ms link tops out near 1 MB/s. PuTTY (and FileZilla's fzsftp, derived from it)
+// keeps writes flowing instead of waiting for each ACK; these values keep about
+// 1 MiB outstanding, matching PuTTY's transfer window.
+const SFTP_MAX_CONCURRENT_WRITES: usize = 8;
 const SFTP_MAX_PACKET_LEN: u32 = 256 * 1024;
 const SFTP_REQUEST_TIMEOUT_SECS: u64 = 30;
-const UPLOAD_CHUNK_SIZE: usize = 16 * 1024;
+const UPLOAD_CHUNK_SIZE: usize = 128 * 1024;
+/// How many bytes an upload may hand to russh-sftp before draining the ACKs.
+/// `File::poll_write` returns as soon as a request is queued, so this is also
+/// the granularity at which upload progress can be reported truthfully.
+const UPLOAD_ACK_WINDOW_BYTES: u64 = (SFTP_MAX_CONCURRENT_WRITES * UPLOAD_CHUNK_SIZE) as u64;
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 const TRANSFER_LOG_INTERVAL: Duration = Duration::from_secs(2);
 const TRANSFER_LOG_BYTES: u64 = 1024 * 1024;
@@ -1585,7 +1593,9 @@ pub async fn upload_sftp(
     let mut transfer_log = TransferLogger::new(transfer_id, total_bytes, TransferDirection::Upload);
     transfer_log.log_started(UPLOAD_CHUNK_SIZE);
     let mut buffer = vec![0; UPLOAD_CHUNK_SIZE];
-    let mut bytes_transferred = 0;
+    // Bytes handed to russh-sftp versus bytes the server has acknowledged.
+    let mut queued_bytes = 0u64;
+    let mut bytes_transferred = 0u64;
 
     let result = async {
         loop {
@@ -1610,18 +1620,34 @@ pub async fn upload_sftp(
                 &buffer[..read_count],
                 &transfer_log,
                 &cancel,
-                bytes_transferred,
+                queued_bytes,
             )
             .await
             .map_err(|error| classify_sftp_error("write", remote_path, error))?;
-            bytes_transferred += read_count as u64;
-            progress.maybe_emit(bytes_transferred);
-            transfer_log.maybe_log_progress(bytes_transferred);
+            queued_bytes += read_count as u64;
+
+            // Only a flush proves the server stored the queued writes, so progress
+            // stays put until then; reporting queued bytes would race ahead of the
+            // transfer and finish the status bar while data is still in flight.
+            if queued_bytes - bytes_transferred >= UPLOAD_ACK_WINDOW_BYTES {
+                flush_with_stall_warning(
+                    &mut remote_file,
+                    &transfer_log,
+                    &cancel,
+                    bytes_transferred,
+                )
+                .await
+                .map_err(|error| classify_sftp_error("write", remote_path, error))?;
+                bytes_transferred = queued_bytes;
+                progress.maybe_emit(bytes_transferred);
+                transfer_log.maybe_log_progress(bytes_transferred);
+            }
         }
 
         flush_with_stall_warning(&mut remote_file, &transfer_log, &cancel, bytes_transferred)
             .await
             .map_err(|error| classify_sftp_error("write", remote_path, error))?;
+        bytes_transferred = queued_bytes;
         shutdown_with_stall_warning(&mut remote_file, &transfer_log, &cancel, bytes_transferred)
             .await
             .map_err(|error| classify_sftp_error("write", remote_path, error))?;
@@ -2113,7 +2139,8 @@ mod tests {
     use super::{
         classify_sftp_error, sftp_client_config, FileEntry, FileType, MockEntry, ProgressEmitter,
         RusshSftpConfig, SftpError, SftpSession, SftpSessionManager, TransferCancellation,
-        TransferDirection, SFTP_MAX_PACKET_LEN, SFTP_REQUEST_TIMEOUT_SECS, UPLOAD_CHUNK_SIZE,
+        TransferDirection, SFTP_MAX_PACKET_LEN, SFTP_REQUEST_TIMEOUT_SECS, UPLOAD_ACK_WINDOW_BYTES,
+        UPLOAD_CHUNK_SIZE,
     };
 
     fn mock_file() -> MockEntry {
@@ -2666,16 +2693,19 @@ mod tests {
     }
 
     #[test]
-    fn test_sftp_client_config_uses_sequential_upload_window() {
+    fn test_sftp_client_config_keeps_uploads_pipelined() {
         let default_config = RusshSftpConfig::default();
         let config = sftp_client_config();
 
-        assert_eq!(config.max_concurrent_writes, 1);
-        assert!(config.max_concurrent_writes < default_config.max_concurrent_writes);
+        assert_eq!(config.max_concurrent_writes, 8);
         assert_eq!(config.request_timeout_secs, SFTP_REQUEST_TIMEOUT_SECS);
         assert_eq!(config.max_packet_len, SFTP_MAX_PACKET_LEN);
         assert_eq!(config.max_packet_len, default_config.max_packet_len);
-        assert_eq!(UPLOAD_CHUNK_SIZE, 16 * 1024);
+        assert_eq!(UPLOAD_CHUNK_SIZE, 128 * 1024);
+        // Chunks must fit one SFTP packet, or russh-sftp splits them and the
+        // outstanding-write accounting no longer matches the intended window.
+        assert!(UPLOAD_CHUNK_SIZE < SFTP_MAX_PACKET_LEN as usize);
+        assert_eq!(UPLOAD_ACK_WINDOW_BYTES, 1024 * 1024);
     }
 
     #[test]
