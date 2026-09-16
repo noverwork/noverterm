@@ -19,9 +19,7 @@ function isShiftPrintableSymbol(event: KeyboardEvent) {
     !event.ctrlKey &&
     !event.metaKey &&
     !event.altKey &&
-    event.key.length === 1 &&
-    event.key.trim().length > 0 &&
-    !/^[a-zA-Z0-9]$/.test(event.key)
+    /^[\p{P}\p{S}]$/u.test(event.key)
   );
 }
 
@@ -33,10 +31,12 @@ export function createTerminalKeyHandler(
   const shortcutKeys = new Set<string>();
   return (event: KeyboardEvent): boolean => {
     const terminal = getTerminal();
-    if (!terminal || event.isComposing || event.keyCode === 229) return true;
+    if (!terminal) return true;
+    const protocol = getProtocol();
+    if (event.isComposing || protocol?.isComposing || event.keyCode === 229)
+      return true;
     const keyId = event.code || event.key.toLowerCase();
     if (event.type === "keyup" && shortcutKeys.delete(keyId)) return false;
-    const protocol = getProtocol();
     if (event.type !== "keydown")
       return protocol?.handleKeyEvent(event) ?? true;
     if (!event.repeat) shortcutKeys.delete(keyId);

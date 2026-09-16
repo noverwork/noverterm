@@ -145,6 +145,11 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     }
   }
 
+  function activateLink(event: MouseEvent, uri: string) {
+    event.preventDefault();
+    void openExternalUrl(uri);
+  }
+
   function requestSearch() {
     options.onSearchRequest?.();
   }
@@ -217,6 +222,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       // TUI apps (herdr, k9s) enable mouse reporting, which swallows link
       // clicks; Alt+click is the macOS escape hatch back to selection/links.
       macOptionClickForcesSelection: true,
+      linkHandler: { activate: activateLink },
     });
 
     fitAddon = new FitAddon();
@@ -235,12 +241,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       refresh();
     });
     terminal.loadAddon(webglAddon);
-    terminal.loadAddon(
-      new WebLinksAddon((event, uri) => {
-        event.preventDefault();
-        void openExternalUrl(uri);
-      }),
-    );
+    terminal.loadAddon(new WebLinksAddon(activateLink));
 
     keyboardProtocol = createKittyKeyboardProtocol(
       terminal,

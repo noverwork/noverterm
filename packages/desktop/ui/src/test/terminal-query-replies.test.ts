@@ -146,6 +146,133 @@ describe("terminal query replies", () => {
     }
   });
 
+  it.each([0, 1, 31])(
+    "delivers Pinyin input-before-keydown once with keyboard flags %i",
+    async (flags) => {
+      const sent: string[] = [];
+      const term = createTerminal({
+        sessionId: `shift-symbol-${flags}`,
+        sessionType: "local",
+        config: {
+          fontSize: 12,
+          fontFamily: "monospace",
+          cursorStyle: "block",
+          cursorBlink: false,
+          scrollback: 100,
+        },
+        onOutput: (data) => sent.push(data),
+      });
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      try {
+        term.init(container);
+        term.terminal!.write(`\x1b[=${flags}u`);
+        await settle(term);
+        const textarea = container.querySelector("textarea")!;
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        textarea.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "Shift",
+            code: "ShiftLeft",
+            keyCode: 16,
+            shiftKey: true,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+        sent.length = 0;
+        // Captured from macOS Pinyin: committed text precedes its 229 keydown.
+        for (const [index, key] of Array.from("！@#$").entries()) {
+          textarea.dispatchEvent(
+            new InputEvent("beforeinput", {
+              data: key,
+              inputType: "insertText",
+              composed: true,
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+          textarea.value += key;
+          textarea.dispatchEvent(
+            new InputEvent("input", {
+              data: key,
+              inputType: "insertText",
+              composed: true,
+              bubbles: true,
+            }),
+          );
+          textarea.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key,
+              code: `Digit${index + 1}`,
+              keyCode: 229,
+              shiftKey: true,
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+          textarea.dispatchEvent(
+            new KeyboardEvent("keyup", {
+              key,
+              code: `Digit${index + 1}`,
+              keyCode: 49 + index,
+              shiftKey: true,
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+        }
+        expect(sent).toEqual(
+          flags === 31
+            ? ["\x1b[0;;65281u", "\x1b[0;;64u", "\x1b[0;;35u", "\x1b[0;;36u"]
+            : ["！", "@", "#", "$"],
+        );
+
+        // Other IMEs use keydown first: xterm's textarea watcher owns this path.
+        sent.length = 0;
+        textarea.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "Process",
+            keyCode: 229,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+        textarea.value += "1";
+        textarea.dispatchEvent(
+          new InputEvent("input", {
+            data: "1",
+            inputType: "insertText",
+            composed: true,
+            bubbles: true,
+          }),
+        );
+        await vi.runOnlyPendingTimersAsync();
+        expect(sent).toEqual(flags === 31 ? ["\x1b[0;;49u"] : ["1"]);
+
+        sent.length = 0;
+        textarea.dispatchEvent(
+          new CompositionEvent("compositionstart", { bubbles: true }),
+        );
+        textarea.value += "候選";
+        textarea.dispatchEvent(
+          new InputEvent("input", {
+            data: "候選",
+            inputType: "insertText",
+            isComposing: true,
+            composed: true,
+            bubbles: true,
+          }),
+        );
+        expect(sent).toEqual([]);
+      } finally {
+        term.dispose();
+        container.remove();
+        vi.useRealTimers();
+      }
+    },
+  );
+
   it.each(["local", "ssh"] as const)(
     "sends %s input immediately",
     (sessionType) => {

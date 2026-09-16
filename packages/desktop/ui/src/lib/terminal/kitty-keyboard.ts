@@ -128,6 +128,7 @@ interface KeyIdentity {
 
 export interface KittyKeyboardProtocol {
   readonly flags: number;
+  readonly isComposing: boolean;
   handleKeyEvent(event: KeyboardEvent): boolean;
   encodeInput(data: string): string;
   attachInputListeners(): void;
@@ -156,6 +157,8 @@ export function createKittyKeyboardProtocol(
   let compositionTimer: number | undefined;
   const afterComposition: string[] = [];
   let inputElement: HTMLElement | undefined;
+  let nativeInputBeforeKeydown: string | null = null;
+  let textKeyDownPending = false;
   const state = () => states[terminal.buffer.active.type];
   const keyboard = (
     navigator as Navigator & {
@@ -179,6 +182,7 @@ export function createKittyKeyboardProtocol(
   }
 
   function reset() {
+    clearNativeInput();
     for (const value of Object.values(states)) {
       value.flags = 0;
       value.stack.length = 0;
@@ -420,7 +424,56 @@ export function createKittyKeyboardProtocol(
     return false;
   }
 
+  function clearNativeInput() {
+    nativeInputBeforeKeydown = null;
+    textKeyDownPending = false;
+  }
+
+  function onNativeKeyDown(event: KeyboardEvent) {
+    const input = nativeInputBeforeKeydown;
+    nativeInputBeforeKeydown = null;
+    textKeyDownPending =
+      modifierKeys[event.key] === undefined &&
+      event.key !== "CapsLock" &&
+      event.key !== "NumLock" &&
+      event.key !== "ScrollLock";
+    // WebKit Pinyin sends committed input before the corresponding 229 key.
+    // Do not let xterm re-read that text or treat the key as another character.
+    if (
+      event.keyCode === 229 &&
+      input === event.key &&
+      !event.isComposing &&
+      !composing
+    ) {
+      textKeyDownPending = false;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }
+
+  function onNativeInput(event: Event) {
+    if (
+      !(event instanceof InputEvent) ||
+      event.target !== terminal.textarea ||
+      event.inputType !== "insertText" ||
+      !event.data ||
+      event.isComposing ||
+      composing ||
+      compositionTimer !== undefined ||
+      pasting ||
+      textKeyDownPending
+    )
+      return;
+    // xterm's keyDownSeen also counts Shift, incorrectly dropping this first
+    // input-before-keydown event. Own only that ordering; leave keydown-first
+    // input, composition and paste on xterm's existing paths.
+    event.stopImmediatePropagation();
+    nativeInputBeforeKeydown = event.data;
+    terminal.input(event.data, true);
+  }
+
   function onCompositionStart() {
+    clearNativeInput();
     composing = true;
     heldKeys.clear();
   }
@@ -437,6 +490,7 @@ export function createKittyKeyboardProtocol(
     }, 0);
   }
   function onBlur() {
+    clearNativeInput();
     composing = false;
     deadKey = false;
     heldKeys.clear();
@@ -452,6 +506,9 @@ export function createKittyKeyboardProtocol(
     get flags() {
       return state().flags;
     },
+    get isComposing() {
+      return composing;
+    },
     handleKeyEvent,
     encodeInput(data) {
       if (disposed || pasting || !(state().flags & 8)) return data;
@@ -465,6 +522,9 @@ export function createKittyKeyboardProtocol(
     attachInputListeners() {
       if (disposed || inputElement || !terminal.element) return;
       inputElement = terminal.element;
+      inputElement.addEventListener("keydown", onNativeKeyDown, true);
+      inputElement.addEventListener("keyup", clearNativeInput, true);
+      inputElement.addEventListener("input", onNativeInput, true);
       inputElement.addEventListener(
         "compositionstart",
         onCompositionStart,
@@ -487,6 +547,9 @@ export function createKittyKeyboardProtocol(
       if (disposed) return;
       disposed = true;
       for (const disposable of disposables) disposable.dispose();
+      inputElement?.removeEventListener("keydown", onNativeKeyDown, true);
+      inputElement?.removeEventListener("keyup", clearNativeInput, true);
+      inputElement?.removeEventListener("input", onNativeInput, true);
       inputElement?.removeEventListener(
         "compositionstart",
         onCompositionStart,
