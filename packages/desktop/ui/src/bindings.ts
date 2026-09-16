@@ -365,7 +365,7 @@ async sftpClose(sessionId: string) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
-async sftpConnectDirect(host: string, port: number, username: string, password: string | null, privateKey: string | null, passphrase: string | null) : Promise<Result<string, string>> {
+async sftpConnectDirect(host: string, port: number, username: string, password: string | null, privateKey: string | null, passphrase: string | null) : Promise<Result<SshConnectResponse, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("sftp_connect_direct", { host, port, username, password, privateKey, passphrase }) };
 } catch (e) {

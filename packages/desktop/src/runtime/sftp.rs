@@ -112,10 +112,12 @@ impl SftpSession {
 
     pub async fn close(&self) -> Result<(), SftpError> {
         match &self.inner {
-            SftpSessionInner::Active(session) => session
-                .close()
-                .await
-                .map_err(|error| classify_sftp_error("close", self.id(), error)),
+            SftpSessionInner::Active(session) => {
+                tokio::time::timeout(std::time::Duration::from_secs(5), session.close())
+                    .await
+                    .map_err(|_| SftpError::ConnectionLost("SFTP close timed out".to_string()))?
+                    .map_err(|error| classify_sftp_error("close", self.id(), error))
+            }
             #[cfg(test)]
             SftpSessionInner::Mock { close_error, .. } => match close_error {
                 Some(error) => Err(SftpError::ConnectionLost(error.clone())),
@@ -358,14 +360,9 @@ pub async fn close_sftp_session(
     sessions: &mut HashMap<String, SftpSession>,
     session_id: &str,
 ) -> Result<(), SftpError> {
-    let session = sessions
-        .remove(session_id)
-        .ok_or_else(|| SftpError::SessionNotFound(session_id.to_string()))?;
+    let Some(session) = sessions.remove(session_id) else {
+        return Ok(());
+    };
 
-    if let Err(error) = session.close().await {
-        sessions.insert(session_id.to_string(), session);
-        return Err(error);
-    }
-
-    Ok(())
+    session.close().await
 }

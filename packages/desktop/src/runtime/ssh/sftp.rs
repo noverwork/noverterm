@@ -1,10 +1,13 @@
 use std::collections::HashMap;
+use std::net::Shutdown;
 use std::sync::Arc;
 
-use russh::client;
+use russh::{client, Disconnect};
 use russh_sftp::client::SftpSession as RusshSftpSession;
 use tauri::AppHandle;
+use tokio::net::TcpStream;
 use tokio::sync::Mutex;
+use tokio::time::timeout;
 use tracing::info;
 use uuid::Uuid;
 
@@ -17,16 +20,69 @@ use crate::trust::SshTrustStore;
 use super::authentication::{authenticate_session, client_config, map_connect_error};
 use super::{
     keepalive_loop, AuthMethod, ClientHandler, SshConnectResponse, SshSession, SshSessionManager,
+    SSH_KEEPALIVE_TIMEOUT,
 };
+
+#[cfg(test)]
+mod tests;
+
+// russh's handle only queues disconnects and does not abort its transport on drop.
+// Keep a direct-only socket handle so stale or blocked transports can be shut down.
+pub(super) struct DirectSftpTransport(std::net::TcpStream);
+
+impl DirectSftpTransport {
+    async fn connect(host: &str, port: u16, nodelay: bool) -> std::io::Result<(TcpStream, Self)> {
+        let stream = TcpStream::connect((host, port)).await?;
+        stream.set_nodelay(nodelay)?;
+        let stream = stream.into_std()?;
+        let transport = Self(stream.try_clone()?);
+        Ok((TcpStream::from_std(stream)?, transport))
+    }
+
+    fn shutdown(&self) -> std::io::Result<()> {
+        match self.0.shutdown(Shutdown::Both) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotConnected => Ok(()),
+            result => result,
+        }
+    }
+}
+
+impl Drop for DirectSftpTransport {
+    fn drop(&mut self) {
+        let _ = self.shutdown();
+    }
+}
 
 impl SshSessionManager {
     pub async fn open_sftp(&self, session_id: &str) -> Result<String, String> {
+        let handle = {
+            let sessions = self.sessions.lock().await;
+            let session = sessions
+                .get(session_id)
+                .ok_or_else(|| format!("Session not found: {session_id}"))?;
+            if !session.sftp_sessions.is_empty() {
+                return Err("SFTP session already open".to_string());
+            }
+            session.handle.clone()
+        };
+        let sftp_session = {
+            let mut handle = handle.lock().await;
+            open_sftp_session(&mut handle)
+                .await
+                .map_err(|error| error.to_string())?
+        };
+        let sftp_id = sftp_session.id().to_string();
         let mut sessions = self.sessions.lock().await;
         let session = sessions
             .get_mut(session_id)
             .ok_or_else(|| format!("Session not found: {session_id}"))?;
-
-        session.open_sftp().await
+        if !session.sftp_sessions.is_empty() {
+            return Err("SFTP session already open".to_string());
+        }
+        session
+            .sftp_sessions
+            .insert(sftp_id.clone(), Arc::new(sftp_session));
+        Ok(sftp_id)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -40,7 +96,7 @@ impl SshSessionManager {
         private_key: Option<&str>,
         passphrase: Option<&str>,
         trust_store: SshTrustStore,
-    ) -> Result<String, String> {
+    ) -> Result<SshConnectResponse, String> {
         let sftp_session_id = Uuid::new_v4().to_string();
         info!(
             sftp_session_id,
@@ -51,23 +107,12 @@ impl SshSessionManager {
         let trust_check = Arc::new(Mutex::new(None));
         let handler = ClientHandler::new(host.to_string(), port, trust_store, trust_check.clone());
 
-        let mut session = match client::connect(config, (host.to_string(), port), handler).await {
+        let (stream, transport) = DirectSftpTransport::connect(host, port, config.nodelay)
+            .await
+            .map_err(|error| format!("Failed to connect SFTP transport: {error}"))?;
+        let mut session = match client::connect_stream(config, stream, handler).await {
             Ok(session) => session,
-            Err(error) => {
-                let response = map_connect_error(error, trust_check).await;
-                return match response {
-                    Ok(SshConnectResponse::Connected { .. }) => {
-                        Err("Unexpected connected response".to_string())
-                    }
-                    Ok(SshConnectResponse::TrustRequired { prompt }) => {
-                        Err(format!("Trust required: {}", prompt.fingerprint))
-                    }
-                    Ok(SshConnectResponse::TrustMismatch { mismatch }) => {
-                        Err(format!("Trust mismatch: {}", mismatch.expected_fingerprint))
-                    }
-                    Err(e) => Err(e),
-                };
-            }
+            Err(error) => return map_connect_error(error, trust_check).await,
         };
 
         let auth_method = if let Some(key_content) = private_key {
@@ -130,30 +175,56 @@ impl SshSessionManager {
                 keepalive_task: Some(keepalive_task),
                 writer_task: None,
                 output: None,
+                direct_sftp_transport: Some(transport),
             },
         );
 
         info!(sftp_session_id, "Direct SFTP session established");
-        Ok(sftp_session_id)
+        Ok(SshConnectResponse::Connected {
+            session_id: sftp_session_id,
+        })
     }
 
     pub async fn close_sftp(&self, sftp_id: &str) -> Result<(), String> {
-        let (ssh_id, sftp_session) = {
+        let detached = {
             let mut sessions = self.sessions.lock().await;
-            remove_sftp_session(&mut sessions, sftp_id)?
+            remove_sftp_session(&mut sessions, sftp_id)
+        };
+        let Some((sftp_session, direct_session)) = detached else {
+            return Ok(());
         };
 
-        if let Err(error) = sftp_session.close().await {
-            let mut sessions = self.sessions.lock().await;
-            if let Some(session) = sessions.get_mut(&ssh_id) {
-                session
-                    .sftp_sessions
-                    .insert(sftp_id.to_string(), sftp_session);
-            }
-            return Err(error.to_string());
+        let sftp_result = sftp_session
+            .close()
+            .await
+            .map_err(|error| error.to_string());
+        if let Some(mut session) = direct_session {
+            session.stop_runtime_tasks(None, true, true);
+            let disconnect_result = timeout(SSH_KEEPALIVE_TIMEOUT, async {
+                let mut handle = session.handle.lock().await;
+                handle
+                    .disconnect(Disconnect::ByApplication, "SFTP disconnected", "")
+                    .await?;
+                // russh completes a locally initiated disconnect with Error::Disconnect.
+                match (&mut *handle).await {
+                    Ok(()) | Err(russh::Error::Disconnect) => Ok(()),
+                    Err(error) => Err(error),
+                }
+            })
+            .await
+            .map_err(|_| "SFTP transport disconnect timed out".to_string())
+            .and_then(|result| {
+                result.map_err(|error| format!("SFTP transport disconnect failed: {error}"))
+            });
+            let shutdown_result = session
+                .direct_sftp_transport
+                .as_ref()
+                .map_or(Ok(()), DirectSftpTransport::shutdown)
+                .map_err(|error| format!("SFTP transport shutdown failed: {error}"));
+            return sftp_result.and(disconnect_result).and(shutdown_result);
         }
 
-        Ok(())
+        sftp_result
     }
 
     pub async fn sftp_list_dir(&self, sftp_id: &str, path: &str) -> Result<Vec<FileEntry>, String> {
@@ -286,30 +357,20 @@ fn find_sftp_session(
 fn remove_sftp_session(
     sessions: &mut HashMap<String, SshSession>,
     sftp_id: &str,
-) -> Result<(String, Arc<SftpSession>), String> {
-    for (ssh_id, session) in sessions.iter_mut() {
-        if let Some(sftp_session) = session.sftp_sessions.remove(sftp_id) {
-            return Ok((ssh_id.clone(), sftp_session));
-        }
-    }
-
-    Err(format!("SFTP session not found: {sftp_id}"))
-}
-
-impl SshSession {
-    pub async fn open_sftp(&mut self) -> Result<String, String> {
-        if !self.sftp_sessions.is_empty() {
-            return Err("SFTP session already open".to_string());
-        }
-
-        let mut handle = self.handle.lock().await;
-        let session = open_sftp_session(&mut handle)
-            .await
-            .map_err(|error| error.to_string())?;
-        let session_id = session.id().to_string();
-
-        self.sftp_sessions
-            .insert(session_id.clone(), Arc::new(session));
-        Ok(session_id)
-    }
+) -> Option<(Arc<SftpSession>, Option<SshSession>)> {
+    let (ssh_id, sftp_session, direct) = sessions.iter_mut().find_map(|(ssh_id, session)| {
+        session.sftp_sessions.remove(sftp_id).map(|sftp_session| {
+            (
+                ssh_id.clone(),
+                sftp_session,
+                session.direct_sftp_transport.is_some() && session.sftp_sessions.is_empty(),
+            )
+        })
+    })?;
+    let parent = if direct {
+        sessions.remove(&ssh_id)
+    } else {
+        None
+    };
+    Some((sftp_session, parent))
 }

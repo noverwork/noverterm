@@ -174,7 +174,7 @@ describe("sftpStore", () => {
 
   it("clears SSH session state when opening a direct SFTP connection", async () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-      if (cmd === "sftp_connect_direct") return "direct-sftp-1";
+      if (cmd === "sftp_connect_direct") return { status: "connected", session_id: "direct-sftp-1" };
       if (cmd === "sftp_home_dir") return "/home/direct";
       if (cmd === "sftp_list_dir") return [];
       return undefined;
@@ -348,7 +348,7 @@ describe("sftpStore", () => {
 
     it("uploads a local file when dropped to the remote panel", async () => {
       vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-        if (cmd === "sftp_connect_direct") return "sftp-1";
+        if (cmd === "sftp_connect_direct") return { status: "connected", session_id: "sftp-1" };
         if (cmd === "sftp_home_dir") return "/home/user";
         if (cmd === "sftp_list_dir") return [];
         if (cmd === "sftp_upload") return "transfer-1";
@@ -373,7 +373,7 @@ describe("sftpStore", () => {
 
     it("prompts before uploading over an existing remote file", async () => {
       vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-        if (cmd === "sftp_connect_direct") return "sftp-1";
+        if (cmd === "sftp_connect_direct") return { status: "connected", session_id: "sftp-1" };
         if (cmd === "sftp_home_dir") return "/home/user";
         if (cmd === "sftp_list_dir") return [];
         if (cmd === "sftp_upload") return "transfer-1";
@@ -412,7 +412,7 @@ describe("sftpStore", () => {
 
     it("overwrites the original target when confirmed", async () => {
       vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-        if (cmd === "sftp_connect_direct") return "sftp-1";
+        if (cmd === "sftp_connect_direct") return { status: "connected", session_id: "sftp-1" };
         if (cmd === "sftp_home_dir") return "/home/user";
         if (cmd === "sftp_list_dir") return [];
         if (cmd === "sftp_upload") return "transfer-1";
@@ -439,7 +439,7 @@ describe("sftpStore", () => {
 
     it("downloads a remote file when dropped to the local panel", async () => {
       vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-        if (cmd === "sftp_connect_direct") return "sftp-1";
+        if (cmd === "sftp_connect_direct") return { status: "connected", session_id: "sftp-1" };
         if (cmd === "sftp_home_dir") return "/home/user";
         if (cmd === "sftp_list_dir") return [];
         if (cmd === "sftp_download") return "transfer-2";
@@ -464,7 +464,7 @@ describe("sftpStore", () => {
 
     it("prompts before downloading over an existing local file", async () => {
       vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-        if (cmd === "sftp_connect_direct") return "sftp-1";
+        if (cmd === "sftp_connect_direct") return { status: "connected", session_id: "sftp-1" };
         if (cmd === "sftp_home_dir") return "/home/user";
         if (cmd === "sftp_list_dir") return [];
         if (cmd === "sftp_download") return "transfer-2";

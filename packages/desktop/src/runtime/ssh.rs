@@ -39,6 +39,7 @@ pub struct SshSession {
     keepalive_task: Option<JoinHandle<()>>,
     writer_task: Option<JoinHandle<()>>,
     output: Option<Arc<OutputSession>>,
+    direct_sftp_transport: Option<sftp::DirectSftpTransport>,
 }
 
 struct SshWriteRequest {
@@ -171,6 +172,7 @@ impl SshSessionManager {
                 keepalive_task: Some(keepalive_task),
                 writer_task: Some(writer_task),
                 output: Some(output),
+                direct_sftp_transport: None,
             },
         );
 

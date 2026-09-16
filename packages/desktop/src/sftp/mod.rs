@@ -10,7 +10,7 @@ use crate::runtime::local_fs;
 use crate::runtime::sftp::{
     FileEntry, TransferCancellation, TransferComplete, TransferDirection, TransferError,
 };
-use crate::runtime::ssh::SshSessionManager;
+use crate::runtime::ssh::{SshConnectResponse, SshSessionManager};
 use crate::trust::SshTrustStore;
 
 use self::state::TransferState;
@@ -46,7 +46,7 @@ pub async fn sftp_connect_direct(
     passphrase: Option<String>,
     ssh_manager: State<'_, SshSessionManager>,
     trust_store: State<'_, SshTrustStore>,
-) -> Result<String, String> {
+) -> Result<SshConnectResponse, String> {
     ssh_manager
         .connect_direct_sftp(
             app,
@@ -371,22 +371,6 @@ async fn spawn_transfer(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_sftp_commands_compile() {
-        let _ = sftp_open;
-        let _ = sftp_close;
-        let _ = sftp_connect_direct;
-        let _ = sftp_home_dir;
-        let _ = sftp_list_dir;
-        let _ = sftp_stat;
-        let _ = sftp_mkdir;
-        let _ = sftp_remove;
-        let _ = sftp_rename;
-        let _ = sftp_upload;
-        let _ = sftp_download;
-        let _ = sftp_cancel_transfer;
-    }
 
     #[test]
     fn test_normalize_local_path_expands_tilde() {

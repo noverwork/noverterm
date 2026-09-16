@@ -7,6 +7,7 @@
   import RenameDialog from "./file-browser/RenameDialog.svelte";
   import TransferConflictDialog from "./file-browser/TransferConflictDialog.svelte";
   import DeleteConfirmDialog from "./file-browser/DeleteConfirmDialog.svelte";
+  import ConnectionStatusOverlay from "./connection-status-overlay.svelte";
   import { sftpStore } from "$lib/stores/sftp.svelte.js";
   import type { ConnectionConfig } from "$lib/app-data-types.js";
   import type { FileEntry } from "$lib/types/sftp.js";
@@ -15,12 +16,33 @@
     connections: ConnectionConfig[];
     onConnect: (connection: ConnectionConfig) => Promise<void>;
     onDisconnect: () => Promise<void>;
+    onRetry?: () => Promise<void>;
+    onTrust?: () => Promise<void>;
+    onReplaceTrust?: () => Promise<void>;
+    trustError?: string | null;
+    trustConfirming?: boolean;
+    canTrust?: boolean;
   }
 
-  let { connections, onConnect, onDisconnect }: Props = $props();
+  let {
+    connections,
+    onConnect,
+    onDisconnect,
+    onRetry,
+    onTrust,
+    onReplaceTrust,
+    trustError = null,
+    trustConfirming = false,
+    canTrust = false,
+  }: Props = $props();
 
-  let connecting = $state(false);
-  let connectError = $state<string | null>(null);
+  const isConnecting = $derived(sftpStore.isConnecting);
+  const connectionStatus = $derived(
+    isConnecting ? "connecting"
+      : sftpStore.trustPrompt ? "trust_required"
+      : sftpStore.trustMismatch || sftpStore.connectionError ? "error"
+      : null,
+  );
 
   let showCreateFolderDialog = $state<"local" | "remote" | null>(null);
   let showRenameDialog = $state<{ panel: "local" | "remote"; entry: FileEntry } | null>(null);
@@ -37,16 +59,8 @@
   });
 
   async function handleConnect(connection: ConnectionConfig) {
-    if (connecting) return;
-    connecting = true;
-    connectError = null;
-    try {
-      await onConnect(connection);
-    } catch (e) {
-      connectError = e instanceof Error ? e.message : String(e);
-    } finally {
-      connecting = false;
-    }
+    if (connectionStatus || sftpStore.isClosing) return;
+    await onConnect(connection);
   }
 
   async function handleDisconnect() {
@@ -229,7 +243,7 @@
       return;
     }
     if (panel === "remote" && !sftpStore.isConnected) {
-      connectError = "Connect to a server before dragging files to Remote";
+      sftpStore.showError("Connect to a server before dragging files to Remote", "warning");
       return;
     }
     void sftpStore.dropTransfer(payload.panel, panel, payload.entry);
@@ -259,6 +273,13 @@
 
   <div class="flex min-h-0 flex-1 overflow-hidden">
     <div class="flex w-1/2 flex-col border-r border-white/10">
+      <div class="flex min-w-0 items-center gap-3 border-b border-white/8 bg-cyan-300/[0.035] px-4 py-3">
+        <Server class="size-4 shrink-0 text-cyan-200" />
+        <div class="min-w-0">
+          <p class="truncate text-sm font-medium text-white">Local</p>
+          <p class="text-xs text-slate-400">This machine</p>
+        </div>
+      </div>
       <div class="flex items-center justify-between border-b border-white/8 px-4 py-3">
         <div class="flex min-w-0 flex-1 items-center gap-2">
           <span class="shrink-0 text-sm font-medium text-white">Local</span>
@@ -348,7 +369,8 @@
       </div>
     </div>
 
-    <div class="flex w-1/2 flex-col" data-side="remote">
+    <div class="relative flex w-1/2 flex-col" data-side="remote" aria-busy={isConnecting}>
+      <div class="flex min-h-0 flex-1 flex-col" inert={connectionStatus !== null}>
       {#if !sftpStore.isConnected}
         <div class="flex min-h-0 flex-1 flex-col overflow-y-auto border-b border-white/8 p-4">
           <h2 class="mb-3 text-sm font-medium text-white">Select a connection</h2>
@@ -358,7 +380,7 @@
                 type="button"
                 class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-cyan-300/30 hover:bg-cyan-300/8 disabled:opacity-50"
                 onclick={() => handleConnect(connection)}
-                disabled={connecting}
+                disabled={isConnecting || sftpStore.isClosing}
               >
                 <div class="grid size-8 shrink-0 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-300/12 text-cyan-200">
                   <Server class="size-4" />
@@ -373,19 +395,25 @@
               <p class="py-4 text-center text-sm text-slate-400">No saved connections. Add one in Connections.</p>
             {/if}
           </div>
-          {#if connectError}
-            <div class="mt-3 rounded-xl border border-red-300/20 bg-red-400/8 p-3">
-              <p class="text-sm text-red-200">{connectError}</p>
-            </div>
-          {/if}
-          {#if connecting}
-            <div class="mt-3 flex items-center gap-2 text-sm text-slate-400">
+          {#if sftpStore.isClosing}
+            <div class="mt-3 flex items-center gap-2 text-sm text-slate-400" role="status">
               <Loader2 class="size-4 animate-spin" />
-              <span>Connecting...</span>
+              <span>Disconnecting...</span>
             </div>
           {/if}
         </div>
       {:else}
+        {#if sftpStore.connection}
+          <div class="flex min-w-0 items-center gap-3 border-b border-white/8 bg-cyan-300/[0.035] px-4 py-3" data-testid="sftp-connection-identity">
+            <Server class="size-4 shrink-0 text-cyan-200" />
+            <div class="min-w-0">
+              <p class="truncate text-sm font-medium text-white" title={sftpStore.connection.name}>{sftpStore.connection.name}</p>
+              <p class="break-all text-xs text-slate-400">
+                {sftpStore.connection.username}@{sftpStore.connection.host.includes(":") ? `[${sftpStore.connection.host}]` : sftpStore.connection.host}:{sftpStore.connection.port}
+              </p>
+            </div>
+          </div>
+        {/if}
         <div class="flex items-center justify-between border-b border-white/8 px-4 py-3">
           <div class="flex min-w-0 flex-1 items-center gap-2">
             <span class="shrink-0 text-sm font-medium text-white">Remote</span>
@@ -481,6 +509,24 @@
             onTransfer={(entry) => void sftpStore.dropTransfer("remote", "local", entry)}
           />
         </div>
+      {/if}
+      </div>
+      {#if connectionStatus}
+        <ConnectionStatusOverlay
+          status={connectionStatus}
+          name={sftpStore.connection?.name}
+          protocol="sftp"
+          error={sftpStore.connectionError}
+          trustPrompt={sftpStore.trustPrompt}
+          trustMismatch={sftpStore.trustMismatch}
+          {trustError}
+          {trustConfirming}
+          {canTrust}
+          {onRetry}
+          {onTrust}
+          {onReplaceTrust}
+          onCancel={handleDisconnect}
+        />
       {/if}
     </div>
   </div>

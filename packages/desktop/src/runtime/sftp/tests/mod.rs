@@ -89,10 +89,7 @@ async fn test_close_nonexistent_sftp() {
 
     let result = manager.close("missing").await;
 
-    assert_eq!(
-        result,
-        Err(SftpError::SessionNotFound("missing".to_string()))
-    );
+    assert_eq!(result, Ok(()));
 }
 
 #[tokio::test]
@@ -111,7 +108,8 @@ async fn test_sftp_error_handling() {
         result,
         Err(SftpError::ConnectionLost("transport closed".to_string()))
     );
-    assert!(manager.contains("sftp-1"));
+    assert!(!manager.contains("sftp-1"));
+    assert_eq!(manager.close("sftp-1").await, Ok(()));
 }
 
 #[test]

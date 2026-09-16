@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/svelte";
 import { tick } from "svelte";
 
@@ -10,6 +10,7 @@ const eventListeners = new Map<string, EventCallback>();
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(async (cmd: string) => {
     if (cmd === "sftp_open") return "sftp-1";
+    if (cmd === "sftp_connect_direct") return { status: "connected", session_id: "direct-sftp-1" };
     if (cmd === "sftp_list_dir" || cmd === "local_list_dir") return [];
     if (cmd === "sftp_home_dir") return "/";
     return undefined;
@@ -24,6 +25,11 @@ vi.mock("@tauri-apps/api/event", () => ({
 
 import SftpView from "$lib/components/sftp-view.svelte";
 import { sftpStore } from "$lib/stores/sftp.svelte.js";
+
+afterEach(() => {
+  sftpStore.cleanup();
+  eventListeners.clear();
+});
 
 describe("sftp-view progress bar", () => {
   it("shows the status bar when a progress event arrives", async () => {
@@ -51,5 +57,45 @@ describe("sftp-view progress bar", () => {
     const bar = container.querySelector('[data-testid="transfer-status-bar"]');
     expect(bar, "status bar should render after progress event").not.toBeNull();
     expect(bar!.textContent).toContain("1 active");
+  });
+
+  it.each(["ssh", "direct"])("keeps %s machine identity across view remounts", async (source) => {
+    const connection = {
+      name: "Production",
+      host: "prod.example.com",
+      port: 2222,
+      username: "deploy",
+      password: "not-display-metadata",
+    };
+    if (source === "ssh") {
+      await sftpStore.openSftp("ssh-production", connection);
+    } else {
+      await sftpStore.connectDirect(connection);
+    }
+    connection.name = "Different machine";
+    connection.host = "other.example.com";
+    sftpStore.remotePath = "/var/www";
+
+    const props = {
+      connections: [],
+      onConnect: async () => {},
+      onDisconnect: async () => {},
+    };
+    const firstView = render(SftpView, props);
+    const firstHeader = firstView.getByTestId("sftp-connection-identity");
+    expect(firstHeader.textContent).toContain("Production");
+    expect(firstHeader.textContent).toContain("deploy@prod.example.com:2222");
+    expect(firstHeader.textContent).not.toContain("Different machine");
+    expect(sftpStore.connection).not.toHaveProperty("password");
+    firstView.unmount();
+
+    const remountedView = render(SftpView, props);
+    expect(remountedView.getByTestId("sftp-connection-identity").textContent)
+      .toContain("deploy@prod.example.com:2222");
+    expect(remountedView.getByLabelText("Remote path")).toHaveProperty("value", "/var/www");
+    await sftpStore.disconnect();
+    await tick();
+    expect(remountedView.queryByTestId("sftp-connection-identity")).toBeNull();
+    expect(remountedView.getByText("Select a connection")).toBeTruthy();
   });
 });

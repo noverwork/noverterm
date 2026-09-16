@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
-import { commands, type Result } from "../../bindings";
+import { commands, type HostTrustMismatch, type HostTrustPrompt, type Result } from "../../bindings";
 import type {
   FileEntry,
   TransferComplete,
@@ -112,6 +112,13 @@ export interface ErrorToast {
   type: "error" | "warning" | "info";
 }
 
+export interface SftpConnection {
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+}
+
 export class SftpStore {
   localPath = $state<string>("~");
   remotePath = $state<string>("");
@@ -130,6 +137,14 @@ export class SftpStore {
   sftpSessionId = $state<string | null>(null);
   sshSessionId = $state<string | null>(null);
   isDirectConnection = $state(false);
+  connection = $state<SftpConnection | null>(null);
+  connectionId = $state<string | null>(null);
+  connectionError = $state<string | null>(null);
+  trustPrompt = $state<HostTrustPrompt | null>(null);
+  trustMismatch = $state<HostTrustMismatch | null>(null);
+  isConnecting = $state(false);
+  isClosing = $state(false);
+  attemptedActiveSshSessionId = $state<string | null>(null);
 
   isConnected = $derived(this.sftpSessionId != null && this.sftpSessionId.length > 0);
 
@@ -139,6 +154,8 @@ export class SftpStore {
   private nextErrorId = 0;
   private progressLogState = new SvelteMap<string, TransferProgressLogState>();
   private pendingTransferConflict: PendingTransferConflict | null = null;
+  private connectionGeneration = 0;
+  private remoteRequestId = 0;
 
   showError(message: string, type: ErrorToast["type"] = "error"): void {
     this.lastError = message;
@@ -208,42 +225,80 @@ export class SftpStore {
     }
   }
 
-  async openSftp(sshSessionId: string): Promise<void> {
+  async openSftp(sshSessionId: string, connection?: SftpConnection): Promise<void> {
+    const generation = ++this.connectionGeneration;
+    this.isConnecting = true;
+    this.isDirectConnection = false;
+    this.connectionId = null;
+    this.connectionError = null;
+    this.remoteError = null;
+    this.trustPrompt = null;
+    this.trustMismatch = null;
+    this.connection = connection ? {
+      name: connection.name,
+      host: connection.host,
+      port: connection.port,
+      username: connection.username,
+    } : null;
     try {
       this.cancelTransferConflict();
       this.sshSessionId = sshSessionId;
-      this.sftpSessionId = await invoke<string>("sftp_open", {
-        sessionId: sshSessionId,
-      });
-      await this.setupEventListeners();
+      const sessionId = unwrapCommandResult(await commands.sftpOpen(sshSessionId));
+      if (generation !== this.connectionGeneration) {
+        unwrapCommandResult(await commands.sftpClose(sessionId));
+        return;
+      }
+      this.sftpSessionId = sessionId;
+      await this.setupEventListeners(generation);
     } catch (error: unknown) {
-      const message = errorMessage(error);
-      this.sshSessionId = null;
-      this.sftpSessionId = null;
-      this.remoteError = message;
-      this.showError(message);
+      await this.failConnection(error, generation);
+    } finally {
+      if (generation === this.connectionGeneration) {
+        this.isConnecting = false;
+      }
     }
   }
 
   async closeSftp(): Promise<void> {
+    if (this.isClosing) return;
+    const generation = ++this.connectionGeneration;
+    const sessionId = this.sftpSessionId;
+    this.isClosing = sessionId !== null;
+    this.isConnecting = false;
+    this.cancelTransferConflict();
+    this.sftpSessionId = null;
+    this.sshSessionId = null;
+    this.isDirectConnection = false;
+    this.connection = null;
+    this.connectionId = null;
+    this.connectionError = null;
+    this.trustPrompt = null;
+    this.trustMismatch = null;
+    this.remotePath = "";
+    this.remoteFiles = [];
+    this.selectedRemote = null;
+    this.remoteLoading = false;
+    this.remoteError = null;
+    this.activeTransfers.clear();
     try {
-      this.cancelTransferConflict();
-      if (this.sftpSessionId) {
-        await invoke("sftp_close", { sessionId: this.sftpSessionId });
-        this.sftpSessionId = null;
+      this.teardownEventListeners();
+      if (sessionId) {
+        unwrapCommandResult(await commands.sftpClose(sessionId));
       }
-
-      this.sshSessionId = null;
-      this.isDirectConnection = false;
-      await this.teardownEventListeners();
     } catch (error: unknown) {
-      const message = errorMessage(error);
-      this.remoteError = message;
-      this.showError(message);
+      if (generation === this.connectionGeneration) {
+        this.showError(`Disconnected. Remote cleanup failed: ${errorMessage(error)}`, "warning");
+      }
+    } finally {
+      if (generation === this.connectionGeneration) {
+        this.isClosing = false;
+      }
     }
   }
 
   async connectDirect(options: {
+    connectionId?: string;
+    name?: string;
     host: string;
     port: number;
     username: string;
@@ -251,65 +306,125 @@ export class SftpStore {
     privateKey?: string;
     passphrase?: string;
   }): Promise<void> {
+    const generation = ++this.connectionGeneration;
+    this.isConnecting = true;
+    this.isDirectConnection = true;
+    this.connectionError = null;
+    this.remoteError = null;
+    this.trustPrompt = null;
+    this.trustMismatch = null;
+    this.connectionId = options.connectionId ?? null;
+    this.connection = {
+      name: options.name ?? options.host,
+      host: options.host,
+      port: options.port,
+      username: options.username,
+    };
     try {
       this.cancelTransferConflict();
       this.sshSessionId = null;
-      this.sftpSessionId = await invoke<string>("sftp_connect_direct", {
-        host: options.host,
-        port: options.port,
-        username: options.username,
-        password: options.password,
-        privateKey: options.privateKey,
-        passphrase: options.passphrase,
-      });
-      this.isDirectConnection = true;
-      await this.setupEventListeners();
+      const response = unwrapCommandResult(await commands.sftpConnectDirect(
+        options.host,
+        options.port,
+        options.username,
+        options.password ?? null,
+        options.privateKey ?? null,
+        options.passphrase ?? null,
+      ));
+      if (generation !== this.connectionGeneration) {
+        if (response.status === "connected") {
+          unwrapCommandResult(await commands.sftpClose(response.session_id));
+        }
+        return;
+      }
+      if (response.status === "trust_required") {
+        this.trustPrompt = response.prompt;
+        return;
+      }
+      if (response.status === "trust_mismatch") {
+        this.trustMismatch = response.mismatch;
+        this.connectionError = `Host trust mismatch for ${response.mismatch.host}: expected ${response.mismatch.expected_fingerprint}, got ${response.mismatch.presented_fingerprint}`;
+        return;
+      }
+      const sessionId = response.session_id;
+      this.sftpSessionId = sessionId;
+      await this.setupEventListeners(generation);
+      if (generation !== this.connectionGeneration) return;
+      let homeDir = ".";
       try {
-        const homeDir = await invoke<string>("sftp_home_dir", {
-          sessionId: this.sftpSessionId,
-        });
-        await this.navigateRemote(homeDir);
+        homeDir = unwrapCommandResult(await commands.sftpHomeDir(sessionId));
       } catch {
-        await this.navigateRemote(".");
+        // Some servers do not expose a home directory; use their working directory.
+      }
+      if (generation === this.connectionGeneration) {
+        await this.navigateRemote(homeDir);
       }
     } catch (error: unknown) {
-      const message = errorMessage(error);
-      this.sftpSessionId = null;
-      this.isDirectConnection = false;
-      this.remoteError = message;
-      this.showError(message);
-      throw error;
+      await this.failConnection(error, generation);
+    } finally {
+      if (generation === this.connectionGeneration) {
+        this.isConnecting = false;
+      }
+    }
+  }
+
+  private async failConnection(error: unknown, generation: number): Promise<void> {
+    if (generation !== this.connectionGeneration) return;
+    const sessionId = this.sftpSessionId;
+    this.sftpSessionId = null;
+    this.remotePath = "";
+    this.remoteFiles = [];
+    this.selectedRemote = null;
+    this.remoteLoading = false;
+    this.activeTransfers.clear();
+    this.teardownEventListeners();
+    this.connectionError = errorMessage(error);
+    this.remoteError = this.connectionError;
+    if (sessionId) {
+      try {
+        unwrapCommandResult(await commands.sftpClose(sessionId));
+      } catch (cleanupError: unknown) {
+        if (generation === this.connectionGeneration) {
+          this.showError(`Remote cleanup failed: ${errorMessage(cleanupError)}`, "warning");
+        }
+      }
     }
   }
 
   async disconnect(): Promise<void> {
     await this.closeSftp();
-    this.remotePath = "";
-    this.remoteFiles = [];
   }
 
   async navigateRemote(path: string): Promise<void> {
-    if (!this.sftpSessionId) {
+    const sessionId = this.sftpSessionId;
+    if (!sessionId) {
       this.remoteError = "SFTP session is not connected.";
       this.showError(this.remoteError, "warning");
       return;
     }
 
+    const generation = this.connectionGeneration;
+    const requestId = ++this.remoteRequestId;
     this.remoteLoading = true;
     this.remoteError = null;
+    this.remotePath = path;
+    this.selectedRemote = null;
 
     try {
-      this.remotePath = path;
-      this.remoteFiles = await invoke<FileEntry[]>("sftp_list_dir", {
-        sessionId: this.sftpSessionId,
-        path,
-      });
+      const files = unwrapCommandResult(await commands.sftpListDir(sessionId, path));
+      if (generation === this.connectionGeneration && requestId === this.remoteRequestId) {
+        this.remoteFiles = files;
+      }
     } catch (error: unknown) {
-      const message = errorMessage(error);
-      this.remoteError = message;
-      this.showError(message);
+      if (generation === this.connectionGeneration && requestId === this.remoteRequestId) {
+        const message = errorMessage(error);
+        this.remoteError = message;
+        this.showError(message);
+      }
     } finally {
-      this.remoteLoading = false;
+      if (generation === this.connectionGeneration && requestId === this.remoteRequestId) {
+        this.remoteLoading = false;
+      }
     }
   }
 
@@ -569,7 +684,8 @@ export class SftpStore {
   }
 
   cleanup(): void {
-    void this.teardownEventListeners();
+    this.connectionGeneration += 1;
+    this.teardownEventListeners();
     this.localPath = "~";
     this.remotePath = "";
     this.localFiles = [];
@@ -589,25 +705,40 @@ export class SftpStore {
     this.sftpSessionId = null;
     this.sshSessionId = null;
     this.isDirectConnection = false;
+    this.connection = null;
+    this.connectionId = null;
+    this.connectionError = null;
+    this.trustPrompt = null;
+    this.trustMismatch = null;
+    this.isConnecting = false;
+    this.isClosing = false;
+    this.attemptedActiveSshSessionId = null;
   }
 
-  private async setupEventListeners(): Promise<void> {
+  private async setupEventListeners(generation: number): Promise<void> {
     if (!this.unlistenProgress) {
       console.info("[SFTP][Store] registering progress listener");
-      this.unlistenProgress = await listen<TransferProgress>(
+      const unlisten = await listen<TransferProgress>(
         "sftp://progress",
         (event) => {
+          if (generation !== this.connectionGeneration) return;
           this.activeTransfers.set(event.payload.transfer_id, event.payload);
           this.logTransferProgress(event.payload);
         },
       );
+      if (generation !== this.connectionGeneration) {
+        unlisten();
+        return;
+      }
+      this.unlistenProgress = unlisten;
     }
 
     if (!this.unlistenComplete) {
       console.info("[SFTP][Store] registering complete listener");
-      this.unlistenComplete = await listen<TransferComplete>(
+      const unlisten = await listen<TransferComplete>(
         "sftp://complete",
         (event) => {
+          if (generation !== this.connectionGeneration) return;
           console.info("[SFTP][Store] complete event", event.payload);
           this.progressLogState.delete(event.payload.transfer_id);
           this.activeTransfers.delete(event.payload.transfer_id);
@@ -618,13 +749,19 @@ export class SftpStore {
           }
         },
       );
+      if (generation !== this.connectionGeneration) {
+        unlisten();
+        return;
+      }
+      this.unlistenComplete = unlisten;
     }
 
     if (!this.unlistenError) {
       console.info("[SFTP][Store] registering error listener");
-      this.unlistenError = await listen<TransferError>(
+      const unlisten = await listen<TransferError>(
         "sftp://error",
         (event) => {
+          if (generation !== this.connectionGeneration) return;
           console.error("[SFTP][Store] error event", event.payload);
           this.progressLogState.delete(event.payload.transfer_id);
           this.activeTransfers.delete(event.payload.transfer_id);
@@ -632,18 +769,28 @@ export class SftpStore {
           this.showError(event.payload.error);
         },
       );
+      if (generation !== this.connectionGeneration) {
+        unlisten();
+        return;
+      }
+      this.unlistenError = unlisten;
     }
   }
 
-  private async teardownEventListeners(): Promise<void> {
+  private teardownEventListeners(): void {
     console.info("[SFTP][Store] tearing down transfer listeners");
-    this.unlistenProgress?.();
-    this.unlistenComplete?.();
-    this.unlistenError?.();
+    const listeners = [this.unlistenProgress, this.unlistenComplete, this.unlistenError];
     this.unlistenProgress = null;
     this.unlistenComplete = null;
     this.unlistenError = null;
     this.progressLogState.clear();
+    for (const unlisten of listeners) {
+      try {
+        unlisten?.();
+      } catch (error: unknown) {
+        this.showError(`Could not remove SFTP listener: ${errorMessage(error)}`, "warning");
+      }
+    }
   }
 
   private logTransferProgress(progress: TransferProgress): void {
