@@ -119,7 +119,9 @@
 
   async function activateSession(id: string) {
     app.activateSession(id);
-    await goto(terminalPath);
+    // SvelteKit resets focus to <body> after navigation, which blurs the
+    // terminal the tab switch just focused.
+    await goto(terminalPath, { keepFocus: true });
   }
 
   async function openLocalTerminal() {
