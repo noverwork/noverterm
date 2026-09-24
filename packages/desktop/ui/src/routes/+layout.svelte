@@ -3,11 +3,20 @@
   import type { Snippet } from "svelte";
   import { flip } from "svelte/animate";
   import { cubicOut } from "svelte/easing";
+  import { slide } from "svelte/transition";
   import { onDestroy, onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
   import { QueryClient, QueryClientProvider } from "@tanstack/svelte-query";
-  import { AlertCircle, Loader2 } from "@lucide/svelte";
+  import {
+    AlertCircle,
+    FileText,
+    FolderOpen,
+    KeyRound,
+    Loader2,
+    Network,
+    Server,
+  } from "@lucide/svelte";
 
   import ConnectionStatusOverlay from "$lib/components/connection-status-overlay.svelte";
   import SettingsModal from "$lib/components/settings-modal.svelte";
@@ -99,6 +108,19 @@
 
     return "terminal";
   });
+  const sidebarPages = {
+    hosts: { label: "Connections", icon: Server },
+    keys: { label: "Keys", icon: KeyRound },
+    forwards: { label: "Forwards", icon: Network },
+    "known-hosts": { label: "Known Hosts", icon: Server },
+    snippets: { label: "Snippets", icon: FileText },
+    sftp: { label: "SFTP", icon: FolderOpen },
+  } as const;
+  const currentPage = $derived(
+    activeSidebarSection === "terminal"
+      ? null
+      : sidebarPages[activeSidebarSection],
+  );
 
   onMount(async () => {
     window.addEventListener("contextmenu", handleGlobalContextMenu);
@@ -488,7 +510,26 @@
       />
 
       <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-[#080c13]/72">
-        <div class="relative h-11 shrink-0 border-b border-white/10">
+        <div class="flex h-11 shrink-0 border-b border-white/10">
+          {#if currentPage}
+            <div
+              class="flex shrink-0 items-center overflow-hidden border-r border-white/10 px-3"
+              transition:slide={{ axis: "x", duration: 180, easing: cubicOut }}
+            >
+              <span
+                class="flex items-center gap-2 whitespace-nowrap rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-sm font-medium text-cyan-50"
+              >
+                <currentPage.icon class="size-3.5 text-cyan-200" />
+                {currentPage.label}
+              </span>
+            </div>
+          {/if}
+
+          <div
+            class="relative h-full min-w-0 flex-1 transition-opacity duration-150 {currentPage
+              ? 'opacity-45 hover:opacity-100'
+              : ''}"
+          >
           {#if canScrollSessionTabsLeft}
             <div
               class="pointer-events-none absolute inset-y-0 left-0 z-20 flex w-12 items-center bg-gradient-to-r from-[#080c13] via-[#080c13]/90 to-transparent pl-1 text-cyan-200/45"
@@ -519,6 +560,7 @@
           >
             {#each app.activeSessions as session, sessionIndex (session.id)}
               {@const isActive =
+                isTerminalRoute &&
                 session.id === app.sessionStore.activeSessionId}
               {@const isDragging =
                 dragState?.active && dragState.sessionId === session.id}
@@ -655,6 +697,7 @@
               </svg>
             </div>
           {/if}
+          </div>
         </div>
 
         <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
