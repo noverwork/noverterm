@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use russh_sftp::client::{Config as RusshSftpConfig, SftpSession as RusshSftpSession};
 use russh_sftp::protocol::OpenFlags;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 
 use super::io::{
     cleanup_failed_upload, flush_with_stall_warning, shutdown_with_stall_warning,
@@ -125,7 +125,7 @@ pub async fn upload_sftp(
     cancel: TransferCancellation,
     progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
 ) -> Result<u64, SftpError> {
-    let mut local_file = tokio::fs::File::open(local_path)
+    let local_file = tokio::fs::File::open(local_path)
         .await
         .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
     let total_bytes = local_file
@@ -133,6 +133,62 @@ pub async fn upload_sftp(
         .await
         .map_err(|error| SftpError::OperationFailed(error.to_string()))?
         .len();
+    write_stream_to_sftp(
+        session,
+        local_file,
+        total_bytes,
+        remote_path,
+        TransferDirection::Upload,
+        transfer_id,
+        cancel,
+        progress_tx,
+    )
+    .await
+}
+
+/// Stream a file from one SFTP server to another through this machine.
+pub async fn copy_sftp(
+    source: &RusshSftpSession,
+    source_path: &str,
+    target: &RusshSftpSession,
+    target_path: &str,
+    transfer_id: String,
+    cancel: TransferCancellation,
+    progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
+) -> Result<u64, SftpError> {
+    let total_bytes = source
+        .metadata(source_path)
+        .await
+        .map_err(|error| classify_sftp_error("read", source_path, error))?
+        .len();
+    let source_file = source
+        .open_with_flags(source_path, OpenFlags::READ)
+        .await
+        .map_err(|error| classify_sftp_error("read", source_path, error))?;
+    write_stream_to_sftp(
+        target,
+        source_file,
+        total_bytes,
+        target_path,
+        TransferDirection::Copy,
+        transfer_id,
+        cancel,
+        progress_tx,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn write_stream_to_sftp<R: AsyncRead + Unpin>(
+    session: &RusshSftpSession,
+    mut reader: R,
+    total_bytes: u64,
+    remote_path: &str,
+    direction: TransferDirection,
+    transfer_id: String,
+    cancel: TransferCancellation,
+    progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
+) -> Result<u64, SftpError> {
     let mut remote_file = session
         .open_with_flags(
             remote_path,
@@ -141,13 +197,9 @@ pub async fn upload_sftp(
         .await
         .map_err(|error| classify_sftp_error("write", remote_path, error))?;
 
-    let mut progress = ProgressEmitter::new(
-        transfer_id.clone(),
-        total_bytes,
-        TransferDirection::Upload,
-        progress_tx,
-    );
-    let mut transfer_log = TransferLogger::new(transfer_id, total_bytes, TransferDirection::Upload);
+    let mut progress =
+        ProgressEmitter::new(transfer_id.clone(), total_bytes, direction, progress_tx);
+    let mut transfer_log = TransferLogger::new(transfer_id, total_bytes, direction);
     transfer_log.log_started(UPLOAD_CHUNK_SIZE);
     let mut buffer = vec![0; UPLOAD_CHUNK_SIZE];
     // Bytes handed to russh-sftp versus bytes the server has acknowledged.
@@ -164,7 +216,7 @@ pub async fn upload_sftp(
                 ));
             }
 
-            let read_count = local_file
+            let read_count = reader
                 .read(&mut buffer)
                 .await
                 .map_err(|error| SftpError::OperationFailed(error.to_string()))?;

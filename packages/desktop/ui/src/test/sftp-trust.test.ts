@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/svelte";
+import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/svelte";
 import { tick } from "svelte";
 import { SvelteDate, SvelteMap } from "svelte/reactivity";
 
@@ -53,7 +53,7 @@ const terminal: Session = {
   host: connection.host, port: connection.port, username: connection.username,
   createdAt: new SvelteDate(0),
 };
-let app: { connections: ConnectionConfig[]; activeSession: Session | null };
+let app: { connections: ConnectionConfig[]; activeSessions: Session[]; activeSession: Session | null };
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -69,6 +69,7 @@ beforeEach(() => {
   const activeSessions = new SvelteMap<string, Session>();
   app = {
     connections: [connection],
+    activeSessions: [],
     get activeSession() { return activeSessions.get("active") ?? null; },
     set activeSession(session: Session | null) {
       if (session) activeSessions.set("active", session);
@@ -103,8 +104,8 @@ describe("SFTP host trust", () => {
     const firstView = await selectConnection();
     await firstView.findByText("Verify SSH host identity");
     expect(mocks.confirm).not.toHaveBeenCalled();
-    expect(sftpStore.isConnected).toBe(false);
-    expect(sftpStore.connection).not.toHaveProperty("password");
+    expect(sftpStore.right.isConnected).toBe(false);
+    expect(sftpStore.right.connection).not.toHaveProperty("password");
     expect(firstView.container.textContent).not.toContain("never-display-this-secret");
     firstView.unmount();
 
@@ -115,7 +116,7 @@ describe("SFTP host trust", () => {
     };
     const view = render(SftpPage);
     await fireEvent.click(view.getByRole("button", { name: "Trust host and retry" }));
-    await waitFor(() => expect(sftpStore.sftpSessionId).toBe("sftp-production"));
+    await waitFor(() => expect(sftpStore.right.sftpSessionId).toBe("sftp-production"));
     expect(invoke).toHaveBeenCalledWith("ssh_confirm_host_trust", { confirmation: prompt });
     expect(mocks.confirm).toHaveBeenCalledTimes(1);
     expect(mocks.connect).toHaveBeenCalledTimes(2);
@@ -140,11 +141,11 @@ describe("SFTP host trust", () => {
     await fireEvent.click(view.getByRole("button", { name: "Retry session" }));
     await waitFor(() => expect(mocks.connect).toHaveBeenCalledTimes(2));
     expect(mocks.confirm).not.toHaveBeenCalled();
-    expect(sftpStore.isConnected).toBe(false);
+    expect(sftpStore.right.isConnected).toBe(false);
 
     mocks.connect.mockResolvedValueOnce(connected);
     await fireEvent.click(view.getByRole("button", { name: "Delete & trust new key" }));
-    await waitFor(() => expect(sftpStore.sftpSessionId).toBe("sftp-production"));
+    await waitFor(() => expect(sftpStore.right.sftpSessionId).toBe("sftp-production"));
     expect(invoke).toHaveBeenCalledWith("ssh_confirm_host_trust", { confirmation: prompt });
   });
 
@@ -156,10 +157,10 @@ describe("SFTP host trust", () => {
     await view.findByText("Known Hosts database is read-only");
     expect(mocks.connect).toHaveBeenCalledTimes(1);
     expect(mocks.confirm).toHaveBeenCalledTimes(1);
-    expect(sftpStore.isConnected).toBe(false);
+    expect(sftpStore.right.isConnected).toBe(false);
     expect(view.getByRole("button", { name: "Trust host and retry" })).toHaveProperty("disabled", false);
     await fireEvent.click(view.getByRole("button", { name: "Cancel" }));
-    expect(sftpStore.trustPrompt).toBeNull();
+    expect(sftpStore.right.trustPrompt).toBeNull();
     expect(view.queryByText("Known Hosts database is read-only")).toBeNull();
   });
 
@@ -167,13 +168,13 @@ describe("SFTP host trust", () => {
     mocks.connect.mockRejectedValueOnce("Authentication failed").mockResolvedValueOnce(connected);
     const firstView = await selectConnection();
     await firstView.findByText("Authentication failed");
-    expect(sftpStore.connection?.name).toBe("Production");
-    expect(sftpStore.connectionId).toBe(connection.id);
+    expect(sftpStore.right.connection?.name).toBe("Production");
+    expect(sftpStore.right.connectionId).toBe(connection.id);
     firstView.unmount();
     const view = render(SftpPage);
     expect(view.getByRole("button", { name: "Cancel" })).toBeTruthy();
     await fireEvent.click(view.getByRole("button", { name: "Retry session" }));
-    await waitFor(() => expect(sftpStore.sftpSessionId).toBe("sftp-production"));
+    await waitFor(() => expect(sftpStore.right.sftpSessionId).toBe("sftp-production"));
     expect(mocks.confirm).not.toHaveBeenCalled();
   });
 
@@ -189,10 +190,10 @@ describe("SFTP host trust", () => {
     await saving.promise;
     await tick();
     expect(mocks.connect).toHaveBeenCalledTimes(1);
-    expect(sftpStore.connection).toBeNull();
-    expect(sftpStore.connectionId).toBeNull();
-    expect(sftpStore.trustPrompt).toBeNull();
-    expect(sftpStore.isConnected).toBe(false);
+    expect(sftpStore.right.connection).toBeNull();
+    expect(sftpStore.right.connectionId).toBeNull();
+    expect(sftpStore.right.trustPrompt).toBeNull();
+    expect(sftpStore.right.isConnected).toBe(false);
     expect(view.getByRole("button", { name: /Production/ })).toBeTruthy();
   });
 
@@ -211,11 +212,11 @@ describe("SFTP host trust", () => {
     await retrying.promise;
     await tick();
     await tick();
-    expect(sftpStore.connection).toBeNull();
-    expect(sftpStore.trustPrompt).toBeNull();
-    expect(sftpStore.trustMismatch).toBeNull();
-    expect(sftpStore.connectionError).toBeNull();
-    expect(sftpStore.isConnected).toBe(false);
+    expect(sftpStore.right.connection).toBeNull();
+    expect(sftpStore.right.trustPrompt).toBeNull();
+    expect(sftpStore.right.trustMismatch).toBeNull();
+    expect(sftpStore.right.connectionError).toBeNull();
+    expect(sftpStore.right.isConnected).toBe(false);
     expect(view.queryByText("Verify SSH host identity")).toBeNull();
     if (response.status === "connected") {
       expect(invoke).toHaveBeenCalledWith("sftp_close", { sessionId: response.session_id });
@@ -232,14 +233,14 @@ describe("SFTP host trust", () => {
     app.activeSession = terminal;
     const view = render(SftpPage);
     await view.findByText("SFTP subsystem unavailable");
-    expect(sftpStore.connection?.name).toBe(terminal.name);
-    expect(sftpStore.sshSessionId).toBe(terminal.id);
+    expect(sftpStore.right.connection?.name).toBe(terminal.name);
+    expect(sftpStore.right.sshSessionId).toBe(terminal.id);
     expect(view.getByRole("button", { name: "Cancel" })).toBeTruthy();
     app.activeSession = { ...terminal, id: "different-terminal" };
     await tick();
     expect(mocks.open).toHaveBeenCalledTimes(1);
     await fireEvent.click(view.getByRole("button", { name: "Retry session" }));
-    await waitFor(() => expect(sftpStore.sftpSessionId).toBe("attached-retry"));
+    await waitFor(() => expect(sftpStore.right.sftpSessionId).toBe("attached-retry"));
     await tick();
     expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "sftp_open").map(([, args]) => args))
       .toEqual([{ sessionId: terminal.id }, { sessionId: terminal.id }]);
@@ -252,15 +253,15 @@ describe("SFTP host trust", () => {
     const view = render(SftpPage);
     await view.findByText("SFTP subsystem unavailable");
     await fireEvent.click(view.getByRole("button", { name: "Cancel" }));
-    expect(sftpStore.sshSessionId).toBeNull();
-    expect(sftpStore.connection).toBeNull();
+    expect(sftpStore.right.sshSessionId).toBeNull();
+    expect(sftpStore.right.connection).toBeNull();
     view.unmount();
     const remounted = render(SftpPage);
     await tick();
     expect(remounted.getByRole("button", { name: /Production/ })).toBeTruthy();
     expect(mocks.open).toHaveBeenCalledTimes(1);
     app.activeSession = { ...terminal, id: "new-terminal" };
-    await waitFor(() => expect(sftpStore.sftpSessionId).toBe("attached-sftp"));
+    await waitFor(() => expect(sftpStore.right.sftpSessionId).toBe("attached-sftp"));
     expect(invoke).toHaveBeenCalledWith("sftp_open", { sessionId: "new-terminal" });
   });
 
@@ -275,7 +276,35 @@ describe("SFTP host trust", () => {
     expect(mocks.open).not.toHaveBeenCalled();
     expect(mocks.confirm).not.toHaveBeenCalled();
     app.activeSession = { ...terminal, id: "new-terminal" };
-    await waitFor(() => expect(sftpStore.sftpSessionId).toBe("attached-sftp"));
+    await waitFor(() => expect(sftpStore.right.sftpSessionId).toBe("attached-sftp"));
     expect(invoke).toHaveBeenCalledWith("sftp_open", { sessionId: "new-terminal" });
+  });
+
+  it("lets the left pane switch from this machine to an open SSH session", async () => {
+    app.activeSessions = [terminal];
+    const view = render(SftpPage);
+    const left = within(view.container.querySelector<HTMLElement>('[data-side="left"]')!);
+    await fireEvent.click(left.getByRole("button", { name: "Switch machine" }));
+    await fireEvent.click(left.getByRole("button", { name: /Production terminal/ }));
+    await waitFor(() => expect(sftpStore.left.sftpSessionId).toBe("attached-sftp"));
+    expect(invoke).toHaveBeenCalledWith("sftp_open", { sessionId: terminal.id });
+    expect(sftpStore.right.sftpSessionId).toBeNull();
+  });
+
+  it("does not offer the machine already open on the other side", async () => {
+    app.activeSessions = [terminal];
+    mocks.connect.mockResolvedValueOnce(connected);
+    const view = render(SftpPage);
+    const pane = (side: string) =>
+      within(view.container.querySelector<HTMLElement>(`[data-side="${side}"]`)!);
+
+    expect(pane("right").getByRole("button", { name: /^Local/ })).toHaveProperty("disabled", true);
+    await fireEvent.click(pane("right").getByRole("button", { name: /^Production deploy/ }));
+    await waitFor(() => expect(sftpStore.right.sftpSessionId).toBe("sftp-production"));
+
+    await fireEvent.click(pane("left").getByRole("button", { name: "Switch machine" }));
+    expect(pane("left").getByRole("button", { name: /^Local/ })).toHaveProperty("disabled", false);
+    expect(pane("left").getByRole("button", { name: /Production terminal/ })).toHaveProperty("disabled", true);
+    expect(pane("left").getByRole("button", { name: /^Production deploy/ })).toHaveProperty("disabled", true);
   });
 });

@@ -33,6 +33,8 @@ pub struct TransferProgress {
 pub enum TransferDirection {
     Upload,
     Download,
+    /// Remote to remote, streamed through this machine.
+    Copy,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]

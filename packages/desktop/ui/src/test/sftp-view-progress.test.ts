@@ -33,8 +33,8 @@ afterEach(() => {
 
 describe("sftp-view progress bar", () => {
   it("shows the status bar when a progress event arrives", async () => {
-    await sftpStore.openSftp("ssh-1");
-    expect(sftpStore.isConnected).toBe(true);
+    await sftpStore.right.openSftp("ssh-1");
+    expect(sftpStore.right.isConnected).toBe(true);
 
     const { container } = render(SftpView, {
       connections: [],
@@ -68,13 +68,13 @@ describe("sftp-view progress bar", () => {
       password: "not-display-metadata",
     };
     if (source === "ssh") {
-      await sftpStore.openSftp("ssh-production", connection);
+      await sftpStore.right.openSftp("ssh-production", connection);
     } else {
-      await sftpStore.connectDirect(connection);
+      await sftpStore.right.connectDirect(connection);
     }
     connection.name = "Different machine";
     connection.host = "other.example.com";
-    sftpStore.remotePath = "/var/www";
+    sftpStore.right.path = "/var/www";
 
     const props = {
       connections: [],
@@ -82,20 +82,20 @@ describe("sftp-view progress bar", () => {
       onDisconnect: async () => {},
     };
     const firstView = render(SftpView, props);
-    const firstHeader = firstView.getByTestId("sftp-connection-identity");
+    const firstHeader = firstView.getByTestId("right-connection-identity");
     expect(firstHeader.textContent).toContain("Production");
     expect(firstHeader.textContent).toContain("deploy@prod.example.com:2222");
     expect(firstHeader.textContent).not.toContain("Different machine");
-    expect(sftpStore.connection).not.toHaveProperty("password");
+    expect(sftpStore.right.connection).not.toHaveProperty("password");
     firstView.unmount();
 
     const remountedView = render(SftpView, props);
-    expect(remountedView.getByTestId("sftp-connection-identity").textContent)
+    expect(remountedView.getByTestId("right-connection-identity").textContent)
       .toContain("deploy@prod.example.com:2222");
-    expect(remountedView.getByLabelText("Remote path")).toHaveProperty("value", "/var/www");
-    await sftpStore.disconnect();
+    expect(remountedView.getByLabelText("Right path")).toHaveProperty("value", "/var/www");
+    await sftpStore.right.disconnect();
     await tick();
-    expect(remountedView.queryByTestId("sftp-connection-identity")).toBeNull();
+    expect(remountedView.queryByTestId("right-connection-identity")).toBeNull();
     expect(remountedView.getByText("Select a connection")).toBeTruthy();
   });
 });

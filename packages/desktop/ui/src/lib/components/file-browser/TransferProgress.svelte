@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowDown, ArrowUp, X } from "@lucide/svelte";
+  import { ArrowDown, ArrowLeftRight, ArrowUp, X } from "@lucide/svelte";
 
   import type { TransferProgress as TransferProgressType } from "$lib/types/sftp.js";
 
@@ -103,6 +103,8 @@
           >
             {#if transfer.direction === "Upload"}
               <ArrowUp class="size-4" />
+            {:else if transfer.direction === "Copy"}
+              <ArrowLeftRight class="size-4" />
             {:else}
               <ArrowDown class="size-4" />
             {/if}
@@ -111,7 +113,7 @@
           <div class="min-w-0">
             <div class="flex items-center justify-between gap-2">
               <p class="truncate text-sm font-medium text-white" title={transfer.transfer_id}>
-                {transfer.direction === "Upload" ? "Uploading" : "Downloading"} {shortId(transfer.transfer_id)}
+                {transfer.direction === "Upload" ? "Uploading" : transfer.direction === "Copy" ? "Copying" : "Downloading"} {shortId(transfer.transfer_id)}
               </p>
               <span class="shrink-0 font-mono text-xs tabular-nums text-slate-300">
                 {progress.toFixed(0)}%

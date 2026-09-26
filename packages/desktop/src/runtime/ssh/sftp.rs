@@ -330,6 +330,49 @@ impl SshSessionManager {
             .map_err(|error| error.to_string())
     }
 
+    pub async fn sftp_copy_conflicts(
+        &self,
+        source_sftp_id: &str,
+        source_path: &str,
+        target_sftp_id: &str,
+        target_path: &str,
+    ) -> Result<Vec<String>, String> {
+        let source = self.sftp_session(source_sftp_id).await?;
+        let target = self.sftp_session(target_sftp_id).await?;
+
+        source
+            .copy_conflicts(source_path, &target, target_path)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn sftp_copy(
+        &self,
+        source_sftp_id: &str,
+        source_path: &str,
+        target_sftp_id: &str,
+        target_path: &str,
+        transfer_id: String,
+        cancel: TransferCancellation,
+        progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
+    ) -> Result<u64, String> {
+        let source = self.sftp_session(source_sftp_id).await?;
+        let target = self.sftp_session(target_sftp_id).await?;
+
+        source
+            .copy_to(
+                source_path,
+                &target,
+                target_path,
+                transfer_id,
+                cancel,
+                progress_tx,
+            )
+            .await
+            .map_err(|error| error.to_string())
+    }
+
     async fn sftp_session(&self, sftp_id: &str) -> Result<Arc<SftpSession>, String> {
         let sessions = self.sessions.lock().await;
         find_sftp_session(&sessions, sftp_id)

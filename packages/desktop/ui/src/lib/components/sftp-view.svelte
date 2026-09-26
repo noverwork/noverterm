@@ -1,261 +1,46 @@
 <script lang="ts">
-  import { FolderOpen, Loader2, Server, X } from "@lucide/svelte";
+  import { FolderOpen } from "@lucide/svelte";
+  import { untrack } from "svelte";
 
-  import FileList from "./file-browser/FileList.svelte";
+  import SftpPaneView from "./sftp-pane.svelte";
   import TransferProgress from "./file-browser/TransferProgress.svelte";
-  import CreateFolderDialog from "./file-browser/CreateFolderDialog.svelte";
-  import RenameDialog from "./file-browser/RenameDialog.svelte";
   import TransferConflictDialog from "./file-browser/TransferConflictDialog.svelte";
-  import DeleteConfirmDialog from "./file-browser/DeleteConfirmDialog.svelte";
-  import ConnectionStatusOverlay from "./connection-status-overlay.svelte";
-  import { sftpStore } from "$lib/stores/sftp.svelte.js";
+  import { sftpStore, type SftpPane } from "$lib/stores/sftp.svelte.js";
   import type { ConnectionConfig } from "$lib/app-data-types.js";
-  import type { FileEntry } from "$lib/types/sftp.js";
+  import type { Session } from "$lib/stores/session.svelte.js";
 
   interface Props {
     connections: ConnectionConfig[];
-    onConnect: (connection: ConnectionConfig) => Promise<void>;
-    onDisconnect: () => Promise<void>;
-    onRetry?: () => Promise<void>;
-    onTrust?: () => Promise<void>;
-    onReplaceTrust?: () => Promise<void>;
-    trustError?: string | null;
-    trustConfirming?: boolean;
-    canTrust?: boolean;
+    sshSessions?: Session[];
+    onConnect: (pane: SftpPane, connection: ConnectionConfig) => Promise<void>;
+    onOpenSession?: (pane: SftpPane, session: Session) => Promise<void>;
+    onUseLocal?: (pane: SftpPane) => Promise<void>;
+    onDisconnect: (pane: SftpPane) => Promise<void>;
+    onRetry?: (pane: SftpPane) => Promise<void>;
+    onTrust?: (pane: SftpPane) => Promise<void>;
+    onReplaceTrust?: (pane: SftpPane) => Promise<void>;
   }
 
   let {
     connections,
+    sshSessions = [],
     onConnect,
+    onOpenSession = (pane, session) => pane.openSftp(session.id, session),
+    onUseLocal = (pane) => pane.useLocal(),
     onDisconnect,
     onRetry,
     onTrust,
     onReplaceTrust,
-    trustError = null,
-    trustConfirming = false,
-    canTrust = false,
   }: Props = $props();
 
-  const isConnecting = $derived(sftpStore.isConnecting);
-  const connectionStatus = $derived(
-    isConnecting ? "connecting"
-      : sftpStore.trustPrompt ? "trust_required"
-      : sftpStore.trustMismatch || sftpStore.connectionError ? "error"
-      : null,
-  );
-
-  let showCreateFolderDialog = $state<"local" | "remote" | null>(null);
-  let showRenameDialog = $state<{ panel: "local" | "remote"; entry: FileEntry } | null>(null);
-  let showDeleteDialog = $state<{ panel: "local" | "remote"; entry: FileEntry } | null>(null);
-
-  let hasLoadedLocal = $state(false);
-  let dragOverPanel = $state<"local" | "remote" | null>(null);
-
-  $effect(() => {
-    if (!hasLoadedLocal) {
-      hasLoadedLocal = true;
-      void sftpStore.navigateLocal(sftpStore.localPath);
-    }
-  });
-
-  async function handleConnect(connection: ConnectionConfig) {
-    if (connectionStatus || sftpStore.isClosing) return;
-    await onConnect(connection);
-  }
-
-  async function handleDisconnect() {
-    await onDisconnect();
-  }
-
-  function handleLocalSelect(entry: FileEntry) {
-    sftpStore.selectedLocal = entry;
-  }
-
-  function handleRemoteSelect(entry: FileEntry) {
-    sftpStore.selectedRemote = entry;
-  }
-
-  function handleLocalNavigate(entry: FileEntry) {
-    if (entry.file_type === "Dir") {
-      const newPath = sftpStore.localPath ? `${sftpStore.localPath}/${entry.name}` : entry.name;
-      sftpStore.navigateLocal(newPath);
-    }
-  }
-
-  function handleRemoteNavigate(entry: FileEntry) {
-    if (entry.file_type === "Dir") {
-      const newPath = sftpStore.remotePath ? `${sftpStore.remotePath}/${entry.name}` : entry.name;
-      sftpStore.navigateRemote(newPath);
-    }
-  }
-
-  function parentDirectoryPath(currentPath: string): string | null {
-    if (!currentPath || currentPath === "/") {
-      return null;
-    }
-    if (currentPath === "~") {
-      return "/";
-    }
-    const lastSlash = currentPath.lastIndexOf("/");
-    if (lastSlash <= 0) {
-      return "/";
-    }
-    return currentPath.slice(0, lastSlash);
-  }
-
-  function handleLocalNavigateUp() {
-    const parent = parentDirectoryPath(sftpStore.localPath);
-    if (parent !== null) {
-      sftpStore.navigateLocal(parent);
-    }
-  }
-
-  function handleRemoteNavigateUp() {
-    const parent = parentDirectoryPath(sftpStore.remotePath);
-    if (parent !== null) {
-      sftpStore.navigateRemote(parent);
-    }
-  }
-
-  function handlePathKeydown(
-    panel: "local" | "remote",
-    event: KeyboardEvent & { currentTarget: HTMLInputElement },
-  ) {
-    if (event.key === "Enter") {
-      const path = event.currentTarget.value.trim();
-      if (!path) return;
-      event.currentTarget.blur();
-      if (panel === "local") {
-        void sftpStore.navigateLocal(path);
-      } else {
-        void sftpStore.navigateRemote(path);
-      }
-    } else if (event.key === "Escape") {
-      event.currentTarget.value = panel === "local" ? sftpStore.localPath : sftpStore.remotePath;
-      event.currentTarget.blur();
-    }
-  }
-
-  async function handleCreateFolder(name: string) {
-    if (showCreateFolderDialog === "local") {
-      await sftpStore.localMkdir(name);
-    } else if (showCreateFolderDialog === "remote") {
-      await sftpStore.remoteMkdir(name);
-    }
-    showCreateFolderDialog = null;
-  }
-
-  async function handleRename(newName: string) {
-    if (!showRenameDialog) return;
-    const { panel, entry } = showRenameDialog;
-    if (panel === "local") {
-      await sftpStore.localRename(entry, newName);
-    } else {
-      await sftpStore.remoteRename(entry, newName);
-    }
-    showRenameDialog = null;
-  }
-
-  async function handleDelete() {
-    if (!showDeleteDialog) return;
-    const { panel, entry } = showDeleteDialog;
-    if (panel === "local") {
-      await sftpStore.localRemove(entry);
-    } else {
-      await sftpStore.remoteRemove(entry);
-    }
-    showDeleteDialog = null;
-  }
-
-  function handleDragOver(panel: "local" | "remote", event: DragEvent): void {
-    if (!event.dataTransfer) return;
-    if (panel === "remote" && !sftpStore.isConnected) return;
-    if (!event.dataTransfer.types.includes("application/x-sftp-entry")) return;
-    console.debug("[SFTP][SftpView] DOM drag over", {
-      panel,
-      types: Array.from(event.dataTransfer.types),
-      isConnected: sftpStore.isConnected,
-      remotePath: sftpStore.remotePath,
-    });
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "copy";
-    if (dragOverPanel !== panel) {
-      dragOverPanel = panel;
-    }
-  }
-
-  function handleDragLeave(panel: "local" | "remote", event: DragEvent): void {
-    if (event.currentTarget instanceof HTMLElement) {
-      const related = event.relatedTarget as Node | null;
-      if (related && event.currentTarget.contains(related)) {
-        return;
+  // Reload local listings once per mount; remote panes keep their listing.
+  $effect(() => untrack(() => {
+    for (const pane of [sftpStore.left, sftpStore.right]) {
+      if (pane.isLocal) {
+        void pane.navigate(pane.path);
       }
     }
-    if (dragOverPanel === panel) {
-      dragOverPanel = null;
-    }
-  }
-
-  function handleDrop(panel: "local" | "remote", event: DragEvent): void {
-    event.preventDefault();
-    dragOverPanel = null;
-    if (!event.dataTransfer) {
-      console.warn("[SFTP][SftpView] DOM drop without dataTransfer", { panel });
-      return;
-    }
-
-    const types = Array.from(event.dataTransfer.types);
-    const raw = event.dataTransfer.getData("application/x-sftp-entry");
-    if (!raw) {
-      console.warn("[SFTP][SftpView] DOM drop without SFTP payload", {
-        panel,
-        types,
-      });
-      return;
-    }
-
-    let payload: { panel: "local" | "remote"; entry: FileEntry };
-    try {
-      payload = JSON.parse(raw);
-    } catch {
-      console.warn("[SFTP][SftpView] DOM drop payload parse failed", {
-        panel,
-        raw,
-        types,
-      });
-      return;
-    }
-
-    console.info("[SFTP][SftpView] DOM drop payload", {
-      sourcePanel: payload.panel,
-      targetPanel: panel,
-      entry: payload.entry,
-      types,
-      isConnected: sftpStore.isConnected,
-      remotePath: sftpStore.remotePath,
-    });
-
-    if (payload.panel === panel) {
-      console.info("[SFTP][SftpView] ignored DOM drop within same panel", {
-        panel,
-        entry: payload.entry,
-      });
-      return;
-    }
-    if (panel === "remote" && !sftpStore.isConnected) {
-      sftpStore.showError("Connect to a server before dragging files to Remote", "warning");
-      return;
-    }
-    void sftpStore.dropTransfer(payload.panel, panel, payload.entry);
-  }
-
-  async function handleTransferConflictOverwrite(): Promise<void> {
-    await sftpStore.resolveTransferConflict("overwrite");
-  }
-
-  async function handleTransferConflictRename(): Promise<void> {
-    await sftpStore.resolveTransferConflict("rename");
-  }
+  }));
 </script>
 
 <div class="flex h-full min-h-0 flex-col overflow-hidden bg-[#080c13]/72">
@@ -266,308 +51,37 @@
       </div>
       <div>
         <h1 class="text-lg font-semibold text-white">SFTP File Browser</h1>
-        <p class="text-xs text-slate-400">Transfer files between local and remote machines</p>
+        <p class="text-xs text-slate-400">Pick a machine on each side, then drag files across</p>
       </div>
     </div>
   </div>
 
   <div class="flex min-h-0 flex-1 overflow-hidden">
-    <div class="flex w-1/2 flex-col border-r border-white/10">
-      <div class="flex min-w-0 items-center gap-3 border-b border-white/8 bg-cyan-300/[0.035] px-4 py-3">
-        <Server class="size-4 shrink-0 text-cyan-200" />
-        <div class="min-w-0">
-          <p class="truncate text-sm font-medium text-white">Local</p>
-          <p class="text-xs text-slate-400">This machine</p>
-        </div>
-      </div>
-      <div class="flex items-center justify-between border-b border-white/8 px-4 py-3">
-        <div class="flex min-w-0 flex-1 items-center gap-2">
-          <span class="shrink-0 text-sm font-medium text-white">Local</span>
-          <input
-            type="text"
-            class="min-w-0 flex-1 truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-xs text-slate-400 outline-none hover:border-white/10 focus:border-cyan-300/30 focus:bg-white/5 focus:text-white"
-            value={sftpStore.localPath}
-            placeholder="~"
-            spellcheck="false"
-            title="Type a path and press Enter"
-            aria-label="Local path"
-            data-testid="local-path-input"
-            onkeydown={(event) => handlePathKeydown("local", event)}
-          />
-        </div>
-        <div class="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            class="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
-            onclick={() => sftpStore.refreshLocal()}
-            title="Refresh"
-          >
-            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-              <path d="M21 3v5h-5" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
-            onclick={() => showCreateFolderDialog = "local"}
-            title="New folder"
-          >
-            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              <line x1="12" y1="11" x2="12" y2="17" />
-              <line x1="9" y1="14" x2="15" y2="14" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-30"
-            onclick={() => sftpStore.selectedLocal && (showRenameDialog = { panel: "local", entry: sftpStore.selectedLocal })}
-            disabled={!sftpStore.selectedLocal}
-            title="Rename"
-          >
-            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 20h9" />
-              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="rounded-lg p-1.5 text-slate-400 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-30"
-            onclick={() => sftpStore.selectedLocal && (showDeleteDialog = { panel: "local", entry: sftpStore.selectedLocal })}
-            disabled={!sftpStore.selectedLocal}
-            title="Delete"
-          >
-            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div
-        class="flex-1 overflow-auto p-2 {dragOverPanel === 'local' ? 'bg-cyan-300/10 ring-2 ring-cyan-300/40 ring-inset rounded-lg' : ''}"
-        data-side="local"
-        ondragover={(event) => handleDragOver("local", event)}
-        ondragleave={(event) => handleDragLeave("local", event)}
-        ondrop={(event) => handleDrop("local", event)}
-        role="region"
-        aria-label="Local file drop zone"
-        data-testid="local-drop-zone"
-      >
-        <FileList
-          files={sftpStore.localFiles}
-          selected={sftpStore.selectedLocal}
-          loading={sftpStore.localLoading}
-          panelId="local"
-          scrollKey={sftpStore.localPath}
-          onSelect={handleLocalSelect}
-          onNavigate={handleLocalNavigate}
-          onNavigateUp={handleLocalNavigateUp}
-          onTransfer={(entry) => void sftpStore.dropTransfer("local", "remote", entry)}
-        />
-      </div>
-    </div>
-
-    <div class="relative flex w-1/2 flex-col" data-side="remote" aria-busy={isConnecting}>
-      <div class="flex min-h-0 flex-1 flex-col" inert={connectionStatus !== null}>
-      {#if !sftpStore.isConnected}
-        <div class="flex min-h-0 flex-1 flex-col overflow-y-auto border-b border-white/8 p-4">
-          <h2 class="mb-3 text-sm font-medium text-white">Select a connection</h2>
-          <div class="grid gap-2">
-            {#each connections as connection (connection.id)}
-              <button
-                type="button"
-                class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-cyan-300/30 hover:bg-cyan-300/8 disabled:opacity-50"
-                onclick={() => handleConnect(connection)}
-                disabled={isConnecting || sftpStore.isClosing}
-              >
-                <div class="grid size-8 shrink-0 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-300/12 text-cyan-200">
-                  <Server class="size-4" />
-                </div>
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm font-medium text-white">{connection.name}</p>
-                  <p class="truncate text-xs text-slate-400">{connection.username}@{connection.host}:{connection.port}</p>
-                </div>
-              </button>
-            {/each}
-            {#if connections.length === 0}
-              <p class="py-4 text-center text-sm text-slate-400">No saved connections. Add one in Connections.</p>
-            {/if}
-          </div>
-          {#if sftpStore.isClosing}
-            <div class="mt-3 flex items-center gap-2 text-sm text-slate-400" role="status">
-              <Loader2 class="size-4 animate-spin" />
-              <span>Disconnecting...</span>
-            </div>
-          {/if}
-        </div>
-      {:else}
-        {#if sftpStore.connection}
-          <div class="flex min-w-0 items-center gap-3 border-b border-white/8 bg-cyan-300/[0.035] px-4 py-3" data-testid="sftp-connection-identity">
-            <Server class="size-4 shrink-0 text-cyan-200" />
-            <div class="min-w-0">
-              <p class="truncate text-sm font-medium text-white" title={sftpStore.connection.name}>{sftpStore.connection.name}</p>
-              <p class="break-all text-xs text-slate-400">
-                {sftpStore.connection.username}@{sftpStore.connection.host.includes(":") ? `[${sftpStore.connection.host}]` : sftpStore.connection.host}:{sftpStore.connection.port}
-              </p>
-            </div>
-          </div>
-        {/if}
-        <div class="flex items-center justify-between border-b border-white/8 px-4 py-3">
-          <div class="flex min-w-0 flex-1 items-center gap-2">
-            <span class="shrink-0 text-sm font-medium text-white">Remote</span>
-            <input
-              type="text"
-              class="min-w-0 flex-1 truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-xs text-slate-400 outline-none hover:border-white/10 focus:border-cyan-300/30 focus:bg-white/5 focus:text-white"
-              value={sftpStore.remotePath}
-              placeholder="/"
-              spellcheck="false"
-              title="Type a path and press Enter"
-              aria-label="Remote path"
-              data-testid="remote-path-input"
-              onkeydown={(event) => handlePathKeydown("remote", event)}
-            />
-          </div>
-          <div class="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              class="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
-              onclick={() => sftpStore.refreshRemote()}
-              title="Refresh"
-            >
-              <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-                <path d="M21 3v5h-5" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
-              onclick={() => showCreateFolderDialog = "remote"}
-              title="New folder"
-            >
-              <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                <line x1="12" y1="11" x2="12" y2="17" />
-                <line x1="9" y1="14" x2="15" y2="14" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-30"
-              onclick={() => sftpStore.selectedRemote && (showRenameDialog = { panel: "remote", entry: sftpStore.selectedRemote })}
-              disabled={!sftpStore.selectedRemote}
-              title="Rename"
-            >
-              <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="rounded-lg p-1.5 text-slate-400 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-30"
-              onclick={() => sftpStore.selectedRemote && (showDeleteDialog = { panel: "remote", entry: sftpStore.selectedRemote })}
-              disabled={!sftpStore.selectedRemote}
-              title="Delete"
-            >
-              <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="ml-2 rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
-              onclick={handleDisconnect}
-              title="Disconnect"
-            >
-              <X class="size-4" />
-            </button>
-          </div>
-        </div>
-        <div
-          class="flex-1 overflow-auto p-2 {dragOverPanel === 'remote' ? 'bg-cyan-300/10 ring-2 ring-cyan-300/40 ring-inset rounded-lg' : ''}"
-          data-side="remote"
-          ondragover={(event) => handleDragOver("remote", event)}
-          ondragleave={(event) => handleDragLeave("remote", event)}
-          ondrop={(event) => handleDrop("remote", event)}
-          role="region"
-          aria-label="Remote file drop zone"
-          data-testid="remote-drop-zone"
-        >
-          <FileList
-            files={sftpStore.remoteFiles}
-            selected={sftpStore.selectedRemote}
-            loading={sftpStore.remoteLoading}
-            panelId="remote"
-            scrollKey={sftpStore.remotePath}
-            onSelect={handleRemoteSelect}
-            onNavigate={handleRemoteNavigate}
-            onNavigateUp={handleRemoteNavigateUp}
-            onTransfer={(entry) => void sftpStore.dropTransfer("remote", "local", entry)}
-          />
-        </div>
-      {/if}
-      </div>
-      {#if connectionStatus}
-        <ConnectionStatusOverlay
-          status={connectionStatus}
-          name={sftpStore.connection?.name}
-          protocol="sftp"
-          error={sftpStore.connectionError}
-          trustPrompt={sftpStore.trustPrompt}
-          trustMismatch={sftpStore.trustMismatch}
-          {trustError}
-          {trustConfirming}
-          {canTrust}
-          {onRetry}
-          {onTrust}
-          {onReplaceTrust}
-          onCancel={handleDisconnect}
-        />
-      {/if}
-    </div>
+    {#each [sftpStore.left, sftpStore.right] as pane (pane.side)}
+      <SftpPaneView
+        {pane}
+        {connections}
+        {sshSessions}
+        onConnect={(connection) => onConnect(pane, connection)}
+        onOpenSession={(session) => onOpenSession(pane, session)}
+        onUseLocal={() => onUseLocal(pane)}
+        onDisconnect={() => onDisconnect(pane)}
+        onRetry={onRetry && (() => onRetry(pane))}
+        onTrust={onTrust && (() => onTrust(pane))}
+        onReplaceTrust={onReplaceTrust && (() => onReplaceTrust(pane))}
+      />
+    {/each}
   </div>
 
-  {#if sftpStore.isConnected}
-    <TransferProgress
-      transfers={sftpStore.activeTransfers}
-      onCancel={(id) => sftpStore.cancelTransfer(id)}
-    />
-  {/if}
-</div>
-
-{#if showCreateFolderDialog}
-  <CreateFolderDialog
-    open={true}
-    onConfirm={handleCreateFolder}
-    onCancel={() => showCreateFolderDialog = null}
+  <TransferProgress
+    transfers={sftpStore.activeTransfers}
+    onCancel={(id) => sftpStore.cancelTransfer(id)}
   />
-{/if}
+</div>
 
 <TransferConflictDialog
   conflict={sftpStore.transferConflict}
-  onOverwrite={handleTransferConflictOverwrite}
-  onRename={handleTransferConflictRename}
+  onOverwrite={() => sftpStore.resolveTransferConflict("overwrite")}
+  onRename={() => sftpStore.resolveTransferConflict("rename")}
   onCancel={() => sftpStore.cancelTransferConflict()}
 />
-
-{#if showRenameDialog}
-  <RenameDialog
-    open={true}
-    currentName={showRenameDialog.entry.name}
-    onConfirm={handleRename}
-    onCancel={() => showRenameDialog = null}
-  />
-{/if}
-
-{#if showDeleteDialog}
-  <DeleteConfirmDialog
-    open={true}
-    itemName={showDeleteDialog.entry.name}
-    onConfirm={handleDelete}
-    onCancel={() => showDeleteDialog = null}
-  />
-{/if}

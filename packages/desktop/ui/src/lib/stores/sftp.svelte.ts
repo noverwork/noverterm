@@ -50,13 +50,16 @@ export interface TransferConflict {
   fileName: string;
   existingName: string;
   suggestedName: string;
-  direction: "Upload" | "Download";
+  /** Label of the pane the file would land in, e.g. "Local" or a host name. */
+  destination: string;
   isDirectory: boolean;
   /** Paths inside the folder that already exist; null while still scanning. */
   conflictingFiles: string[] | null;
 }
 
 interface PendingTransferConflict extends Omit<TransferConflict, "conflictingFiles"> {
+  source: SftpPane;
+  target: SftpPane;
   sourcePath: string;
   targetPath: string;
   renamedTargetPath: string;
@@ -119,21 +122,24 @@ export interface SftpConnection {
   username: string;
 }
 
-export class SftpStore {
-  localPath = $state<string>("~");
-  remotePath = $state<string>("");
-  localFiles = $state<FileEntry[]>([]);
-  remoteFiles = $state<FileEntry[]>([]);
-  localLoading = $state(false);
-  remoteLoading = $state(false);
-  localError = $state<string | null>(null);
-  remoteError = $state<string | null>(null);
-  lastError = $state<string | null>(null);
-  errorQueue = $state<ErrorToast[]>([]);
-  activeTransfers = $state<SvelteMap<string, TransferProgress>>(new SvelteMap());
-  transferConflict = $state<TransferConflict | null>(null);
-  selectedLocal = $state<FileEntry | null>(null);
-  selectedRemote = $state<FileEntry | null>(null);
+
+export type PaneSide = "left" | "right";
+
+/** Identifies a machine so both panes never show the same one. */
+export function machineKey(target: { host: string; port: number }): string {
+  return `${target.host}:${target.port}`;
+}
+
+export const LOCAL_MACHINE = "local";
+
+/** One side of the file browser: this machine, or an SFTP session to any host. */
+export class SftpPane {
+  mode = $state<"local" | "remote">("remote");
+  path = $state<string>("");
+  files = $state<FileEntry[]>([]);
+  loading = $state(false);
+  error = $state<string | null>(null);
+  selected = $state<FileEntry | null>(null);
   sftpSessionId = $state<string | null>(null);
   sshSessionId = $state<string | null>(null);
   isDirectConnection = $state(false);
@@ -144,94 +150,134 @@ export class SftpStore {
   trustMismatch = $state<HostTrustMismatch | null>(null);
   isConnecting = $state(false);
   isClosing = $state(false);
-  attemptedActiveSshSessionId = $state<string | null>(null);
+  trustConfirming = $state(false);
+  trustError = $state<string | null>(null);
+  /** Bumped by the route to drop replies from connect attempts the user abandoned. */
+  attemptGeneration = 0;
 
-  isConnected = $derived(this.sftpSessionId != null && this.sftpSessionId.length > 0);
+  isLocal = $derived(this.mode === "local");
+  isConnected = $derived(
+    this.mode === "remote" && this.sftpSessionId != null && this.sftpSessionId.length > 0,
+  );
+  /** Has a listing that files can be transferred to or from. */
+  isReady = $derived(this.isLocal || this.isConnected);
+  label = $derived(this.isLocal ? "Local" : this.connection?.name ?? "Remote");
+  /** Machine this pane shows or is connecting to; null while picking. */
+  machine = $derived(
+    this.isLocal ? LOCAL_MACHINE : this.connection ? machineKey(this.connection) : null,
+  );
 
-  private unlistenProgress: UnlistenFn | null = null;
-  private unlistenComplete: UnlistenFn | null = null;
-  private unlistenError: UnlistenFn | null = null;
-  private nextErrorId = 0;
-  private progressLogState = new SvelteMap<string, TransferProgressLogState>();
-  private pendingTransferConflict: PendingTransferConflict | null = null;
   private connectionGeneration = 0;
-  private remoteRequestId = 0;
+  private requestId = 0;
 
-  showError(message: string, type: ErrorToast["type"] = "error"): void {
-    this.lastError = message;
-    this.errorQueue = [
-      ...this.errorQueue,
-      { id: `sftp-error-${++this.nextErrorId}`, message, type },
-    ];
+  constructor(
+    readonly side: PaneSide,
+    private readonly store: SftpStore,
+    mode: "local" | "remote",
+  ) {
+    this.mode = mode;
+    this.path = mode === "local" ? "~" : "";
   }
 
-  dismissError(id: string): void {
-    this.errorQueue = this.errorQueue.filter((error) => error.id !== id);
+  async useLocal(): Promise<void> {
+    if (this.mode === "remote") {
+      await this.closeSftp();
+    }
+    this.mode = "local";
+    await this.navigate("~");
   }
 
-  async navigateLocal(path: string): Promise<void> {
-    this.localLoading = true;
-    this.localError = null;
+  /** Leave local mode and show the machine picker. */
+  chooseMachine(): void {
+    this.connectionGeneration += 1;
+    this.mode = "remote";
+    this.path = "";
+    this.files = [];
+    this.selected = null;
+    this.loading = false;
+    this.error = null;
+  }
+
+  async navigate(path: string): Promise<void> {
+    const sessionId = this.sftpSessionId;
+    if (!this.isLocal && !sessionId) {
+      this.error = "SFTP session is not connected.";
+      this.store.showError(this.error, "warning");
+      return;
+    }
+
+    const generation = this.connectionGeneration;
+    const requestId = ++this.requestId;
+    this.loading = true;
+    this.error = null;
+    this.path = path;
+    this.selected = null;
+    const isCurrent = () =>
+      generation === this.connectionGeneration && requestId === this.requestId;
 
     try {
-      this.localPath = path;
-      this.localFiles = await invoke<FileEntry[]>("local_list_dir", { path });
+      const files = sessionId && !this.isLocal
+        ? unwrapCommandResult(await commands.sftpListDir(sessionId, path))
+        : await invoke<FileEntry[]>("local_list_dir", { path });
+      if (isCurrent()) {
+        this.files = files;
+      }
     } catch (error: unknown) {
-      const message = errorMessage(error);
-      this.localError = message;
-      this.showError(message);
+      if (isCurrent()) {
+        this.error = errorMessage(error);
+        this.store.showError(this.error);
+      }
     } finally {
-      this.localLoading = false;
+      if (isCurrent()) {
+        this.loading = false;
+      }
     }
   }
 
-  async refreshLocal(): Promise<void> {
-    await this.navigateLocal(this.localPath);
+  async refresh(): Promise<void> {
+    await this.navigate(this.path);
   }
 
-  async localMkdir(name: string): Promise<void> {
-    try {
-      unwrapCommandResult(await commands.localMkdir(joinPath(this.localPath, name)));
-      await this.refreshLocal();
-    } catch (error: unknown) {
-      const message = errorMessage(error);
-      this.localError = message;
-      this.showError(message);
-    }
+  async mkdir(name: string): Promise<void> {
+    await this.runFileOperation(async () => {
+      const path = joinPath(this.path, name);
+      unwrapCommandResult(await (this.isLocal
+        ? commands.localMkdir(path)
+        : commands.sftpMkdir(this.requireSession(), path)));
+    });
   }
 
-  async localRemove(entry: FileEntry): Promise<void> {
-    try {
-      await invoke("local_remove", { path: joinPath(this.localPath, entry.name) });
-      await this.refreshLocal();
-    } catch (error: unknown) {
-      const message = errorMessage(error);
-      this.localError = message;
-      this.showError(message);
-    }
+  async remove(entry: FileEntry): Promise<void> {
+    await this.runFileOperation(async () => {
+      const path = joinPath(this.path, entry.name);
+      if (this.isLocal) {
+        await invoke("local_remove", { path });
+      } else {
+        await invoke("sftp_remove", { sessionId: this.requireSession(), path });
+      }
+    });
   }
 
-  async localRename(entry: FileEntry, newName: string): Promise<void> {
-    try {
-      await invoke("local_rename", {
-        oldPath: joinPath(this.localPath, entry.name),
-        newPath: joinPath(this.localPath, newName),
-      });
-      await this.refreshLocal();
-    } catch (error: unknown) {
-      const message = errorMessage(error);
-      this.localError = message;
-      this.showError(message);
-    }
+  async rename(entry: FileEntry, newName: string): Promise<void> {
+    await this.runFileOperation(async () => {
+      const oldPath = joinPath(this.path, entry.name);
+      const newPath = joinPath(this.path, newName);
+      if (this.isLocal) {
+        await invoke("local_rename", { oldPath, newPath });
+      } else {
+        await invoke("sftp_rename", { sessionId: this.requireSession(), oldPath, newPath });
+      }
+    });
   }
 
   async openSftp(sshSessionId: string, connection?: SftpConnection): Promise<void> {
     const generation = ++this.connectionGeneration;
+    this.mode = "remote";
     this.isConnecting = true;
     this.isDirectConnection = false;
     this.connectionId = null;
     this.connectionError = null;
-    this.remoteError = null;
+    this.error = null;
     this.trustPrompt = null;
     this.trustMismatch = null;
     this.connection = connection ? {
@@ -241,7 +287,7 @@ export class SftpStore {
       username: connection.username,
     } : null;
     try {
-      this.cancelTransferConflict();
+      this.store.cancelTransferConflict();
       this.sshSessionId = sshSessionId;
       const sessionId = unwrapCommandResult(await commands.sftpOpen(sshSessionId));
       if (generation !== this.connectionGeneration) {
@@ -249,7 +295,7 @@ export class SftpStore {
         return;
       }
       this.sftpSessionId = sessionId;
-      await this.setupEventListeners(generation);
+      await this.store.setupEventListeners();
     } catch (error: unknown) {
       await this.failConnection(error, generation);
     } finally {
@@ -265,7 +311,7 @@ export class SftpStore {
     const sessionId = this.sftpSessionId;
     this.isClosing = sessionId !== null;
     this.isConnecting = false;
-    this.cancelTransferConflict();
+    this.store.cancelTransferConflict();
     this.sftpSessionId = null;
     this.sshSessionId = null;
     this.isDirectConnection = false;
@@ -274,20 +320,18 @@ export class SftpStore {
     this.connectionError = null;
     this.trustPrompt = null;
     this.trustMismatch = null;
-    this.remotePath = "";
-    this.remoteFiles = [];
-    this.selectedRemote = null;
-    this.remoteLoading = false;
-    this.remoteError = null;
-    this.activeTransfers.clear();
+    this.path = "";
+    this.files = [];
+    this.selected = null;
+    this.loading = false;
+    this.error = null;
     try {
-      this.teardownEventListeners();
       if (sessionId) {
         unwrapCommandResult(await commands.sftpClose(sessionId));
       }
     } catch (error: unknown) {
       if (generation === this.connectionGeneration) {
-        this.showError(`Disconnected. Remote cleanup failed: ${errorMessage(error)}`, "warning");
+        this.store.showError(`Disconnected. Remote cleanup failed: ${errorMessage(error)}`, "warning");
       }
     } finally {
       if (generation === this.connectionGeneration) {
@@ -307,10 +351,11 @@ export class SftpStore {
     passphrase?: string;
   }): Promise<void> {
     const generation = ++this.connectionGeneration;
+    this.mode = "remote";
     this.isConnecting = true;
     this.isDirectConnection = true;
     this.connectionError = null;
-    this.remoteError = null;
+    this.error = null;
     this.trustPrompt = null;
     this.trustMismatch = null;
     this.connectionId = options.connectionId ?? null;
@@ -321,7 +366,7 @@ export class SftpStore {
       username: options.username,
     };
     try {
-      this.cancelTransferConflict();
+      this.store.cancelTransferConflict();
       this.sshSessionId = null;
       const response = unwrapCommandResult(await commands.sftpConnectDirect(
         options.host,
@@ -348,7 +393,7 @@ export class SftpStore {
       }
       const sessionId = response.session_id;
       this.sftpSessionId = sessionId;
-      await this.setupEventListeners(generation);
+      await this.store.setupEventListeners();
       if (generation !== this.connectionGeneration) return;
       let homeDir = ".";
       try {
@@ -357,7 +402,7 @@ export class SftpStore {
         // Some servers do not expose a home directory; use their working directory.
       }
       if (generation === this.connectionGeneration) {
-        await this.navigateRemote(homeDir);
+        await this.navigate(homeDir);
       }
     } catch (error: unknown) {
       await this.failConnection(error, generation);
@@ -368,206 +413,139 @@ export class SftpStore {
     }
   }
 
+  async disconnect(): Promise<void> {
+    await this.closeSftp();
+  }
+
+  reset(): void {
+    this.connectionGeneration += 1;
+    const mode = this.side === "left" ? "local" : "remote";
+    this.mode = mode;
+    this.path = mode === "local" ? "~" : "";
+    this.files = [];
+    this.loading = false;
+    this.error = null;
+    this.selected = null;
+    this.sftpSessionId = null;
+    this.sshSessionId = null;
+    this.isDirectConnection = false;
+    this.connection = null;
+    this.connectionId = null;
+    this.connectionError = null;
+    this.trustPrompt = null;
+    this.trustMismatch = null;
+    this.isConnecting = false;
+    this.isClosing = false;
+    this.trustConfirming = false;
+    this.trustError = null;
+  }
+
+  private requireSession(): string {
+    if (!this.sftpSessionId) throw new Error("SFTP session is not connected.");
+    return this.sftpSessionId;
+  }
+
+  private async runFileOperation(operation: () => Promise<void>): Promise<void> {
+    try {
+      await operation();
+      await this.refresh();
+    } catch (error: unknown) {
+      this.error = errorMessage(error);
+      this.store.showError(this.error);
+    }
+  }
+
   private async failConnection(error: unknown, generation: number): Promise<void> {
     if (generation !== this.connectionGeneration) return;
     const sessionId = this.sftpSessionId;
     this.sftpSessionId = null;
-    this.remotePath = "";
-    this.remoteFiles = [];
-    this.selectedRemote = null;
-    this.remoteLoading = false;
-    this.activeTransfers.clear();
-    this.teardownEventListeners();
+    this.path = "";
+    this.files = [];
+    this.selected = null;
+    this.loading = false;
     this.connectionError = errorMessage(error);
-    this.remoteError = this.connectionError;
+    this.error = this.connectionError;
     if (sessionId) {
       try {
         unwrapCommandResult(await commands.sftpClose(sessionId));
       } catch (cleanupError: unknown) {
         if (generation === this.connectionGeneration) {
-          this.showError(`Remote cleanup failed: ${errorMessage(cleanupError)}`, "warning");
+          this.store.showError(`Remote cleanup failed: ${errorMessage(cleanupError)}`, "warning");
         }
       }
     }
   }
+}
 
-  async disconnect(): Promise<void> {
-    await this.closeSftp();
+export class SftpStore {
+  readonly left: SftpPane = new SftpPane("left", this, "local");
+  readonly right: SftpPane = new SftpPane("right", this, "remote");
+  lastError = $state<string | null>(null);
+  errorQueue = $state<ErrorToast[]>([]);
+  activeTransfers = $state<SvelteMap<string, TransferProgress>>(new SvelteMap());
+  transferConflict = $state<TransferConflict | null>(null);
+  attemptedActiveSshSessionId = $state<string | null>(null);
+
+  private listenersReady: Promise<void> | null = null;
+  private unlisteners: UnlistenFn[] = [];
+  private listenerGeneration = 0;
+  private nextErrorId = 0;
+  private progressLogState = new SvelteMap<string, TransferProgressLogState>();
+  private pendingTransferConflict: PendingTransferConflict | null = null;
+
+  pane(side: PaneSide): SftpPane {
+    return side === "left" ? this.left : this.right;
   }
 
-  async navigateRemote(path: string): Promise<void> {
-    const sessionId = this.sftpSessionId;
-    if (!sessionId) {
-      this.remoteError = "SFTP session is not connected.";
-      this.showError(this.remoteError, "warning");
-      return;
-    }
-
-    const generation = this.connectionGeneration;
-    const requestId = ++this.remoteRequestId;
-    this.remoteLoading = true;
-    this.remoteError = null;
-    this.remotePath = path;
-    this.selectedRemote = null;
-
-    try {
-      const files = unwrapCommandResult(await commands.sftpListDir(sessionId, path));
-      if (generation === this.connectionGeneration && requestId === this.remoteRequestId) {
-        this.remoteFiles = files;
-      }
-    } catch (error: unknown) {
-      if (generation === this.connectionGeneration && requestId === this.remoteRequestId) {
-        const message = errorMessage(error);
-        this.remoteError = message;
-        this.showError(message);
-      }
-    } finally {
-      if (generation === this.connectionGeneration && requestId === this.remoteRequestId) {
-        this.remoteLoading = false;
-      }
-    }
+  otherPane(pane: SftpPane): SftpPane {
+    return pane === this.left ? this.right : this.left;
   }
 
-  async refreshRemote(): Promise<void> {
-    await this.navigateRemote(this.remotePath);
+  showError(message: string, type: ErrorToast["type"] = "error"): void {
+    this.lastError = message;
+    this.errorQueue = [
+      ...this.errorQueue,
+      { id: `sftp-error-${++this.nextErrorId}`, message, type },
+    ];
   }
 
-  async remoteMkdir(name: string): Promise<void> {
-    if (!this.sftpSessionId) {
-      this.remoteError = "SFTP session is not connected.";
-      this.showError(this.remoteError, "warning");
-      return;
-    }
-
-    try {
-      unwrapCommandResult(
-        await commands.sftpMkdir(this.sftpSessionId, joinPath(this.remotePath, name)),
-      );
-      await this.refreshRemote();
-    } catch (error: unknown) {
-      const message = errorMessage(error);
-      this.remoteError = message;
-      this.showError(message);
-    }
+  dismissError(id: string): void {
+    this.errorQueue = this.errorQueue.filter((error) => error.id !== id);
   }
 
-  async remoteRemove(entry: FileEntry): Promise<void> {
-    if (!this.sftpSessionId) {
-      this.remoteError = "SFTP session is not connected.";
-      this.showError(this.remoteError, "warning");
-      return;
+  /** Copy `entry` from `source` into the other pane's current folder. */
+  async transfer(source: SftpPane, entry: FileEntry): Promise<string | undefined> {
+    const target = this.otherPane(source);
+    if (source.machine !== null && source.machine === target.machine) {
+      this.showError("Both sides are the same machine. Pick a different one on one side.", "warning");
+      return undefined;
     }
-
-    try {
-      await invoke("sftp_remove", {
-        sessionId: this.sftpSessionId,
-        path: joinPath(this.remotePath, entry.name),
-      });
-      await this.refreshRemote();
-    } catch (error: unknown) {
-      const message = errorMessage(error);
-      this.remoteError = message;
-      this.showError(message);
-    }
-  }
-
-  async remoteRename(entry: FileEntry, newName: string): Promise<void> {
-    if (!this.sftpSessionId) {
-      this.remoteError = "SFTP session is not connected.";
-      this.showError(this.remoteError, "warning");
-      return;
-    }
-
-    try {
-      await invoke("sftp_rename", {
-        sessionId: this.sftpSessionId,
-        oldPath: joinPath(this.remotePath, entry.name),
-        newPath: joinPath(this.remotePath, newName),
-      });
-      await this.refreshRemote();
-    } catch (error: unknown) {
-      const message = errorMessage(error);
-      this.remoteError = message;
-      this.showError(message);
-    }
-  }
-
-  async startUpload(localEntry: FileEntry): Promise<string | undefined> {
-    if (!this.sftpSessionId) {
-      this.remoteError = "SFTP session is not connected.";
-      this.showError(this.remoteError, "warning");
+    if (!source.isReady || !target.isReady) {
+      this.showError("Connect to a server on both sides before transferring files", "warning");
       return undefined;
     }
 
-    const localPath = joinPath(this.localPath, localEntry.name);
-    const remotePath = joinPath(this.remotePath, localEntry.name);
-    const targetName = nextAvailableTransferName(localEntry.name, this.remoteFiles);
+    const sourcePath = joinPath(source.path, entry.name);
+    const targetPath = joinPath(target.path, entry.name);
+    const targetName = nextAvailableTransferName(entry.name, target.files);
 
-    if (targetName !== localEntry.name) {
+    if (targetName !== entry.name) {
       this.setTransferConflict({
-        fileName: localEntry.name,
-        existingName: localEntry.name,
+        fileName: entry.name,
+        existingName: entry.name,
         suggestedName: targetName,
-        direction: "Upload",
-        isDirectory: localEntry.file_type === "Dir",
-        sourcePath: localPath,
-        targetPath: remotePath,
-        renamedTargetPath: joinPath(this.remotePath, targetName),
+        destination: target.label,
+        isDirectory: entry.file_type === "Dir",
+        source,
+        target,
+        sourcePath,
+        targetPath,
+        renamedTargetPath: joinPath(target.path, targetName),
       });
       return undefined;
     }
 
-    try {
-      return await this.invokePendingTransfer({
-        direction: "Upload",
-        sourcePath: localPath,
-        targetPath: remotePath,
-      });
-    } catch (error: unknown) {
-      const message = errorMessage(error);
-      this.remoteError = message;
-      this.showError(message);
-      return undefined;
-    }
-  }
-
-  async startDownload(remoteEntry: FileEntry): Promise<string | undefined> {
-    if (!this.sftpSessionId) {
-      this.remoteError = "SFTP session is not connected.";
-      this.showError(this.remoteError, "warning");
-      return undefined;
-    }
-
-    const remotePath = joinPath(this.remotePath, remoteEntry.name);
-    const localPath = joinPath(this.localPath, remoteEntry.name);
-    const targetName = nextAvailableTransferName(remoteEntry.name, this.localFiles);
-
-    if (targetName !== remoteEntry.name) {
-      this.setTransferConflict({
-        fileName: remoteEntry.name,
-        existingName: remoteEntry.name,
-        suggestedName: targetName,
-        direction: "Download",
-        isDirectory: remoteEntry.file_type === "Dir",
-        sourcePath: remotePath,
-        targetPath: localPath,
-        renamedTargetPath: joinPath(this.localPath, targetName),
-      });
-      return undefined;
-    }
-
-    try {
-      return await this.invokePendingTransfer({
-        direction: "Download",
-        sourcePath: remotePath,
-        targetPath: localPath,
-      });
-    } catch (error: unknown) {
-      const message = errorMessage(error);
-      this.remoteError = message;
-      this.showError(message);
-      return undefined;
-    }
+    return await this.startTransfer(source, target, sourcePath, targetPath, entry.name);
   }
 
   async cancelTransfer(transferId: string): Promise<void> {
@@ -593,200 +571,82 @@ export class SftpStore {
     this.transferConflict = null;
     this.pendingTransferConflict = null;
     const targetPath = choice === "rename" ? pending.renamedTargetPath : pending.targetPath;
-
-    try {
-      const transferId = await this.invokePendingTransfer({
-        direction: pending.direction,
-        sourcePath: pending.sourcePath,
-        targetPath,
-      });
-      const action = pending.direction === "Upload" ? "Uploading" : "Downloading";
-      const fileName = choice === "rename" ? pending.suggestedName : pending.fileName;
-      this.showError(`${action} ${fileName}...`, "info");
-      return transferId;
-    } catch (error: unknown) {
-      this.showError(errorMessage(error));
-      return undefined;
-    }
-  }
-
-  async dropTransfer(
-    source: "local" | "remote",
-    target: "local" | "remote",
-    entry: FileEntry,
-  ): Promise<void> {
-    if (source === target) return;
-    if (target === "remote") {
-      if (!this.isConnected) {
-        this.showError("Connect to a server before dragging files to Remote", "warning");
-        return;
-      }
-      const localPath = joinPath(this.localPath, entry.name);
-      const remotePath = joinPath(this.remotePath, entry.name);
-      const targetName = nextAvailableTransferName(entry.name, this.remoteFiles);
-      if (targetName !== entry.name) {
-        this.setTransferConflict({
-          fileName: entry.name,
-          existingName: entry.name,
-          suggestedName: targetName,
-          direction: "Upload",
-          isDirectory: entry.file_type === "Dir",
-          sourcePath: localPath,
-          targetPath: remotePath,
-          renamedTargetPath: joinPath(this.remotePath, targetName),
-        });
-        return;
-      }
-
-      try {
-        await this.invokePendingTransfer({
-          direction: "Upload",
-          sourcePath: localPath,
-          targetPath: remotePath,
-        });
-        this.showError(`Uploading ${entry.name}...`, "info");
-      } catch (error: unknown) {
-        this.showError(errorMessage(error));
-      }
-    } else {
-      if (!this.isConnected) {
-        this.showError("Connect to a server before dragging files from Remote", "warning");
-        return;
-      }
-      const remotePath = joinPath(this.remotePath, entry.name);
-      const localPath = joinPath(this.localPath, entry.name);
-      const targetName = nextAvailableTransferName(entry.name, this.localFiles);
-      if (targetName !== entry.name) {
-        this.setTransferConflict({
-          fileName: entry.name,
-          existingName: entry.name,
-          suggestedName: targetName,
-          direction: "Download",
-          isDirectory: entry.file_type === "Dir",
-          sourcePath: remotePath,
-          targetPath: localPath,
-          renamedTargetPath: joinPath(this.localPath, targetName),
-        });
-        return;
-      }
-
-      try {
-        await this.invokePendingTransfer({
-          direction: "Download",
-          sourcePath: remotePath,
-          targetPath: localPath,
-        });
-        this.showError(`Downloading ${entry.name}...`, "info");
-      } catch (error: unknown) {
-        this.showError(errorMessage(error));
-      }
-    }
+    const fileName = choice === "rename" ? pending.suggestedName : pending.fileName;
+    return await this.startTransfer(
+      pending.source,
+      pending.target,
+      pending.sourcePath,
+      targetPath,
+      fileName,
+    );
   }
 
   cleanup(): void {
-    this.connectionGeneration += 1;
+    this.listenerGeneration += 1;
     this.teardownEventListeners();
-    this.localPath = "~";
-    this.remotePath = "";
-    this.localFiles = [];
-    this.remoteFiles = [];
-    this.localLoading = false;
-    this.remoteLoading = false;
-    this.localError = null;
-    this.remoteError = null;
+    this.left.reset();
+    this.right.reset();
     this.lastError = null;
     this.errorQueue = [];
     this.activeTransfers = new SvelteMap();
     this.transferConflict = null;
     this.pendingTransferConflict = null;
     this.progressLogState.clear();
-    this.selectedLocal = null;
-    this.selectedRemote = null;
-    this.sftpSessionId = null;
-    this.sshSessionId = null;
-    this.isDirectConnection = false;
-    this.connection = null;
-    this.connectionId = null;
-    this.connectionError = null;
-    this.trustPrompt = null;
-    this.trustMismatch = null;
-    this.isConnecting = false;
-    this.isClosing = false;
     this.attemptedActiveSshSessionId = null;
   }
 
-  private async setupEventListeners(generation: number): Promise<void> {
-    if (!this.unlistenProgress) {
-      console.info("[SFTP][Store] registering progress listener");
-      const unlisten = await listen<TransferProgress>(
-        "sftp://progress",
-        (event) => {
-          if (generation !== this.connectionGeneration) return;
-          this.activeTransfers.set(event.payload.transfer_id, event.payload);
-          this.logTransferProgress(event.payload);
-        },
-      );
-      if (generation !== this.connectionGeneration) {
-        unlisten();
-        return;
-      }
-      this.unlistenProgress = unlisten;
-    }
+  /** Transfer events are shared by both panes, so listen once until cleanup. */
+  async setupEventListeners(): Promise<void> {
+    this.listenersReady ??= this.registerEventListeners(this.listenerGeneration);
+    await this.listenersReady;
+  }
 
-    if (!this.unlistenComplete) {
-      console.info("[SFTP][Store] registering complete listener");
-      const unlisten = await listen<TransferComplete>(
-        "sftp://complete",
-        (event) => {
-          if (generation !== this.connectionGeneration) return;
-          console.info("[SFTP][Store] complete event", event.payload);
-          this.progressLogState.delete(event.payload.transfer_id);
-          this.activeTransfers.delete(event.payload.transfer_id);
-          if (event.payload.direction === "Download") {
-            void this.refreshLocal();
-          } else {
-            void this.refreshRemote();
-          }
-        },
-      );
-      if (generation !== this.connectionGeneration) {
-        unlisten();
-        return;
-      }
-      this.unlistenComplete = unlisten;
-    }
+  private async registerEventListeners(generation: number): Promise<void> {
+    const handlers: Array<[string, (payload: never) => void]> = [
+      ["sftp://progress", (payload: TransferProgress) => {
+        this.activeTransfers.set(payload.transfer_id, payload);
+        this.logTransferProgress(payload);
+      }],
+      ["sftp://complete", (payload: TransferComplete) => {
+        console.info("[SFTP][Store] complete event", payload);
+        this.finishTransfer(payload.transfer_id);
+        for (const pane of [this.left, this.right]) {
+          if (pane.isReady) void pane.refresh();
+        }
+      }],
+      ["sftp://error", (payload: TransferError) => {
+        console.error("[SFTP][Store] error event", payload);
+        this.finishTransfer(payload.transfer_id);
+        this.showError(payload.error);
+      }],
+    ];
 
-    if (!this.unlistenError) {
-      console.info("[SFTP][Store] registering error listener");
-      const unlisten = await listen<TransferError>(
-        "sftp://error",
-        (event) => {
-          if (generation !== this.connectionGeneration) return;
-          console.error("[SFTP][Store] error event", event.payload);
-          this.progressLogState.delete(event.payload.transfer_id);
-          this.activeTransfers.delete(event.payload.transfer_id);
-          this.remoteError = event.payload.error;
-          this.showError(event.payload.error);
-        },
-      );
-      if (generation !== this.connectionGeneration) {
+    for (const [name, handler] of handlers) {
+      console.info("[SFTP][Store] registering listener", name);
+      const unlisten = await listen(name, (event) => {
+        if (generation === this.listenerGeneration) handler(event.payload as never);
+      });
+      if (generation !== this.listenerGeneration) {
         unlisten();
         return;
       }
-      this.unlistenError = unlisten;
+      this.unlisteners.push(unlisten);
     }
   }
 
+  private finishTransfer(transferId: string): void {
+    this.progressLogState.delete(transferId);
+    this.activeTransfers.delete(transferId);
+  }
+
   private teardownEventListeners(): void {
-    console.info("[SFTP][Store] tearing down transfer listeners");
-    const listeners = [this.unlistenProgress, this.unlistenComplete, this.unlistenError];
-    this.unlistenProgress = null;
-    this.unlistenComplete = null;
-    this.unlistenError = null;
+    const unlisteners = this.unlisteners;
+    this.unlisteners = [];
+    this.listenersReady = null;
     this.progressLogState.clear();
-    for (const unlisten of listeners) {
+    for (const unlisten of unlisteners) {
       try {
-        unlisten?.();
+        unlisten();
       } catch (error: unknown) {
         this.showError(`Could not remove SFTP listener: ${errorMessage(error)}`, "warning");
       }
@@ -828,7 +688,7 @@ export class SftpStore {
       fileName: conflict.fileName,
       existingName: conflict.existingName,
       suggestedName: conflict.suggestedName,
-      direction: conflict.direction,
+      destination: conflict.destination,
       isDirectory: conflict.isDirectory,
       conflictingFiles: conflict.isDirectory ? null : [],
     };
@@ -840,14 +700,22 @@ export class SftpStore {
 
   /** Fill in which files inside a folder an overwrite would clobber. */
   private async loadFolderConflicts(conflict: PendingTransferConflict): Promise<void> {
+    const { source, target, sourcePath, targetPath } = conflict;
     let files: string[] = [];
     try {
-      files = await invoke<string[]>("sftp_transfer_conflicts", {
-        sessionId: this.sftpSessionId,
-        direction: conflict.direction,
-        sourcePath: conflict.sourcePath,
-        targetPath: conflict.targetPath,
-      });
+      files = source.isLocal || target.isLocal
+        ? await invoke<string[]>("sftp_transfer_conflicts", {
+          sessionId: source.isLocal ? target.sftpSessionId : source.sftpSessionId,
+          direction: source.isLocal ? "Upload" : "Download",
+          sourcePath,
+          targetPath,
+        })
+        : await invoke<string[]>("sftp_copy_conflicts", {
+          sourceSessionId: source.sftpSessionId,
+          sourcePath,
+          targetSessionId: target.sftpSessionId,
+          targetPath,
+        });
     } catch (error: unknown) {
       console.warn("[SFTP][Store] folder conflict scan failed", errorMessage(error));
     }
@@ -856,24 +724,46 @@ export class SftpStore {
     this.transferConflict = { ...this.transferConflict, conflictingFiles: files };
   }
 
-  private async invokePendingTransfer(options: {
-    direction: "Upload" | "Download";
-    sourcePath: string;
-    targetPath: string;
-  }): Promise<string> {
-    if (options.direction === "Upload") {
-      return await invoke<string>("sftp_upload", {
-        sessionId: this.sftpSessionId,
-        localPath: options.sourcePath,
-        remotePath: options.targetPath,
-      });
+  private async startTransfer(
+    source: SftpPane,
+    target: SftpPane,
+    sourcePath: string,
+    targetPath: string,
+    fileName: string,
+  ): Promise<string | undefined> {
+    try {
+      await this.setupEventListeners();
+      let transferId: string;
+      let action: string;
+      if (source.isLocal) {
+        action = "Uploading";
+        transferId = await invoke<string>("sftp_upload", {
+          sessionId: target.sftpSessionId,
+          localPath: sourcePath,
+          remotePath: targetPath,
+        });
+      } else if (target.isLocal) {
+        action = "Downloading";
+        transferId = await invoke<string>("sftp_download", {
+          sessionId: source.sftpSessionId,
+          remotePath: sourcePath,
+          localPath: targetPath,
+        });
+      } else {
+        action = "Copying";
+        transferId = await invoke<string>("sftp_copy", {
+          sourceSessionId: source.sftpSessionId,
+          sourcePath,
+          targetSessionId: target.sftpSessionId,
+          targetPath,
+        });
+      }
+      this.showError(`${action} ${fileName}...`, "info");
+      return transferId;
+    } catch (error: unknown) {
+      this.showError(errorMessage(error));
+      return undefined;
     }
-
-    return await invoke<string>("sftp_download", {
-      sessionId: this.sftpSessionId,
-      remotePath: options.sourcePath,
-      localPath: options.targetPath,
-    });
   }
 }
 

@@ -24,15 +24,26 @@ impl SftpSession {
                 self.list_remote_tree(source_path).await?,
                 list_local_tree(target_path).await?,
             ),
+            TransferDirection::Copy => (
+                self.list_remote_tree(source_path).await?,
+                self.list_remote_tree(target_path).await?,
+            ),
         };
 
-        let target: HashSet<String> = target.into_iter().collect();
-        let mut conflicts = source
-            .into_iter()
-            .filter(|relative| target.contains(relative))
-            .collect::<Vec<_>>();
-        conflicts.sort();
-        Ok(conflicts)
+        Ok(common_paths(source, target))
+    }
+
+    /// `transfer_conflicts` for a copy from this session into `target`.
+    pub async fn copy_conflicts(
+        &self,
+        source_path: &str,
+        target: &SftpSession,
+        target_path: &str,
+    ) -> Result<Vec<String>, SftpError> {
+        Ok(common_paths(
+            self.list_remote_tree(source_path).await?,
+            target.list_remote_tree(target_path).await?,
+        ))
     }
 
     /// File paths under `root`, relative to it. Empty when `root` is not a directory.
@@ -69,6 +80,16 @@ impl SftpSession {
 
         Ok(files)
     }
+}
+
+fn common_paths(source: Vec<String>, target: Vec<String>) -> Vec<String> {
+    let target: HashSet<String> = target.into_iter().collect();
+    let mut conflicts = source
+        .into_iter()
+        .filter(|relative| target.contains(relative))
+        .collect::<Vec<_>>();
+    conflicts.sort();
+    conflicts
 }
 
 pub(super) async fn is_local_dir(path: &str) -> bool {
@@ -258,6 +279,81 @@ pub(super) async fn download_dir(
             .download_file(
                 &remote_path,
                 &local_path.to_string_lossy(),
+                transfer_id.clone(),
+                cancel.clone(),
+                None,
+            )
+            .await?;
+        progress.maybe_emit(bytes_transferred);
+    }
+
+    progress.emit_final(bytes_transferred);
+    Ok(bytes_transferred)
+}
+
+/// Recursively copy a directory tree from `source` into `target`.
+///
+/// The whole source tree is listed before anything is written, so copying a
+/// folder into itself on the same server cannot recurse forever.
+pub(super) async fn copy_dir(
+    source: &SftpSession,
+    source_root: &str,
+    target: &SftpSession,
+    target_root: &str,
+    transfer_id: String,
+    cancel: TransferCancellation,
+    progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
+) -> Result<u64, SftpError> {
+    let mut pending = vec![(source_root.to_string(), target_root.to_string())];
+    let mut dirs: Vec<String> = Vec::new();
+    let mut files: Vec<(String, String)> = Vec::new();
+    let mut total_bytes = 0;
+
+    while let Some((source_dir, target_dir)) = pending.pop() {
+        for entry in source.list_dir(&source_dir).await? {
+            let source_path = join_remote(&source_dir, &entry.name);
+            let target_path = join_remote(&target_dir, &entry.name);
+            match entry.file_type {
+                FileType::Dir => pending.push((source_path, target_path)),
+                FileType::File => {
+                    total_bytes += entry.size;
+                    files.push((source_path, target_path));
+                }
+                _ => {}
+            }
+        }
+        dirs.push(target_dir);
+    }
+
+    for dir in dirs {
+        match target.mkdir(&dir).await {
+            Ok(()) | Err(SftpError::AlreadyExists) => {}
+            Err(error) => return Err(error),
+        }
+    }
+
+    let mut progress = ProgressEmitter::new(
+        transfer_id.clone(),
+        total_bytes,
+        TransferDirection::Copy,
+        progress_tx,
+    );
+    let mut bytes_transferred = 0;
+
+    for (source_path, target_path) in files {
+        if cancel.is_cancelled() {
+            return Err(SftpError::OperationFailed(
+                cancel
+                    .reason()
+                    .unwrap_or_else(|| "copy cancelled".to_string()),
+            ));
+        }
+
+        bytes_transferred += source
+            .copy_file(
+                &source_path,
+                target,
+                &target_path,
                 transfer_id.clone(),
                 cancel.clone(),
                 None,

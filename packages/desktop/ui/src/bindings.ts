@@ -433,6 +433,17 @@ async sftpTransferConflicts(sessionId: string, direction: TransferDirection, sou
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * `sftp_transfer_conflicts` for a copy between two SFTP sessions.
+ */
+async sftpCopyConflicts(sourceSessionId: string, sourcePath: string, targetSessionId: string, targetPath: string) : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_copy_conflicts", { sourceSessionId, sourcePath, targetSessionId, targetPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async sftpUpload(sessionId: string, localPath: string, remotePath: string) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("sftp_upload", { sessionId, localPath, remotePath }) };
@@ -444,6 +455,18 @@ async sftpUpload(sessionId: string, localPath: string, remotePath: string) : Pro
 async sftpDownload(sessionId: string, remotePath: string, localPath: string) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("sftp_download", { sessionId, remotePath, localPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Stream a file or folder from one SFTP session to another. Both may be on
+ * the same machine.
+ */
+async sftpCopy(sourceSessionId: string, sourcePath: string, targetSessionId: string, targetPath: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_copy", { sourceSessionId, sourcePath, targetSessionId, targetPath }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -560,7 +583,11 @@ export type SshPortForwardState = "listening" | "stopped" | "error"
 export type SshPortForwardStatus = { forward_id: string; session_id: string; bind_host: string; bind_port: number; target_host: string; target_port: number; status: SshPortForwardState; error: string | null }
 export type SshProbeHostInfoResponse = { status: "success"; info: HostSystemInfo } | { status: "trust_required"; prompt: HostTrustPrompt } | { status: "trust_mismatch"; mismatch: HostTrustMismatch }
 export type TAURI_CHANNEL<TSend> = Channel<TSend>
-export type TransferDirection = "Upload" | "Download"
+export type TransferDirection = "Upload" | "Download" | 
+/**
+ * Remote to remote, streamed through this machine.
+ */
+"Copy"
 export type TrustedSshHost = { host: string; port: number; algorithm: string; fingerprint: string }
 
 /** tauri-specta globals **/

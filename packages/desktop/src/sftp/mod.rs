@@ -137,10 +137,31 @@ pub async fn sftp_transfer_conflicts(
     let (source_path, target_path) = match direction {
         TransferDirection::Upload => (normalize_local_path(&source_path)?, target_path),
         TransferDirection::Download => (source_path, normalize_local_path(&target_path)?),
+        TransferDirection::Copy => (source_path, target_path),
     };
 
     ssh_manager
         .sftp_transfer_conflicts(&session_id, direction, &source_path, &target_path)
+        .await
+}
+
+/// `sftp_transfer_conflicts` for a copy between two SFTP sessions.
+#[tauri::command]
+#[specta::specta]
+pub async fn sftp_copy_conflicts(
+    source_session_id: String,
+    source_path: String,
+    target_session_id: String,
+    target_path: String,
+    ssh_manager: State<'_, SshSessionManager>,
+) -> Result<Vec<String>, String> {
+    ssh_manager
+        .sftp_copy_conflicts(
+            &source_session_id,
+            &source_path,
+            &target_session_id,
+            &target_path,
+        )
         .await
 }
 
@@ -161,6 +182,7 @@ pub async fn sftp_upload(
         local_path,
         remote_path,
         TransferDirection::Upload,
+        None,
         ssh_manager.inner().clone(),
         transfer_state.inner(),
     )
@@ -184,6 +206,33 @@ pub async fn sftp_download(
         remote_path,
         local_path,
         TransferDirection::Download,
+        None,
+        ssh_manager.inner().clone(),
+        transfer_state.inner(),
+    )
+    .await
+}
+
+/// Stream a file or folder from one SFTP session to another. Both may be on
+/// the same machine.
+#[tauri::command]
+#[specta::specta]
+pub async fn sftp_copy(
+    app: AppHandle,
+    source_session_id: String,
+    source_path: String,
+    target_session_id: String,
+    target_path: String,
+    ssh_manager: State<'_, SshSessionManager>,
+    transfer_state: State<'_, TransferState>,
+) -> Result<String, String> {
+    spawn_transfer(
+        app,
+        source_session_id,
+        source_path,
+        target_path,
+        TransferDirection::Copy,
+        Some(target_session_id),
         ssh_manager.inner().clone(),
         transfer_state.inner(),
     )
@@ -238,12 +287,14 @@ fn normalize_local_path(path: &str) -> Result<String, String> {
     local_fs::expand_tilde(path).map(|expanded| expanded.to_string_lossy().into_owned())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn spawn_transfer(
     app: AppHandle,
     session_id: String,
     source_path: String,
     target_path: String,
     direction: TransferDirection,
+    copy_target_session_id: Option<String>,
     ssh_manager: SshSessionManager,
     transfer_state: &TransferState,
 ) -> Result<String, String> {
@@ -264,7 +315,9 @@ async fn spawn_transfer(
     });
 
     let watchdog_transfer_id = transfer_id.clone();
-    let watchdog_session_id = session_id.clone();
+    let watchdog_session_ids: Vec<String> = std::iter::once(session_id.clone())
+        .chain(copy_target_session_id.clone())
+        .collect();
     let watchdog_cancellation = cancellation.clone();
     let watchdog_cancellations = transfer_state.cancellations.clone();
     let watchdog_ssh_manager = ssh_manager.clone();
@@ -283,16 +336,20 @@ async fn spawn_transfer(
                 break;
             }
 
-            if watchdog_ssh_manager
-                .contains_sftp_session(&watchdog_session_id)
-                .await
-            {
-                continue;
+            let mut missing_session_id = None;
+            for session_id in &watchdog_session_ids {
+                if !watchdog_ssh_manager.contains_sftp_session(session_id).await {
+                    missing_session_id = Some(session_id);
+                    break;
+                }
             }
+            let Some(missing_session_id) = missing_session_id else {
+                continue;
+            };
 
             warn!(
                 transfer_id = %watchdog_transfer_id,
-                session_id = %watchdog_session_id,
+                session_id = %missing_session_id,
                 "Cancelling SFTP transfer because SSH session disappeared"
             );
             watchdog_cancellation.cancel_with_reason("SSH session disconnected during transfer");
@@ -321,6 +378,19 @@ async fn spawn_transfer(
                     .sftp_download(
                         &session_id,
                         &source_path,
+                        &target_path,
+                        task_transfer_id.clone(),
+                        cancellation,
+                        Some(progress_tx),
+                    )
+                    .await
+            }
+            TransferDirection::Copy => {
+                ssh_manager
+                    .sftp_copy(
+                        &session_id,
+                        &source_path,
+                        copy_target_session_id.as_deref().unwrap_or(&session_id),
                         &target_path,
                         task_transfer_id.clone(),
                         cancellation,

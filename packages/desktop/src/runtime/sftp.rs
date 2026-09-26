@@ -21,12 +21,12 @@ use mock::{
     download_mock, list_mock_dir, mkdir_mock, remove_mock, rename_mock, stat_mock, upload_mock,
     MockEntry,
 };
-use tree::{download_dir, is_local_dir, upload_dir};
+use tree::{copy_dir, download_dir, is_local_dir, upload_dir};
 use types::classify_sftp_error;
 
 pub use filesystem::{list_sftp_dir, mkdir_sftp, remove_sftp, rename_sftp, stat_sftp};
 pub(crate) use transfer::sftp_client_config;
-pub use transfer::{download_sftp, upload_sftp};
+pub use transfer::{copy_sftp, download_sftp, upload_sftp};
 pub use types::{
     FileEntry, FileType, SftpError, TransferCancellation, TransferComplete, TransferDirection,
     TransferError, TransferProgress,
@@ -251,6 +251,69 @@ impl SftpSession {
 
         self.download_file(remote_path, local_path, transfer_id, cancel, progress_tx)
             .await
+    }
+
+    /// Copy `source_path` on this server to `target_path` on `target`.
+    pub async fn copy_to(
+        &self,
+        source_path: &str,
+        target: &SftpSession,
+        target_path: &str,
+        transfer_id: String,
+        cancel: TransferCancellation,
+        progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
+    ) -> Result<u64, SftpError> {
+        if self.stat(source_path).await?.file_type == FileType::Dir {
+            return copy_dir(
+                self,
+                source_path,
+                target,
+                target_path,
+                transfer_id,
+                cancel,
+                progress_tx,
+            )
+            .await;
+        }
+
+        self.copy_file(
+            source_path,
+            target,
+            target_path,
+            transfer_id,
+            cancel,
+            progress_tx,
+        )
+        .await
+    }
+
+    async fn copy_file(
+        &self,
+        source_path: &str,
+        target: &SftpSession,
+        target_path: &str,
+        transfer_id: String,
+        cancel: TransferCancellation,
+        progress_tx: Option<tokio::sync::mpsc::UnboundedSender<TransferProgress>>,
+    ) -> Result<u64, SftpError> {
+        match (&self.inner, &target.inner) {
+            (SftpSessionInner::Active(source), SftpSessionInner::Active(target)) => {
+                copy_sftp(
+                    source,
+                    source_path,
+                    target,
+                    target_path,
+                    transfer_id,
+                    cancel,
+                    progress_tx,
+                )
+                .await
+            }
+            #[cfg(test)]
+            _ => Err(SftpError::OperationFailed(
+                "mock sessions cannot copy".to_string(),
+            )),
+        }
     }
 
     async fn download_file(

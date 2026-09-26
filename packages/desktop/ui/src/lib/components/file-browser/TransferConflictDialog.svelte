@@ -53,7 +53,7 @@
               Choose how to continue
             </h2>
             <p id="transfer-conflict-dialog-description" class="mt-2 text-sm leading-6 text-slate-400">
-              A {conflict.isDirectory ? "folder" : "file"} named <span class="font-mono text-slate-200">{conflict.existingName}</span> already exists at the {conflict.direction === "Upload" ? "remote" : "local"} destination.
+              A {conflict.isDirectory ? "folder" : "file"} named <span class="font-mono text-slate-200">{conflict.existingName}</span> already exists in <span class="text-slate-200">{conflict.destination}</span>.
             </p>
           </div>
         </div>

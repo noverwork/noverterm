@@ -20,18 +20,18 @@ describe("SFTP disconnection", () => {
   it("retires an expired remote session even when the server cannot close it", async () => {
     const store = createSftpStore();
     vi.mocked(invoke).mockResolvedValueOnce("expired-sftp");
-    await store.openSftp("ssh-1");
-    store.remotePath = "/home/user";
-    store.remoteFiles = [{ name: "old.txt", size: 12, modified: null, file_type: "File" }];
+    await store.right.openSftp("ssh-1");
+    store.right.path = "/home/user";
+    store.right.files = [{ name: "old.txt", size: 12, modified: null, file_type: "File" }];
     vi.mocked(invoke).mockRejectedValueOnce(new Error("SFTP session not found: expired-sftp"));
 
-    await store.disconnect();
+    await store.right.disconnect();
 
-    expect(store.isConnected).toBe(false);
-    expect(store.sftpSessionId).toBeNull();
-    expect(store.sshSessionId).toBeNull();
-    expect(store.remotePath).toBe("");
-    expect(store.remoteFiles).toEqual([]);
+    expect(store.right.isConnected).toBe(false);
+    expect(store.right.sftpSessionId).toBeNull();
+    expect(store.right.sshSessionId).toBeNull();
+    expect(store.right.path).toBe("");
+    expect(store.right.files).toEqual([]);
   });
 
   it("does not restore a closed machine's listing after a delayed response", async () => {
@@ -42,15 +42,15 @@ describe("SFTP disconnection", () => {
       if (command === "sftp_list_dir") return listing.promise;
       return undefined;
     });
-    await store.openSftp("ssh-1");
-    const navigation = store.navigateRemote("/old-machine");
+    await store.right.openSftp("ssh-1");
+    const navigation = store.right.navigate("/old-machine");
 
-    await store.disconnect();
+    await store.right.disconnect();
     listing.resolve([{ name: "stale.txt", size: 10, modified: null, file_type: "File" }]);
     await navigation;
 
-    expect(store.isConnected).toBe(false);
-    expect(store.remoteFiles).toEqual([]);
-    expect(store.remotePath).toBe("");
+    expect(store.right.isConnected).toBe(false);
+    expect(store.right.files).toEqual([]);
+    expect(store.right.path).toBe("");
   });
 });

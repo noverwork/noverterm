@@ -7,7 +7,7 @@ export interface FileEntry {
   file_type: FileType;
 }
 
-export type TransferDirection = "Upload" | "Download";
+export type TransferDirection = "Upload" | "Download" | "Copy";
 
 export interface TransferProgress {
   transfer_id: string;

@@ -1,18 +1,32 @@
 <script lang="ts">
   import SftpView from "$lib/components/sftp-view.svelte";
   import { getAppShellContext } from "$lib/stores/app-shell.svelte.js";
-  import { sftpStore } from "$lib/stores/sftp.svelte.js";
+  import { machineKey, sftpStore, type SftpPane } from "$lib/stores/sftp.svelte.js";
   import { createDirectSshConnectInput } from "$lib/services/ssh-connection-input.js";
   import { commands, type HostTrustConfirmation } from "../../bindings.js";
   import type { ConnectionConfig } from "$lib/app-data-types.js";
   import type { Session } from "$lib/stores/session.svelte.js";
 
   const app = getAppShellContext();
+  const right = sftpStore.right;
 
   let openingActiveSftp = $state(false);
-  let trustConfirming = $state(false);
-  let trustError = $state<string | null>(null);
-  let attemptGeneration = 0;
+
+  const sshSessions = $derived(
+    (app.activeSessions ?? []).filter(
+      (session) => session.type === "ssh" && session.status === "connected",
+    ),
+  );
+
+  /** A choice made on the right pane stops it following the active terminal. */
+  function claimPane(pane: SftpPane): void {
+    pane.attemptGeneration += 1;
+    pane.trustConfirming = false;
+    pane.trustError = null;
+    if (pane === right) {
+      sftpStore.attemptedActiveSshSessionId = app.activeSession?.id ?? null;
+    }
+  }
 
   async function openActiveSessionSftp(session: Session): Promise<void> {
     if (openingActiveSftp) {
@@ -20,19 +34,19 @@
     }
 
     openingActiveSftp = true;
-    const generation = attemptGeneration;
+    const generation = right.attemptGeneration;
     const sessionId = session.id;
     try {
-      if (sftpStore.sftpSessionId && sftpStore.sshSessionId !== sessionId) {
-        await sftpStore.closeSftp();
+      if (right.sftpSessionId && right.sshSessionId !== sessionId) {
+        await right.closeSftp();
       }
-      if (generation !== attemptGeneration) return;
+      if (generation !== right.attemptGeneration) return;
 
-      if (!sftpStore.sftpSessionId || sftpStore.sshSessionId !== sessionId) {
+      if (!right.sftpSessionId || right.sshSessionId !== sessionId) {
         console.info("[SFTP][Route] opening SFTP for active SSH session", {
           sessionId,
         });
-        await sftpStore.openSftp(sessionId, session);
+        await right.openSftp(sessionId, session);
       }
     } finally {
       openingActiveSftp = false;
@@ -46,15 +60,19 @@
       return;
     }
 
-    if (sftpStore.connectionError || sftpStore.isDirectConnection || sftpStore.isClosing || sftpStore.isConnecting) {
+    if (right.isLocal || right.connectionError || right.isDirectConnection || right.isClosing || right.isConnecting) {
       return;
     }
 
-    if (sftpStore.sftpSessionId && sftpStore.sshSessionId === session.id) {
+    if (right.sftpSessionId && right.sshSessionId === session.id) {
       return;
     }
 
     if (openingActiveSftp || sftpStore.attemptedActiveSshSessionId === session.id) {
+      return;
+    }
+
+    if (sftpStore.left.machine === machineKey(session)) {
       return;
     }
 
@@ -63,22 +81,22 @@
   });
 
   $effect(() => () => {
-    attemptGeneration += 1;
+    sftpStore.left.attemptGeneration += 1;
+    right.attemptGeneration += 1;
   });
 
-  async function handleConnect(connection: ConnectionConfig): Promise<void> {
-    const generation = ++attemptGeneration;
-    sftpStore.connectionId = connection.id;
-    trustError = null;
-    sftpStore.attemptedActiveSshSessionId = app.activeSession?.id ?? null;
-    if (sftpStore.sftpSessionId) {
-      await sftpStore.closeSftp();
+  async function handleConnect(pane: SftpPane, connection: ConnectionConfig): Promise<void> {
+    claimPane(pane);
+    const generation = pane.attemptGeneration;
+    pane.connectionId = connection.id;
+    if (pane.sftpSessionId) {
+      await pane.closeSftp();
     }
-    if (generation !== attemptGeneration) return;
+    if (generation !== pane.attemptGeneration) return;
 
     try {
       const input = createDirectSshConnectInput(connection);
-      await sftpStore.connectDirect({
+      await pane.connectDirect({
         connectionId: connection.id,
         name: connection.name,
         host: input.host,
@@ -89,67 +107,84 @@
         passphrase: input.passphrase ?? undefined,
       });
     } catch (error: unknown) {
-      if (generation !== attemptGeneration) return;
-      sftpStore.connectionId = connection.id;
-      sftpStore.trustPrompt = null;
-      sftpStore.trustMismatch = null;
-      sftpStore.connection = {
+      if (generation !== pane.attemptGeneration) return;
+      pane.connectionId = connection.id;
+      pane.trustPrompt = null;
+      pane.trustMismatch = null;
+      pane.connection = {
         name: connection.name,
         host: connection.host,
         port: connection.port,
         username: connection.username,
       };
-      sftpStore.isDirectConnection = true;
-      sftpStore.connectionError = error instanceof Error ? error.message : String(error);
+      pane.isDirectConnection = true;
+      pane.connectionError = error instanceof Error ? error.message : String(error);
     }
   }
 
-  async function handleRetry(): Promise<void> {
-    if (trustConfirming || sftpStore.isConnecting) return;
-    if (!sftpStore.isDirectConnection && sftpStore.sshSessionId) {
-      attemptGeneration += 1;
-      sftpStore.attemptedActiveSshSessionId = app.activeSession?.id ?? null;
-      await sftpStore.openSftp(sftpStore.sshSessionId, sftpStore.connection ?? undefined);
+  async function handleOpenSession(pane: SftpPane, session: Session): Promise<void> {
+    claimPane(pane);
+    const generation = pane.attemptGeneration;
+    if (pane.sftpSessionId) {
+      await pane.closeSftp();
+    }
+    if (generation !== pane.attemptGeneration) return;
+    await pane.openSftp(session.id, session);
+  }
+
+  async function handleUseLocal(pane: SftpPane): Promise<void> {
+    claimPane(pane);
+    await pane.useLocal();
+  }
+
+  async function handleRetry(pane: SftpPane): Promise<void> {
+    if (pane.trustConfirming || pane.isConnecting) return;
+    if (!pane.isDirectConnection && pane.sshSessionId) {
+      pane.attemptGeneration += 1;
+      if (pane === right) {
+        sftpStore.attemptedActiveSshSessionId = app.activeSession?.id ?? null;
+      }
+      await pane.openSftp(pane.sshSessionId, pane.connection ?? undefined);
       return;
     }
-    const connection = app.connections.find((candidate) => candidate.id === sftpStore.connectionId);
+    const connection = app.connections.find((candidate) => candidate.id === pane.connectionId);
     if (!connection) {
-      sftpStore.connectionError = "Saved connection not found. Open Connections and try again.";
+      pane.connectionError = "Saved connection not found. Open Connections and try again.";
       return;
     }
-    await handleConnect(connection);
+    await handleConnect(pane, connection);
   }
 
-  async function confirmTrustAndRetry(confirmation: HostTrustConfirmation): Promise<void> {
-    if (trustConfirming || !sftpStore.connectionId) return;
-    if (!app.connections.some((connection) => connection.id === sftpStore.connectionId)) {
-      trustError = "Saved connection not found. Open Connections and try again.";
+  async function confirmTrustAndRetry(pane: SftpPane, confirmation: HostTrustConfirmation): Promise<void> {
+    if (pane.trustConfirming || !pane.connectionId) return;
+    if (!app.connections.some((connection) => connection.id === pane.connectionId)) {
+      pane.trustError = "Saved connection not found. Open Connections and try again.";
       return;
     }
-    const generation = attemptGeneration;
-    trustConfirming = true;
-    trustError = null;
+    const generation = pane.attemptGeneration;
+    pane.trustConfirming = true;
+    pane.trustError = null;
     try {
       const result = await commands.sshConfirmHostTrust(confirmation);
-      if (generation !== attemptGeneration) return;
+      if (generation !== pane.attemptGeneration) return;
       if (result.status === "error") throw new Error(result.error);
-      trustConfirming = false;
-      await handleRetry();
+      pane.trustConfirming = false;
+      await handleRetry(pane);
     } catch (error: unknown) {
-      if (generation === attemptGeneration) {
-        trustError = error instanceof Error ? error.message : String(error);
+      if (generation === pane.attemptGeneration) {
+        pane.trustError = error instanceof Error ? error.message : String(error);
       }
     } finally {
-      if (generation === attemptGeneration) {
-        trustConfirming = false;
+      if (generation === pane.attemptGeneration) {
+        pane.trustConfirming = false;
       }
     }
   }
 
-  async function handleTrust(): Promise<void> {
-    const prompt = sftpStore.trustPrompt;
+  async function handleTrust(pane: SftpPane): Promise<void> {
+    const prompt = pane.trustPrompt;
     if (prompt) {
-      await confirmTrustAndRetry({
+      await confirmTrustAndRetry(pane, {
         host: prompt.host,
         port: prompt.port,
         algorithm: prompt.algorithm,
@@ -158,10 +193,10 @@
     }
   }
 
-  async function handleReplaceTrust(): Promise<void> {
-    const mismatch = sftpStore.trustMismatch;
+  async function handleReplaceTrust(pane: SftpPane): Promise<void> {
+    const mismatch = pane.trustMismatch;
     if (mismatch) {
-      await confirmTrustAndRetry({
+      await confirmTrustAndRetry(pane, {
         host: mismatch.host,
         port: mismatch.port,
         algorithm: mismatch.presented_algorithm,
@@ -170,23 +205,20 @@
     }
   }
 
-  async function handleDisconnect(): Promise<void> {
-    attemptGeneration += 1;
-    trustConfirming = false;
-    trustError = null;
-    sftpStore.attemptedActiveSshSessionId = app.activeSession?.id ?? null;
-    await sftpStore.disconnect();
+  async function handleDisconnect(pane: SftpPane): Promise<void> {
+    claimPane(pane);
+    await pane.disconnect();
   }
 </script>
 
 <SftpView
   connections={app.connections}
+  {sshSessions}
   onConnect={handleConnect}
+  onOpenSession={handleOpenSession}
+  onUseLocal={handleUseLocal}
   onDisconnect={handleDisconnect}
   onRetry={handleRetry}
   onTrust={handleTrust}
   onReplaceTrust={handleReplaceTrust}
-  {trustError}
-  {trustConfirming}
-  canTrust={sftpStore.connectionId !== null}
 />

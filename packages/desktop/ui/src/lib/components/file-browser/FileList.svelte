@@ -20,20 +20,20 @@
     files: FileEntry[];
     selected: FileEntry | null;
     loading: boolean;
-    panelId?: "local" | "remote";
+    panelId?: "left" | "right";
     scrollKey?: string;
     onSelect: (entry: FileEntry) => void;
     onNavigate: (entry: FileEntry) => void;
     onNavigateUp?: () => void;
     onTransfer?: (entry: FileEntry) => void;
-    onDragStart?: (entry: FileEntry, panel: "local" | "remote") => void;
+    onDragStart?: (entry: FileEntry, panel: "left" | "right") => void;
   }
 
   let {
     files,
     selected,
     loading,
-    panelId = "local",
+    panelId = "left",
     scrollKey = panelId,
     onSelect,
     onNavigate,
