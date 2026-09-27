@@ -320,10 +320,10 @@ export function createTerminal(options: TerminalOptions): TerminalController {
   function refresh() {
     if (!terminal) return;
 
-    // The GPU may reclaim the glyph atlas while the window is occluded or
-    // idle, without reporting a context loss. Rebuild it before redrawing.
-    webglAddon?.clearTextureAtlas();
-
+    // Don't call webglAddon.clearTextureAtlas() here: the atlas is shared by
+    // every terminal with the same config, and clearing it leaves the other
+    // terminals' cached glyph coordinates pointing at the wrong glyphs.
+    // See WEBGL-GLYPH-CORRUPTION.md.
     if (terminal.rows > 0) {
       terminal.refresh(0, terminal.rows - 1);
     }
