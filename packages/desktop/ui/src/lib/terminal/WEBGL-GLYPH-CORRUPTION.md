@@ -53,8 +53,16 @@ stable release yet (`latest` is still `@xterm/xterm` 6.0.0 / addon 0.19.0).
    4 pages into one. Page version counters are per page, so the merged page
    can land in a slot whose old page had the same version, the GPU upload is
    skipped, and the slot keeps a stale bitmap. Triggered by many unique glyphs
-   (CJK-heavy sessions). **Not fixed here.** This is the likely cause if
-   corruption shows up without any tab switch.
+   (CJK-heavy sessions). **Backported** (2026-09-27, after corruption came
+   back in a CJK-heavy session with the first fix in place):
+   `scripts/patch-xterm-webgl.js` runs on `postinstall` and rewrites every
+   `AtlasPage.version` write in `lib/addon-webgl.mjs` to draw from one global
+   counter, so a page moved into a slot always differs from the texture bound
+   there. The script refuses to run on any version other than 0.19.0 and
+   fails if a pattern is not found exactly once.
+
+   The page-overflow half of #6038 (more pages than bound textures) is not
+   backported.
 
 Upstream tracking: #6014 is fixed by PR #6055; #6038 is still open (draft PR
 #6033); both are on the 7.0.0 milestone.
@@ -73,19 +81,23 @@ References:
 
 ## If it still happens
 
-The fix is based on reading the addon source, not on a reproduced test. If
-corruption comes back:
+Both fixes are based on reading the addon source, not on a reproduced test.
+If corruption comes back:
 
 1. Note what happened just before (tab switch, sleep/wake, window occluded,
    font/theme change, WebGL context loss warning `[xterm:webgl] context lost`
    in the console).
 2. Check whether a resize still fixes it. If yes, the model is stale again:
    look for any other path that clears or mutates the shared atlas.
-3. If it happens in CJK-heavy sessions without a tab switch, it is most likely
-   #6038. Options: upgrade to a stable addon-webgl with the fix once released,
-   or backport the monotonic page version with `bun patch @xterm/addon-webgl`
-   (same approach as vmark #1430).
-4. If you ever need to clear the atlas again, clear it on **all** live
+3. Confirm the #6038 patch is actually applied: `lib/addon-webgl.mjs` must
+   start with `/*noverterm:atlas-version*/`. `cargo make frontend:install`
+   skips `npm install` when `node_modules` exists, so run
+   `node scripts/patch-xterm-webgl.js` by hand after a fresh checkout of this
+   change, and delete `node_modules/.vite` so the dev server re-bundles.
+4. If it is patched and still happens, look at the rest of #6038 (page
+   overflow, merge-count guard — see omnigent PR #7397) or fall back to the
+   DOM renderer.
+5. If you ever need to clear the atlas again, clear it on **all** live
    terminals together — keep a module-level `Set` of `WebglAddon` instances
    and call `clearTextureAtlas()` on each, so every terminal drops its model at
    the same time.

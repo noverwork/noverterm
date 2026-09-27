@@ -4,6 +4,7 @@
   "description": "SvelteKit frontend for noverterm desktop app",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/patch-xterm-webgl.js",
     "dev": "vite dev",
     "build": "vite build",
     "tauri": "cd .. && ./ui/node_modules/.bin/tauri",
