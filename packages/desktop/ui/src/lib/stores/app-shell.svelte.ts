@@ -617,9 +617,13 @@ export function createAppShellStore(queryClient: QueryClient) {
   }
 
   async function runSnippet(
-    connection: ConnectionConfig,
+    connection: ConnectionConfig | null,
     command: string,
   ): Promise<boolean> {
+    if (!connection) {
+      return await runLocalSnippet(command);
+    }
+
     const existingSession = Array.from(sessionStore.sessions.values()).find(
       (s) => s.connectionId === connection.id && s.status !== "disconnected",
     );
@@ -645,6 +649,25 @@ export function createAppShellStore(queryClient: QueryClient) {
     }
 
     return false;
+  }
+
+  async function runLocalSnippet(command: string): Promise<boolean> {
+    const existingSession = Array.from(sessionStore.sessions.values()).find(
+      (s) =>
+        s.type === "local" &&
+        s.name === "Local Terminal" &&
+        s.status !== "disconnected",
+    );
+
+    try {
+      const sessionId =
+        existingSession?.id ?? (await sessionStore.connectLocal("Local Terminal"));
+      sessionStore.setActiveSession(sessionId);
+      await sessionStore.writeSession(sessionId, command + "\n");
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function openSettings() {

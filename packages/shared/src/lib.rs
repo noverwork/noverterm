@@ -75,7 +75,7 @@ pub struct SshKeySecret {
 #[ts(export, export_to = "snippet-record.ts")]
 pub struct SnippetRecord {
     pub id: String,
-    pub host_id: String,
+    pub host_id: Option<String>,
     pub host_name: String,
     pub title: String,
     pub body: String,
@@ -84,7 +84,7 @@ pub struct SnippetRecord {
 #[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
 #[ts(export, export_to = "snippet-write-request.ts")]
 pub struct SnippetWriteRequest {
-    pub host_id: String,
+    pub host_id: Option<String>,
     pub title: String,
     pub body: String,
 }

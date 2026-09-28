@@ -323,7 +323,7 @@ async fn grouped_connections_and_snippets_reload_with_their_host() {
 
     super::snippets::snippet_create(
         shared::SnippetWriteRequest {
-            host_id: host.id.clone(),
+            host_id: Some(host.id.clone()),
             title: "restart".to_string(),
             body: "systemctl restart app".to_string(),
         },
@@ -343,6 +343,59 @@ async fn grouped_connections_and_snippets_reload_with_their_host() {
     assert_eq!(snippets.len(), 1);
     assert_eq!(snippets[0].host_name, "prod");
     assert_eq!(snippets[0].body, "systemctl restart app");
+}
+
+#[tokio::test]
+async fn local_snippets_have_no_host_and_can_be_moved_back_to_local() {
+    let (app, _directory) = test_app();
+    let host = super::hosts::host_save(connection_input("prod"), app.state())
+        .await
+        .expect("save connection");
+
+    let local = super::snippets::snippet_create(
+        shared::SnippetWriteRequest {
+            host_id: None,
+            title: "ls".to_string(),
+            body: "ls -la".to_string(),
+        },
+        app.state(),
+    )
+    .await
+    .expect("create local snippet");
+    assert_eq!(local.host_id, None);
+    assert_eq!(local.host_name, "Local Terminal");
+
+    let remote = super::snippets::snippet_update(
+        local.id.clone(),
+        shared::SnippetWriteRequest {
+            host_id: Some(host.id.clone()),
+            title: "ls".to_string(),
+            body: "ls -la".to_string(),
+        },
+        app.state(),
+    )
+    .await
+    .expect("move to host");
+    assert_eq!(remote.host_name, "prod");
+
+    super::snippets::snippet_update(
+        local.id.clone(),
+        shared::SnippetWriteRequest {
+            host_id: None,
+            title: "ls".to_string(),
+            body: "ls -la".to_string(),
+        },
+        app.state(),
+    )
+    .await
+    .expect("move back to local");
+
+    let snippets = super::snippets::snippet_list(app.state())
+        .await
+        .expect("list snippets");
+    assert_eq!(snippets.len(), 1);
+    assert_eq!(snippets[0].host_id, None);
+    assert_eq!(snippets[0].host_name, "Local Terminal");
 }
 
 #[tokio::test]

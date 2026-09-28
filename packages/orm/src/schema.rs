@@ -12,7 +12,7 @@ diesel::table! {
 diesel::table! {
     host_snippets (id) {
         id -> Text,
-        host_id -> Text,
+        host_id -> Nullable<Text>,
         title -> Text,
         body -> Text,
         created_at -> Timestamp,

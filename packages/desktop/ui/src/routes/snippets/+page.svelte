@@ -28,7 +28,7 @@
     await deleteSnippetMutation.mutateAsync(snippet.id);
   }
 
-  async function handleRun(connection: ConnectionConfig, command: string) {
+  async function handleRun(connection: ConnectionConfig | null, command: string) {
     const success = await app.runSnippet(connection, command);
     if (success) {
       await goto("/terminal");

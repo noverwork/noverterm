@@ -12,7 +12,7 @@
     snippets: SnippetRecord[];
     connections: ConnectionConfig[];
     onNew: () => void;
-    onRun: (connection: ConnectionConfig, command: string) => Promise<boolean>;
+    onRun: (connection: ConnectionConfig | null, command: string) => Promise<boolean>;
     onEdit: (snippet: SnippetRecord) => void;
     onDelete: (snippet: SnippetRecord) => Promise<void>;
   }
@@ -71,8 +71,10 @@
       return;
     }
 
-    const connection = connections.find((c) => c.id === snippet.host_id);
-    if (!connection) {
+    const connection = snippet.host_id
+      ? connections.find((c) => c.id === snippet.host_id)
+      : null;
+    if (connection === undefined) {
       error = `Connection "${snippet.host_name}" not found. It may have been deleted.`;
       return;
     }

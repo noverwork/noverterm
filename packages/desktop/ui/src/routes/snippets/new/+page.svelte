@@ -19,7 +19,7 @@
     },
   }));
 
-  async function handleSave(hostId: string, title: string, body: string) {
+  async function handleSave(hostId: string | null, title: string, body: string) {
     await createSnippetMutation.mutateAsync({ host_id: hostId, title, body });
   }
 </script>

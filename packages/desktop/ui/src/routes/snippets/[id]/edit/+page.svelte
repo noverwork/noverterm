@@ -22,7 +22,7 @@
 
   const updateSnippetMutation = createMutation(() => ({
     mutationKey: mutationKeys.updateSnippet,
-    mutationFn: ({ id, input }: { id: string; input: { host_id: string; title: string; body: string } }) =>
+    mutationFn: ({ id, input }: { id: string; input: { host_id: string | null; title: string; body: string } }) =>
       updateSnippet(id, input),
     onSuccess: () => {
       snippetListQuery.refetch();
@@ -30,7 +30,7 @@
     },
   }));
 
-  async function handleSave(hostId: string, title: string, body: string) {
+  async function handleSave(hostId: string | null, title: string, body: string) {
     await updateSnippetMutation.mutateAsync({
       id: snippetId,
       input: { host_id: hostId, title, body },

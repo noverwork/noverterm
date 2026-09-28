@@ -11,7 +11,7 @@ use crate::schema::host_snippets;
 #[diesel(belongs_to(super::SshHost, foreign_key = host_id))]
 pub struct HostSnippet {
     pub id: String,
-    pub host_id: String,
+    pub host_id: Option<String>,
     pub title: String,
     pub body: String,
     pub created_at: NaiveDateTime,
@@ -22,7 +22,7 @@ pub struct HostSnippet {
 #[diesel(table_name = host_snippets)]
 pub struct NewHostSnippet {
     pub id: String,
-    pub host_id: String,
+    pub host_id: Option<String>,
     pub title: String,
     pub body: String,
     pub created_at: NaiveDateTime,
@@ -31,8 +31,9 @@ pub struct NewHostSnippet {
 
 #[derive(Debug, Clone, AsChangeset)]
 #[diesel(table_name = host_snippets)]
+#[diesel(treat_none_as_null = true)]
 pub struct UpdateHostSnippet {
-    pub host_id: String,
+    pub host_id: Option<String>,
     pub title: String,
     pub body: String,
     pub updated_at: NaiveDateTime,

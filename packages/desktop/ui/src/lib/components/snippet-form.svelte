@@ -11,7 +11,7 @@
   interface Props {
     hosts: ConnectionConfig[];
     snippet?: SnippetRecord | null;
-    onSave: (hostId: string, title: string, body: string) => Promise<void>;
+    onSave: (hostId: string | null, title: string, body: string) => Promise<void>;
     onCancel: () => void;
   }
 
@@ -19,6 +19,7 @@
 
   let title = $state("");
   let body = $state("");
+  // "" targets the local terminal.
   let hostId = $state("");
   let error = $state<string | null>(null);
   let isSaving = $state(false);
@@ -31,7 +32,6 @@
       ? "Update the host, title, or command for this snippet."
       : "Create a reusable command template for a host.",
   );
-  const selectedHost = $derived(hosts.find((host) => host.id === hostId) ?? null);
   const submitLabel = $derived.by(() => {
     if (isSaving) {
       return isEditing ? "Updating…" : "Saving…";
@@ -46,12 +46,8 @@
       initializedSnippetId = nextSnippetId;
       title = snippet?.title ?? "";
       body = snippet?.body ?? "";
-      hostId = snippet?.host_id ?? "";
+      hostId = snippet ? (snippet.host_id ?? "") : (hosts[0]?.id ?? "");
       error = null;
-    }
-
-    if (!hostId && hosts.length > 0) {
-      hostId = hosts[0].id;
     }
   });
 
@@ -63,16 +59,11 @@
       return;
     }
 
-    if (!hostId) {
-      error = "Please select a host";
-      return;
-    }
-
     error = null;
     isSaving = true;
 
     try {
-      await onSave(hostId, title.trim(), body);
+      await onSave(hostId || null, title.trim(), body);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Failed to save snippet";
     } finally {
@@ -97,36 +88,27 @@
     title="Host & title"
     hint="Choose the target host and give this snippet a name."
   >
-    {#if hosts.length > 1}
-      <div class="space-y-2">
-        <label for="snippet-host" class="text-sm font-medium text-slate-100">Host</label>
-        <div class="relative">
-          <select
-            id="snippet-host"
-            bind:value={hostId}
-            class={SELECT_CLASS}
-            disabled={isSaving}
-          >
-            {#each hosts as host (host.id)}
-              <option value={host.id} class="bg-slate-900">
-                {host.name} ({host.host})
-              </option>
-            {/each}
-          </select>
-          <ChevronDown
-            class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
-          />
-        </div>
+    <div class="space-y-2">
+      <label for="snippet-host" class="text-sm font-medium text-slate-100">Host</label>
+      <div class="relative">
+        <select
+          id="snippet-host"
+          bind:value={hostId}
+          class={SELECT_CLASS}
+          disabled={isSaving}
+        >
+          <option value="" class="bg-slate-900">Local Terminal</option>
+          {#each hosts as host (host.id)}
+            <option value={host.id} class="bg-slate-900">
+              {host.name} ({host.host})
+            </option>
+          {/each}
+        </select>
+        <ChevronDown
+          class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+        />
       </div>
-    {:else if hosts.length === 1}
-      <input type="hidden" bind:value={hostId} />
-      <div class="rounded-2xl border border-white/8 bg-black/15 px-3 py-2.5">
-        <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">Host</p>
-        <p class="mt-1 truncate font-mono text-sm text-slate-300">
-          {selectedHost?.name ?? ""} ({selectedHost?.host ?? ""})
-        </p>
-      </div>
-    {/if}
+    </div>
 
     <div class="space-y-2">
       <label for="snippet-title" class="text-sm font-medium text-slate-100">Title</label>

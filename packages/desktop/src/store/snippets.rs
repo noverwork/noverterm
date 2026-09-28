@@ -13,10 +13,10 @@ pub async fn snippet_list(pool: tauri::State<'_, DbPool>) -> Result<Vec<SnippetR
     let pool = pool.inner().clone();
     run_db(pool, |connection| {
         host_snippets::table
-            .inner_join(ssh_hosts::table)
+            .left_join(ssh_hosts::table)
             .order((ssh_hosts::name.asc(), host_snippets::title.asc()))
-            .select((HostSnippet::as_select(), ssh_hosts::name))
-            .load::<(HostSnippet, String)>(connection)
+            .select((HostSnippet::as_select(), ssh_hosts::name.nullable()))
+            .load::<(HostSnippet, Option<String>)>(connection)
             .map(|rows| rows.into_iter().map(to_record).collect())
             .map_err(internal_error)
     })
@@ -32,10 +32,10 @@ pub async fn snippet_get(
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {
         host_snippets::table
-            .inner_join(ssh_hosts::table)
+            .left_join(ssh_hosts::table)
             .filter(host_snippets::id.eq(id))
-            .select((HostSnippet::as_select(), ssh_hosts::name))
-            .first::<(HostSnippet, String)>(connection)
+            .select((HostSnippet::as_select(), ssh_hosts::name.nullable()))
+            .first::<(HostSnippet, Option<String>)>(connection)
             .optional()
             .map_err(internal_error)?
             .map(to_record)
@@ -66,7 +66,10 @@ pub async fn snippet_create(
             .get_result::<HostSnippet>(connection)
             .map_err(internal_error)?;
 
-        Ok(to_record((created, host_name(connection, &host_id)?)))
+        Ok(to_record((
+            created,
+            host_name(connection, host_id.as_deref())?,
+        )))
     })
     .await
 }
@@ -93,7 +96,10 @@ pub async fn snippet_update(
             .map_err(internal_error)?
             .ok_or_else(|| "snippet not found".to_string())?;
 
-        Ok(to_record((updated, host_name(connection, &host_id)?)))
+        Ok(to_record((
+            updated,
+            host_name(connection, host_id.as_deref())?,
+        )))
     })
     .await
 }
@@ -111,24 +117,31 @@ pub async fn snippet_delete(id: String, pool: tauri::State<'_, DbPool>) -> Resul
     .await
 }
 
+const LOCAL_TERMINAL_NAME: &str = "Local Terminal";
+
 fn host_name(
     connection: &mut diesel::sqlite::SqliteConnection,
-    host_id: &str,
-) -> Result<String, String> {
+    host_id: Option<&str>,
+) -> Result<Option<String>, String> {
+    let Some(host_id) = host_id else {
+        return Ok(None);
+    };
     ssh_hosts::table
         .filter(ssh_hosts::id.eq(host_id))
         .select(ssh_hosts::name)
         .first::<String>(connection)
         .optional()
         .map_err(internal_error)
-        .map(|name| name.unwrap_or_else(|| "Unknown".to_string()))
 }
 
-fn to_record((snippet, host_name): (HostSnippet, String)) -> SnippetRecord {
+fn to_record((snippet, host_name): (HostSnippet, Option<String>)) -> SnippetRecord {
     SnippetRecord {
+        host_name: match &snippet.host_id {
+            Some(_) => host_name.unwrap_or_else(|| "Unknown".to_string()),
+            None => LOCAL_TERMINAL_NAME.to_string(),
+        },
         id: snippet.id,
         host_id: snippet.host_id,
-        host_name,
         title: snippet.title,
         body: snippet.body,
     }
