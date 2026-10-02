@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createTerminalKeyHandler,
+  getTabShortcut,
   type TerminalKeyboardActions,
   type TerminalKeyboardTarget,
 } from "$lib/terminal/keyboard-shortcuts.js";
@@ -148,5 +149,35 @@ describe("terminal keyboard shortcuts", () => {
     expect(metaW.preventDefault).toHaveBeenCalledTimes(1);
     expect(metaW.stopPropagation).toHaveBeenCalledTimes(1);
     expect(ctrlW.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("passes tab shortcuts to the app without sending them to the PTY", () => {
+    const actions = createActions();
+    const handler = createTerminalKeyHandler(() => createTarget(), actions);
+    const key = (init: KeyboardEventInit) => new KeyboardEvent("keydown", init);
+    const metaTwo = key({ key: "2", code: "Digit2", metaKey: true });
+    const next = key({
+      key: "}",
+      code: "BracketRight",
+      metaKey: true,
+      shiftKey: true,
+    });
+    const ctrlTab = key({
+      key: "Tab",
+      code: "Tab",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+
+    expect(getTabShortcut(metaTwo)).toEqual({ index: 1 });
+    expect(getTabShortcut(next)).toEqual({ offset: 1 });
+    expect(getTabShortcut(ctrlTab)).toEqual({ offset: -1 });
+    expect(getTabShortcut(key({ key: "2", code: "Digit2" }))).toBeNull();
+    for (const event of [metaTwo, next, ctrlTab]) {
+      vi.spyOn(event, "stopPropagation");
+      expect(handler(event)).toBe(false);
+      expect(event.stopPropagation).not.toHaveBeenCalled();
+    }
+    expect(actions.sendInput).not.toHaveBeenCalled();
   });
 });

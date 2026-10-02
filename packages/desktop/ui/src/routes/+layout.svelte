@@ -28,6 +28,7 @@
     setAppShellContext,
   } from "$lib/stores/app-shell.svelte.js";
   import TerminalView from "$lib/terminal/terminal.svelte";
+  import { getTabShortcut } from "$lib/terminal/keyboard-shortcuts.js";
   import { checkForAppUpdate } from "$lib/updater/auto-update.js";
 
   interface Props {
@@ -430,11 +431,23 @@
       return;
     }
 
-    if (mod && event.key >= "1" && event.key <= "9" && !isInput) {
+    const tabShortcut = getTabShortcut(event);
+    const sessions = app.activeSessions;
+    if (tabShortcut && sessions.length > 0) {
       event.preventDefault();
-      const index = Number.parseInt(event.key, 10) - 1;
-      if (index < app.activeSessions.length) {
-        void activateSession(app.activeSessions[index].id);
+      let index: number;
+      if ("index" in tabShortcut) {
+        index = tabShortcut.index;
+      } else {
+        const current = sessions.findIndex(
+          (session) => session.id === app.sessionStore.activeSessionId,
+        );
+        index =
+          (Math.max(current, 0) + tabShortcut.offset + sessions.length) %
+          sessions.length;
+      }
+      if (index < sessions.length) {
+        void activateSession(sessions[index].id);
       }
     }
   }

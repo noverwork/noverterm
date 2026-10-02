@@ -13,6 +13,22 @@ export interface TerminalKeyboardActions {
   closeTerminal(): void;
 }
 
+export type TabShortcut = { index: number } | { offset: 1 | -1 };
+
+/** Cmd/Ctrl+1..9 jumps; Cmd/Ctrl+Shift+[ ] and Ctrl+(Shift+)Tab cycle. */
+export function getTabShortcut(event: KeyboardEvent): TabShortcut | null {
+  if (event.altKey) return null;
+  const mod = event.metaKey || event.ctrlKey;
+  if (!mod) return null;
+  if (!event.shiftKey && /^Digit[1-9]$/.test(event.code))
+    return { index: Number(event.code.slice(5)) - 1 };
+  if (event.shiftKey && event.code === "BracketLeft") return { offset: -1 };
+  if (event.shiftKey && event.code === "BracketRight") return { offset: 1 };
+  if (event.ctrlKey && !event.metaKey && event.key === "Tab")
+    return { offset: event.shiftKey ? -1 : 1 };
+  return null;
+}
+
 function isShiftPrintableSymbol(event: KeyboardEvent) {
   return (
     event.shiftKey &&
@@ -35,6 +51,8 @@ export function createTerminalKeyHandler(
     const protocol = getProtocol();
     if (event.isComposing || protocol?.isComposing || event.keyCode === 229)
       return true;
+    // Keep app tab shortcuts out of the PTY; they bubble to the window handler.
+    if (getTabShortcut(event)) return false;
     const keyId = event.code || event.key.toLowerCase();
     if (event.type === "keyup" && shortcutKeys.delete(keyId)) return false;
     if (event.type !== "keydown")
