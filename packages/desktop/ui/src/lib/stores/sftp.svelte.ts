@@ -139,7 +139,7 @@ export class SftpPane {
   files = $state<FileEntry[]>([]);
   loading = $state(false);
   error = $state<string | null>(null);
-  selected = $state<FileEntry | null>(null);
+  selected = $state<FileEntry[]>([]);
   sftpSessionId = $state<string | null>(null);
   sshSessionId = $state<string | null>(null);
   isDirectConnection = $state(false);
@@ -193,7 +193,7 @@ export class SftpPane {
     this.mode = "remote";
     this.path = "";
     this.files = [];
-    this.selected = null;
+    this.selected = [];
     this.loading = false;
     this.error = null;
   }
@@ -211,7 +211,7 @@ export class SftpPane {
     this.loading = true;
     this.error = null;
     this.path = path;
-    this.selected = null;
+    this.selected = [];
     const isCurrent = () =>
       generation === this.connectionGeneration && requestId === this.requestId;
 
@@ -247,13 +247,15 @@ export class SftpPane {
     });
   }
 
-  async remove(entry: FileEntry): Promise<void> {
+  async remove(entries: FileEntry[]): Promise<void> {
     await this.runFileOperation(async () => {
-      const path = joinPath(this.path, entry.name);
-      if (this.isLocal) {
-        await invoke("local_remove", { path });
-      } else {
-        await invoke("sftp_remove", { sessionId: this.requireSession(), path });
+      for (const entry of entries) {
+        const path = joinPath(this.path, entry.name);
+        if (this.isLocal) {
+          await invoke("local_remove", { path });
+        } else {
+          await invoke("sftp_remove", { sessionId: this.requireSession(), path });
+        }
       }
     });
   }
@@ -322,7 +324,7 @@ export class SftpPane {
     this.trustMismatch = null;
     this.path = "";
     this.files = [];
-    this.selected = null;
+    this.selected = [];
     this.loading = false;
     this.error = null;
     try {
@@ -425,7 +427,7 @@ export class SftpPane {
     this.files = [];
     this.loading = false;
     this.error = null;
-    this.selected = null;
+    this.selected = [];
     this.sftpSessionId = null;
     this.sshSessionId = null;
     this.isDirectConnection = false;
@@ -461,7 +463,7 @@ export class SftpPane {
     this.sftpSessionId = null;
     this.path = "";
     this.files = [];
-    this.selected = null;
+    this.selected = [];
     this.loading = false;
     this.connectionError = errorMessage(error);
     this.error = this.connectionError;
@@ -492,6 +494,9 @@ export class SftpStore {
   private nextErrorId = 0;
   private progressLogState = new SvelteMap<string, TransferProgressLogState>();
   private pendingTransferConflict: PendingTransferConflict | null = null;
+  /** Settles once the user answers the conflict raised by the latest transfer. */
+  private conflictWait: Promise<void> | null = null;
+  private conflictSettled: (() => void) | null = null;
 
   pane(side: PaneSide): SftpPane {
     return side === "left" ? this.left : this.right;
@@ -548,6 +553,25 @@ export class SftpStore {
     return await this.startTransfer(source, target, sourcePath, targetPath, entry.name);
   }
 
+  /** Copy `entries` in order, pausing at each name conflict until the user answers. */
+  async transferMany(source: SftpPane, entries: FileEntry[]): Promise<void> {
+    for (const entry of entries) {
+      this.conflictWait = null;
+      const transferId = await this.transfer(source, entry);
+      if (this.conflictWait) {
+        await this.conflictWait;
+      } else if (transferId === undefined) {
+        return;
+      }
+    }
+  }
+
+  private settleConflict(): void {
+    const settled = this.conflictSettled;
+    this.conflictSettled = null;
+    settled?.();
+  }
+
   async cancelTransfer(transferId: string): Promise<void> {
     try {
       await invoke("sftp_cancel_transfer", { transferId });
@@ -559,6 +583,7 @@ export class SftpStore {
   cancelTransferConflict(): void {
     this.transferConflict = null;
     this.pendingTransferConflict = null;
+    this.settleConflict();
   }
 
   async resolveTransferConflict(choice: TransferConflictChoice): Promise<string | undefined> {
@@ -572,13 +597,15 @@ export class SftpStore {
     this.pendingTransferConflict = null;
     const targetPath = choice === "rename" ? pending.renamedTargetPath : pending.targetPath;
     const fileName = choice === "rename" ? pending.suggestedName : pending.fileName;
-    return await this.startTransfer(
+    const transferId = await this.startTransfer(
       pending.source,
       pending.target,
       pending.sourcePath,
       targetPath,
       fileName,
     );
+    this.settleConflict();
+    return transferId;
   }
 
   cleanup(): void {
@@ -591,6 +618,7 @@ export class SftpStore {
     this.activeTransfers = new SvelteMap();
     this.transferConflict = null;
     this.pendingTransferConflict = null;
+    this.settleConflict();
     this.progressLogState.clear();
     this.attemptedActiveSshSessionId = null;
   }
@@ -684,6 +712,10 @@ export class SftpStore {
 
   private setTransferConflict(conflict: PendingTransferConflict): void {
     this.pendingTransferConflict = conflict;
+    this.settleConflict();
+    this.conflictWait = new Promise((resolve) => {
+      this.conflictSettled = resolve;
+    });
     this.transferConflict = {
       fileName: conflict.fileName,
       existingName: conflict.existingName,

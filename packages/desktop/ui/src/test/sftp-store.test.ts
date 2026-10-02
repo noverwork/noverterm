@@ -93,7 +93,7 @@ describe("sftpStore", () => {
       expect(pane.files).toEqual([]);
       expect(pane.loading).toBe(false);
       expect(pane.error).toBeNull();
-      expect(pane.selected).toBeNull();
+      expect(pane.selected).toEqual([]);
       expect(pane.sftpSessionId).toBeNull();
       expect(pane.sshSessionId).toBeNull();
     }
@@ -370,6 +370,28 @@ describe("sftpStore", () => {
         remotePath: "/home/user/report (2).pdf",
       });
       expect(store.transferConflict).toBeNull();
+    });
+
+    it("transfers several entries, waiting on each name conflict", async () => {
+      mockDirect({ sftp_upload: "transfer-1" });
+      await connectRight();
+      store.right.files = [fileEntry];
+      const other = { ...fileEntry, name: "notes.txt" };
+
+      vi.mocked(invoke).mockClear();
+      const done = store.transferMany(store.left, [fileEntry, other]);
+      await vi.waitFor(() => expect(store.transferConflict?.fileName).toBe("report.pdf"));
+      expect(invoke).not.toHaveBeenCalledWith("sftp_upload", expect.anything());
+
+      store.cancelTransferConflict();
+      await done;
+
+      expect(invoke).toHaveBeenCalledTimes(1);
+      expect(invoke).toHaveBeenCalledWith("sftp_upload", {
+        sessionId: "sftp-1",
+        localPath: "~/notes.txt",
+        remotePath: "/home/user/notes.txt",
+      });
     });
 
     it("overwrites the original target when confirmed", async () => {

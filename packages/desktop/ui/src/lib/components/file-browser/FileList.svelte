@@ -18,11 +18,11 @@
 
   interface Props {
     files: FileEntry[];
-    selected: FileEntry | null;
+    selected: FileEntry[];
     loading: boolean;
     panelId?: "left" | "right";
     scrollKey?: string;
-    onSelect: (entry: FileEntry) => void;
+    onSelect: (entries: FileEntry[]) => void;
     onNavigate: (entry: FileEntry) => void;
     onNavigateUp?: () => void;
     onTransfer?: (entry: FileEntry) => void;
@@ -47,6 +47,8 @@
   let scrollContainer: HTMLDivElement | null = $state(null);
   let rememberedScrollTop = $state(0);
   let previousScrollKey = $state<string | null>(null);
+  /** Row a Shift+click range starts from. */
+  let anchor: FileEntry | null = null;
 
   let sortedFiles = $derived.by(() => {
     const sorted = [...files];
@@ -74,8 +76,12 @@
     return sorted;
   });
 
+  function sameEntry(left: FileEntry, right: FileEntry): boolean {
+    return left.name === right.name && left.file_type === right.file_type;
+  }
+
   function isSelected(entry: FileEntry): boolean {
-    return selected?.name === entry.name && selected?.file_type === entry.file_type;
+    return selected.some((item) => sameEntry(item, entry));
   }
 
   function toggleSort(key: SortKey): void {
@@ -144,8 +150,26 @@
     return `${name.slice(0, 37)}...`;
   }
 
-  function handleRowClick(entry: FileEntry): void {
-    onSelect(entry);
+  /** Click selects one row, Cmd/Ctrl+click toggles, Shift+click selects a range. */
+  function handleRowClick(event: MouseEvent | KeyboardEvent, entry: FileEntry): void {
+    const start = anchor && event.shiftKey
+      ? sortedFiles.findIndex((file) => sameEntry(file, anchor!))
+      : -1;
+    if (start >= 0) {
+      const end = sortedFiles.findIndex((file) => sameEntry(file, entry));
+      onSelect(sortedFiles.slice(Math.min(start, end), Math.max(start, end) + 1));
+      return;
+    }
+    anchor = entry;
+    if (event.metaKey || event.ctrlKey) {
+      onSelect(
+        isSelected(entry)
+          ? selected.filter((item) => !sameEntry(item, entry))
+          : [...selected, entry],
+      );
+    } else {
+      onSelect([entry]);
+    }
   }
 
   function handleRowDoubleClick(entry: FileEntry): void {
@@ -160,9 +184,14 @@
     if (!event.dataTransfer) {
       return;
     }
-    const payload = JSON.stringify({ panel: panelId, entry });
+    // Dragging a selected row carries the whole selection.
+    const entries = isSelected(entry) ? selected : [entry];
+    const payload = JSON.stringify({ panel: panelId, entries });
     event.dataTransfer.setData("application/x-sftp-entry", payload);
-    event.dataTransfer.setData("text/plain", `${panelId}:${entry.name}`);
+    event.dataTransfer.setData(
+      "text/plain",
+      entries.map((item) => `${panelId}:${item.name}`).join("\n"),
+    );
     event.dataTransfer.effectAllowed = "copy";
     if (event.currentTarget instanceof HTMLElement) {
       event.currentTarget.classList.add("opacity-50");
@@ -330,12 +359,18 @@
               draggable="true"
               role="button"
               tabindex="0"
-              onclick={() => handleRowClick(entry)}
+              onclick={(event) => handleRowClick(event, entry)}
               ondblclick={() => handleRowDoubleClick(entry)}
               onkeydown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
-                  handleRowClick(entry);
+                  handleRowClick(event, entry);
+                } else if (
+                  event.key.toLowerCase() === "a" &&
+                  (event.metaKey || event.ctrlKey)
+                ) {
+                  event.preventDefault();
+                  onSelect([...sortedFiles]);
                 }
               }}
               ondragstart={(event) => handleRowDragStart(event, entry)}

@@ -19,9 +19,9 @@ function buildEntry(overrides: Partial<FileEntry> = {}): FileEntry {
 
 function renderFileList(options: {
   files?: FileEntry[];
-  selected?: FileEntry | null;
+  selected?: FileEntry[];
   loading?: boolean;
-  onSelect?: (entry: FileEntry) => void;
+  onSelect?: (entries: FileEntry[]) => void;
   onNavigate?: (entry: FileEntry) => void;
   onNavigateUp?: () => void;
   onTransfer?: (entry: FileEntry) => void;
@@ -34,7 +34,7 @@ function renderFileList(options: {
   const result = render(FileList, {
     props: {
       files: options.files ?? [],
-      selected: options.selected ?? null,
+      selected: options.selected ?? [],
       loading: options.loading ?? false,
       scrollKey: options.scrollKey,
       onSelect,
@@ -110,7 +110,7 @@ describe("FileList", () => {
 
     await rerender({
       files,
-      selected: null,
+      selected: [],
       loading: true,
       scrollKey: "/tmp",
       onSelect: vi.fn(),
@@ -118,7 +118,7 @@ describe("FileList", () => {
     });
     await rerender({
       files: [...files, buildEntry({ name: "new-file.txt" })],
-      selected: null,
+      selected: [],
       loading: false,
       scrollKey: "/tmp",
       onSelect: vi.fn(),
@@ -141,7 +141,7 @@ describe("FileList", () => {
 
     await rerender({
       files,
-      selected: null,
+      selected: [],
       loading: false,
       scrollKey: "/tmp/subdir",
       onSelect: vi.fn(),
@@ -224,7 +224,7 @@ describe("FileList", () => {
     ];
     const selected = files[1]!;
 
-    renderFileList({ files, selected });
+    renderFileList({ files, selected: [selected] });
 
     const allRows = screen.getAllByTestId("file-row");
     const firstRow = allRows.find((row) => row.getAttribute("data-file-name") === "first.txt");
@@ -242,7 +242,25 @@ describe("FileList", () => {
     await fireEvent.click(screen.getByTestId("file-row"));
 
     expect(onSelect).toHaveBeenCalledTimes(1);
-    expect(onSelect).toHaveBeenCalledWith(target);
+    expect(onSelect).toHaveBeenCalledWith([target]);
+  });
+
+  it("toggles with Cmd/Ctrl+click and selects ranges with Shift+click", async () => {
+    const files = ["a.txt", "b.txt", "c.txt"].map((name) => buildEntry({ name }));
+    const { onSelect } = renderFileList({ files, selected: [files[0]!] });
+    const row = (name: string) =>
+      screen.getAllByTestId("file-row").find((item) => item.getAttribute("data-file-name") === name)!;
+
+    await fireEvent.click(row("a.txt"));
+    expect(onSelect).toHaveBeenLastCalledWith([files[0]]);
+    await fireEvent.click(row("c.txt"), { metaKey: true });
+    expect(onSelect).toHaveBeenLastCalledWith([files[0], files[2]]);
+    await fireEvent.click(row("a.txt"), { ctrlKey: true });
+    expect(onSelect).toHaveBeenLastCalledWith([]);
+    await fireEvent.click(row("c.txt"), { shiftKey: true });
+    expect(onSelect).toHaveBeenLastCalledWith(files);
+    await fireEvent.keyDown(row("b.txt"), { key: "a", metaKey: true });
+    expect(onSelect).toHaveBeenLastCalledWith(files);
   });
 
   it("opens a directory when double-clicking its name", async () => {
@@ -270,7 +288,7 @@ describe("FileList", () => {
 
     await fireEvent.click(screen.getByText("src"));
 
-    expect(onSelect).toHaveBeenCalledWith(directory);
+    expect(onSelect).toHaveBeenCalledWith([directory]);
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
@@ -289,7 +307,7 @@ describe("FileList", () => {
 
     await fireEvent.click(screen.getByText("readme.md"));
 
-    expect(onSelect).toHaveBeenCalledWith(file);
+    expect(onSelect).toHaveBeenCalledWith([file]);
     expect(onNavigate).not.toHaveBeenCalled();
   });
 

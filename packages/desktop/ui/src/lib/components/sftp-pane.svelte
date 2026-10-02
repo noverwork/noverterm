@@ -56,7 +56,7 @@
 
   let showCreateFolderDialog = $state(false);
   let renameEntry = $state<FileEntry | null>(null);
-  let deleteEntry = $state<FileEntry | null>(null);
+  let deleteEntries = $state<FileEntry[]>([]);
   let isDragOver = $state(false);
 
   function formatHost(connection: { host: string; port: number; username: string }): string {
@@ -115,9 +115,9 @@
   }
 
   async function handleDelete() {
-    if (!deleteEntry) return;
-    await pane.remove(deleteEntry);
-    deleteEntry = null;
+    const entries = deleteEntries;
+    deleteEntries = [];
+    await pane.remove(entries);
   }
 
   function handleDragOver(event: DragEvent): void {
@@ -147,7 +147,7 @@
       return;
     }
 
-    let payload: { panel: PaneSide; entry: FileEntry };
+    let payload: { panel: PaneSide; entries: FileEntry[] };
     try {
       payload = JSON.parse(raw);
     } catch {
@@ -158,7 +158,7 @@
     if (payload.panel === pane.side) {
       return;
     }
-    void sftpStore.transfer(sftpStore.pane(payload.panel), payload.entry);
+    void sftpStore.transferMany(sftpStore.pane(payload.panel), payload.entries);
   }
 </script>
 
@@ -225,8 +225,8 @@
         <button
           type="button"
           class="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-30"
-          onclick={() => renameEntry = pane.selected}
-          disabled={!pane.selected}
+          onclick={() => renameEntry = pane.selected[0]}
+          disabled={pane.selected.length !== 1}
           title="Rename"
         >
           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -237,8 +237,8 @@
         <button
           type="button"
           class="rounded-lg p-1.5 text-slate-400 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-30"
-          onclick={() => deleteEntry = pane.selected}
-          disabled={!pane.selected}
+          onclick={() => deleteEntries = pane.selected}
+          disabled={pane.selected.length === 0}
           title="Delete"
         >
           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -263,7 +263,7 @@
         loading={pane.loading}
         panelId={pane.side}
         scrollKey={`${pane.sftpSessionId ?? "local"}:${pane.path}`}
-        onSelect={(entry) => pane.selected = entry}
+        onSelect={(entries) => pane.selected = entries}
         onNavigate={handleNavigate}
         onNavigateUp={handleNavigateUp}
         onTransfer={(entry) => void sftpStore.transfer(pane, entry)}
@@ -377,11 +377,11 @@
   />
 {/if}
 
-{#if deleteEntry}
+{#if deleteEntries.length > 0}
   <DeleteConfirmDialog
     open={true}
-    itemName={deleteEntry.name}
+    itemName={deleteEntries.length === 1 ? deleteEntries[0].name : `${deleteEntries.length} items`}
     onConfirm={handleDelete}
-    onCancel={() => deleteEntry = null}
+    onCancel={() => deleteEntries = []}
   />
 {/if}
