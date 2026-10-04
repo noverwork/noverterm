@@ -164,6 +164,22 @@
     dragOverKey = key;
   }
 
+  // WebKit does not auto-scroll overflow containers during HTML5 drag; dragover
+  // keeps firing while the pointer rests, so nudge the list near its edges.
+  function handleListDragOver(event: DragEvent) {
+    if (!draggingConnectionId) {
+      return;
+    }
+    const list = event.currentTarget as HTMLElement;
+    const rect = list.getBoundingClientRect();
+    const edge = 48;
+    if (event.clientY < rect.top + edge) {
+      list.scrollBy(0, -12);
+    } else if (event.clientY > rect.bottom - edge) {
+      list.scrollBy(0, 12);
+    }
+  }
+
   function handleDragLeave(event: DragEvent) {
     const element = event.currentTarget as HTMLElement;
     if (event.relatedTarget instanceof Node && element.contains(event.relatedTarget)) {
@@ -330,7 +346,11 @@
       </div>
     {/if}
 
-    <div class="-mx-2 mt-6 min-h-0 flex-1 overflow-y-auto px-2">
+    <div
+      class="-mx-2 mt-6 min-h-0 flex-1 overflow-y-auto px-2"
+      role="presentation"
+      ondragover={handleListDragOver}
+    >
       {#if sortedConnections.length === 0}
         <div
           class="flex h-full min-h-[16rem] items-center justify-center rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground"
