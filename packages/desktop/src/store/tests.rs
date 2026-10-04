@@ -235,6 +235,41 @@ async fn deleting_a_connection_takes_its_inline_key_with_it() {
 }
 
 #[tokio::test]
+async fn deleting_a_host_keeps_a_key_other_hosts_share() {
+    let (app, _directory) = test_app();
+
+    let first = super::hosts::host_save(
+        SaveConnectionInput {
+            private_key: Some("PRIVATE KEY".to_string()),
+            ..connection_input("first")
+        },
+        app.state(),
+    )
+    .await
+    .expect("save first");
+    let second = super::hosts::host_save(
+        SaveConnectionInput {
+            existing_key_id: first.ssh_key_id.clone(),
+            ..connection_input("second")
+        },
+        app.state(),
+    )
+    .await
+    .expect("save second");
+
+    super::hosts::host_delete(first.id, first.ssh_key_id.clone(), app.state())
+        .await
+        .expect("delete first");
+
+    let hosts = super::hosts::host_list(app.state())
+        .await
+        .expect("list hosts");
+    assert_eq!(hosts.len(), 1);
+    assert_eq!(hosts[0].id, second.id);
+    assert_eq!(hosts[0].ssh_key_id, first.ssh_key_id);
+}
+
+#[tokio::test]
 async fn renaming_a_key_keeps_the_stored_private_key() {
     let (app, _directory) = test_app();
 

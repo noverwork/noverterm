@@ -125,10 +125,19 @@ pub async fn host_delete(
             .execute(connection)
             .map_err(internal_error)?;
 
+        // Keys can be shared between hosts; only drop one no other host still uses,
+        // otherwise ON DELETE SET NULL silently strips it from the remaining hosts.
         if let Some(ssh_key_id) = ssh_key_id {
-            diesel::delete(ssh_keys::table.filter(ssh_keys::id.eq(ssh_key_id)))
-                .execute(connection)
-                .map_err(internal_error)?;
+            let still_used = diesel::select(diesel::dsl::exists(
+                ssh_hosts::table.filter(ssh_hosts::ssh_key_id.eq(&ssh_key_id)),
+            ))
+            .get_result::<bool>(connection)
+            .map_err(internal_error)?;
+            if !still_used {
+                diesel::delete(ssh_keys::table.filter(ssh_keys::id.eq(ssh_key_id)))
+                    .execute(connection)
+                    .map_err(internal_error)?;
+            }
         }
 
         Ok(())
