@@ -107,12 +107,15 @@ describe("Kitty keyboard protocol", () => {
     key("Enter", { code: "Enter", shiftKey: true, ctrlKey: true });
     key("F3", { code: "F3" });
     key("ArrowLeft", { code: "Numpad4", location: 3 });
+    // macOS WebKit flags the dedicated arrow keys as numpad too.
+    key("ArrowUp", { code: "ArrowUp", location: 3 });
     expect(sent).toEqual([
       "\x1b[99;5u",
       "\x1b[27u",
       "\x1b[13;6u",
       "\x1b[13~",
       "\x1b[57417u",
+      "\x1b[A",
     ]);
   });
 

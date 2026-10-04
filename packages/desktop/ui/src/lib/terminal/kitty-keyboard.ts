@@ -114,6 +114,12 @@ function baseKey(code: string): string | undefined {
   return physicalSymbols[code];
 }
 
+// macOS WebKit reports location 3 (numpad) for the dedicated arrow/navigation
+// keys, so only trust it when the physical key really is on the keypad.
+function isKeypad(event: KeyboardEvent): boolean {
+  return event.location === 3 && event.code.startsWith("Numpad");
+}
+
 function textPoints(text: string): string {
   return Array.from(text, (character) => character.codePointAt(0)!)
     .filter((point) => point >= 32 && (point < 127 || point > 159))
@@ -263,7 +269,7 @@ export function createKittyKeyboardProtocol(
     disambiguate: boolean,
   ): KeyIdentity | undefined {
     const printable = codepoint(event.key) !== undefined;
-    if (disambiguate && event.location === 3) {
+    if (disambiguate && isKeypad(event)) {
       const navigation = keypadNavigation[event.key];
       const number =
         navigation ??
@@ -370,7 +376,7 @@ export function createKittyKeyboardProtocol(
       (event.getModifierState("NumLock") ? 128 : 0);
     const shortcutModifiers = modifiers & 63;
     const recoveryKey =
-      event.location !== 3 &&
+      !isKeypad(event) &&
       (event.key === "Enter" ||
         event.key === "Tab" ||
         event.key === "Backspace");
