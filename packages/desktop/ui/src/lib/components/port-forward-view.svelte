@@ -1,5 +1,7 @@
 <script lang="ts">
   import {
+    ArrowRight,
+    CircleAlert,
     Loader2,
     Network,
     Pencil,
@@ -103,22 +105,6 @@
     );
   }
 
-  function cardClass(state: PortForward["state"] | null): string {
-    const base =
-      "group cursor-pointer rounded-[1.35rem] border bg-white/[0.03] px-4 py-4 transition hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40";
-
-    switch (state) {
-      case "listening":
-        return `${base} forward-card--listening border-emerald-300/55`;
-      case "connecting":
-        return `${base} forward-card--connecting border-amber-300/55`;
-      case "error":
-        return `${base} forward-card--error border-red-300/55`;
-      default:
-        return `${base} border-white/8 hover:border-cyan-300/30`;
-    }
-  }
-
   function handleCardActivate(
     savedForward: PortForwardRecord,
     connection: ConnectionConfig | null,
@@ -216,27 +202,31 @@
     switch (state) {
       case "listening":
         return {
-          tone: "bg-emerald-400 shadow-[0_0_14px_rgb(52_211_153/0.65)]",
+          tone: "bg-emerald-400",
           label: "Listening",
           text: "text-emerald-300",
+          border: "border-emerald-300/30",
         };
       case "connecting":
         return {
-          tone: "bg-amber-300 shadow-[0_0_14px_rgb(252_211_77/0.55)]",
+          tone: "bg-amber-300 motion-safe:animate-pulse",
           label: "Connecting",
           text: "text-amber-300",
+          border: "border-amber-300/30",
         };
       case "error":
         return {
-          tone: "bg-red-400 shadow-[0_0_14px_rgb(248_113_113/0.55)]",
+          tone: "bg-red-400",
           label: "Error",
           text: "text-red-300",
+          border: "border-red-300/35",
         };
       default:
         return {
           tone: "bg-slate-500",
           label: "Stopped",
           text: "text-slate-400",
+          border: "border-white/8",
         };
     }
   }
@@ -349,7 +339,9 @@
                       handleCardActivate(savedForward, connection, runtimes, state);
                     }
                   }}
-                  class={cardClass(state)}
+                  class="group cursor-pointer rounded-[1.35rem] border bg-white/[0.03] px-4 py-4 transition hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40 {badge
+                    ? badge.border
+                    : 'border-white/8 hover:border-cyan-300/30'}"
                 >
                   <div class="flex items-start gap-3">
                     <div
@@ -367,24 +359,29 @@
                         <p class="truncate text-sm font-medium text-white">
                           {savedForward.name}
                         </p>
-                        {#if badge}
+                        <span
+                          class="flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide {badge
+                            ? badge.text
+                            : 'text-slate-500'}"
+                        >
                           <span
-                            class="shrink-0 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide {badge.text}"
-                          >
-                            <span
-                              class="mr-1 inline-block size-1.5 shrink-0 rounded-full {badge.tone}"
-                            ></span>
-                            {badge.label}
-                          </span>
-                        {/if}
+                            class="inline-block size-1.5 rounded-full {badge
+                              ? badge.tone
+                              : 'bg-slate-600'}"
+                          ></span>
+                          {badge ? badge.label : "Idle"}
+                        </span>
                       </div>
-                      <p class="mt-1 truncate text-xs text-slate-400">
-                        {#if connection}
+                      {#if connection}
+                        <p class="mt-1 truncate font-mono text-xs text-slate-400">
                           {connection.username}@{connection.host}:{connection.port}
-                        {:else}
-                          Missing connection
-                        {/if}
-                      </p>
+                        </p>
+                      {:else}
+                        <p class="mt-1 flex items-center gap-1.5 text-xs text-amber-300">
+                          <CircleAlert class="size-3 shrink-0" />
+                          Connection was deleted
+                        </p>
+                      {/if}
                     </div>
 
                     <div
@@ -395,6 +392,7 @@
                         size="icon-sm"
                         class="rounded-xl text-slate-400 hover:bg-white/8 hover:text-white"
                         aria-label={`Edit ${savedForward.name}`}
+                        title={state ? "Stop the forward to edit it" : "Edit"}
                         disabled={state !== null}
                         onclick={(event) => {
                           event.stopPropagation();
@@ -408,6 +406,7 @@
                         size="icon-sm"
                         class="rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
                         aria-label={`Delete ${savedForward.name}`}
+                        title={state ? "Stop the forward to delete it" : "Delete"}
                         disabled={state !== null ||
                           deletingSavedForwardIds.includes(savedForward.id)}
                         onclick={(event) => {
@@ -420,34 +419,41 @@
                     </div>
                   </div>
 
-                  <div
-                    class="mt-3 space-y-1.5 rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-xs"
+                  <ul
+                    class="mt-3 divide-y divide-white/6 rounded-xl border border-white/8 bg-black/20 text-xs"
                   >
                     {#each savedForward.mappings as mapping, index (index)}
                       {@const runtime = runtimes[index]}
-                      <div>
-                        <div class="flex items-center">
+                      <li class="px-3 py-2">
+                        <div class="flex items-center gap-2">
                           <span
-                            class="mr-2 inline-block size-1.5 shrink-0 rounded-full {runtime
+                            class="inline-block size-1.5 shrink-0 rounded-full {runtime
                               ? stateBadge(runtime.state).tone
                               : 'bg-slate-600'}"
                           ></span>
-                          <span class="font-mono text-cyan-100"
+                          <span class="truncate font-mono text-cyan-100"
                             >{mapping.bind_host}:{mapping.bind_port}</span
                           >
-                          <span class="mx-2 text-slate-600">→</span>
-                          <span class="font-mono text-slate-300"
+                          <ArrowRight
+                            class="size-3 shrink-0 text-slate-600"
+                            aria-label="forwards to"
+                          />
+                          <span class="truncate font-mono text-slate-300"
                             >{mapping.target_host}:{mapping.target_port}</span
                           >
                         </div>
                         {#if runtime?.error}
-                          <p class="mt-0.5 pl-3.5 text-red-300">
-                            {runtime.error}
+                          <p
+                            class="mt-1 flex items-start gap-1.5 pl-3.5 text-red-300"
+                            role="alert"
+                          >
+                            <CircleAlert class="mt-px size-3 shrink-0" />
+                            <span class="break-words">{runtime.error}</span>
                           </p>
                         {/if}
-                      </div>
+                      </li>
                     {/each}
-                  </div>
+                  </ul>
                 </div>
               </ContextMenu.Trigger>
 
@@ -515,47 +521,3 @@
   onConfirm={confirmDelete}
   onCancel={() => (pendingDeleteTarget = null)}
 />
-
-<style>
-  @keyframes forward-border-listening {
-    0%,
-    100% {
-      box-shadow: 0 0 18px rgb(52 211 153 / 0.12);
-    }
-    50% {
-      box-shadow: 0 0 34px rgb(52 211 153 / 0.36);
-    }
-  }
-
-  @keyframes forward-border-connecting {
-    0%,
-    100% {
-      box-shadow: 0 0 18px rgb(252 211 77 / 0.1);
-    }
-    50% {
-      box-shadow: 0 0 34px rgb(252 211 77 / 0.32);
-    }
-  }
-
-  @keyframes forward-border-error {
-    0%,
-    100% {
-      box-shadow: 0 0 18px rgb(248 113 113 / 0.1);
-    }
-    50% {
-      box-shadow: 0 0 34px rgb(248 113 113 / 0.32);
-    }
-  }
-
-  :global(.forward-card--listening) {
-    animation: forward-border-listening 1.5s ease-in-out infinite;
-  }
-
-  :global(.forward-card--connecting) {
-    animation: forward-border-connecting 1.5s ease-in-out infinite;
-  }
-
-  :global(.forward-card--error) {
-    animation: forward-border-error 1.5s ease-in-out infinite;
-  }
-</style>
