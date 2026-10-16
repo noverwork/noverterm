@@ -2,7 +2,7 @@
 
 **A native SSH terminal client for macOS and Windows, built with Tauri 2 & Rust. No Electron, no bloat.**
 
-Noverterm is a lightweight SSH terminal app with multi-session tabs, SFTP file transfer, port forwarding, SSH key management, snippets, and cloud sync. It is designed as a fast, native alternative to Electron-based SSH clients.
+Noverterm is a lightweight SSH terminal app with multi-session tabs, SFTP file transfer, port forwarding, SSH key management, and snippets. All data stays in a local SQLite database. It is designed as a fast, native alternative to Electron-based SSH clients.
 
 [![License](https://img.shields.io/badge/License-BSL_1.1-5f3dc4)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue)]()
@@ -32,12 +32,11 @@ Noverterm is different. Built on **Tauri 2** and **Rust**, it delivers:
 | **Multi-Session Tabs** | Multiple SSH sessions in tabs, duplicate sessions, instant local terminal, one-click k9s/Claude Code/OpenCode |
 | **Terminal I/O** | Immediate idle SSH output, bounded binary streaming, ordered input with visible write failures |
 | **TUI Keyboard** | Negotiated Kitty keyboard protocol, modifier/repeat/release events, IME text and paste handling |
-| **Port Forwarding** | Local & remote SSH tunneling with saved presets |
-| **SFTP File Transfer** | Drag & drop file browser, transfer progress, conflict resolution, create/rename/delete |
+| **Port Forwarding** | Local SSH tunneling with saved presets, several ports per preset |
+| **SFTP File Transfer** | Dual-pane browser (local or any host per pane), drag & drop, multi-select, recursive folder transfer, progress, conflict resolution, create/rename/delete |
 | **Snippets** | Save and execute frequent commands across active sessions |
 | **SSH Key Manager** | Import and manage SSH keys |
 | **Connection Groups** | Organize connections into folders |
-| **Cloud Sync** | Sync connections, keys, and settings across devices (email auth, password reset) |
 | **Auto-Update** | Built-in updater — download and install updates from GitHub Releases |
 | **Modern UI** | Dark theme, responsive layout, keyboard shortcuts, context menus |
 
