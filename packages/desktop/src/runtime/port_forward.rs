@@ -7,6 +7,7 @@ use specta::Type;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::io::copy_bidirectional;
 use tokio::net::TcpListener;
@@ -132,6 +133,8 @@ struct ForwardConnectionContext {
     app: AppHandle,
     status: PortForwardStatus,
     forwards: Arc<Mutex<HashMap<String, PortForwardEntry>>>,
+    input: Arc<PortForwardCreateInput>,
+    trust_store: SshTrustStore,
 }
 
 #[derive(Default)]
@@ -255,53 +258,17 @@ async fn run_port_forward(
     mut status: PortForwardStatus,
     forwards: Arc<Mutex<HashMap<String, PortForwardEntry>>>,
 ) {
-    let config = client::Config {
-        inactivity_timeout: None,
-        ..<_>::default()
-    };
-    let config = Arc::new(config);
-    let trust_check = Arc::new(Mutex::new(None));
-    let handler = ClientHandler::new(
-        input.host.clone(),
-        input.port,
-        trust_store,
-        trust_check.clone(),
-    );
-
-    info!(
-        forward_id = %status.id,
-        host = %input.host,
-        port = input.port,
-        "Connecting to SSH server"
-    );
-
-    let mut session = match client::connect(config, (input.host.clone(), input.port), handler).await
-    {
+    let session = match connect_session(&input, &trust_store).await {
         Ok(session) => session,
         Err(error) => {
-            let error_msg = map_connect_error(&error, &trust_check).await;
-            warn!(forward_id = %status.id, "SSH connect failed: {}", error_msg);
-            status.state = PortForwardState::Error;
-            status.error = Some(error_msg);
-            emit_and_store_status(&app, &forwards, &status).await;
-            forwards.lock().await.remove(&status.id);
-            return;
-        }
-    };
-
-    info!(forward_id = %status.id, "SSH transport established, authenticating");
-
-    match authenticate(&mut session, &input).await {
-        Ok(()) => {}
-        Err(error) => {
-            warn!(forward_id = %status.id, "Authentication failed: {}", error);
+            warn!(forward_id = %status.id, "{}", error);
             status.state = PortForwardState::Error;
             status.error = Some(error);
             emit_and_store_status(&app, &forwards, &status).await;
             forwards.lock().await.remove(&status.id);
             return;
         }
-    }
+    };
 
     info!(forward_id = %status.id, "Authentication succeeded");
 
@@ -359,12 +326,16 @@ async fn run_port_forward(
 
     run_listener_loop(
         listener,
-        handle.clone(),
-        target_host,
-        target_port,
-        app_clone,
-        status_for_error,
-        forwards.clone(),
+        ForwardConnectionContext {
+            handle: handle.clone(),
+            target_host,
+            target_port,
+            app: app_clone,
+            status: status_for_error,
+            forwards: forwards.clone(),
+            input: Arc::new(input),
+            trust_store,
+        },
     )
     .await;
 
@@ -377,26 +348,11 @@ async fn run_port_forward(
     forwards.lock().await.remove(&forward_id);
 }
 
-async fn run_listener_loop(
-    listener: TcpListener,
-    handle: Arc<Mutex<Handle<ClientHandler>>>,
-    target_host: String,
-    target_port: u16,
-    app: AppHandle,
-    mut status: PortForwardStatus,
-    forwards: Arc<Mutex<HashMap<String, PortForwardEntry>>>,
-) {
+async fn run_listener_loop(listener: TcpListener, base_context: ForwardConnectionContext) {
     loop {
         match listener.accept().await {
             Ok((local_stream, originator_addr)) => {
-                let context = ForwardConnectionContext {
-                    handle: handle.clone(),
-                    target_host: target_host.clone(),
-                    target_port,
-                    app: app.clone(),
-                    status: status.clone(),
-                    forwards: forwards.clone(),
-                };
+                let context = base_context.clone();
                 let error_context = context.clone();
 
                 tokio::spawn(async move {
@@ -423,10 +379,11 @@ async fn run_listener_loop(
             }
             Err(error) => {
                 let error_msg = format!("Listener accept failed: {}", error);
+                let mut status = base_context.status.clone();
                 warn!(forward_id = %status.id, "{}", error_msg);
                 status.state = PortForwardState::Error;
                 status.error = Some(error_msg);
-                emit_and_store_status(&app, &forwards, &status).await;
+                emit_and_store_status(&base_context.app, &base_context.forwards, &status).await;
                 break;
             }
         }
@@ -440,20 +397,35 @@ async fn handle_forward_connection(
 ) -> Result<(), String> {
     let target = format!("{}:{}", context.target_host, context.target_port);
     let originator = originator_addr.to_string();
-    let channel = context
-        .handle
-        .lock()
-        .await
-        .channel_open_direct_tcpip(
-            context.target_host.clone(),
-            u32::from(context.target_port),
-            originator_addr.ip().to_string(),
-            u32::from(originator_addr.port()),
-        )
-        .await
-        .map_err(|e| {
+    let channel = {
+        // Holding the lock while reconnecting makes concurrent connections wait for
+        // the fresh session instead of each reconnecting on their own.
+        let mut handle = context.handle.lock().await;
+        if handle.is_closed() {
+            *handle = reconnect_session(&context).await?;
+        }
+        let mut reconnected = false;
+        let opened = loop {
+            let result = handle
+                .channel_open_direct_tcpip(
+                    context.target_host.clone(),
+                    u32::from(context.target_port),
+                    originator_addr.ip().to_string(),
+                    u32::from(originator_addr.port()),
+                )
+                .await;
+            match result {
+                Err(_) if handle.is_closed() && !reconnected => {
+                    *handle = reconnect_session(&context).await?;
+                    reconnected = true;
+                }
+                result => break result,
+            }
+        };
+        opened.map_err(|e| {
             format!("Failed to open direct-tcpip channel to {target} from {originator}: {e}")
-        })?;
+        })?
+    };
 
     context.status.state = PortForwardState::Listening;
     context.status.error = None;
@@ -465,6 +437,52 @@ async fn handle_forward_connection(
         .map_err(|e| format!("Failed to pipe traffic: {e}"))?;
 
     Ok(())
+}
+
+/// Opens and authenticates an SSH session. Keepalives make a dead connection
+/// show up as `is_closed()`, so the next forwarded connection reconnects.
+async fn connect_session(
+    input: &PortForwardCreateInput,
+    trust_store: &SshTrustStore,
+) -> Result<Handle<ClientHandler>, String> {
+    let config = Arc::new(client::Config {
+        inactivity_timeout: None,
+        keepalive_interval: Some(Duration::from_secs(15)),
+        ..<_>::default()
+    });
+    let trust_check = Arc::new(Mutex::new(None));
+    let handler = ClientHandler::new(
+        input.host.clone(),
+        input.port,
+        trust_store.clone(),
+        trust_check.clone(),
+    );
+
+    info!(host = %input.host, port = input.port, "Connecting to SSH server");
+
+    let mut session = match client::connect(config, (input.host.clone(), input.port), handler).await
+    {
+        Ok(session) => session,
+        Err(error) => return Err(map_connect_error(&error, &trust_check).await),
+    };
+
+    info!(host = %input.host, "SSH transport established, authenticating");
+    authenticate(&mut session, input).await?;
+    Ok(session)
+}
+
+async fn reconnect_session(
+    context: &ForwardConnectionContext,
+) -> Result<Handle<ClientHandler>, String> {
+    let mut status = context.status.clone();
+    info!(forward_id = %status.id, "SSH session closed, reconnecting");
+    status.state = PortForwardState::Connecting;
+    status.error = None;
+    emit_and_store_status(&context.app, &context.forwards, &status).await;
+
+    connect_session(&context.input, &context.trust_store)
+        .await
+        .map_err(|error| format!("Reconnect failed: {error}"))
 }
 
 async fn authenticate(
