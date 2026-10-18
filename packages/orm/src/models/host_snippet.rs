@@ -16,6 +16,8 @@ pub struct HostSnippet {
     pub body: String,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    pub pin_icon: Option<String>,
+    pub pin_order: Option<i32>,
 }
 
 #[derive(Debug, Clone, Insertable)]
@@ -27,6 +29,8 @@ pub struct NewHostSnippet {
     pub body: String,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    pub pin_icon: Option<String>,
+    pub pin_order: Option<i32>,
 }
 
 #[derive(Debug, Clone, AsChangeset)]
@@ -37,4 +41,6 @@ pub struct UpdateHostSnippet {
     pub title: String,
     pub body: String,
     pub updated_at: NaiveDateTime,
+    pub pin_icon: Option<String>,
+    pub pin_order: Option<i32>,
 }

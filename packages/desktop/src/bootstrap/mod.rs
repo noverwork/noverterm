@@ -43,6 +43,7 @@ fn command_builder() -> Builder<tauri::Wry> {
         crate::store::snippets::snippet_create,
         crate::store::snippets::snippet_update,
         crate::store::snippets::snippet_delete,
+        crate::store::snippets::snippet_reorder_pins,
         crate::connect::terminal_output_subscribe,
         crate::connect::terminal_output_ack,
         crate::connect::terminal_output_unsubscribe,

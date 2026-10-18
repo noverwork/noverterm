@@ -79,6 +79,8 @@ pub struct SnippetRecord {
     pub host_name: String,
     pub title: String,
     pub body: String,
+    pub pin_icon: Option<String>,
+    pub pin_order: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
@@ -87,6 +89,7 @@ pub struct SnippetWriteRequest {
     pub host_id: Option<String>,
     pub title: String,
     pub body: String,
+    pub pin_icon: Option<String>,
 }
 
 // ============================================================================

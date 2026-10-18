@@ -361,6 +361,7 @@ async fn grouped_connections_and_snippets_reload_with_their_host() {
             host_id: Some(host.id.clone()),
             title: "restart".to_string(),
             body: "systemctl restart app".to_string(),
+            pin_icon: None,
         },
         app.state(),
     )
@@ -392,6 +393,7 @@ async fn local_snippets_have_no_host_and_can_be_moved_back_to_local() {
             host_id: None,
             title: "ls".to_string(),
             body: "ls -la".to_string(),
+            pin_icon: None,
         },
         app.state(),
     )
@@ -406,6 +408,7 @@ async fn local_snippets_have_no_host_and_can_be_moved_back_to_local() {
             host_id: Some(host.id.clone()),
             title: "ls".to_string(),
             body: "ls -la".to_string(),
+            pin_icon: None,
         },
         app.state(),
     )
@@ -419,6 +422,7 @@ async fn local_snippets_have_no_host_and_can_be_moved_back_to_local() {
             host_id: None,
             title: "ls".to_string(),
             body: "ls -la".to_string(),
+            pin_icon: Some("terminal".to_string()),
         },
         app.state(),
     )
@@ -431,6 +435,58 @@ async fn local_snippets_have_no_host_and_can_be_moved_back_to_local() {
     assert_eq!(snippets.len(), 1);
     assert_eq!(snippets[0].host_id, None);
     assert_eq!(snippets[0].host_name, "Local Terminal");
+    assert_eq!(snippets[0].pin_icon.as_deref(), Some("terminal"));
+}
+
+#[tokio::test]
+async fn pinned_snippets_append_keep_their_place_and_reorder() {
+    let (app, _directory) = test_app();
+    let write = |title: &str, pin_icon: Option<&str>| shared::SnippetWriteRequest {
+        host_id: None,
+        title: title.to_string(),
+        body: String::new(),
+        pin_icon: pin_icon.map(str::to_string),
+    };
+
+    let a = super::snippets::snippet_create(write("a", Some("bot")), app.state())
+        .await
+        .expect("create a");
+    let b = super::snippets::snippet_create(write("b", None), app.state())
+        .await
+        .expect("create b");
+    assert_eq!(a.pin_order, Some(0));
+    assert_eq!(b.pin_order, None);
+
+    let b = super::snippets::snippet_update(b.id, write("b", Some("zap")), app.state())
+        .await
+        .expect("pin b");
+    assert_eq!(b.pin_order, Some(1));
+
+    // Changing only the icon keeps the position.
+    let a = super::snippets::snippet_update(a.id, write("a", Some("cpu")), app.state())
+        .await
+        .expect("change a icon");
+    assert_eq!(a.pin_order, Some(0));
+
+    super::snippets::snippet_reorder_pins(vec![b.id.clone(), a.id.clone()], app.state())
+        .await
+        .expect("reorder");
+    let order = |id: &str, snippets: &[shared::SnippetRecord]| {
+        snippets
+            .iter()
+            .find(|s| s.id == id)
+            .and_then(|s| s.pin_order)
+    };
+    let snippets = super::snippets::snippet_list(app.state())
+        .await
+        .expect("list");
+    assert_eq!(order(&b.id, &snippets), Some(0));
+    assert_eq!(order(&a.id, &snippets), Some(1));
+
+    let a = super::snippets::snippet_update(a.id, write("a", None), app.state())
+        .await
+        .expect("unpin a");
+    assert_eq!(a.pin_order, None);
 }
 
 #[tokio::test]

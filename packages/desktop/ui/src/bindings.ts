@@ -205,6 +205,17 @@ async snippetDelete(id: string) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Stores the sidebar order of pinned snippets as given, first to last.
+ */
+async snippetReorderPins(ids: string[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("snippet_reorder_pins", { ids }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async terminalOutputSubscribe(onOutput: TAURI_CHANNEL<unknown>) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("terminal_output_subscribe", { onOutput }) };
@@ -571,8 +582,8 @@ export type PortForwardStatus = { id: string; name: string; host: string; port: 
 export type PortForwardWriteRequest = { name: string; host_id: string; mappings: PortForwardMappingInput[] }
 export type SaveConnectionInput = { id: string | null; name: string; host: string; port: number; username: string; group_id?: string | null; password: string | null; private_key: string | null; passphrase: string | null; key_name: string | null; existing_key_id: string | null }
 export type Setting = { key: string; value: string }
-export type SnippetRecord = { id: string; host_id: string | null; host_name: string; title: string; body: string }
-export type SnippetWriteRequest = { host_id: string | null; title: string; body: string }
+export type SnippetRecord = { id: string; host_id: string | null; host_name: string; title: string; body: string; pin_icon: string | null; pin_order: number | null }
+export type SnippetWriteRequest = { host_id: string | null; title: string; body: string; pin_icon: string | null }
 export type SshConnectResponse = { status: "connected"; session_id: string } | { status: "trust_required"; prompt: HostTrustPrompt } | { status: "trust_mismatch"; mismatch: HostTrustMismatch }
 export type SshHostAuthMaterial = { kind: "password"; password: string } | { kind: "public_key"; private_key: string; passphrase: string | null } | { kind: "public_key_and_password"; private_key: string; passphrase: string | null; password: string }
 export type SshHostRecord = { id: string; name: string; host: string; port: number; username: string; ssh_key_id: string | null; group_id: string | null; auth: SshHostAuthMaterial | null }

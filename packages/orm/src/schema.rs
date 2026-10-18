@@ -17,6 +17,8 @@ diesel::table! {
         body -> Text,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        pin_icon -> Nullable<Text>,
+        pin_order -> Nullable<Integer>,
     }
 }
 

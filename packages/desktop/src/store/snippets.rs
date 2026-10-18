@@ -62,6 +62,11 @@ pub async fn snippet_create(
                 body: snippet.body,
                 created_at: now,
                 updated_at: now,
+                pin_order: match snippet.pin_icon {
+                    Some(_) => Some(next_pin_order(connection)?),
+                    None => None,
+                },
+                pin_icon: snippet.pin_icon,
             })
             .get_result::<HostSnippet>(connection)
             .map_err(internal_error)?;
@@ -84,12 +89,27 @@ pub async fn snippet_update(
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {
         let host_id = snippet.host_id.clone();
+        let current_order = host_snippets::table
+            .filter(host_snippets::id.eq(&id))
+            .select(host_snippets::pin_order)
+            .first::<Option<i32>>(connection)
+            .optional()
+            .map_err(internal_error)?
+            .ok_or_else(|| "snippet not found".to_string())?;
+        // Keep a pinned snippet in place; a newly pinned one goes to the end.
+        let pin_order = match (&snippet.pin_icon, current_order) {
+            (None, _) => None,
+            (Some(_), Some(order)) => Some(order),
+            (Some(_), None) => Some(next_pin_order(connection)?),
+        };
         let updated = diesel::update(host_snippets::table.filter(host_snippets::id.eq(id)))
             .set(UpdateHostSnippet {
                 host_id: snippet.host_id,
                 title: snippet.title,
                 body: snippet.body,
                 updated_at: Utc::now().naive_utc(),
+                pin_icon: snippet.pin_icon,
+                pin_order,
             })
             .get_result::<HostSnippet>(connection)
             .optional()
@@ -115,6 +135,41 @@ pub async fn snippet_delete(id: String, pool: tauri::State<'_, DbPool>) -> Resul
             .map_err(internal_error)
     })
     .await
+}
+
+/// Stores the sidebar order of pinned snippets as given, first to last.
+#[tauri::command]
+#[specta::specta]
+pub async fn snippet_reorder_pins(
+    ids: Vec<String>,
+    pool: tauri::State<'_, DbPool>,
+) -> Result<(), String> {
+    let pool = pool.inner().clone();
+    run_db(pool, move |connection| {
+        connection
+            .transaction(|connection| {
+                for (index, id) in ids.iter().enumerate() {
+                    diesel::update(
+                        host_snippets::table
+                            .filter(host_snippets::id.eq(id))
+                            .filter(host_snippets::pin_icon.is_not_null()),
+                    )
+                    .set(host_snippets::pin_order.eq(index as i32))
+                    .execute(connection)?;
+                }
+                Ok::<_, diesel::result::Error>(())
+            })
+            .map_err(internal_error)
+    })
+    .await
+}
+
+fn next_pin_order(connection: &mut diesel::sqlite::SqliteConnection) -> Result<i32, String> {
+    host_snippets::table
+        .select(diesel::dsl::max(host_snippets::pin_order))
+        .first::<Option<i32>>(connection)
+        .map(|max| max.map_or(0, |max| max + 1))
+        .map_err(internal_error)
 }
 
 const LOCAL_TERMINAL_NAME: &str = "Local Terminal";
@@ -144,5 +199,7 @@ fn to_record((snippet, host_name): (HostSnippet, Option<String>)) -> SnippetReco
         host_id: snippet.host_id,
         title: snippet.title,
         body: snippet.body,
+        pin_icon: snippet.pin_icon,
+        pin_order: snippet.pin_order,
     }
 }
