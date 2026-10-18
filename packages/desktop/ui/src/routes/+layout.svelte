@@ -614,7 +614,9 @@
                       </span>
                       <button
                         type="button"
-                        class="relative z-20 flex size-6 shrink-0 items-center justify-center rounded text-slate-500 opacity-0 transition-opacity hover:bg-red-400/10 hover:text-red-300 group-hover:opacity-100"
+                        class="relative z-20 flex size-6 shrink-0 items-center justify-center rounded-md text-slate-500 transition-[opacity,color,background-color] duration-150 hover:bg-white/10 hover:text-white focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 group-hover:opacity-100 {isActive
+                          ? 'opacity-70'
+                          : 'opacity-0'}"
                         onclick={(event) => {
                           event.stopPropagation();
                           void closeSessionAndNavigate(session.id);
