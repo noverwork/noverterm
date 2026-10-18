@@ -62,7 +62,7 @@
       initializedSnippetId = nextSnippetId;
       title = snippet?.title ?? "";
       body = snippet?.body ?? "";
-      hostId = snippet ? (snippet.host_id ?? "") : (hosts[0]?.id ?? "");
+      hostId = snippet?.host_id ?? "";
       showOnPanel = snippet ? snippet.pin_icon !== null : defaultShowOnPanel;
       pinIcon = snippet?.pin_icon ?? "terminal";
       error = null;
