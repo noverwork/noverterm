@@ -580,15 +580,15 @@
               {@const isDragOver = dragOverSessionId === session.id}
               <div
                 data-session-id={session.id}
-                class="shrink-0"
+                class="min-w-32 max-w-60 flex-1 basis-0"
                 animate:flip={{ duration: 140, easing: cubicOut }}
               >
                 <ContextMenu.Root>
                   <ContextMenu.Trigger class="contents">
                     <div
                       class={isActive
-                        ? `group relative flex shrink-0 items-center gap-2 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-sm text-white transition hover:bg-cyan-300/14${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`
-                        : `group relative flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-3 py-1 text-sm text-slate-400 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`}
+                        ? `group relative flex w-full items-center gap-2 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-sm text-white transition hover:bg-cyan-300/14${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`
+                        : `group relative flex w-full items-center gap-2 rounded-lg border border-transparent px-3 py-1 text-sm text-slate-400 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`}
                     >
                       <button
                         type="button"
