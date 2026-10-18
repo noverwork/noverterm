@@ -313,24 +313,6 @@
     display: none;
   }
 
-  .terminal-tabs {
-    scrollbar-width: none;
-    position: relative;
-    z-index: 20;
-  }
-
-  .terminal-tabs::-webkit-scrollbar {
-    display: none;
-  }
-
-  .terminal-tabs [data-tab-scroller] {
-    scrollbar-width: none;
-  }
-
-  .terminal-tabs [data-tab-scroller]::-webkit-scrollbar {
-    display: none;
-  }
-
   @media (prefers-reduced-motion: reduce) {
     .sidebar,
     .sidebar * {
