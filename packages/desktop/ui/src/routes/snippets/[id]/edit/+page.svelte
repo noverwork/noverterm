@@ -6,7 +6,7 @@
   import Loader2 from "@lucide/svelte/icons/loader-2";
 
   import { updateSnippet } from "$lib/api/snippets-api.js";
-  import type { SnippetRecord } from "$lib/api/types.js";
+  import type { SnippetRecord, SnippetWriteRequest } from "$lib/api/types.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import SnippetForm from "$lib/components/snippet-form.svelte";
   import { mutationKeys } from "$lib/queries/query-keys.js";
@@ -22,7 +22,7 @@
 
   const updateSnippetMutation = createMutation(() => ({
     mutationKey: mutationKeys.updateSnippet,
-    mutationFn: ({ id, input }: { id: string; input: { host_id: string | null; title: string; body: string } }) =>
+    mutationFn: ({ id, input }: { id: string; input: SnippetWriteRequest }) =>
       updateSnippet(id, input),
     onSuccess: () => {
       snippetListQuery.refetch();
@@ -30,10 +30,15 @@
     },
   }));
 
-  async function handleSave(hostId: string | null, title: string, body: string) {
+  async function handleSave(
+    hostId: string | null,
+    title: string,
+    body: string,
+    pinIcon: string | null,
+  ) {
     await updateSnippetMutation.mutateAsync({
       id: snippetId,
-      input: { host_id: hostId, title, body },
+      input: { host_id: hostId, title, body, pin_icon: pinIcon },
     });
   }
 </script>

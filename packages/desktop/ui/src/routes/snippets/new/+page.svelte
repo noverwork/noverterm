@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
+  import { page } from "$app/stores";
   import { createMutation } from "@tanstack/svelte-query";
 
   import SnippetForm from "$lib/components/snippet-form.svelte";
@@ -19,13 +20,24 @@
     },
   }));
 
-  async function handleSave(hostId: string | null, title: string, body: string) {
-    await createSnippetMutation.mutateAsync({ host_id: hostId, title, body });
+  async function handleSave(
+    hostId: string | null,
+    title: string,
+    body: string,
+    pinIcon: string | null,
+  ) {
+    await createSnippetMutation.mutateAsync({
+      host_id: hostId,
+      title,
+      body,
+      pin_icon: pinIcon,
+    });
   }
 </script>
 
 <SnippetForm
   hosts={hosts}
+  defaultShowOnPanel={$page.url.searchParams.has("shortcut")}
   onSave={handleSave}
   onCancel={() => goto("/snippets")}
 />

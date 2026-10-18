@@ -30,6 +30,7 @@
   import TerminalView from "$lib/terminal/terminal.svelte";
   import { getTabShortcut } from "$lib/terminal/keyboard-shortcuts.js";
   import { checkForAppUpdate } from "$lib/updater/auto-update.js";
+  import type { SnippetRecord } from "$lib/api/types.js";
 
   interface Props {
     children: Snippet;
@@ -152,28 +153,8 @@
     await goto(terminalPath);
   }
 
-  async function openK9sTerminal() {
-    await app.openK9sTerminal();
-    await goto(terminalPath);
-  }
-
-  async function openClaudeCodeTerminal() {
-    await app.openClaudeCodeTerminal();
-    await goto(terminalPath);
-  }
-
-  async function openOpencodeTerminal() {
-    await app.openOpencodeTerminal();
-    await goto(terminalPath);
-  }
-
-  async function openOmpTerminal() {
-    await app.openOmpTerminal();
-    await goto(terminalPath);
-  }
-
-  async function openHerdrTerminal() {
-    await app.openHerdrTerminal();
+  async function launchPinnedSnippet(snippet: SnippetRecord) {
+    await app.launchPinnedSnippet(snippet);
     await goto(terminalPath);
   }
 
@@ -503,11 +484,12 @@
     >
       <Sidebar
         onLocalTerminal={openLocalTerminal}
-        onK9sTerminal={openK9sTerminal}
-        onClaudeCodeTerminal={openClaudeCodeTerminal}
-        onOpencodeTerminal={openOpencodeTerminal}
-        onOmpTerminal={openOmpTerminal}
-        onHerdrTerminal={openHerdrTerminal}
+        pinnedSnippets={app.pinnedSnippets}
+        onLaunchSnippet={launchPinnedSnippet}
+        onReorderSnippets={(ids) => void app.reorderPinnedSnippets(ids)}
+        onEditSnippet={(snippet) => goto(`/snippets/${snippet.id}/edit`)}
+        onUnpinSnippet={(snippet) => void app.unpinSnippet(snippet)}
+        onAddShortcut={() => goto("/snippets/new?shortcut=1")}
         onManageKeys={() => goto("/keys")}
         onManageKnownHosts={() => goto("/known-hosts")}
         onPortForwards={() => goto("/forwards")}

@@ -10,6 +10,7 @@ import type {
   HostGroupRecord,
   PortForwardRecord,
   PortForwardWriteRequest,
+  SnippetRecord,
   SshKeyRecord,
 } from "$lib/api/types.js";
 import {
@@ -38,6 +39,8 @@ import {
   updateKeyMutationOptions,
   upsertSettingMutationOptions,
 } from "$lib/queries/index.js";
+import { reorderSnippetPins, updateSnippet } from "$lib/api/snippets-api.js";
+import { snippetListQueryOptions } from "$lib/queries/snippet-queries.js";
 import type { HostTrustConfirmation } from "../../bindings.js";
 import { createPortForwardStore } from "$lib/stores/port-forward.svelte.js";
 import {
@@ -67,6 +70,10 @@ export function createAppShellStore(queryClient: QueryClient) {
 
   const metadataQuery = createQuery(
     () => appDataMetadataQueryOptions(),
+    () => queryClient,
+  );
+  const snippetListQuery = createQuery(
+    () => snippetListQueryOptions(),
     () => queryClient,
   );
 
@@ -121,6 +128,11 @@ export function createAppShellStore(queryClient: QueryClient) {
   const hostGroups = $derived(metadata?.host_groups ?? []);
   const keys = $derived(metadata?.keys ?? []);
   const savedPortForwards = $derived(metadata?.port_forwards ?? []);
+  const pinnedSnippets = $derived(
+    (snippetListQuery.data ?? [])
+      .filter((snippet) => snippet.pin_icon !== null)
+      .sort((left, right) => (left.pin_order ?? 0) - (right.pin_order ?? 0)),
+  );
 
   const activeSession = $derived(
     sessionStore.activeSessionId
@@ -248,66 +260,51 @@ export function createAppShellStore(queryClient: QueryClient) {
     }
   }
 
-  async function openK9sTerminal(): Promise<boolean> {
+  /// Pinned snippets behave like app launchers: every click opens a fresh tab
+  /// named after the snippet and runs its command there.
+  async function launchPinnedSnippet(snippet: SnippetRecord): Promise<boolean> {
     try {
-      const sessionId = await sessionStore.connectLocal("k9s");
-      await sessionStore.writeSession(sessionId, "k9s\n");
+      let sessionId: string;
+      if (snippet.host_id === null) {
+        sessionId = await sessionStore.connectLocal(snippet.title);
+      } else {
+        const connection = connections.find((c) => c.id === snippet.host_id);
+        if (!connection) {
+          return false;
+        }
+        sessionId = await sessionStore.connectSavedConnection(connection, 80, 24);
+        void recordRecentConnection(connection.id).catch(() => undefined);
+      }
+      await sessionStore.writeSession(sessionId, snippet.body + "\n");
       return true;
     } catch {
       return false;
     }
   }
 
-  async function openClaudeCodeTerminal(): Promise<boolean> {
+  /// Applies the new sidebar order right away and persists it in the background.
+  async function reorderPinnedSnippets(ids: string[]) {
+    queryClient.setQueryData<SnippetRecord[]>(queryKeys.snippets(), (snippets) =>
+      snippets?.map((snippet) => {
+        const index = ids.indexOf(snippet.id);
+        return index === -1 ? snippet : { ...snippet, pin_order: index };
+      }),
+    );
     try {
-      const sessionId = await sessionStore.connectLocal("Claude Code");
-      await sessionStore.writeSession(
-        sessionId,
-        "mkdir -p ~/noverterm/agent && cd ~/noverterm/agent && claude\n",
-      );
-      return true;
-    } catch {
-      return false;
+      await reorderSnippetPins(ids);
+    } finally {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.snippets() });
     }
   }
 
-  async function openOpencodeTerminal(): Promise<boolean> {
-    try {
-      const sessionId = await sessionStore.connectLocal("OpenCode");
-      await sessionStore.writeSession(
-        sessionId,
-        "mkdir -p ~/noverterm/agent && cd ~/noverterm/agent && opencode\n",
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  async function openOmpTerminal(): Promise<boolean> {
-    try {
-      const sessionId = await sessionStore.connectLocal("omp");
-      await sessionStore.writeSession(
-        sessionId,
-        "mkdir -p ~/noverterm/agent && cd ~/noverterm/agent && omp\n",
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  async function openHerdrTerminal(): Promise<boolean> {
-    try {
-      const sessionId = await sessionStore.connectLocal("Herdr");
-      await sessionStore.writeSession(
-        sessionId,
-        "mkdir -p ~/noverterm/agent && cd ~/noverterm/agent && herdr\n",
-      );
-      return true;
-    } catch {
-      return false;
-    }
+  async function unpinSnippet(snippet: SnippetRecord) {
+    await updateSnippet(snippet.id, {
+      host_id: snippet.host_id,
+      title: snippet.title,
+      body: snippet.body,
+      pin_icon: null,
+    });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.snippets() });
   }
 
   function activateSession(id: string) {
@@ -732,15 +729,16 @@ export function createAppShellStore(queryClient: QueryClient) {
     get savedPortForwards() {
       return savedPortForwards;
     },
+    get pinnedSnippets() {
+      return pinnedSnippets;
+    },
     init,
     cleanup,
     connectSavedConnection,
     connectLocalTerminal,
-    openK9sTerminal,
-    openClaudeCodeTerminal,
-    openOpencodeTerminal,
-    openOmpTerminal,
-    openHerdrTerminal,
+    launchPinnedSnippet,
+    reorderPinnedSnippets,
+    unpinSnippet,
     activateSession,
     resetConnectionFormError,
     saveConnection,

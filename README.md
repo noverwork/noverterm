@@ -29,12 +29,12 @@ Noverterm is different. Built on **Tauri 2** and **Rust**, it delivers:
 | Feature | Description |
 |---------|-------------|
 | **SSH Connections** | Password & SSH key auth, host fingerprint verification, known hosts manager |
-| **Multi-Session Tabs** | Multiple SSH sessions in tabs, duplicate sessions, instant local terminal, one-click k9s/Claude Code/OpenCode |
+| **Multi-Session Tabs** | Multiple SSH sessions in tabs, duplicate sessions, instant local terminal |
 | **Terminal I/O** | Immediate idle SSH output, bounded binary streaming, ordered input with visible write failures |
 | **TUI Keyboard** | Negotiated Kitty keyboard protocol, modifier/repeat/release events, IME text and paste handling |
 | **Port Forwarding** | Local SSH tunneling with saved presets, several ports per preset |
 | **SFTP File Transfer** | Dual-pane browser (local or any host per pane), drag & drop, multi-select, recursive folder transfer, progress, conflict resolution, create/rename/delete |
-| **Snippets** | Save and execute frequent commands across active sessions |
+| **Snippets** | Save and execute frequent commands across active sessions, pin them to the sidebar as one-click launchers with a custom icon |
 | **SSH Key Manager** | Import and manage SSH keys |
 | **Connection Groups** | Organize connections into folders |
 | **Auto-Update** | Built-in updater — download and install updates from GitHub Releases |

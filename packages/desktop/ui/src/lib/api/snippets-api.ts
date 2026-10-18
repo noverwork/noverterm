@@ -26,3 +26,7 @@ export async function updateSnippet(
 export async function deleteSnippet(id: string): Promise<void> {
   await invoke("snippet_delete", { id });
 }
+
+export async function reorderSnippetPins(ids: string[]): Promise<void> {
+  await invoke("snippet_reorder_pins", { ids });
+}

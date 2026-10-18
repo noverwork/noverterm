@@ -309,6 +309,14 @@
     scrollbar-width: none;
   }
 
+  .sidebar-shortcuts {
+    scrollbar-width: none;
+  }
+
+  .sidebar-shortcuts::-webkit-scrollbar {
+    display: none;
+  }
+
   .session-tabs::-webkit-scrollbar {
     display: none;
   }

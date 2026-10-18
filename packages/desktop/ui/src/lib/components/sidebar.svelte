@@ -4,25 +4,26 @@
     Network,
     Server,
     Settings,
-    Terminal,
     FileText,
     FolderOpen,
-    LayoutGrid,
   } from "@lucide/svelte";
 
   import type { Snippet } from "svelte";
 
+  import type { SnippetRecord } from "$lib/api/types.js";
+  import ShortcutPanel from "$lib/components/shortcut-panel.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
 
   type SidebarSection = "terminal" | "hosts" | "keys" | "forwards" | "known-hosts" | "snippets" | "sftp";
 
   let {
     onLocalTerminal,
-    onK9sTerminal,
-    onClaudeCodeTerminal,
-    onOpencodeTerminal,
-    onOmpTerminal,
-    onHerdrTerminal,
+    pinnedSnippets = [],
+    onLaunchSnippet,
+    onReorderSnippets,
+    onEditSnippet,
+    onUnpinSnippet,
+    onAddShortcut,
     onManageKeys,
     onManageKnownHosts,
     onPortForwards,
@@ -38,11 +39,12 @@
     activeSection = "terminal",
   }: {
     onLocalTerminal?: () => void;
-    onK9sTerminal?: () => void;
-    onClaudeCodeTerminal?: () => void;
-    onOpencodeTerminal?: () => void;
-    onOmpTerminal?: () => void;
-    onHerdrTerminal?: () => void;
+    pinnedSnippets?: SnippetRecord[];
+    onLaunchSnippet?: (snippet: SnippetRecord) => void;
+    onReorderSnippets?: (ids: string[]) => void;
+    onEditSnippet?: (snippet: SnippetRecord) => void;
+    onUnpinSnippet?: (snippet: SnippetRecord) => void;
+    onAddShortcut?: () => void;
     onManageKeys?: () => void;
     onManageKnownHosts?: () => void;
     onPortForwards?: () => void;
@@ -69,64 +71,10 @@
     return "h-10 w-full justify-center rounded-2xl px-0 border-white/10 bg-white/[0.035] text-slate-200 hover:border-cyan-300/30 hover:bg-cyan-300/8 hover:text-white";
   }
 
-  function localTerminalIconButtonClass(): string {
-    if (activeSection === "terminal") {
-      return "rounded-2xl border-emerald-300/24 bg-emerald-300/12 text-emerald-100 shadow-[0_0_22px_rgb(52_211_153/0.12)] ring-1 ring-emerald-300/10 hover:border-emerald-300/35 hover:bg-emerald-300/16 hover:text-white";
-    }
-
-    return "rounded-2xl border-emerald-300/12 bg-emerald-300/[0.045] text-emerald-200/85 hover:border-emerald-300/22 hover:bg-emerald-300/8 hover:text-emerald-50";
-  }
-
-  function k9sIconButtonClass(): string {
-    return "rounded-2xl border-cyan-300/12 bg-cyan-300/[0.045] text-cyan-200/85 hover:border-cyan-300/22 hover:bg-cyan-300/8 hover:text-cyan-50";
-  }
-
-  function claudeCodeIconButtonClass(): string {
-    return "rounded-2xl border-violet-300/12 bg-violet-300/[0.045] text-violet-200/85 hover:border-violet-300/22 hover:bg-violet-300/8 hover:text-violet-50";
-  }
-
-  function opencodeIconButtonClass(): string {
-    return "rounded-2xl border-orange-300/12 bg-orange-300/[0.045] text-orange-200/85 hover:border-orange-300/22 hover:bg-orange-300/8 hover:text-orange-50";
-  }
-
-  function herdrIconButtonClass(): string {
-    return "rounded-2xl border-rose-300/12 bg-rose-300/[0.045] text-rose-200/85 hover:border-rose-300/22 hover:bg-rose-300/8 hover:text-rose-50";
-  }
-
   function withCount(label: string, count?: number): string {
     return count === undefined ? label : `${label} (${count})`;
   }
 </script>
-
-{#snippet terminalIcon()}
-  <Terminal class="size-4" />
-{/snippet}
-
-{#snippet herdrIcon()}
-  <LayoutGrid class="size-4" />
-{/snippet}
-
-{#snippet quickAction(
-  onclick: () => void,
-  buttonClass: string,
-  label: string,
-  icon: Snippet,
-)}
-  <div class="group/tip relative">
-    <Button
-      {onclick}
-      variant="outline"
-      size="icon-lg"
-      class={buttonClass}
-      aria-label={label}
-    >
-      {@render icon()}
-    </Button>
-    <span class={TOOLTIP_CLASS} aria-hidden="true">
-      {label}
-    </span>
-  </div>
-{/snippet}
 
 {#snippet navItem(
   onclick: () => void,
@@ -171,86 +119,6 @@
   <Network class="size-3.5" />
 {/snippet}
 
-{#snippet claudeIcon()}
-  <svg
-    viewBox="0 0 24 24"
-    class="size-4"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M12 3.5 13.9 9l5.6-1.9-3.1 5 4.9 3.3-5.9.8.5 5.8-3.9-4.4L8.1 22l.5-5.8-5.9-.8L7.6 12 4.5 7.1 10.1 9 12 3.5Z" />
-    <path d="M12 9.2v5.6" />
-    <path d="m9.2 12 5.6 0" />
-  </svg>
-{/snippet}
-
-{#snippet opencodeIcon()}
-  <svg
-    viewBox="0 0 24 24"
-    class="size-4"
-    fill="none"
-    aria-hidden="true"
-  >
-    <rect
-      x="3"
-      y="5"
-      width="18"
-      height="14"
-      rx="4"
-      stroke="currentColor"
-      stroke-width="1.8"
-    />
-    <path
-      d="m9 10-2 2 2 2M15 10l2 2-2 2M13 8.5l-2 7"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    />
-  </svg>
-{/snippet}
-
-{#snippet ompIcon()}
-  <span class="text-base font-semibold leading-none" aria-hidden="true">π</span>
-{/snippet}
-
-{#snippet k9sIcon()}
-  <svg
-    viewBox="0 0 24 24"
-    class="size-4"
-    fill="none"
-    aria-hidden="true"
-  >
-    <rect
-      x="3"
-      y="5"
-      width="18"
-      height="14"
-      rx="4"
-      stroke="currentColor"
-      stroke-width="1.8"
-    />
-    <path
-      d="M8 9v6M8 12.5 11.5 9M9.8 11.5 12 15"
-      stroke="currentColor"
-      stroke-width="1.7"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    />
-    <path
-      d="M14.2 15h2.2c.9 0 1.6-.7 1.6-1.6v-.1c0-.9-.7-1.6-1.6-1.6h-.8c-.8 0-1.4-.6-1.4-1.4S14.8 9 15.6 9h2"
-      stroke="currentColor"
-      stroke-width="1.7"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    />
-  </svg>
-{/snippet}
-
 <aside
   class="sidebar relative z-30 flex w-[4.5rem] shrink-0 flex-col border-r border-white/10 shadow-[18px_0_60px_rgb(0_0_0/0.28)] backdrop-blur-2xl"
 >
@@ -271,51 +139,6 @@
         <img src="/favicon.png" alt="" class="size-7 rounded-xl" />
       </div>
     </button>
-  </div>
-
-  <div class="border-b border-white/8 px-3 pb-4">
-    {#if onLocalTerminal || onK9sTerminal || onClaudeCodeTerminal || onOpencodeTerminal || onOmpTerminal || onHerdrTerminal}
-      <div class="flex flex-col items-center gap-2">
-        {#if onLocalTerminal}
-          {@render quickAction(
-            onLocalTerminal,
-            localTerminalIconButtonClass(),
-            "Local terminal",
-            terminalIcon,
-          )}
-        {/if}
-        {#if onK9sTerminal}
-          {@render quickAction(onK9sTerminal, k9sIconButtonClass(), "k9s", k9sIcon)}
-        {/if}
-        {#if onClaudeCodeTerminal}
-          {@render quickAction(
-            onClaudeCodeTerminal,
-            claudeCodeIconButtonClass(),
-            "Claude Code",
-            claudeIcon,
-          )}
-        {/if}
-        {#if onOpencodeTerminal}
-          {@render quickAction(
-            onOpencodeTerminal,
-            opencodeIconButtonClass(),
-            "OpenCode",
-            opencodeIcon,
-          )}
-        {/if}
-        {#if onOmpTerminal}
-          {@render quickAction(
-            onOmpTerminal,
-            claudeCodeIconButtonClass(),
-            "omp",
-            ompIcon,
-          )}
-        {/if}
-        {#if onHerdrTerminal}
-          {@render quickAction(onHerdrTerminal, herdrIconButtonClass(), "Herdr", herdrIcon)}
-        {/if}
-      </div>
-    {/if}
   </div>
 
   <div class="flex min-h-0 flex-1 flex-col">
@@ -342,7 +165,23 @@
       </div>
     </div>
 
-    <div class="flex-1"></div>
+    {#if onLaunchSnippet && onReorderSnippets && onEditSnippet && onUnpinSnippet && onAddShortcut}
+      <div class="mx-4 h-px shrink-0 bg-white/8"></div>
+      <div class="sidebar-shortcuts min-h-0 flex-1 overflow-y-auto px-3 py-4">
+        <ShortcutPanel
+          snippets={pinnedSnippets}
+          localTerminalActive={activeSection === "terminal"}
+          {onLocalTerminal}
+          onLaunch={onLaunchSnippet}
+          onReorder={onReorderSnippets}
+          onEdit={onEditSnippet}
+          onUnpin={onUnpinSnippet}
+          onAdd={onAddShortcut}
+        />
+      </div>
+    {:else}
+      <div class="flex-1"></div>
+    {/if}
 
     <div class="border-t border-white/10 p-3">
       {#if onOpenSettings}
