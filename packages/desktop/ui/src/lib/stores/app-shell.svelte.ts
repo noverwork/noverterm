@@ -309,6 +309,15 @@ export function createAppShellStore(queryClient: QueryClient) {
 
   function activateSession(id: string) {
     sessionStore.setActiveSession(id);
+    // Coming back to an SSH tab whose connection dropped reconnects it once.
+    // Trust prompts keep their own status and still wait for the user.
+    const session = sessionStore.sessions.get(id);
+    if (
+      session?.type === "ssh" &&
+      (session.status === "disconnected" || session.status === "error")
+    ) {
+      void retryActiveConnection();
+    }
   }
 
   function resetConnectionFormError() {
