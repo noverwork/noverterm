@@ -28,6 +28,7 @@ package/
 .env
 .env.*
 !.env.example
+.envrc
 
 # Timestamps
 vite.config.js.timestamp-*
