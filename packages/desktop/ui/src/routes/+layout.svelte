@@ -821,8 +821,11 @@
                             status: "error",
                             error,
                           })}
-                        onRequestClose={() =>
-                          void closeSessionAndNavigate(session.id)}
+                        onRequestClose={() => {
+                          // A hidden terminal can keep focus while a connecting or failed tab is shown.
+                          const id = app.sessionStore.activeSessionId;
+                          if (id) void closeSessionAndNavigate(id);
+                        }}
                       />
                     {:else}
                       <ConnectionStatusOverlay
