@@ -137,6 +137,35 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     });
   }
 
+  // Remote programs cannot read the local clipboard, so hand them a file path.
+  function pasteImageToRemote(event: ClipboardEvent) {
+    const data = event.clipboardData;
+    if (sessionType !== "ssh" || !data || data.getData("text/plain")) return;
+    const image = Array.from(data.files).find((file) =>
+      file.type.startsWith("image/"),
+    );
+    if (!image) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const extension = image.type.slice("image/".length).replace("jpeg", "jpg");
+    void image
+      .arrayBuffer()
+      .then((buffer) =>
+        commands.sftpPasteImage(
+          sessionId,
+          Array.from(new Uint8Array(buffer)),
+          extension,
+        ),
+      )
+      .then((result) => {
+        if (result.status === "error") throw new Error(result.error);
+        paste(result.data);
+      })
+      .catch((error: unknown) => {
+        console.error("[terminal:paste-image]", sessionId, error);
+      });
+  }
+
   async function openExternalUrl(uri: string) {
     try {
       await openUrl(uri);
@@ -263,6 +292,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     keyboardProtocol.attachInputListeners();
     terminal.onKey(markUserInput);
     terminal.element?.addEventListener("paste", markUserInput, true);
+    terminal.element?.addEventListener("paste", pasteImageToRemote, true);
     requestAnimationFrame(() => {
       syncInitialSize();
       if (!terminal) return;
@@ -399,6 +429,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     outputUnlisten?.();
     outputUnlisten = null;
     terminal?.element?.removeEventListener("paste", markUserInput, true);
+    terminal?.element?.removeEventListener("paste", pasteImageToRemote, true);
     keyboardProtocol?.dispose();
     keyboardProtocol = null;
     terminal?.dispose();

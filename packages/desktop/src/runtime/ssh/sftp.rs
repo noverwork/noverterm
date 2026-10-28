@@ -373,6 +373,56 @@ impl SshSessionManager {
             .map_err(|error| error.to_string())
     }
 
+    /// Upload pasted image bytes to the remote `/tmp` and return the remote path.
+    pub async fn paste_image(
+        &self,
+        session_id: &str,
+        data: Vec<u8>,
+        extension: &str,
+    ) -> Result<String, String> {
+        if extension.is_empty() || !extension.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return Err(format!("Invalid image extension: {extension}"));
+        }
+        let handle = {
+            let sessions = self.sessions.lock().await;
+            sessions
+                .get(session_id)
+                .ok_or_else(|| format!("Session not found: {session_id}"))?
+                .handle
+                .clone()
+        };
+        // A private SFTP channel, so an open file browser on this session is untouched.
+        let sftp_session = {
+            let mut handle = handle.lock().await;
+            open_sftp_session(&mut handle)
+                .await
+                .map_err(|error| error.to_string())?
+        };
+
+        let name = format!("noverterm-paste-{}.{extension}", Uuid::new_v4());
+        let local_path = std::env::temp_dir().join(&name);
+        let remote_path = format!("/tmp/{name}");
+        let result = async {
+            tokio::fs::write(&local_path, &data)
+                .await
+                .map_err(|error| format!("Failed to stage pasted image: {error}"))?;
+            sftp_session
+                .upload(
+                    &local_path.to_string_lossy(),
+                    &remote_path,
+                    Uuid::new_v4().to_string(),
+                    TransferCancellation::new(),
+                    None,
+                )
+                .await
+                .map_err(|error| error.to_string())
+        }
+        .await;
+        let _ = tokio::fs::remove_file(&local_path).await;
+        let _ = sftp_session.close().await;
+        result.map(|_| remote_path)
+    }
+
     async fn sftp_session(&self, sftp_id: &str) -> Result<Arc<SftpSession>, String> {
         let sessions = self.sessions.lock().await;
         find_sftp_session(&sessions, sftp_id)

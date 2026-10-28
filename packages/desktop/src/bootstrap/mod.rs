@@ -63,6 +63,7 @@ fn command_builder() -> Builder<tauri::Wry> {
         crate::connect::port_forward_stop,
         crate::connect::port_forward_list,
         crate::sftp::sftp_open,
+        crate::sftp::sftp_paste_image,
         crate::sftp::sftp_close,
         crate::sftp::sftp_connect_direct,
         crate::sftp::sftp_home_dir,

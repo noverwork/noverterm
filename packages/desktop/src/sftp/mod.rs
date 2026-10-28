@@ -26,6 +26,18 @@ pub async fn sftp_open(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn sftp_paste_image(
+    session_id: String,
+    data: Vec<u8>,
+    extension: String,
+    ssh_manager: State<'_, SshSessionManager>,
+) -> Result<String, String> {
+    // ponytail: bytes cross IPC as a JSON array; switch to a raw request body if large pastes lag.
+    ssh_manager.paste_image(&session_id, data, &extension).await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn sftp_close(
     session_id: String,
     ssh_manager: State<'_, SshSessionManager>,

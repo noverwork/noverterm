@@ -368,6 +368,14 @@ async sftpOpen(sessionId: string) : Promise<Result<string, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+async sftpPasteImage(sessionId: string, data: number[], extension: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sftp_paste_image", { sessionId, data, extension }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async sftpClose(sessionId: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("sftp_close", { sessionId }) };
