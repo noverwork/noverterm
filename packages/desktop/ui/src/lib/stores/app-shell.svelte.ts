@@ -480,6 +480,13 @@ export function createAppShellStore(queryClient: QueryClient) {
   }
 
   function closeSession(id: string) {
+    if (sessionStore.activeSessionId === id) {
+      // Focus the left neighbour, or the new first tab when closing the first.
+      const ids = activeSessions.map((session) => session.id);
+      const index = ids.indexOf(id);
+      const next = ids[index > 0 ? index - 1 : index + 1];
+      if (next) sessionStore.setActiveSession(next);
+    }
     void sessionStore.disconnectSession(id);
   }
 
