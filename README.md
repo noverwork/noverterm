@@ -1,141 +1,180 @@
+<div align="center">
+
 # Noverterm
 
-**A native SSH terminal client for macOS and Windows, built with Tauri 2 & Rust. No Electron, no bloat.**
+**A native SSH client for macOS and Windows. Built with Tauri 2 and Rust. No Electron.**
 
-Noverterm is a lightweight SSH terminal app with multi-session tabs, SFTP file transfer, port forwarding, SSH key management, and snippets. All data stays in a local SQLite database. It is designed as a fast, native alternative to Electron-based SSH clients.
-
-[![License](https://img.shields.io/badge/License-BSL_1.1-5f3dc4)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue)]()
 [![Release](https://img.shields.io/github/v/release/noverwork/noverterm)](https://github.com/noverwork/noverterm/releases)
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue)]()
+[![License](https://img.shields.io/badge/License-BSL_1.1-5f3dc4)](LICENSE)
 
-[Website](https://noverwork.github.io/noverterm/) · [Download](https://github.com/noverwork/noverterm/releases)
+[Download](https://github.com/noverwork/noverterm/releases) · [Website](https://noverwork.github.io/noverterm/) · [Report a bug](https://github.com/noverwork/noverterm/issues)
 
----
+</div>
 
-## Why Noverterm?
+> _Screenshots coming soon._
 
-Most SSH clients today are Electron wrappers — hundreds of MBs of RAM just to run a terminal.
+Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fast window. It uses about 50MB of memory, compared to 500MB+ for Electron-based SSH clients. All data stays in a local SQLite database. No account, no cloud sync.
 
-Noverterm is different. Built on **Tauri 2** and **Rust**, it delivers:
+## Highlights
 
-- **~50MB memory footprint** (vs 500MB+ for Electron apps)
-- **Native performance** — no JavaScript runtime overhead
-- **Real security** — Rust's memory safety, no CVE-ridden dependencies
+- **Lightweight** — Tauri 2 + Rust, ~50MB memory footprint
+- **Tabs for everything** — many SSH sessions, plus a local terminal, side by side
+- **TUI-ready** — Kitty keyboard protocol, IME input, and paste handling for vim, tmux, and htop
+- **Dual-pane SFTP** — local or any saved host on each side, drag and drop between them
+- **Local-first** — connections, keys, and snippets never leave your machine
 
 ## Features
 
-### ✅ What's Done
+### Terminal
 
-| Feature | Description |
-|---------|-------------|
-| **SSH Connections** | Password & SSH key auth, host fingerprint verification, known hosts manager |
-| **Multi-Session Tabs** | Multiple SSH sessions in tabs, duplicate sessions, instant local terminal |
-| **Terminal I/O** | Immediate idle SSH output, bounded binary streaming, ordered input with visible write failures |
-| **TUI Keyboard** | Negotiated Kitty keyboard protocol, modifier/repeat/release events, IME text and paste handling |
-| **Port Forwarding** | Local SSH tunneling with saved presets, several ports per preset |
-| **SFTP File Transfer** | Dual-pane browser (local or any host per pane), drag & drop, multi-select, recursive folder transfer, progress, conflict resolution, create/rename/delete |
-| **Snippets** | Save and execute frequent commands across active sessions, pin them to the sidebar as one-click launchers with a custom icon |
-| **SSH Key Manager** | Import and manage SSH keys |
-| **Connection Groups** | Organize connections into folders |
-| **Auto-Update** | Built-in updater — download and install updates from GitHub Releases |
-| **Modern UI** | Dark theme, responsive layout, keyboard shortcuts, context menus |
+- Multiple SSH sessions in tabs; duplicate a session or open a local terminal instantly
+- Password and SSH key authentication
+- Host fingerprint verification and a known hosts manager
+- Dropped connections reconnect when you switch back to the tab
+- Immediate output on idle sessions, bounded binary streaming, ordered input with visible write failures
+- Negotiated Kitty keyboard protocol with modifier, repeat, and release events
+- In-terminal search
 
-Keyboard encoding uses the layout information exposed by the WebView. On WebKit,
-previously unseen shifted punctuation on non-US layouts may lack its unshifted
-key value; the browser-reported key and physical alternate remain available.
+### SFTP file transfer
 
-### 🚧 In Progress
+- Dual-pane browser: local or any host in each pane
+- Drag and drop, multi-select, recursive folder transfer
+- Transfer progress and conflict resolution
+- Create, rename, and delete files and folders
 
-- Linux support
+### Port forwarding
 
-## Screenshots
+- Local SSH tunnels saved as presets
+- Several ports per preset
 
-> _Coming soon_
+### Snippets
 
-## Installation
+- Save frequent commands and run them in active sessions
+- Pin snippets to the sidebar as one-click launchers with a custom icon
 
-### macOS (Apple Silicon)
+### Connections and keys
 
-Download the latest `.dmg` from [Releases](https://github.com/noverwork/noverterm/releases).
+- Organize connections into folders
+- Import and manage SSH keys
 
-### Windows
+### App
 
-Download the `.exe` installer from [Releases](https://github.com/noverwork/noverterm/releases).
+- Built-in updater from GitHub Releases
+- Dark theme, keyboard shortcuts, context menus
 
-### Build from Source
+## Download
+
+| Platform | Package |
+|----------|---------|
+| macOS (Apple Silicon) | `.dmg` |
+| Windows | `.exe` installer |
+
+Get the latest version from [Releases](https://github.com/noverwork/noverterm/releases). Noverterm checks for updates on its own after install.
+
+## Quick Start
+
+1. Open Noverterm and click **New connection**.
+2. Enter the host, port, and user. Choose password or SSH key authentication.
+3. Connect. On first connect, verify the host fingerprint.
+4. Open more sessions in tabs, or open a **Local Terminal**.
+5. Use the sidebar for SFTP, port forwards, SSH keys, and snippets.
+
+## Keyboard Shortcuts
+
+On Windows, use `Ctrl` in place of `Cmd`.
+
+| Action | Shortcut |
+|--------|----------|
+| Jump to tab 1–9 | `Cmd+1` … `Cmd+9` |
+| Next / previous tab | `Cmd+Shift+]` / `Cmd+Shift+[`, `Ctrl+Tab` / `Ctrl+Shift+Tab` |
+| Search in terminal | `Cmd+F` |
+| Next / previous match (macOS) | `Cmd+G` / `Cmd+Shift+G` |
+| Copy selection | `Cmd+C` (only with a selection, else sent to the shell) |
+| Paste | `Cmd+V`, `Ctrl+Shift+V`, `Shift+Insert` |
+| Close tab (macOS) | `Cmd+W` |
+
+Keyboard encoding uses the layout information from the WebView. On WebKit, shifted punctuation on non-US layouts may lack its unshifted key value the first time it is typed. The browser-reported key and physical alternate stay available.
+
+## Data and Privacy
+
+- All data is stored in a local SQLite database in the app data folder.
+- No account, telemetry, or cloud sync.
+- The only network traffic besides your SSH connections is the update check against GitHub Releases.
+
+## Roadmap
+
+- [ ] Linux support
+- [ ] Screenshots
+
+## Build from Source
+
+Prerequisites: Node.js 22+, Rust stable, [cargo-make](https://github.com/sagiegurari/cargo-make).
 
 ```bash
-# Prerequisites: Node.js 22+, Rust stable, cargo-make
 cargo make frontend:install
 cargo make tauri:build
 ```
 
-The bundled app will be in `target/release/bundle/`.
+The bundled app is in `target/release/bundle/`.
 
-## Tech Stack
+### Development
+
+```bash
+cargo make frontend:install   # install UI dependencies
+cargo make tauri:dev          # run the app in dev mode
+cargo make ci                 # clippy, format check, tests, Svelte check
+```
+
+### Tech stack
 
 | Layer | Technology |
 |-------|------------|
-| **Frontend** | Svelte 5, Vite, TailwindCSS |
-| **Desktop** | Tauri 2 |
-| **SSH** | Russh (pure Rust SSH library) |
-| **Async Runtime** | Tokio |
-| **Database** | SQLite + Diesel ORM (local, in the app data folder) |
+| UI | Svelte 5, Vite, TailwindCSS |
+| Desktop | Tauri 2 |
+| SSH | Russh (pure Rust) |
+| Async runtime | Tokio |
+| Database | SQLite + Diesel |
 
-## Project Structure
+### Project structure
 
 ```
 noverterm/
 ├── packages/
 │   ├── desktop/        # Tauri app (Rust + Svelte UI), owns the SQLite database
-│   ├── shared/         # Types shared between the Rust commands and the UI
-│   └── orm/            # Diesel ORM models and schema
+│   ├── shared/         # Types shared between Rust commands and the UI
+│   └── orm/            # Diesel models and schema
 ├── Cargo.toml          # Rust workspace
 └── Makefile.toml       # cargo-make tasks
 ```
 
-## Development
+## Contributing
 
-```bash
-# Install dependencies
-cargo make frontend:install
+This repository is public for transparency and security auditing.
 
-# Run in dev mode
-cargo make tauri:dev
-
-# Run lint & typecheck
-cargo make lint          # Rust clippy
-cargo make fmt           # Rust format
-npm run lint             # Frontend ESLint (in packages/desktop/ui)
-npm run check            # Svelte typecheck (in packages/desktop/ui)
-```
+- **Bug reports:** open an [issue](https://github.com/noverwork/noverterm/issues).
+- **Security issues:** contact the maintainer directly. Do not open a public issue.
+- **Pull requests:** not accepted. Fork freely instead.
 
 ## License
 
-Noverterm is **Source Available** under the **Business Source License 1.1 (BSL 1.1)**.
+Noverterm is source available under the [Business Source License 1.1](LICENSE).
 
-- ✅ **Free for personal & internal company use**
-- ✅ **Fork and modify for your own use**
-- 🚫 **No commercial resale or managed hosting**
-- 📅 **Auto-converts to MIT License on 2029-05-25**
-
-See [LICENSE](LICENSE) for details.
-
-## Contributing
-
-This repository is public for **transparency and security auditing**.
-
-- 🐛 **Bug reports** → Open an Issue
-- 🔒 **Security disclosures** → Contact maintainer directly
-- 🔀 **Pull Requests** → Not accepted (fork freely instead)
+- Free for personal and internal company use
+- Fork and modify for your own use
+- No commercial resale or managed hosting
+- Converts to the MIT License on 2029-05-25
 
 ## Acknowledgements
 
-Built with:
-- 🦀 [Tauri](https://tauri.app/) — Desktop framework
-- ⚡ [Russh](https://github.com/Russh/russh) — Pure Rust SSH implementation
-- 🎨 [Svelte](https://svelte.dev/) — UI framework
+- [Tauri](https://tauri.app/) — desktop framework
+- [Russh](https://github.com/Eugeny/russh) — pure Rust SSH implementation
+- [Svelte](https://svelte.dev/) — UI framework
 
 ---
 
+<div align="center">
+
 **Noverterm** — Because your SSH client shouldn't need its own memory allocator.
+
+</div>
