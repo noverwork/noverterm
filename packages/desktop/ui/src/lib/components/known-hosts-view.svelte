@@ -71,9 +71,9 @@
   <section class="ide-panel flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-white sm:p-6">
     <div class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <p class="section-title text-cyan-200/70">SSH Trust Store</p>
+        <p class="section-title">SSH Trust Store</p>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight">Known Hosts</h1>
-        <p class="mt-2 text-sm text-slate-500">
+        <p class="mt-2 text-sm text-slate-400">
           Hosts you trusted after confirming their SSH fingerprint.
         </p>
       </div>
@@ -100,7 +100,7 @@
           {#each hosts as host (hostKey(host))}
             <article class="group rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055]">
               <div class="flex items-start gap-3">
-                <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200">
+                <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
                   <Server class="size-5" />
                 </div>
 
@@ -108,12 +108,12 @@
                   <p class="break-all text-sm font-mono font-medium text-white">
                     {host.host}:{host.port}
                   </p>
-                  <p class="mt-1 text-xs text-slate-500">{host.algorithm}</p>
+                  <p class="mt-1 text-xs text-slate-400">{host.algorithm}</p>
                 </div>
               </div>
 
               <div class="mt-4 rounded-xl border border-white/8 bg-black/20 px-3 py-2.5">
-                <div class="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                <div class="flex items-center gap-2 section-title">
                   <Fingerprint class="size-3.5" />
                   Fingerprint
                 </div>

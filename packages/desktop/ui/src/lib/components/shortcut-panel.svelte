@@ -92,8 +92,8 @@
     <button
       type="button"
       class="{BUTTON_CLASS} {localTerminalActive
-        ? 'border-emerald-300/24 bg-emerald-300/12 text-emerald-100 hover:border-emerald-300/35 hover:bg-emerald-300/16 hover:text-white'
-        : 'border-emerald-300/12 bg-emerald-300/[0.045] text-emerald-200/85 hover:border-emerald-300/22 hover:bg-emerald-300/8 hover:text-emerald-50'}"
+        ? 'border-cyan-300/35 bg-cyan-300/12 text-cyan-50 hover:border-cyan-300/45 hover:bg-cyan-300/16 hover:text-white'
+        : 'border-white/10 bg-white/[0.035] text-slate-300 hover:border-white/10 hover:bg-white/8 hover:text-white'}"
       aria-label="Local terminal"
       onclick={onLocalTerminal}
       onpointerenter={(event) => showTooltip(event, "Local terminal")}
@@ -121,7 +121,7 @@
           <button
             type="button"
             draggable="true"
-            class="{BUTTON_CLASS} border-white/10 bg-white/[0.035] text-slate-300 hover:border-cyan-300/30 hover:bg-cyan-300/8 hover:text-cyan-50 {draggingId ===
+            class="{BUTTON_CLASS} border-white/10 bg-white/[0.035] text-slate-300 hover:border-white/10 hover:bg-white/8 hover:text-white {draggingId ===
             snippet.id
               ? 'opacity-40'
               : ''}"
@@ -169,7 +169,7 @@
 
   <button
     type="button"
-    class="{BUTTON_CLASS} border-dashed border-white/12 text-slate-500 hover:border-cyan-300/35 hover:text-cyan-100"
+    class="{BUTTON_CLASS} border-dashed border-white/12 text-slate-400 hover:border-white/20 hover:text-white"
     aria-label="Add shortcut"
     onclick={onAdd}
     onpointerenter={(event) => showTooltip(event, "Add shortcut")}
@@ -182,7 +182,7 @@
 
 {#if tooltip}
   <span
-    class="pointer-events-none fixed z-50 -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950/95 px-2 py-1 text-[11px] font-medium text-slate-100 shadow-[0_8px_24px_rgb(0_0_0/0.45)] backdrop-blur"
+    class="pointer-events-none fixed z-50 -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950/95 px-2 py-1 text-[11px] font-medium text-slate-100 shadow-lg shadow-black/45 backdrop-blur"
     style="top: {tooltip.top}px; left: {tooltip.left}px"
     aria-hidden="true"
   >

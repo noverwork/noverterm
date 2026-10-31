@@ -145,7 +145,9 @@ A cold midnight palette: blue-black surfaces, slate text, one cyan signal, and t
 
 **The Lights Mean Something Rule.** Green, amber and red appear only as connection or result state. A colored dot that does not report state is a bug.
 
-The shadcn theme tokens in `app.css` (`--primary` is a blue `oklch(0.68 0.16 255)`) back the stock `Button` default variant, but product screens override primary actions to Signal Cyan. Treat Signal Cyan as the primary.
+**The Neutral Hover Rule.** Hovering a resting card, row or nav item raises it with white opacity (border white 14%, fill white 5.5%), never with cyan. Cyan appears only once the element is active, selected, focused or a drop target.
+
+The shadcn theme tokens in `app.css` follow this palette: `--primary` and `--ring` are Signal Cyan, `--border` and `--input` are Frost Border, `--accent` is a 10% cyan wash, `--popover` is Overlay Slate. Terminal Ink is the Tailwind color `terminal-ink` (`bg-terminal-ink`); never write its hex in components.
 
 ## Typography
 
@@ -164,6 +166,10 @@ Only the 600 weight is bundled, so `font-medium` and `font-semibold` both render
 
 ### Named Rules
 **The One Voice Rule.** Never introduce a proportional sans for chrome. If text needs more emphasis, change size or color.
+
+**The One Label Rule.** Every small uppercase label (section headers, eyebrows above titles, table column headers) uses the `.section-title` class: 11px, 0.22em tracking, Slate 400. No ad-hoc tracking values. Inside a destructive or warning context the label may take the state hue (`text-red-200/80`, `text-amber-200/80`), never cyan.
+
+Text below 11px is not used. Meaningful small text (hints, metadata, timestamps) is Slate 400; Slate 500 is reserved for placeholders, disabled text and decorative glyphs.
 
 ## Layout
 
@@ -194,14 +200,19 @@ Quiet, compact, rounded.
 - **Shape:** 16px radius on primary actions, 10px on stock buttons. 32px tall.
 - **Primary:** Signal Cyan fill, Midnight text, Pale Signal on hover.
 - **Ghost / Outline:** Frost Fill with a frost border and white text; hover raises the fill to white 8%.
-- **Destructive:** red-tinted fill (10%) with red text, stronger tint on hover.
-- **Focus / Press:** 3px ring at ring/50, a 1px press-down on active, 50% opacity when disabled.
+- **Destructive (secondary):** red-tinted fill (10%) with red text, stronger tint on hover. Used for delete actions in menus, rows and toolbars.
+- **Confirm (state-coloured):** solid fill in the state hue, 16px radius, dark text of the same hue: red (`bg-red-300 text-red-950`, hover `red-200`) to confirm a delete or retry a failed connection; amber (`bg-amber-300 text-amber-950`, hover `amber-200`) to trust a host key. These are the only solid non-cyan buttons and appear only as the final action of a destructive or trust decision.
+- **Warning (secondary):** amber-tinted outline (amber 300 at 20% border, 10% fill, amber 100 text) for a risky alternative such as Overwrite.
+- **Focus / Press:** 3px ring at ring/50 (cyan), a 1px press-down on active, 50% opacity when disabled.
+- **Icon buttons:** 24–32px, 8–12px radius, Slate 400 icon, white 8–10% hover fill.
 
 ### Inputs / Fields
 Wells sunk into the glass.
 - **Style:** 44px tall, 16px radius, Field Well background, frost border, white text, Slate 500 placeholder. Textareas use the same treatment, monospace, 192px minimum height.
 - **Focus:** border shifts to cyan 40% plus a 1px cyan 20% ring.
 - **Error:** border switches to Fault Red; the message sits below in red.
+- **Compact variant:** toolbar and search fields are 32px tall with the same 16px radius, Field Well, frost border and cyan focus. Use only inside view headers, toolbars and inline editors.
+- **Form error banner:** 16px radius, red border at 40%, red fill at 10%, red text, 16px × 12px padding, above the form actions.
 
 ### Session Tabs (signature)
 The workspace's primary navigation.
@@ -216,8 +227,23 @@ The workspace's primary navigation.
 - **Border:** frost border; a dashed frost border for empty states.
 - **Internal Padding:** 16px.
 
+- **Leading icon tile:** 40px square, 16px radius, frost border, white 5% fill, Slate 300 icon. Neutral by default; it takes cyan only while its card is active and a state hue only when it reports state (red not-found, amber warning).
+- **Dense rows:** file lists and pickers use 12px-radius rows with 12px × 8px padding. Selected rows get a cyan 15% fill and cyan 30% ring.
+
 ### Chips
-- **Style:** pill, cyan 8% fill, cyan 14% border, Pale Signal text, 12px label.
+- **Style:** pill, cyan 8% fill, cyan 14% border, Pale Signal text, 12px label. Use for active filters and selections only.
+- **State pill:** pill with a white 10% border and Field Well fill, an 8px status dot, and an 11px uppercase label. Reports a forward's or transfer's state.
+
+### Dialogs
+- **Scrim:** black 70% with a light backdrop blur.
+- **Box:** 32px radius, Overlay Slate at 95%, frost border, Overlay shadow. A destructive or warning dialog may tint its border and ring with the state hue at 10–20%.
+- **Structure:** header with a leading icon tile, a `.section-title` eyebrow and a 20px title; body; footer on a white 2.5% band with a top frost border, actions right-aligned (ghost cancel, then the primary or confirm button).
+- **State panels:** inside dialogs, a red or amber note box uses the hue at 5–6% fill with a 12–15% border.
+
+### Toasts, Tooltips and Trays
+- **Toast:** 16px radius, Overlay shadow. Error and warning toasts use a deep tint of their hue (red or amber 950 at 90%) with a matching 30% border; info toasts use Overlay Slate with a frost border.
+- **Tooltip:** 10px radius, Overlay Slate 95%, frost border, 11px Slate 100 text, `shadow-lg shadow-black/45`.
+- **Transfer tray:** floating bottom panel, 16px radius, Overlay Slate 96%, frost border, Overlay shadow. Progress bars are a 6px white 10% track with a flat Signal Cyan fill; the active-transfer dot is Waiting Amber.
 
 ### Context Menu
 - **Style:** Overlay Slate at 96%, frost border, Slate 100 text, Overlay shadow. Items highlight with a cyan 10% fill; separators are white 10%.
@@ -236,3 +262,5 @@ The workspace's primary navigation.
 - **Don't** introduce a second accent hue or a non-monospace font for chrome.
 - **Don't** use colored dots, glows or tints that don't report state.
 - **Don't** use raw hex in components where an existing token or Tailwind class covers it.
+- **Don't** tint leading icon tiles, eyebrows, folder icons or hover states cyan; they stay neutral until active.
+- **Don't** put translucency behind the terminal: the terminal frame and its tab-bar column are solid `terminal-ink`.

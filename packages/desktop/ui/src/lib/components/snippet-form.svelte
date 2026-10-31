@@ -101,7 +101,7 @@
     disabled={isSaving}
     onclick={() => (pinIcon = value)}
     class="grid size-10 cursor-pointer place-items-center rounded-xl border transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 disabled:cursor-not-allowed disabled:opacity-50 {selected
-      ? 'border-cyan-300/50 bg-cyan-300/12 text-cyan-50'
+      ? 'border-cyan-300/30 bg-cyan-300/10 text-cyan-50'
       : 'border-white/10 bg-white/[0.03] text-slate-400 hover:border-white/20 hover:bg-white/[0.06] hover:text-white'}"
   >
     <SnippetPinIcon name={value} />

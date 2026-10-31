@@ -128,11 +128,11 @@
   function fileIconClass(type: FileType): string {
     switch (type) {
       case "Dir":
-        return "text-cyan-200";
+        return "text-slate-300";
       case "File":
         return "text-slate-300";
       case "Symlink":
-        return "text-amber-200";
+        return "text-slate-400";
       default:
         return "text-slate-500";
     }
@@ -248,7 +248,7 @@
   data-testid="file-list"
 >
   <div
-    class="grid grid-cols-[minmax(0,1fr)_6rem_10rem] items-center gap-3 border-b border-white/10 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500"
+    class="grid grid-cols-[minmax(0,1fr)_6rem_10rem] items-center gap-3 border-b border-white/10 px-3 py-2 section-title"
   >
     <button
       type="button"
@@ -330,9 +330,9 @@
               }}
             >
               <span class="flex min-w-0 items-center gap-2">
-                <Folder class="size-4 shrink-0 text-cyan-200" />
+                <Folder class="size-4 shrink-0 text-slate-300" />
                 <span
-                  class="min-w-0 flex-1 truncate text-left font-medium text-white transition-colors hover:text-cyan-200"
+                  class="min-w-0 flex-1 truncate text-left font-medium text-white transition-colors hover:text-white"
                   title="Parent directory"
                 >
                   ..
@@ -388,7 +388,7 @@
                 {/if}
                 {#if entry.file_type === "Dir"}
                   <span
-                    class="min-w-0 flex-1 truncate text-left font-medium text-white transition-colors hover:text-cyan-200"
+                    class="min-w-0 flex-1 truncate text-left font-medium text-white transition-colors hover:text-white"
                     title={entry.name}
                   >
                     {displayName(entry.name)}
@@ -415,7 +415,7 @@
 
       {#if loading}
         <div
-          class="pointer-events-none sticky bottom-2 ml-auto mr-2 flex w-fit items-center gap-2 rounded-full border border-cyan-300/20 bg-slate-950/90 px-3 py-1.5 text-xs text-cyan-100 shadow-lg shadow-black/30 backdrop-blur"
+          class="pointer-events-none sticky bottom-2 ml-auto mr-2 flex w-fit items-center gap-2 rounded-full border border-white/10 bg-slate-950/90 px-3 py-1.5 text-xs text-slate-100 shadow-lg shadow-black/45 backdrop-blur"
           data-testid="file-list-refreshing"
         >
           <Loader2 class="size-3.5 animate-spin" />

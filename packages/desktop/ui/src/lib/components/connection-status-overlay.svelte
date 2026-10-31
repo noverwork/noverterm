@@ -39,7 +39,7 @@
 
 {#if status === "connecting"}
   <div
-    class="absolute inset-0 z-20 flex flex-col items-center justify-center overflow-y-auto bg-[#080c13]/90 p-4 text-center [overflow-wrap:anywhere]"
+    class="absolute inset-0 z-20 flex flex-col items-center justify-center overflow-y-auto bg-terminal-ink/90 p-4 text-center [overflow-wrap:anywhere]"
     role="status"
     aria-live="polite"
   >
@@ -47,7 +47,7 @@
     <p class="text-sm font-semibold text-white">
       {name ? `Connecting to ${name}` : "Connecting…"}
     </p>
-    <p class="mt-2 text-xs text-slate-500">
+    <p class="mt-2 text-xs text-slate-400">
       Negotiating {protocol === "sftp" ? "SFTP" : "terminal"} session…
     </p>
     {#if onCancel}
@@ -69,21 +69,21 @@
       role="dialog"
       aria-label={trustPrompt ? "Verify SSH host identity" : "Connection failed"}
       class={status === "trust_required"
-        ? "max-h-full w-full min-w-0 max-w-xl overflow-y-auto rounded-[1.75rem] border border-white/10 bg-slate-950/88 text-left shadow-2xl shadow-black/40 ring-1 ring-amber-300/10 backdrop-blur-xl [overflow-wrap:anywhere]"
-        : "max-h-full min-w-0 max-w-lg overflow-y-auto rounded-[2rem] border border-red-300/20 bg-red-400/8 p-8 shadow-2xl shadow-black/30 [overflow-wrap:anywhere]"}
+        ? "max-h-full w-full min-w-0 max-w-xl overflow-y-auto rounded-[2rem] border border-white/10 bg-slate-950/88 text-left shadow-2xl shadow-black/45 ring-1 ring-amber-300/10 backdrop-blur-xl [overflow-wrap:anywhere]"
+        : "max-h-full min-w-0 max-w-lg overflow-y-auto rounded-[2rem] border border-red-300/20 bg-red-400/8 p-8 shadow-2xl shadow-black/45 [overflow-wrap:anywhere]"}
     >
       {#if trustPrompt}
         <div class="border-b border-white/10 px-6 py-5 sm:px-7">
           <div class="flex items-start gap-4">
             <div
-              class="grid size-11 shrink-0 place-items-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-amber-200 shadow-[0_0_24px_rgb(252_211_77/0.08)]"
+              class="grid size-11 shrink-0 place-items-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-amber-200"
             >
               <AlertCircle class="size-5" />
             </div>
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-2">
                 <span
-                  class="rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-amber-200"
+                  class="rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-amber-200"
                 >
                   SSH host identity
                 </span>
@@ -104,7 +104,7 @@
             <div
               class="flex items-center justify-between gap-4 rounded-2xl border border-white/8 bg-white/[0.035] px-4 py-3"
             >
-              <dt class="shrink-0 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+              <dt class="shrink-0 section-title">
                 Host
               </dt>
               <dd class="min-w-0 break-all text-right font-mono text-slate-100">
@@ -114,7 +114,7 @@
             <div
               class="flex items-center justify-between gap-4 rounded-2xl border border-white/8 bg-white/[0.035] px-4 py-3"
             >
-              <dt class="shrink-0 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+              <dt class="shrink-0 section-title">
                 Algorithm
               </dt>
               <dd class="min-w-0 break-all text-right font-mono text-slate-100">
@@ -122,7 +122,7 @@
               </dd>
             </div>
             <div class="rounded-2xl border border-white/8 bg-black/25 p-4">
-              <dt class="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+              <dt class="section-title">
                 Fingerprint
               </dt>
               <dd
@@ -132,7 +132,7 @@
               </dd>
             </div>
           </dl>
-          <p class="mt-4 text-xs leading-5 text-slate-500">
+          <p class="mt-4 text-xs leading-5 text-slate-400">
             Only continue if this fingerprint matches the server you expect. It
             will be saved locally in Known Hosts.
           </p>
@@ -195,13 +195,13 @@
             </p>
             <dl class="mt-3 grid gap-2 text-xs text-slate-300">
               <div class="space-y-1">
-                <dt class="text-slate-500">Expected</dt>
+                <dt class="text-slate-400">Expected</dt>
                 <dd class="break-all rounded-xl bg-black/30 px-3 py-2 font-mono">
                   {trustMismatch.expected_fingerprint}
                 </dd>
               </div>
               <div class="space-y-1">
-                <dt class="text-slate-500">Presented</dt>
+                <dt class="text-slate-400">Presented</dt>
                 <dd
                   class="break-all rounded-xl bg-black/30 px-3 py-2 font-mono text-red-100"
                 >

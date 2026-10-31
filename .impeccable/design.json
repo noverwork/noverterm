@@ -1,47 +1,210 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-01T00:00:00Z",
+  "generatedAt": "2026-11-01T12:00:00Z",
   "title": "Design System: Noverterm",
   "extensions": {
     "colorMeta": {
-      "signal-cyan": { "role": "primary", "displayName": "Signal Cyan", "canonical": "#67e8f9", "tonalRamp": ["#083344", "#164e63", "#155e75", "#0e7490", "#22d3ee", "#67e8f9", "#a5f3fc", "#ecfeff"] },
-      "signal-cyan-hover": { "role": "primary", "displayName": "Pale Signal", "canonical": "#a5f3fc" },
-      "signal-cyan-text": { "role": "primary", "displayName": "Pale Signal Text", "canonical": "#a5f3fc" },
-      "signal-cyan-glow": { "role": "primary", "displayName": "Signal Glow", "canonical": "#ecfeff" },
-      "midnight-canvas": { "role": "neutral", "displayName": "Midnight Canvas", "canonical": "#05070b", "tonalRamp": ["#05070b", "#080c13", "#0b1220", "#0f172a", "#1e293b", "#334155", "#475569", "#64748b"] },
-      "midnight-canvas-deep": { "role": "neutral", "displayName": "Midnight Canvas Deep", "canonical": "#0b1220" },
-      "terminal-ink": { "role": "neutral", "displayName": "Terminal Ink", "canonical": "#080c13" },
-      "overlay-slate": { "role": "neutral", "displayName": "Overlay Slate", "canonical": "#020617" },
-      "frost-border": { "role": "neutral", "displayName": "Frost Border", "canonical": "rgb(255 255 255 / 0.10)" },
-      "frost-border-faint": { "role": "neutral", "displayName": "Faint Frost Border", "canonical": "rgb(255 255 255 / 0.08)" },
-      "frost-fill": { "role": "neutral", "displayName": "Frost Fill", "canonical": "rgb(255 255 255 / 0.05)" },
-      "field-well": { "role": "neutral", "displayName": "Field Well", "canonical": "rgb(0 0 0 / 0.20)" },
-      "text-bright": { "role": "neutral", "displayName": "Bright White", "canonical": "#ffffff" },
-      "text-primary": { "role": "neutral", "displayName": "Slate 100", "canonical": "#f1f5f9", "tonalRamp": ["#1e293b", "#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f1f5f9"] },
-      "text-secondary": { "role": "neutral", "displayName": "Slate 300", "canonical": "#cbd5e1" },
-      "text-muted": { "role": "neutral", "displayName": "Slate 400", "canonical": "#94a3b8" },
-      "text-faint": { "role": "neutral", "displayName": "Slate 500", "canonical": "#64748b" },
-      "on-signal": { "role": "neutral", "displayName": "Midnight on Signal", "canonical": "#020617" },
-      "status-live": { "role": "tertiary", "displayName": "Live Green", "canonical": "#34d399" },
-      "status-waiting": { "role": "tertiary", "displayName": "Waiting Amber", "canonical": "#fcd34d" },
-      "status-error": { "role": "tertiary", "displayName": "Fault Red", "canonical": "#f87171", "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#dc2626", "#f87171", "#fca5a5", "#fecaca", "#fef2f2"] },
-      "error-text": { "role": "tertiary", "displayName": "Error Text", "canonical": "#fca5a5" }
+      "signal-cyan": {
+        "role": "primary",
+        "displayName": "Signal Cyan",
+        "canonical": "#67e8f9",
+        "tonalRamp": [
+          "#083344",
+          "#164e63",
+          "#155e75",
+          "#0e7490",
+          "#22d3ee",
+          "#67e8f9",
+          "#a5f3fc",
+          "#ecfeff"
+        ]
+      },
+      "signal-cyan-hover": {
+        "role": "primary",
+        "displayName": "Pale Signal",
+        "canonical": "#a5f3fc"
+      },
+      "signal-cyan-text": {
+        "role": "primary",
+        "displayName": "Pale Signal Text",
+        "canonical": "#a5f3fc"
+      },
+      "signal-cyan-glow": {
+        "role": "primary",
+        "displayName": "Signal Glow",
+        "canonical": "#ecfeff"
+      },
+      "midnight-canvas": {
+        "role": "neutral",
+        "displayName": "Midnight Canvas",
+        "canonical": "#05070b",
+        "tonalRamp": [
+          "#05070b",
+          "#080c13",
+          "#0b1220",
+          "#0f172a",
+          "#1e293b",
+          "#334155",
+          "#475569",
+          "#64748b"
+        ]
+      },
+      "midnight-canvas-deep": {
+        "role": "neutral",
+        "displayName": "Midnight Canvas Deep",
+        "canonical": "#0b1220"
+      },
+      "terminal-ink": {
+        "role": "neutral",
+        "displayName": "Terminal Ink",
+        "canonical": "#080c13"
+      },
+      "overlay-slate": {
+        "role": "neutral",
+        "displayName": "Overlay Slate",
+        "canonical": "#020617"
+      },
+      "frost-border": {
+        "role": "neutral",
+        "displayName": "Frost Border",
+        "canonical": "rgb(255 255 255 / 0.10)"
+      },
+      "frost-border-faint": {
+        "role": "neutral",
+        "displayName": "Faint Frost Border",
+        "canonical": "rgb(255 255 255 / 0.08)"
+      },
+      "frost-fill": {
+        "role": "neutral",
+        "displayName": "Frost Fill",
+        "canonical": "rgb(255 255 255 / 0.05)"
+      },
+      "field-well": {
+        "role": "neutral",
+        "displayName": "Field Well",
+        "canonical": "rgb(0 0 0 / 0.20)"
+      },
+      "text-bright": {
+        "role": "neutral",
+        "displayName": "Bright White",
+        "canonical": "#ffffff"
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Slate 100",
+        "canonical": "#f1f5f9",
+        "tonalRamp": [
+          "#1e293b",
+          "#334155",
+          "#475569",
+          "#64748b",
+          "#94a3b8",
+          "#cbd5e1",
+          "#e2e8f0",
+          "#f1f5f9"
+        ]
+      },
+      "text-secondary": {
+        "role": "neutral",
+        "displayName": "Slate 300",
+        "canonical": "#cbd5e1"
+      },
+      "text-muted": {
+        "role": "neutral",
+        "displayName": "Slate 400",
+        "canonical": "#94a3b8"
+      },
+      "text-faint": {
+        "role": "neutral",
+        "displayName": "Slate 500",
+        "canonical": "#64748b"
+      },
+      "on-signal": {
+        "role": "neutral",
+        "displayName": "Midnight on Signal",
+        "canonical": "#020617"
+      },
+      "status-live": {
+        "role": "tertiary",
+        "displayName": "Live Green",
+        "canonical": "#34d399"
+      },
+      "status-waiting": {
+        "role": "tertiary",
+        "displayName": "Waiting Amber",
+        "canonical": "#fcd34d"
+      },
+      "status-error": {
+        "role": "tertiary",
+        "displayName": "Fault Red",
+        "canonical": "#f87171",
+        "tonalRamp": [
+          "#450a0a",
+          "#7f1d1d",
+          "#991b1b",
+          "#dc2626",
+          "#f87171",
+          "#fca5a5",
+          "#fecaca",
+          "#fef2f2"
+        ]
+      },
+      "error-text": {
+        "role": "tertiary",
+        "displayName": "Error Text",
+        "canonical": "#fca5a5"
+      }
     },
     "typographyMeta": {
-      "headline": { "displayName": "Headline", "purpose": "Page and dialog titles." },
-      "title": { "displayName": "Title", "purpose": "View headers." },
-      "body": { "displayName": "Body", "purpose": "Default for tabs, rows, fields, buttons. Renders at the bundled 600 weight." },
-      "label": { "displayName": "Label", "purpose": "Metadata, helper text, chips, compact buttons." },
-      "section-label": { "displayName": "Section Label", "purpose": "Uppercase Slate 400 group headers above lists and form sections." }
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page and dialog titles."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "View headers."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default for tabs, rows, fields, buttons. Renders at the bundled 600 weight."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Metadata, helper text, chips, compact buttons."
+      },
+      "section-label": {
+        "displayName": "Section Label",
+        "purpose": "Uppercase Slate 400 group headers above lists and form sections."
+      }
     },
     "shadows": [
-      { "name": "overlay", "value": "0 25px 50px -12px rgb(0 0 0 / 0.45)", "purpose": "Context menus, dialogs, popovers." },
-      { "name": "panel", "value": "0 24px 70px rgb(0 0 0 / 0.36), inset 0 1px 0 rgb(255 255 255 / 0.06)", "purpose": "The large ide-panel container; the inset line is the glass top edge." },
-      { "name": "status-glow", "value": "0 0 10px rgb(52 211 153 / 0.55)", "purpose": "Session status dots only, tinted to the dot's hue." }
+      {
+        "name": "overlay",
+        "value": "0 25px 50px -12px rgb(0 0 0 / 0.45)",
+        "purpose": "Context menus, dialogs, popovers."
+      },
+      {
+        "name": "panel",
+        "value": "0 24px 70px rgb(0 0 0 / 0.36), inset 0 1px 0 rgb(255 255 255 / 0.06)",
+        "purpose": "The large ide-panel container; the inset line is the glass top edge."
+      },
+      {
+        "name": "status-glow",
+        "value": "0 0 10px rgb(52 211 153 / 0.55)",
+        "purpose": "Session status dots only, tinted to the dot's hue."
+      }
     ],
     "motion": [
-      { "name": "tab-transition", "value": "150ms ease", "purpose": "Tab hover, close-button reveal, view opacity swaps. Reduced motion collapses sidebar transitions to 1ms." },
-      { "name": "connecting-pulse", "value": "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite", "purpose": "Amber status dot while a session connects." }
+      {
+        "name": "tab-transition",
+        "value": "150ms ease",
+        "purpose": "Tab hover, close-button reveal, view opacity swaps. Reduced motion collapses sidebar transitions to 1ms."
+      },
+      {
+        "name": "connecting-pulse",
+        "value": "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "purpose": "Amber status dot while a session connects."
+      }
     ]
   },
   "components": [
@@ -113,10 +276,36 @@
       "Large, soft radii: 16px controls, ~22px cards, 28–32px panels and dialogs."
     ],
     "rules": [
-      { "name": "The One Signal Rule", "body": "Cyan means \"active, focused, or primary\". Never use it for decoration, headings, or illustration.", "section": "colors" },
-      { "name": "The Lights Mean Something Rule", "body": "Green, amber and red appear only as connection or result state. A colored dot that does not report state is a bug.", "section": "colors" },
-      { "name": "The One Voice Rule", "body": "Never introduce a proportional sans for chrome. If text needs more emphasis, change size or color.", "section": "typography" },
-      { "name": "The Flat Glass Rule", "body": "Resting surfaces get a border and a tonal step, not a drop shadow. Shadows belong to things that float above the workspace: menus, dialogs, the outer panel.", "section": "elevation" }
+      {
+        "name": "The One Signal Rule",
+        "body": "Cyan means \"active, focused, or primary\". Never use it for decoration, headings, or illustration.",
+        "section": "colors"
+      },
+      {
+        "name": "The Lights Mean Something Rule",
+        "body": "Green, amber and red appear only as connection or result state. A colored dot that does not report state is a bug.",
+        "section": "colors"
+      },
+      {
+        "name": "The Neutral Hover Rule",
+        "body": "Hovering a resting card, row or nav item raises it with white opacity (border white 14%, fill white 5.5%), never with cyan. Cyan appears only once the element is active, selected, focused or a drop target.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Voice Rule",
+        "body": "Never introduce a proportional sans for chrome. If text needs more emphasis, change size or color.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Label Rule",
+        "body": "Every small uppercase label (section headers, eyebrows above titles, table column headers) uses the .section-title class: 11px, 0.22em tracking, Slate 400. No ad-hoc tracking values. Inside a destructive or warning context the label may take the state hue (text-red-200/80, text-amber-200/80), never cyan.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Glass Rule",
+        "body": "Resting surfaces get a border and a tonal step, not a drop shadow. Shadows belong to things that float above the workspace: menus, dialogs, the outer panel.",
+        "section": "elevation"
+      }
     ],
     "dos": [
       "Do use Signal Cyan only for the active, focused or primary element on a screen.",
@@ -129,7 +318,9 @@
       "Don't add drop shadows to resting cards or rows; shadows are for floating layers.",
       "Don't introduce a second accent hue or a non-monospace font for chrome.",
       "Don't use colored dots, glows or tints that don't report state.",
-      "Don't use raw hex in components where an existing token or Tailwind class covers it."
+      "Don't use raw hex in components where an existing token or Tailwind class covers it.",
+      "Don't tint leading icon tiles, eyebrows, folder icons or hover states cyan; they stay neutral until active.",
+      "Don't put translucency behind the terminal: the terminal frame and its tab-bar column are solid `terminal-ink`."
     ]
   }
 }

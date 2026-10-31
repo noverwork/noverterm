@@ -453,10 +453,10 @@
       class="auth-shell flex min-h-screen items-center justify-center px-4 py-8"
     >
       <div
-        class="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-slate-950/78 p-6 text-center shadow-2xl backdrop-blur-2xl sm:p-8"
+        class="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-slate-950/78 p-6 text-center shadow-2xl shadow-black/45 backdrop-blur-2xl sm:p-8"
       >
         <div
-          class="mx-auto flex size-16 items-center justify-center rounded-[1.5rem] bg-destructive/10 text-destructive"
+          class="mx-auto flex size-16 items-center justify-center rounded-2xl bg-destructive/10 text-destructive"
         >
           <AlertCircle class="size-8" />
         </div>
@@ -504,7 +504,7 @@
         activeSection={activeSidebarSection}
       />
 
-      <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-[#080c13]/72">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-terminal-ink">
         <div class="flex h-11 shrink-0 border-b border-white/10">
           {#if currentPage}
             <div
@@ -512,9 +512,9 @@
               transition:slide={{ axis: "x", duration: 180, easing: cubicOut }}
             >
               <span
-                class="flex items-center gap-2 whitespace-nowrap rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-sm font-medium text-cyan-50"
+                class="flex items-center gap-2 whitespace-nowrap rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-sm font-medium text-slate-100"
               >
-                <currentPage.icon class="size-3.5 text-cyan-200" />
+                <currentPage.icon class="size-3.5 text-slate-300" />
                 {currentPage.label}
               </span>
             </div>
@@ -527,7 +527,7 @@
           >
           {#if canScrollSessionTabsLeft}
             <div
-              class="pointer-events-none absolute inset-y-0 left-0 z-20 flex w-12 items-center bg-gradient-to-r from-[#080c13] via-[#080c13]/90 to-transparent pl-1 text-cyan-200/45"
+              class="pointer-events-none absolute inset-y-0 left-0 z-20 flex w-12 items-center bg-gradient-to-r from-terminal-ink via-terminal-ink/90 to-transparent pl-1 text-slate-500"
               aria-hidden="true"
             >
               <svg
@@ -569,7 +569,7 @@
                   <ContextMenu.Trigger class="contents">
                     <div
                       class={isActive
-                        ? `group relative flex w-full items-center gap-2 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-sm text-white transition hover:bg-cyan-300/14${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`
+                        ? `group relative flex w-full items-center gap-2 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-sm text-white transition hover:bg-cyan-300/10${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`
                         : `group relative flex w-full items-center gap-2 rounded-lg border border-transparent px-3 py-1 text-sm text-slate-400 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`}
                     >
                       <button
@@ -596,7 +596,7 @@
                       </span>
                       <button
                         type="button"
-                        class="relative z-20 flex size-6 shrink-0 items-center justify-center rounded-md text-slate-500 transition-[opacity,color,background-color] duration-150 hover:bg-white/10 hover:text-white focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 group-hover:opacity-100 {isActive
+                        class="relative z-20 flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition-[opacity,color,background-color] duration-150 hover:bg-white/10 hover:text-white focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 group-hover:opacity-100 {isActive
                           ? 'opacity-70'
                           : 'opacity-0'}"
                         onclick={(event) => {
@@ -677,7 +677,7 @@
 
           {#if canScrollSessionTabsRight}
             <div
-              class="pointer-events-none absolute inset-y-0 right-0 z-20 flex w-12 items-center justify-end bg-gradient-to-l from-[#080c13] via-[#080c13]/90 to-transparent pr-1 text-cyan-200/45"
+              class="pointer-events-none absolute inset-y-0 right-0 z-20 flex w-12 items-center justify-end bg-gradient-to-l from-terminal-ink via-terminal-ink/90 to-transparent pr-1 text-slate-500"
               aria-hidden="true"
             >
               <svg
@@ -713,7 +713,7 @@
                 aria-live="polite"
               >
                 <div
-                  class="w-full max-w-lg rounded-[2rem] border border-red-300/20 bg-red-400/8 p-8 text-center shadow-2xl shadow-black/30"
+                  class="w-full max-w-lg rounded-[2rem] border border-red-300/20 bg-red-400/8 p-8 text-center shadow-2xl shadow-black/45"
                 >
                   <div
                     class="mx-auto grid size-14 place-items-center rounded-2xl bg-red-400/12 text-red-300"
@@ -784,7 +784,7 @@
                 : "pointer-events-none absolute inset-0 z-10 flex h-full min-h-0 flex-col overflow-hidden p-3 opacity-0"}
             >
               <div
-                class="terminal-frame relative min-h-0 flex-1 overflow-hidden rounded-[1.35rem] border border-white/10 bg-[#080c13]/72 shadow-2xl shadow-black/45"
+                class="terminal-frame relative min-h-0 flex-1 overflow-hidden rounded-[1.35rem] border border-white/10 bg-terminal-ink"
               >
                 {#each app.mountedTerminalSessions as session (session.id)}
                   <div

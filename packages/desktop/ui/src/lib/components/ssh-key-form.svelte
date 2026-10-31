@@ -146,7 +146,7 @@
   >
     {#if keyRecord}
       <div class="rounded-2xl border border-white/8 bg-black/15 px-3 py-2.5">
-        <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+        <p class="section-title">
           Current fingerprint
         </p>
         <p class="mt-1 truncate font-mono text-sm text-slate-300">
@@ -172,7 +172,7 @@
 
     <div class="space-y-2">
       <label for="ssh-key-passphrase" class="text-sm font-medium text-slate-100"
-        >Passphrase <span class="text-slate-500">(optional)</span></label
+        >Passphrase <span class="text-slate-400">(optional)</span></label
       >
       <Input
         id="ssh-key-passphrase"
@@ -202,7 +202,7 @@
         disabled={isSaving || isLoadingSecret}
       ></textarea>
       {#if isEditing}
-        <p id="ssh-key-private-hint" class="text-xs leading-5 text-slate-500">
+        <p id="ssh-key-private-hint" class="text-xs leading-5 text-slate-400">
           This field shows the saved raw private key after vault decryption. Editing it
           will rotate the stored key on update.
         </p>

@@ -20,20 +20,20 @@
   --foreground: oklch(0.965 0.01 255);
   --card: oklch(0.22 0.02 255);
   --card-foreground: oklch(0.965 0.01 255);
-  --popover: oklch(0.22 0.02 255);
+  --popover: oklch(0.129 0.042 264.695 / 0.96);
   --popover-foreground: oklch(0.965 0.01 255);
-  --primary: oklch(0.68 0.16 255);
-  --primary-foreground: oklch(0.18 0.02 255);
+  --primary: oklch(0.865 0.127 207.078);
+  --primary-foreground: oklch(0.129 0.042 264.695);
   --secondary: oklch(0.26 0.02 255);
   --secondary-foreground: oklch(0.965 0.01 255);
   --muted: oklch(0.26 0.02 255);
   --muted-foreground: oklch(0.76 0.02 255);
-  --accent: oklch(0.32 0.03 255);
+  --accent: oklch(0.865 0.127 207.078 / 0.1);
   --accent-foreground: oklch(0.975 0.01 255);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(0.34 0.02 255);
-  --input: oklch(0.34 0.02 255);
-  --ring: oklch(0.68 0.16 255);
+  --border: oklch(1 0 0 / 0.1);
+  --input: oklch(1 0 0 / 0.1);
+  --ring: oklch(0.865 0.127 207.078);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -41,12 +41,12 @@
   --chart-5: oklch(0.645 0.246 16.439);
   --sidebar: oklch(0.2 0.02 255);
   --sidebar-foreground: oklch(0.965 0.01 255);
-  --sidebar-primary: oklch(0.68 0.16 255);
-  --sidebar-primary-foreground: oklch(0.18 0.02 255);
+  --sidebar-primary: oklch(0.865 0.127 207.078);
+  --sidebar-primary-foreground: oklch(0.129 0.042 264.695);
   --sidebar-accent: oklch(0.26 0.02 255);
   --sidebar-accent-foreground: oklch(0.975 0.01 255);
   --sidebar-border: oklch(0.34 0.02 255);
-  --sidebar-ring: oklch(0.68 0.16 255);
+  --sidebar-ring: oklch(0.865 0.127 207.078);
 }
 
 @theme inline {
@@ -54,6 +54,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --color-terminal-ink: #080c13;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -164,7 +165,7 @@
   }
 
   .panel-glass {
-    @apply border border-white/10 bg-white/6 backdrop-blur-xl shadow-2xl;
+    @apply border border-white/10 bg-white/6 backdrop-blur-xl;
   }
 
   .ide-panel {
@@ -211,7 +212,7 @@
   }
 
   .metric-card {
-    @apply rounded-2xl border border-white/8 bg-white/5 p-4 shadow-lg backdrop-blur-sm;
+    @apply rounded-[1.35rem] border border-white/8 bg-white/5 p-4 backdrop-blur-sm;
   }
 
   .terminal-container {
@@ -220,7 +221,7 @@
     width: 100%;
     overflow: hidden;
     z-index: 0;
-    background: #080c13;
+    background: var(--color-terminal-ink);
   }
 
   .terminal-container::after {
@@ -232,7 +233,7 @@
     bottom: 0;
     z-index: 2;
     width: 18px;
-    background: #080c13;
+    background: var(--color-terminal-ink);
   }
 
   .terminal-container .xterm {
@@ -240,13 +241,13 @@
     height: 100%;
     position: relative;
     z-index: 0;
-    background: #080c13;
+    background: var(--color-terminal-ink);
   }
 
   .terminal-container .xterm-screen,
   .terminal-container .xterm-rows,
   .terminal-container .xterm-viewport {
-    background-color: #080c13 !important;
+    background-color: var(--color-terminal-ink) !important;
   }
 
   .terminal-frame::before {

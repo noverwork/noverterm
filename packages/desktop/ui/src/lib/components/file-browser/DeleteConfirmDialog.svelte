@@ -34,7 +34,7 @@
     onkeydown={handleKeydown}
   >
     <div
-      class="w-full max-w-md overflow-hidden rounded-[1.75rem] border border-red-300/20 bg-slate-950/95 text-white shadow-2xl shadow-black/50 ring-1 ring-red-300/10"
+      class="w-full max-w-md overflow-hidden rounded-[2rem] border border-red-300/20 bg-slate-950/95 text-white shadow-2xl shadow-black/45 ring-1 ring-red-300/10"
       role="dialog"
       aria-modal="true"
       aria-labelledby="delete-confirm-dialog-title"
@@ -42,7 +42,7 @@
     >
       <div class="border-b border-white/10 px-6 py-5">
         <div class="flex items-start gap-4">
-          <div class="grid size-11 shrink-0 place-items-center rounded-2xl border border-red-300/20 bg-red-300/10 text-red-200 shadow-[0_0_24px_rgb(248_113_113/0.10)]">
+          <div class="grid size-11 shrink-0 place-items-center rounded-2xl border border-red-300/20 bg-red-300/10 text-red-200">
             <AlertTriangle class="size-5" />
           </div>
           <div class="min-w-0 flex-1">
@@ -59,7 +59,7 @@
 
       <div class="px-6 py-4">
         <div class="rounded-2xl border border-red-300/12 bg-red-300/[0.06] px-4 py-3">
-          <p class="text-xs font-medium uppercase tracking-[0.16em] text-red-200/70">Target</p>
+          <p class="section-title text-red-200/80">Target</p>
           <p class="mt-1 truncate font-mono text-sm text-red-50">{itemName}</p>
         </div>
       </div>

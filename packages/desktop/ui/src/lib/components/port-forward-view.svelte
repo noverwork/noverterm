@@ -260,11 +260,11 @@
       class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between"
     >
       <div>
-        <p class="section-title text-cyan-200/70">Network</p>
+        <p class="section-title">Network</p>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight">
           Port Forwards
         </h1>
-        <p class="mt-2 text-sm text-slate-500">
+        <p class="mt-2 text-sm text-slate-400">
           Save reusable SSH tunnels, then start them with one click.
         </p>
       </div>
@@ -279,7 +279,7 @@
             bind:value={searchQuery}
             placeholder="Search forwards"
             aria-label="Search port forwards"
-            class="h-8 w-48 rounded-2xl border-white/10 bg-white/[0.03] pl-8 text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40 focus-visible:ring-cyan-300/20"
+            class="h-8 w-48 rounded-2xl border border-white/10 bg-black/20 pl-8 text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
           />
         </div>
 
@@ -341,11 +341,11 @@
                   }}
                   class="group cursor-pointer rounded-[1.35rem] border bg-white/[0.03] px-4 py-4 transition hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40 {badge
                     ? badge.border
-                    : 'border-white/8 hover:border-cyan-300/30'}"
+                    : 'border-white/8 hover:border-white/14'}"
                 >
                   <div class="flex items-start gap-3">
                     <div
-                      class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
+                      class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300"
                     >
                       {#if isBusy(savedForward.id)}
                         <Loader2 class="size-5 animate-spin" />
@@ -360,9 +360,9 @@
                           {savedForward.name}
                         </p>
                         <span
-                          class="flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide {badge
+                          class="flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide {badge
                             ? badge.text
-                            : 'text-slate-500'}"
+                            : 'text-slate-400'}"
                         >
                           <span
                             class="inline-block size-1.5 rounded-full {badge
@@ -431,11 +431,11 @@
                               ? stateBadge(runtime.state).tone
                               : 'bg-slate-600'}"
                           ></span>
-                          <span class="truncate font-mono text-cyan-100"
+                          <span class="truncate font-mono text-slate-100"
                             >{mapping.bind_host}:{mapping.bind_port}</span
                           >
                           <ArrowRight
-                            class="size-3 shrink-0 text-slate-600"
+                            class="size-3 shrink-0 text-slate-500"
                             aria-label="forwards to"
                           />
                           <span class="truncate font-mono text-slate-300"
@@ -466,7 +466,7 @@
                 <ContextMenu.Separator class="bg-white/10" />
                 {#if state}
                   <ContextMenu.Item
-                    class="cursor-pointer focus:bg-amber-400/10 focus:text-amber-200"
+                    class="cursor-pointer"
                     disabled={deletingRuntimeForwardIds.includes(savedForward.id)}
                     onclick={() => void handleStopGroup(savedForward, runtimes)}
                   >

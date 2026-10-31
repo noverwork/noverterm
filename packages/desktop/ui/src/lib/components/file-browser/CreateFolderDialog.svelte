@@ -2,6 +2,7 @@
   import { FolderPlus } from "@lucide/svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
+  import { fieldClass } from "$lib/components/form-styles.js";
   import { Input } from "$lib/components/ui/input/index.js";
 
   interface Props {
@@ -84,7 +85,7 @@
     onkeydown={handleKeydown}
   >
     <div
-      class="ide-panel w-full max-w-md overflow-hidden text-white shadow-[0_32px_100px_rgb(0_0_0/0.62)]"
+      class="ide-panel w-full max-w-md overflow-hidden rounded-[2rem] text-white shadow-2xl shadow-black/45"
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-folder-dialog-title"
@@ -92,11 +93,11 @@
     >
       <div class="border-b border-white/10 px-6 py-5">
         <div class="flex items-start gap-4">
-          <div class="grid size-11 shrink-0 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200 shadow-[0_0_24px_rgb(34_211_238/0.12)]">
+          <div class="grid size-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
             <FolderPlus class="size-5" />
           </div>
           <div class="min-w-0 flex-1">
-            <p class="section-title text-cyan-200/70">New folder</p>
+            <p class="section-title">New folder</p>
             <h2 id="create-folder-dialog-title" class="mt-2 text-xl font-semibold tracking-tight text-white">
               Create folder
             </h2>
@@ -125,7 +126,7 @@
           placeholder="my-folder"
           autocomplete="off"
           spellcheck={false}
-          class="mt-2 h-9 rounded-xl border-white/10 bg-white/[0.04] px-3 text-sm text-white placeholder:text-slate-500"
+          class={fieldClass(error !== null, "mt-2 px-3 text-sm")}
           aria-invalid={error !== null}
           aria-describedby={error ? "create-folder-error" : undefined}
         />
@@ -146,7 +147,7 @@
           </Button>
           <Button
             type="submit"
-            class="rounded-2xl bg-cyan-300 px-4 text-cyan-950 hover:bg-cyan-200"
+            class="rounded-2xl bg-cyan-300 px-4 text-slate-950 hover:bg-cyan-200"
           >
             Create
           </Button>

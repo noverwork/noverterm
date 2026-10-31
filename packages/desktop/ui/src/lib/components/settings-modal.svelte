@@ -60,7 +60,7 @@
 
 {#if open}
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/76 px-4 backdrop-blur-xl"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
     onclick={(event) => event.target === event.currentTarget && onClose()}
     onkeydown={(event) => event.key === "Escape" && onClose()}
     role="dialog"
@@ -69,13 +69,13 @@
     tabindex="-1"
   >
     <div
-      class="ide-panel flex w-full max-w-lg flex-col overflow-hidden text-white shadow-[0_32px_100px_rgb(0_0_0/0.62)]"
+      class="ide-panel flex w-full max-w-lg flex-col overflow-hidden rounded-[2rem] text-white shadow-2xl shadow-black/45"
     >
       <div
         class="flex shrink-0 items-center justify-between border-b border-white/10 px-6 py-4"
       >
         <div>
-          <p class="section-title text-cyan-200/70">Workspace preferences</p>
+          <p class="section-title">Workspace preferences</p>
           <h2 class="mt-1 text-xl font-semibold tracking-tight">Settings</h2>
         </div>
         <Button
@@ -96,13 +96,13 @@
         >
           <div class="flex items-center gap-3">
             <div
-              class="grid size-10 place-items-center rounded-xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
+              class="grid size-10 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-300"
             >
               <Settings class="size-4" />
             </div>
             <div class="flex-1">
               <p class="text-sm font-semibold text-white">About Noverterm</p>
-              <p class="text-xs text-slate-500">Version {appVersion}</p>
+              <p class="text-xs text-slate-400">Version {appVersion}</p>
             </div>
           </div>
 
@@ -127,7 +127,7 @@
           </div>
 
           {#if updateStatus === "error"}
-            <p class="mt-2 text-xs text-rose-400">Failed to check for updates</p>
+            <p class="mt-2 text-xs text-red-300">Failed to check for updates</p>
           {/if}
         </div>
 
@@ -136,13 +136,13 @@
         >
           <div class="flex items-center gap-3">
             <div
-              class="grid size-10 place-items-center rounded-xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
+              class="grid size-10 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-300"
             >
               <DatabaseBackup class="size-4" />
             </div>
             <div class="flex-1">
               <p class="text-sm font-semibold text-white">Backup</p>
-              <p class="text-xs text-slate-500">
+              <p class="text-xs text-slate-400">
                 Connections, keys and snippets are stored in plain text — keep
                 the file somewhere private.
               </p>
@@ -170,7 +170,7 @@
             <p class="mt-2 text-xs text-emerald-400">{backupNotice}</p>
           {/if}
           {#if backupError}
-            <p class="mt-2 text-xs text-rose-400">{backupError}</p>
+            <p class="mt-2 text-xs text-red-300">{backupError}</p>
           {/if}
         </div>
       </div>

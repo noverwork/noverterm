@@ -200,10 +200,10 @@
       <div
         class="rounded-2xl border border-dashed border-white/10 bg-white/[0.025] px-4 py-6 text-center"
       >
-        <Server class="mx-auto mb-3 size-8 text-slate-600" />
+        <Server class="mx-auto mb-3 size-8 text-slate-500" />
         <p class="text-sm text-slate-400">No saved connections yet.</p>
-        <p class="mt-1 text-xs text-slate-500">
-          Create a Host in <span class="text-cyan-300/80">Connections</span> first,
+        <p class="mt-1 text-xs text-slate-400">
+          Create a Host in <span class="text-slate-200">Connections</span> first,
           then return here to save a tunnel.
         </p>
       </div>
@@ -240,7 +240,7 @@
           <p class="mt-0.5 truncate font-mono text-[11px] text-slate-400">
             {selectedConnection.username}@{selectedConnection.host}:{selectedConnection.port}
           </p>
-          <p class="mt-0.5 text-[11px] text-slate-500">
+          <p class="mt-0.5 text-[11px] text-slate-400">
             {getAuthLabel(selectedConnection)}
           </p>
         </div>
@@ -268,7 +268,7 @@
       <div class="rounded-2xl border border-white/8 bg-black/15 p-3">
         <div class="flex items-center justify-between">
           <span
-            class="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500"
+            class="section-title"
           >
             Port {index + 1}
           </span>
@@ -324,7 +324,7 @@
           </div>
 
           <div class="flex items-center justify-center py-1" aria-hidden="true">
-            <ArrowDown class="size-4 text-slate-600" />
+            <ArrowDown class="size-4 text-slate-500" />
           </div>
 
           <div class="grid grid-cols-[1fr_7rem] gap-3">
@@ -370,7 +370,7 @@
       type="button"
       variant="ghost"
       size="sm"
-      class="gap-1.5 rounded-2xl bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/18 hover:text-white"
+      class="gap-1.5 rounded-2xl border border-white/10 bg-white/5 text-white hover:bg-white/8"
       onclick={addRow}
       disabled={isSaving}
     >

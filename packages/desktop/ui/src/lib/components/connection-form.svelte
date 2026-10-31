@@ -429,7 +429,7 @@
           {#if pastingNewKey || keys.length === 0}
             <div class="space-y-2">
               <label for="conn-key-name" class="text-sm font-medium text-slate-100"
-                >Key name <span class="text-slate-500">(optional)</span></label
+                >Key name <span class="text-slate-400">(optional)</span></label
               >
               <Input
                 id="conn-key-name"
@@ -473,7 +473,7 @@
 
             <div class="space-y-2">
               <label for="conn-passphrase" class="text-sm font-medium text-slate-100"
-                >Key passphrase <span class="text-slate-500">(optional)</span></label
+                >Key passphrase <span class="text-slate-400">(optional)</span></label
               >
               <Input
                 id="conn-passphrase"

@@ -43,14 +43,14 @@
   }));
 </script>
 
-<div class="flex h-full min-h-0 flex-col overflow-hidden bg-[#080c13]/72">
+<div class="flex h-full min-h-0 flex-col overflow-hidden bg-terminal-ink/72">
   <div class="flex items-center gap-4 border-b border-white/10 px-6 py-4">
     <div class="flex items-center gap-3">
-      <div class="grid size-10 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-300/12 text-cyan-100">
+      <div class="grid size-10 place-items-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
         <FolderOpen class="size-5" />
       </div>
       <div>
-        <h1 class="text-lg font-semibold text-white">SFTP File Browser</h1>
+        <h1 class="text-xl font-semibold text-white">SFTP File Browser</h1>
         <p class="text-xs text-slate-400">Pick a machine on each side, then drag files across</p>
       </div>
     </div>

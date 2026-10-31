@@ -302,11 +302,11 @@
       class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between"
     >
       <div>
-        <p class="section-title text-cyan-200/70">Inventory</p>
+        <p class="section-title">Inventory</p>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight">
           SSH Connections
         </h1>
-        <p class="mt-2 text-sm text-slate-500">
+        <p class="mt-2 text-sm text-slate-400">
           Curated hosts, credentials, and terminal targets.
         </p>
       </div>
@@ -314,14 +314,14 @@
       <div class="flex items-center gap-2 self-start">
         <div class="relative">
           <Search
-            class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-500"
+            class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400"
           />
           <Input
             type="search"
             bind:value={searchQuery}
             placeholder="Search hosts"
             aria-label="Search connections"
-            class="h-8 w-48 rounded-2xl border-white/10 bg-white/[0.03] pl-8 text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40 focus-visible:ring-cyan-300/20"
+            class="h-8 w-48 rounded-2xl border border-white/10 bg-black/20 pl-8 text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
           />
         </div>
 
@@ -386,14 +386,14 @@
               >
                 <ChevronRight
                   class={isCollapsed(section.key)
-                    ? "size-3.5 shrink-0 text-slate-500 transition-transform"
-                    : "size-3.5 shrink-0 rotate-90 text-slate-500 transition-transform"}
+                    ? "size-3.5 shrink-0 text-slate-400 transition-transform"
+                    : "size-3.5 shrink-0 rotate-90 text-slate-400 transition-transform"}
                 />
                 <span class="section-title truncate text-slate-300">
                   {section.group?.name ?? "Ungrouped"}
                 </span>
                 <span
-                  class="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] text-slate-400"
+                  class="rounded-full bg-white/10 px-1.5 py-0.5 text-[11px] text-slate-400"
                   >{section.connections.length}</span
                 >
               </button>
@@ -401,7 +401,7 @@
               {#if section.group}
                 <button
                   type="button"
-                  class="ml-auto flex cursor-pointer items-center gap-1 rounded-lg px-1.5 py-1 text-slate-500 opacity-0 transition hover:bg-red-400/10 hover:text-red-300 focus-visible:opacity-100 group-hover/section:opacity-100"
+                  class="ml-auto flex cursor-pointer items-center gap-1 rounded-lg px-1.5 py-1 text-slate-400 opacity-0 transition hover:bg-red-400/10 hover:text-red-300 focus-visible:opacity-100 group-hover/section:opacity-100"
                   aria-label={`Delete group ${section.group.name}`}
                   onclick={() => section.group && requestDeleteGroup(section.group)}
                   disabled={deletingHostGroupId === section.group.id}
@@ -414,7 +414,7 @@
             {#if !isCollapsed(section.key)}
               {#if section.connections.length === 0}
                 <div
-                  class="my-3 rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.02] px-4 py-4 text-center text-xs text-slate-500"
+                  class="my-3 rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.02] px-4 py-4 text-center text-xs text-slate-400"
                 >
                   {draggingConnectionId !== null
                     ? "Drop here to move host"
@@ -439,11 +439,11 @@
                             }
                           }}
                           class={draggingConnectionId === connection.id
-                            ? "group cursor-pointer rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 opacity-40 transition hover:border-cyan-300/30 hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"
-                            : "group cursor-pointer rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-cyan-300/30 hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"}
+                            ? "group cursor-pointer rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 opacity-40 transition hover:border-white/14 hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"
+                            : "group cursor-pointer rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"}
                         >
                           <div class="flex items-start gap-3">
-                            <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200">
+                            <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
                               <Server class="size-5" />
                             </div>
 
@@ -454,7 +454,7 @@
                               <p class="mt-2 truncate font-mono text-xs text-slate-400">
                                 {connection.username}@{connection.host}:{connection.port}
                               </p>
-                              <p class="mt-1 text-xs text-slate-500">
+                              <p class="mt-1 text-xs text-slate-400">
                                 {getAuthLabel(connection)}
                               </p>
                             </div>
@@ -578,7 +578,7 @@
               <input
                 bind:value={newGroupName}
                 placeholder="Group name"
-                class="h-7 w-36 rounded border border-white/10 bg-black/20 px-2 text-sm text-white placeholder:text-slate-500 focus:border-cyan-300/40 focus:outline-none"
+                class="h-8 w-36 rounded-2xl border border-white/10 bg-black/20 px-2 text-sm text-white placeholder:text-slate-500 focus:border-cyan-300/40 focus:outline-none"
                 disabled={isSavingGroup}
               />
               <Button

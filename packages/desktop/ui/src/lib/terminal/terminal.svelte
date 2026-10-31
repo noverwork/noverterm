@@ -223,7 +223,7 @@
 
   {#if searchOpen}
     <div
-      class="absolute right-2 top-2 z-30 flex h-8 items-center gap-1 rounded-xl border border-white/10 bg-[#080c13]/95 px-2 py-1 text-slate-100 shadow-lg shadow-black/40 backdrop-blur-sm"
+      class="absolute right-2 top-2 z-30 flex h-8 items-center gap-1 rounded-xl border border-white/10 bg-terminal-ink/95 px-2 py-1 text-slate-100 shadow-2xl shadow-black/45 backdrop-blur-sm"
       role="search"
       aria-label="Terminal search"
     >
@@ -233,7 +233,7 @@
         bind:value={searchTerm}
         aria-label="Search terminal buffer"
         placeholder="Search"
-        class="h-6 w-44 border-white/10 bg-white/[0.04] px-2 py-0 text-xs text-slate-100 placeholder:text-slate-500 focus-visible:ring-1"
+        class="h-6 w-44 border-white/10 bg-black/20 px-2 py-0 text-xs text-slate-100 placeholder:text-slate-500 focus-visible:ring-1"
         onkeydown={handleSearchKeydown}
       />
       {#if searchMatched === false && searchTerm.length > 0}

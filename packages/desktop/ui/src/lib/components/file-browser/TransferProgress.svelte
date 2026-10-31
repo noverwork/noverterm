@@ -76,11 +76,11 @@
     aria-label="Active file transfers"
     data-testid="transfer-status-bar"
   >
-    <div class="pointer-events-auto mx-auto w-full max-w-5xl overflow-hidden rounded-2xl border border-cyan-300/20 bg-slate-950/96 text-white shadow-2xl shadow-black/70 ring-1 ring-white/10 backdrop-blur-xl">
+    <div class="pointer-events-auto mx-auto w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-slate-950/96 text-white shadow-2xl shadow-black/45 ring-1 ring-white/10 backdrop-blur-xl">
       <div class="flex items-center justify-between border-b border-white/10 px-3 py-2 sm:px-4">
         <div class="flex min-w-0 items-center gap-2">
-          <span class="size-2 shrink-0 rounded-full bg-cyan-300 shadow-[0_0_12px_rgb(103_232_249/0.75)]" aria-hidden="true"></span>
-          <p class="truncate text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">
+          <span class="size-2 shrink-0 rounded-full bg-amber-300 shadow-[0_0_10px_rgb(252_211_77/0.45)]" aria-hidden="true"></span>
+          <p class="truncate section-title">
             Transfers
           </p>
         </div>
@@ -98,7 +98,7 @@
           data-transfer-id={transfer.transfer_id}
         >
           <div
-            class="grid size-8 shrink-0 place-items-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200"
+            class="grid size-8 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-300"
             aria-hidden="true"
           >
             {#if transfer.direction === "Upload"}
@@ -120,9 +120,9 @@
               </span>
             </div>
 
-            <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+            <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
               <div
-                class="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-[width] duration-200 ease-out"
+                class="h-full rounded-full bg-cyan-300 transition-[width] duration-200 ease-out"
                 style:width="{progress}%"
                 role="progressbar"
                 aria-valuemin="0"

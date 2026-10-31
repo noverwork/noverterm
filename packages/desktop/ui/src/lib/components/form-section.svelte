@@ -20,7 +20,7 @@
 
   <div class="flex items-center gap-3">
     <div
-      class="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200"
+      class="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300"
     >
       <Icon class="size-5" />
     </div>

@@ -26,11 +26,11 @@
   const toneClass = $derived.by(() => {
     switch (type) {
       case "warning":
-        return "border-amber-300/30 bg-amber-950/90 text-amber-100 shadow-amber-950/30";
+        return "border-amber-300/30 bg-amber-950/90 text-amber-100 shadow-black/45";
       case "info":
-        return "border-blue-300/30 bg-blue-950/90 text-blue-100 shadow-blue-950/30";
+        return "border-white/10 bg-slate-950/95 text-slate-100 shadow-black/45";
       default:
-        return "border-red-300/30 bg-red-950/90 text-red-100 shadow-red-950/30";
+        return "border-red-300/30 bg-red-950/90 text-red-100 shadow-black/45";
     }
   });
 
@@ -39,7 +39,7 @@
       case "warning":
         return "text-amber-200";
       case "info":
-        return "text-blue-200";
+        return "text-slate-300";
       default:
         return "text-red-200";
     }

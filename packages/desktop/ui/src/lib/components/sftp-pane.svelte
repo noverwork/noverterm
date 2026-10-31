@@ -167,16 +167,16 @@
   {#if pane.isReady}
     <button
       type="button"
-      class="group flex min-w-0 items-center gap-3 border-b border-white/8 bg-cyan-300/[0.035] px-4 py-3 text-left transition hover:bg-cyan-300/[0.08] focus-visible:bg-cyan-300/[0.08] focus-visible:outline-none"
+      class="group flex min-w-0 items-center gap-3 border-b border-white/8 bg-white/[0.03] px-4 py-3 text-left transition hover:bg-white/[0.055] focus-visible:bg-white/[0.055] focus-visible:outline-none"
       onclick={() => pane.isLocal ? pane.chooseMachine() : onDisconnect()}
       title={pane.isLocal ? "Switch machine" : "Disconnect and switch machine"}
       aria-label="Switch machine"
       data-testid="{pane.side}-connection-identity"
     >
       {#if pane.isLocal}
-        <Laptop class="size-4 shrink-0 text-cyan-200" />
+        <Laptop class="size-4 shrink-0 text-slate-300" />
       {:else}
-        <Server class="size-4 shrink-0 text-cyan-200" />
+        <Server class="size-4 shrink-0 text-slate-300" />
       {/if}
       <div class="min-w-0 flex-1">
         <p class="truncate text-sm font-medium text-white">{pane.label}</p>
@@ -189,7 +189,7 @@
     <div class="flex items-center justify-between border-b border-white/8 px-4 py-3">
       <input
         type="text"
-        class="min-w-0 flex-1 truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-xs text-slate-400 outline-none hover:border-white/10 focus:border-cyan-300/30 focus:bg-white/5 focus:text-white"
+        class="min-w-0 flex-1 truncate rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-slate-400 outline-none hover:border-white/10 focus:border-cyan-300/40 focus:bg-white/5 focus:text-white"
         value={pane.path}
         placeholder={pane.isLocal ? "~" : "/"}
         spellcheck="false"
@@ -275,12 +275,12 @@
       <div class="grid gap-2">
         <button
           type="button"
-          class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-cyan-300/30 hover:bg-cyan-300/8 disabled:opacity-50"
+          class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-white/14 hover:bg-white/[0.055] disabled:opacity-50"
           onclick={onUseLocal}
           disabled={pickerDisabled || otherMachine === LOCAL_MACHINE}
           title={otherMachine === LOCAL_MACHINE ? takenTitle : undefined}
         >
-          <div class="grid size-8 shrink-0 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-300/12 text-cyan-200">
+          <div class="grid size-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-300">
             <Laptop class="size-4" />
           </div>
           <div class="min-w-0 flex-1">
@@ -290,11 +290,11 @@
         </button>
 
         {#if sshSessions.length > 0}
-          <h3 class="mt-2 text-xs font-medium uppercase tracking-wide text-slate-500">Open sessions</h3>
+          <h3 class="mt-2 section-title">Open sessions</h3>
           {#each sshSessions as session (session.id)}
             <button
               type="button"
-              class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-cyan-300/30 hover:bg-cyan-300/8 disabled:opacity-50"
+              class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-white/14 hover:bg-white/[0.055] disabled:opacity-50"
               onclick={() => onOpenSession(session)}
               disabled={pickerDisabled || otherMachine === machineKey(session)}
               title={otherMachine === machineKey(session) ? takenTitle : undefined}
@@ -310,16 +310,16 @@
           {/each}
         {/if}
 
-        <h3 class="mt-2 text-xs font-medium uppercase tracking-wide text-slate-500">Saved connections</h3>
+        <h3 class="mt-2 section-title">Saved connections</h3>
         {#each connections as connection (connection.id)}
           <button
             type="button"
-            class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-cyan-300/30 hover:bg-cyan-300/8 disabled:opacity-50"
+            class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-white/14 hover:bg-white/[0.055] disabled:opacity-50"
             onclick={() => onConnect(connection)}
             disabled={pickerDisabled || otherMachine === machineKey(connection)}
             title={otherMachine === machineKey(connection) ? takenTitle : undefined}
           >
-            <div class="grid size-8 shrink-0 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-300/12 text-cyan-200">
+            <div class="grid size-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-300">
               <Server class="size-4" />
             </div>
             <div class="min-w-0 flex-1">

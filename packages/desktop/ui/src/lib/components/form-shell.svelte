@@ -38,9 +38,9 @@
     class="ide-panel flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-white sm:p-6"
   >
     <div class="border-b border-white/10 pb-4">
-      <p class="section-title text-cyan-200/70">{eyebrow}</p>
+      <p class="section-title">{eyebrow}</p>
       <h1 class="mt-2 text-2xl font-semibold tracking-tight">{title}</h1>
-      <p class="mt-2 text-sm text-slate-500">{description}</p>
+      <p class="mt-2 text-sm text-slate-400">{description}</p>
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto pr-1">

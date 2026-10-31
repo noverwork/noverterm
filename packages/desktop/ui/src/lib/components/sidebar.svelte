@@ -61,14 +61,14 @@
   } = $props();
 
   const TOOLTIP_CLASS =
-    "pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950/95 px-2 py-1 text-[11px] font-medium text-slate-100 opacity-0 shadow-[0_8px_24px_rgb(0_0_0/0.45)] backdrop-blur transition-opacity duration-150 group-hover/tip:opacity-100";
+    "pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950/95 px-2 py-1 text-[11px] font-medium text-slate-100 opacity-0 shadow-lg shadow-black/45 backdrop-blur transition-opacity duration-150 group-hover/tip:opacity-100";
 
   function navButtonClass(section: SidebarSection): string {
     if (activeSection === section) {
-      return "h-10 w-full justify-center rounded-2xl px-0 border-cyan-300/35 bg-cyan-300/12 text-cyan-50 shadow-[0_10px_30px_rgb(34_211_238/0.16)] ring-1 ring-cyan-300/10 hover:border-cyan-300/45 hover:bg-cyan-300/16 hover:text-white";
+      return "h-10 w-full justify-center rounded-2xl px-0 border-cyan-300/35 bg-cyan-300/12 text-cyan-50 hover:border-cyan-300/45 hover:bg-cyan-300/16 hover:text-white";
     }
 
-    return "h-10 w-full justify-center rounded-2xl px-0 border-white/10 bg-white/[0.035] text-slate-200 hover:border-cyan-300/30 hover:bg-cyan-300/8 hover:text-white";
+    return "h-10 w-full justify-center rounded-2xl px-0 border-white/10 bg-white/[0.035] text-slate-200 hover:border-white/10 hover:bg-white/8 hover:text-white";
   }
 
   function withCount(label: string, count?: number): string {
@@ -120,7 +120,7 @@
 {/snippet}
 
 <aside
-  class="sidebar relative z-30 flex w-[4.5rem] shrink-0 flex-col border-r border-white/10 shadow-[18px_0_60px_rgb(0_0_0/0.28)] backdrop-blur-2xl"
+  class="sidebar relative z-30 flex w-[4.5rem] shrink-0 flex-col border-r border-white/10 backdrop-blur-2xl"
 >
   <div
     class="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-cyan-300/25 to-transparent"
@@ -134,7 +134,7 @@
       aria-label="Go to Connections"
     >
       <div
-        class="grid size-10 shrink-0 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-300/12 text-cyan-100 shadow-[0_0_24px_rgb(34_211_238/0.14)] ring-1 ring-cyan-200/5"
+        class="grid size-10 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/5 text-slate-300"
       >
         <img src="/favicon.png" alt="" class="size-7 rounded-xl" />
       </div>

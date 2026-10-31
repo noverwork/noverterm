@@ -70,9 +70,9 @@
   <section class="ide-panel flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-white sm:p-6">
     <div class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <p class="section-title text-cyan-200/70">Credentials</p>
+        <p class="section-title">Credentials</p>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight">SSH Keys</h1>
-        <p class="mt-2 text-sm text-slate-500">Encrypted private keys ready for saved host profiles.</p>
+        <p class="mt-2 text-sm text-slate-400">Encrypted private keys ready for saved host profiles.</p>
       </div>
 
       <div class="flex items-center gap-2 self-start">
@@ -85,7 +85,7 @@
             bind:value={searchQuery}
             placeholder="Search keys"
             aria-label="Search SSH keys"
-            class="h-8 w-48 rounded-2xl border-white/10 bg-white/[0.03] pl-8 text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40 focus-visible:ring-cyan-300/20"
+            class="h-8 w-48 rounded-2xl border border-white/10 bg-black/20 pl-8 text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
           />
         </div>
 
@@ -126,10 +126,10 @@
                       onEdit(key);
                     }
                   }}
-                  class="group cursor-pointer rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-cyan-300/30 hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"
+                  class="group cursor-pointer rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"
                 >
                   <div class="flex items-start gap-3">
-                    <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200">
+                    <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
                       <KeyRound class="size-5" />
                     </div>
 

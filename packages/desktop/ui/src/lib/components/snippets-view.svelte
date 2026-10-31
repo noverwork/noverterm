@@ -118,9 +118,9 @@
   <section class="ide-panel flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-white sm:p-6">
     <div class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <p class="section-title text-cyan-200/70">Snippets</p>
+        <p class="section-title">Snippets</p>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight">Command Snippets</h1>
-        <p class="mt-2 text-sm text-slate-500">Reusable command templates organized by host.</p>
+        <p class="mt-2 text-sm text-slate-400">Reusable command templates organized by host.</p>
       </div>
 
       <div class="flex items-center gap-2 self-start">
@@ -133,7 +133,7 @@
             bind:value={searchQuery}
             placeholder="Search snippets"
             aria-label="Search snippets"
-            class="h-8 w-48 rounded-2xl border-white/10 bg-white/[0.03] pl-8 text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40 focus-visible:ring-cyan-300/20"
+            class="h-8 w-48 rounded-2xl border border-white/10 bg-black/20 pl-8 text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
           />
         </div>
 
@@ -174,10 +174,10 @@
                       void handleRun(snippet);
                     }
                   }}
-                  class="group cursor-pointer rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-cyan-300/30 hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"
+                  class="group cursor-pointer rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"
                 >
                   <div class="flex items-start gap-3">
-                    <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-300/8 text-cyan-200">
+                    <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
                       {#if runningSnippetId === snippet.id}
                         <Loader2 class="size-5 animate-spin" />
                       {:else}
@@ -188,7 +188,7 @@
                     <div class="min-w-0 flex-1">
                       <p class="truncate text-sm font-medium text-white">{snippet.title}</p>
                       <p class="mt-1 truncate text-xs text-slate-400">Runs on {snippet.host_name}</p>
-                      <div class="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
+                      <div class="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
                         <span>{commandLineCount(snippet.body)} {commandLineCount(snippet.body) === 1 ? "line" : "lines"}</span>
                         {#if extraLineLabel(snippet.body)}
                           <span>{extraLineLabel(snippet.body)}</span>
@@ -241,15 +241,15 @@
 
                   <div class="group/preview relative mt-3 rounded-lg bg-black/20 px-2 py-1.5 font-mono text-[11px] text-slate-300 transition hover:bg-black/30">
                     <p class="break-all">
-                      <span class="select-none text-cyan-300/70">$</span>
+                      <span class="select-none text-slate-500">$</span>
                       {bodyPreview(snippet.body)}
                     </p>
 
                     <div class="pointer-events-none absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 translate-y-1 opacity-0 transition duration-150 group-hover/preview:translate-y-0 group-hover/preview:opacity-100">
-                      <div class="rounded-2xl border border-white/10 bg-slate-950/95 p-3 shadow-[0_24px_70px_rgb(0_0_0/0.45)] ring-1 ring-cyan-300/10 backdrop-blur-xl">
-                        <div class="mb-2 flex items-center justify-between gap-3 font-sans">
-                          <span class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Full script</span>
-                          <span class="text-[10px] text-slate-500">{commandLineCount(snippet.body)} {commandLineCount(snippet.body) === 1 ? "line" : "lines"}</span>
+                      <div class="rounded-2xl border border-white/10 bg-slate-950/95 p-3 shadow-2xl shadow-black/45 backdrop-blur-xl">
+                        <div class="mb-2 flex items-center justify-between gap-3">
+                          <span class="section-title">Full script</span>
+                          <span class="text-[11px] text-slate-400">{commandLineCount(snippet.body)} {commandLineCount(snippet.body) === 1 ? "line" : "lines"}</span>
                         </div>
                         <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-black/35 p-3 font-mono text-xs leading-5 text-slate-100">{snippet.body || "—"}</pre>
                       </div>

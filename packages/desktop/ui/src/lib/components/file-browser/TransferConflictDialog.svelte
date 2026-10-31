@@ -35,7 +35,7 @@
     onkeydown={handleKeydown}
   >
     <div
-      class="ide-panel w-full max-w-lg overflow-hidden text-white shadow-[0_32px_100px_rgb(0_0_0/0.62)]"
+      class="ide-panel w-full max-w-lg overflow-hidden rounded-[2rem] text-white shadow-2xl shadow-black/45"
       role="dialog"
       aria-modal="true"
       aria-labelledby="transfer-conflict-dialog-title"
@@ -44,7 +44,7 @@
     >
       <div class="border-b border-white/10 px-6 py-5">
         <div class="flex items-start gap-4">
-          <div class="grid size-11 shrink-0 place-items-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-amber-200 shadow-[0_0_24px_rgb(252_211_77/0.10)]">
+          <div class="grid size-11 shrink-0 place-items-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-amber-200">
             <AlertTriangle class="size-5" />
           </div>
           <div class="min-w-0 flex-1">
@@ -61,7 +61,7 @@
 
       <div class="space-y-3 px-6 py-4">
         <div class="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
-          <p class="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Original</p>
+          <p class="section-title">Original</p>
           <p class="mt-1 truncate font-mono text-sm text-slate-100" data-testid="transfer-conflict-original">
             {conflict.fileName}
           </p>
@@ -70,11 +70,11 @@
         {#if conflict.isDirectory}
           <div class="rounded-2xl border border-amber-300/15 bg-amber-300/[0.05] px-4 py-3" data-testid="transfer-conflict-inner">
             {#if conflict.conflictingFiles === null}
-              <p class="text-xs font-medium uppercase tracking-[0.16em] text-amber-200/70">Checking folder contents…</p>
+              <p class="section-title text-amber-200/80">Checking folder contents…</p>
             {:else if conflict.conflictingFiles.length === 0}
-              <p class="text-xs font-medium uppercase tracking-[0.16em] text-amber-200/70">No files inside would be overwritten</p>
+              <p class="section-title text-amber-200/80">No files inside would be overwritten</p>
             {:else}
-              <p class="text-xs font-medium uppercase tracking-[0.16em] text-amber-200/70">
+              <p class="section-title text-amber-200/80">
                 Overwrite replaces {conflict.conflictingFiles.length} existing {conflict.conflictingFiles.length === 1 ? "file" : "files"}
               </p>
               <ul class="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-sm text-amber-50">
@@ -86,9 +86,9 @@
           </div>
         {/if}
 
-        <div class="rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.06] px-4 py-3">
-          <p class="text-xs font-medium uppercase tracking-[0.16em] text-cyan-200/70">Rename option</p>
-          <p class="mt-1 truncate font-mono text-sm text-cyan-50" data-testid="transfer-conflict-suggested">
+        <div class="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <p class="section-title">Rename option</p>
+          <p class="mt-1 truncate font-mono text-sm text-slate-100" data-testid="transfer-conflict-suggested">
             {conflict.suggestedName}
           </p>
         </div>
@@ -115,7 +115,7 @@
         </Button>
         <Button
           type="button"
-          class="gap-2 rounded-2xl bg-cyan-300 px-4 text-cyan-950 hover:bg-cyan-200"
+          class="gap-2 rounded-2xl bg-cyan-300 px-4 text-slate-950 hover:bg-cyan-200"
           onclick={onRename}
           data-testid="transfer-conflict-rename"
         >
