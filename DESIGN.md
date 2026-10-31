@@ -1,266 +1,269 @@
 ---
 name: Noverterm
-description: Native SSH terminal client, dark glass panels around a terminal that stays the main subject.
+description: A native SSH terminal client marked like freight in a night port.
 colors:
-  signal-cyan: "#67e8f9"
-  signal-cyan-hover: "#a5f3fc"
-  signal-cyan-text: "#a5f3fc"
-  signal-cyan-glow: "#ecfeff"
-  midnight-canvas: "#05070b"
-  midnight-canvas-deep: "#0b1220"
-  terminal-ink: "#080c13"
-  overlay-slate: "#020617"
-  frost-border: "rgb(255 255 255 / 0.10)"
-  frost-border-faint: "rgb(255 255 255 / 0.08)"
-  frost-fill: "rgb(255 255 255 / 0.05)"
-  field-well: "rgb(0 0 0 / 0.20)"
-  text-bright: "#ffffff"
-  text-primary: "#f1f5f9"
-  text-secondary: "#cbd5e1"
-  text-muted: "#94a3b8"
-  text-faint: "#64748b"
-  on-signal: "#020617"
-  status-live: "#34d399"
-  status-waiting: "#fcd34d"
-  status-error: "#f87171"
-  error-text: "#fca5a5"
+  port: "#101317"
+  rail: "#0b0e11"
+  rib: "#1a1f25"
+  rib-groove: "#161a1f"
+  terminal-ink: "#000000"
+  stencil: "#e8e4d8"
+  stencil-dim: "#c1beb5"
+  stencil-mute: "#9f9d96"
+  stencil-faint: "#82807b"
+  hairline: "rgb(255 255 255 / 0.1)"
+  seal: "#a33b28"
+  seal-hover: "#b4432f"
+  line-rust: "#a33b28"
+  line-harbour: "#2a648f"
+  line-evergreen: "#336a41"
+  line-ochre: "#c9952e"
+  line-ochre-hover: "#d6a443"
+  ochre-text: "#e6c27a"
+  line-graphite: "#2a2f36"
 typography:
   headline:
     fontFamily: "Sarasa Term TC SemiBold, Menlo, Monaco, Courier New, monospace"
     fontSize: "1.5rem"
     fontWeight: 600
+    letterSpacing: "-0.025em"
   title:
     fontFamily: "Sarasa Term TC SemiBold, Menlo, Monaco, Courier New, monospace"
     fontSize: "1.25rem"
     fontWeight: 600
+    letterSpacing: "-0.025em"
   body:
     fontFamily: "Sarasa Term TC SemiBold, Menlo, Monaco, Courier New, monospace"
     fontSize: "0.875rem"
-    fontWeight: 500
-  label:
+    fontWeight: 600
+  body-small:
     fontFamily: "Sarasa Term TC SemiBold, Menlo, Monaco, Courier New, monospace"
     fontSize: "0.75rem"
-    fontWeight: 500
-  section-label:
+    fontWeight: 600
+  label:
     fontFamily: "Sarasa Term TC SemiBold, Menlo, Monaco, Courier New, monospace"
     fontSize: "11px"
     fontWeight: 600
-    letterSpacing: "0.22em"
+    letterSpacing: "0.14em"
 rounded:
-  control: "10px"
-  field: "16px"
-  card: "1.35rem"
-  panel: "1.75rem"
-  dialog: "2rem"
-  pill: "9999px"
+  corner: "2px"
+  full: "9999px"
 spacing:
-  xs: "4px"
-  sm: "8px"
-  md: "12px"
-  lg: "16px"
-  xl: "24px"
-  2xl: "32px"
+  rail-width: "56px"
+  top-bar: "36px"
+  tab-height: "28px"
+  tab-min: "176px"
+  tab-max: "240px"
+  status-line: "24px"
+  field-height: "44px"
+  terminal-pad: "14px"
 components:
   button-primary:
-    backgroundColor: "{colors.signal-cyan}"
-    textColor: "{colors.on-signal}"
-    typography: "{typography.body}"
-    rounded: "{rounded.field}"
-    height: "32px"
-    padding: "0 10px"
+    backgroundColor: "{colors.stencil}"
+    textColor: "{colors.port}"
+    rounded: "{rounded.corner}"
+    padding: "0 16px"
   button-primary-hover:
-    backgroundColor: "{colors.signal-cyan-hover}"
-  button-ghost:
-    backgroundColor: "{colors.frost-fill}"
-    textColor: "{colors.text-bright}"
-    rounded: "{rounded.control}"
-    height: "32px"
-    padding: "0 10px"
+    backgroundColor: "#ffffff"
+  button-destructive:
+    backgroundColor: "{colors.seal}"
+    textColor: "{colors.stencil}"
+    rounded: "{rounded.corner}"
+    padding: "0 16px"
+  button-destructive-hover:
+    backgroundColor: "{colors.seal-hover}"
+  button-trust:
+    backgroundColor: "{colors.line-ochre}"
+    textColor: "{colors.port}"
+    rounded: "{rounded.corner}"
+    padding: "4px 16px"
+  button-trust-hover:
+    backgroundColor: "{colors.line-ochre-hover}"
+  button-outline:
+    backgroundColor: "transparent"
+    textColor: "{colors.stencil}"
+    rounded: "{rounded.corner}"
+    padding: "0 16px"
   input-field:
-    backgroundColor: "{colors.field-well}"
-    textColor: "{colors.text-bright}"
-    typography: "{typography.body}"
-    rounded: "{rounded.field}"
-    height: "44px"
+    backgroundColor: "{colors.rail}"
+    textColor: "{colors.stencil}"
+    rounded: "{rounded.corner}"
+    height: "{spacing.field-height}"
     padding: "0 12px"
-  session-tab:
-    textColor: "{colors.text-muted}"
-    typography: "{typography.body}"
-    rounded: "{rounded.control}"
-    padding: "4px 12px"
   session-tab-active:
-    textColor: "{colors.text-bright}"
-  list-card:
-    backgroundColor: "{colors.frost-fill}"
-    rounded: "{rounded.card}"
-    padding: "16px"
-  chip:
-    textColor: "{colors.signal-cyan-text}"
+    textColor: "{colors.stencil}"
+    rounded: "{rounded.corner}"
+    height: "{spacing.tab-height}"
+    padding: "0 10px"
+  held-seal:
+    backgroundColor: "{colors.stencil}"
+    textColor: "{colors.seal}"
     typography: "{typography.label}"
-    rounded: "{rounded.pill}"
-    padding: "4px 12px"
+    padding: "0 4px"
+  stencil-chip:
+    backgroundColor: "{colors.rib}"
+    textColor: "{colors.stencil-dim}"
+    typography: "{typography.label}"
+    rounded: "{rounded.corner}"
+    padding: "0 6px"
+  status-line:
+    backgroundColor: "{colors.rail}"
+    textColor: "{colors.stencil-mute}"
+    typography: "{typography.label}"
+    height: "{spacing.status-line}"
+    padding: "0 12px"
 ---
 
 # Design System: Noverterm
 
 ## Overview
 
-**Creative North Star: "The Glass Terminal"**
+**Creative North Star: "Container Stencil"**
 
-Noverterm is a dark, cool workspace where every piece of chrome is a thin sheet of frosted glass laid over a near-black blue gradient, and the terminal itself is the one opaque, solid surface. The glass is how the app says "light": panels are translucent white at single-digit opacity, edged by a one-pixel frost border, so the structure reads without adding visual weight.
+Every session is a container end in a night port. The ground is cold slate, the tab strip is corrugated steel, and each session tab is a painted container door carrying its group's line colour and a stencilled code (`PRD·web-01`). A dropped session is sealed HELD the way a customs-held box is. The engineer reads environment by colour and code before they read the host name.
 
-Restraint governs the glass. Hierarchy comes from borders and tonal steps in white opacity, not from lift. Signal Cyan is the only accent with a voice: it marks the active tab, the primary action, the focused field. Everything else is slate text on midnight. Status lights (green, amber, red dots) are the only other color, and they carry information, never decoration.
+The system is dense, dark, and flat. One monospace face does everything. Every edge is a whole-pixel 1px hairline, every corner is 2px, nothing is blurred, glowing, or lifted by a soft shadow. Colour is rationed: the slate and stencil neutrals carry the chrome, and saturated colour appears only as a group's line colour, the seal of a held or destructive state, or the ochre of a trust decision. The terminal itself sits on pure black ink and is never tinted.
 
-The whole interface is set in one monospaced face, Sarasa Term, so chrome and terminal share a single typographic voice. Density is moderate: 14px text, 44px fields and top bar, generous rounding that softens the monospace grid.
+Motion is functional only: short opacity and border transitions on state, and a short flip when tabs reorder. Nothing animates for decoration, which keeps the client feeling as light as its claim.
 
 **Key Characteristics:**
-- Near-black blue canvas with faint cyan and blue radial glows at the edges.
-- Translucent panels (white 4–10%) with a one-pixel white 8–10% border.
-- One accent, Signal Cyan, reserved for active and primary states.
-- A single monospace typeface for every text role.
-- Large, soft radii: 16px controls, ~22px cards, 28–32px panels and dialogs.
+- Session identity is a line colour plus a stencilled `GRP·HOST` code in tracked caps.
+- Exactly four line colours plus graphite for ungrouped; no fifth.
+- One shape per session state, readable without colour.
+- 1px hairlines, 2px corners, no soft shadows, no blur, no glass.
+- Pure black terminal ink inside slate chrome.
+- Sarasa Term in one weight everywhere.
 
 ## Colors
 
-A cold midnight palette: blue-black surfaces, slate text, one cyan signal, and three status lights.
+Night-port slate and off-white stencil paint, with four freight line colours and a seal red held in reserve.
 
 ### Primary
-- **Signal Cyan** (`signal-cyan`): primary action fill (Save, New, Connect), with Midnight text on top; active-tab border and wash at 30% and 10%; focus borders at 40%; drag-insert markers.
-- **Pale Signal** (`signal-cyan-hover`): primary hover fill, and the text/icon color for active labels and chips.
+- **Stencil White** (stencil): all primary text, the active outline on tabs and rail items, focus rings, and the fill of primary buttons and the HELD seal. It is paint, not pure white; pure white appears only as the primary button's hover.
+
+### Secondary
+- **Freight Line Colours** (line-rust, line-harbour, line-evergreen, line-ochre): the group signature. Groups take them in group-name order (sorted by name, index modulo four), so neighbouring groups in the Connections list never share a colour until there are more than four groups. Rust, harbour blue, and evergreen carry stencil text; ochre carries dark port text. They fill session tabs, the swatch in the status line, and the swatch beside each group heading in Connections.
+- **Graphite** (line-graphite): the line colour for ungrouped SSH sessions and local shells (coded `SSH` and `LOC`).
+
+### Tertiary
+- **Seal Red** (seal, hover seal-hover): the HELD seal's text, destructive confirm buttons, and the 60%-alpha border on error toasts and the disconnected panel. It shares its value with the rust line colour; the meaning comes from context (a seal is a stencil chip with red letters, a line is a fill).
+- **Trust Ochre** (line-ochre, hover line-ochre-hover, text ochre-text): host-trust and conflict decisions. Ochre borders at 60% alpha, ochre-text for warning copy and icons, solid ochre for the confirm action.
 
 ### Neutral
-- **Midnight Canvas** (`midnight-canvas` to `midnight-canvas-deep`): the 135° workspace gradient, under 9–11% cyan and blue radial glows.
-- **Terminal Ink** (`terminal-ink`): the terminal background and the solid tab bar behind it. The only fully opaque working surface.
-- **Overlay Slate** (`overlay-slate`): context menus and popovers at 95–96% opacity.
-- **Frost Border** (`frost-border`, `frost-border-faint`): every panel, card, field and divider edge.
-- **Frost Fill** (`frost-fill`): resting card and ghost-button fill; hover raises it to white 8–10%.
-- **Field Well** (`field-well`): inputs, selects and textareas sit *below* the surface as a darker well.
-- **Text ramp**: Bright White for headings and values, Slate 100/300 for body, Slate 400 for inactive tabs and metadata, Slate 500 for placeholders and hints.
-
-### Status
-- **Live Green** (`status-live`), **Waiting Amber** (`status-waiting`), **Fault Red** (`status-error`): 8px session dots with a 10px glow of the same hue. Amber pulses only while connecting. Red text and red-tinted fills (red 400 at 10–12%) carry errors and destructive actions.
+- **Port Slate** (port): the workspace ground behind views and the top bar's content area; also the text colour on stencil and ochre fills.
+- **Rail Black** (rail): the sidebar, status line, popovers, dialogs, fields, and the page-label cell.
+- **Rib Steel** (rib, groove rib-groove): the corrugated tab strip, chips, and divider rules between shell regions.
+- **Terminal Ink** (terminal-ink): the terminal surface and its padding. Pure black, never a tint.
+- **Stencil Dim / Mute / Faint** (stencil-dim, stencil-mute, stencil-faint): secondary text, tracked labels and inactive icons, and placeholders, in that order of prominence. All are stencil-derived, never cool grey.
+- **Hairline** (hairline): the default 1px edge on panels, chips, fields, inactive tabs, and separators. Hover steps it to white/20 or white/25.
 
 ### Named Rules
-**The One Signal Rule.** Cyan means "active, focused, or primary". Never use it for decoration, headings, or illustration.
+**The Four Lines Rule.** Group identity uses exactly the four line colours plus graphite, assigned by group-name order. Never add a fifth line colour or hand-pick one per screen.
 
-**The Lights Mean Something Rule.** Green, amber and red appear only as connection or result state. A colored dot that does not report state is a bug.
+**The Inactive Mix Rule.** An inactive tab mixes its line colour 55% into rib (`color-mix(in srgb, <line> 55%, rib)`) with a 1px hairline edge. Never fade the tab with opacity; the stencil text has to keep its contrast.
 
-**The Neutral Hover Rule.** Hovering a resting card, row or nav item raises it with white opacity (border white 14%, fill white 5.5%), never with cyan. Cyan appears only once the element is active, selected, focused or a drop target.
-
-The shadcn theme tokens in `app.css` follow this palette: `--primary` and `--ring` are Signal Cyan, `--border` and `--input` are Frost Border, `--accent` is a 10% cyan wash, `--popover` is Overlay Slate. Terminal Ink is the Tailwind color `terminal-ink` (`bg-terminal-ink`); never write its hex in components.
+**The Seal Is Rare Rule.** Seal red means held, failed, or about to be destroyed. It never decorates.
 
 ## Typography
 
-**Body Font:** Sarasa Term TC SemiBold (with Menlo, Monaco, Courier New, monospace)
+**Display Font:** Sarasa Term TC SemiBold (with Menlo, Monaco, Courier New, monospace)
+**Body Font:** the same
+**Label/Mono Font:** the same
 
-**Character:** One monospaced CJK-capable face for everything. Chrome reads like part of the terminal, and Chinese hostnames or paths align with Latin text.
-
-Only the 600 weight is bundled, so `font-medium` and `font-semibold` both render at the same SemiBold weight. Hierarchy comes from size, color and case, not weight.
+**Character:** One semibold terminal face for chrome, content, and the terminal alike, so the chrome reads as part of the same machine. Hierarchy comes from size and from tracked caps, not from a second family or weight.
 
 ### Hierarchy
-- **Headline** (600, 24px): page or dialog titles such as error screens.
-- **Title** (600, 20px): view headers (Connections, Snippets, Forwards).
-- **Body** (14px): default for tabs, list rows, form values, buttons.
-- **Label** (12px): metadata, helper text, chips, compact buttons.
-- **Section Label** (600, 11px, 0.22em tracking, uppercase, Slate 400): group headers above lists and form sections.
+- **Headline** (600, 24px, tracking -0.025em): the page title of each view (SSH Connections, SSH Keys, Command Snippets).
+- **Title** (600, 20px, tracking -0.025em): dialog and overlay titles.
+- **Body** (600, 14px): descriptions, list rows, field text.
+- **Body Small** (600, 12px): metadata such as algorithms and fingerprints.
+- **Label** (600, 11px, tracking 0.14em, uppercase): stencil codes on tabs, the status line, chips, tooltips, field labels, definition terms, and column headers.
 
 ### Named Rules
-**The One Voice Rule.** Never introduce a proportional sans for chrome. If text needs more emphasis, change size or color.
+**The Stencil Code Rule.** Anything that identifies a container (group code, session code, HELD) is set in the label style: 11px uppercase tracked 0.14em, joined with a middle dot (`PRD·HOST`).
 
-**The One Label Rule.** Every small uppercase label (section headers, eyebrows above titles, table column headers) uses the `.section-title` class: 11px, 0.22em tracking, Slate 400. No ad-hoc tracking values. Inside a destructive or warning context the label may take the state hue (`text-red-200/80`, `text-amber-200/80`), never cyan.
-
-Text below 11px is not used. Meaningful small text (hints, metadata, timestamps) is Slate 400; Slate 500 is reserved for placeholders, disabled text and decorative glyphs.
+**The Label Below Rule.** Tracked labels name the thing they sit on (a field, a column, a term). They never float above a heading as an eyebrow.
 
 ## Layout
 
-A fixed desktop shell: a collapsible sidebar on the left, a 44px top bar holding the page label and session tabs, and the active view filling the rest. The window opens maximized at a 1200×800 minimum, and nothing reflows for mobile.
+A fixed shell frames every view: a 56px rail on the left (logo cell, five icon nav items at 40x28, a rule, pinned snippet shortcuts, settings at the foot), a 36px corrugated top bar (a page-label cell on rail, then session tabs), the content area, and a 24px status line at the bottom on rail with a rib top rule.
 
-Spacing follows Tailwind's 4px grid. The working steps are 8px (icon-to-text, tab gap), 12px (row internals, form gaps), 16px (card padding, section spacing) and 24px (view padding). Session tabs flex between 128px and 240px and scroll horizontally, with edge fades and hover auto-scroll.
+Session tabs are 28px tall, flex between 176px and 240px, and sit 4px apart with 6px inset from the strip's ends; when the strip overflows it scrolls horizontally with chevron edge indicators. Every tab has identical anatomy: code at left, state shape at right, a close control that appears on hover or when active. While a non-terminal view is open, the tab strip drops to 45% opacity and returns on hover.
+
+Views are padded 20px (32px from the lg breakpoint) and separate their header from content with a 1px hairline rule and 20px of space. Fields are 44px tall. The terminal fills the rest on black ink with 14px padding. Density is high; spacing follows the Tailwind 4px step.
 
 ## Elevation & Depth
 
-Depth is tonal and translucent. Resting surfaces separate by white-opacity steps (4%, 5–6%, 8–10%) and a one-pixel frost border, not by lift. Panels use backdrop blur so the canvas glow shows through.
-
-### Shadow Vocabulary
-- **Overlay** (`box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.45)`, Tailwind `shadow-2xl shadow-black/45`): context menus, dialogs, popovers.
-- **Panel** (`box-shadow: 0 24px 70px rgb(0 0 0 / 0.36), inset 0 1px 0 rgb(255 255 255 / 0.06)`): the large `ide-panel` container. The inset line is the glass top edge.
-- **Status glow** (`box-shadow: 0 0 10px <status hue / 0.45–0.55>`): session dots only.
+The system is flat. Depth is tonal: rail sits darker than port, rib sits lighter, and every boundary is a 1px hairline or a rib-coloured rule. There are no drop shadows and no blur. The only box-shadow is a 1px inset top hairline (white at 6%) on the terminal frame, which is an edge, not elevation. Dialogs and popovers separate from the page by sitting on rail with a hairline border.
 
 ### Named Rules
-**The Flat Glass Rule.** Resting surfaces get a border and a tonal step, not a drop shadow. Shadows belong to things that float above the workspace: menus, dialogs, the outer panel.
+**The Pixel Honesty Rule.** Every edge is a whole-pixel 1px line. Nothing is soft: no drop shadows, no glows, no backdrop blur, no glass.
 
 ## Shapes
 
-Soft and generous. Every rectangle is rounded, and radius grows with the size of the surface: 10px for tabs and small controls, 16px for fields and primary buttons, about 22px (1.35rem) for list cards and empty states, 28px (1.75rem) for panels, 32px (2rem) for full dialogs. Pills (fully round) are for chips and status dots. Empty states use a dashed frost border.
+Square freight geometry. Every container, button, field, chip, tab, tooltip, menu, and dialog uses a 2px corner (the global radius scale resolves to 2px). Full rounding is reserved for the session state dots and the toggle switch track and knob. Scrollbar thumbs are square. The corrugation of the tab strip is a repeating 8px pattern: 7px of rib, then a 1px groove.
 
 ## Components
 
 ### Buttons
-Quiet, compact, rounded.
-- **Shape:** 16px radius on primary actions, 10px on stock buttons. 32px tall.
-- **Primary:** Signal Cyan fill, Midnight text, Pale Signal on hover.
-- **Ghost / Outline:** Frost Fill with a frost border and white text; hover raises the fill to white 8%.
-- **Destructive (secondary):** red-tinted fill (10%) with red text, stronger tint on hover. Used for delete actions in menus, rows and toolbars.
-- **Confirm (state-coloured):** solid fill in the state hue, 16px radius, dark text of the same hue: red (`bg-red-300 text-red-950`, hover `red-200`) to confirm a delete or retry a failed connection; amber (`bg-amber-300 text-amber-950`, hover `amber-200`) to trust a host key. These are the only solid non-cyan buttons and appear only as the final action of a destructive or trust decision.
-- **Warning (secondary):** amber-tinted outline (amber 300 at 20% border, 10% fill, amber 100 text) for a risky alternative such as Overwrite.
-- **Focus / Press:** 3px ring at ring/50 (cyan), a 1px press-down on active, 50% opacity when disabled.
-- **Icon buttons:** 24–32px, 8–12px radius, Slate 400 icon, white 8–10% hover fill.
-
-### Inputs / Fields
-Wells sunk into the glass.
-- **Style:** 44px tall, 16px radius, Field Well background, frost border, white text, Slate 500 placeholder. Textareas use the same treatment, monospace, 192px minimum height.
-- **Focus:** border shifts to cyan 40% plus a 1px cyan 20% ring.
-- **Error:** border switches to Fault Red; the message sits below in red.
-- **Compact variant:** toolbar and search fields are 32px tall with the same 16px radius, Field Well, frost border and cyan focus. Use only inside view headers, toolbars and inline editors.
-- **Form error banner:** 16px radius, red border at 40%, red fill at 10%, red text, 16px × 12px padding, above the form actions.
-
-### Session Tabs (signature)
-The workspace's primary navigation.
-- **Inactive:** transparent with Slate 400 text; hover adds a frost border, white 4.5% fill and white text.
-- **Active:** cyan 30% border, cyan 10% wash, white text.
-- **Content:** status dot, truncated session name, and a 24px close button that appears on hover.
-- **Interaction:** drag to reorder (the dragged tab drops to 40% opacity, the target gets a cyan ring), right-click for the context menu.
-
-### Cards / List Rows
-- **Corner Style:** about 22px (1.35rem).
-- **Background:** white 3% at rest, 5.5% on hover.
-- **Border:** frost border; a dashed frost border for empty states.
-- **Internal Padding:** 16px.
-
-- **Leading icon tile:** 40px square, 16px radius, frost border, white 5% fill, Slate 300 icon. Neutral by default; it takes cyan only while its card is active and a state hue only when it reports state (red not-found, amber warning).
-- **Dense rows:** file lists and pickers use 12px-radius rows with 12px × 8px padding. Selected rows get a cyan 15% fill and cyan 30% ring.
+Solid, square, and blunt.
+- **Shape:** 2px corner.
+- **Primary:** stencil fill with port text; hover goes to pure white.
+- **Destructive confirm:** solid seal fill with stencil text; hover seal-hover.
+- **Trust confirm:** solid ochre fill with port text; hover line-ochre-hover. Used where the user accepts a host key or overwrites.
+- **Outline / Cancel:** transparent with a hairline edge and stencil text; hover steps the edge to white/20 with a white/5 wash.
+- **Icon delete actions:** stencil-mute icons that wash to seal at 20% on hover.
 
 ### Chips
-- **Style:** pill, cyan 8% fill, cyan 14% border, Pale Signal text, 12px label. Use for active filters and selections only.
-- **State pill:** pill with a white 10% border and Field Well fill, an 8px status dot, and an 11px uppercase label. Reports a forward's or transfer's state.
+- **Style:** rib fill, hairline edge, 2px corner, 6px horizontal padding, label type in stencil-dim (codes) or stencil-mute (counts).
+- **HELD seal:** a stencil chip with seal-red letters, no border, no animation.
 
-### Dialogs
-- **Scrim:** black 70% with a light backdrop blur.
-- **Box:** 32px radius, Overlay Slate at 95%, frost border, Overlay shadow. A destructive or warning dialog may tint its border and ring with the state hue at 10–20%.
-- **Structure:** header with a leading icon tile, a `.section-title` eyebrow and a 20px title; body; footer on a white 2.5% band with a top frost border, actions right-aligned (ghost cancel, then the primary or confirm button).
-- **State panels:** inside dialogs, a red or amber note box uses the hue at 5–6% fill with a 12–15% border.
+### Cards / Containers
+- **Corner Style:** 2px.
+- **Background:** rail for dialogs, popovers, and inset panels; rib for list cards and chips.
+- **Shadow Strategy:** none (see Elevation & Depth).
+- **Border:** 1px hairline; seal at 60% for disconnected and error panels, ochre at 60% for trust and warning panels.
+- **Internal Padding:** 24-32px for dialogs and overlays, with a footer band on port separated by a hairline.
 
-### Toasts, Tooltips and Trays
-- **Toast:** 16px radius, Overlay shadow. Error and warning toasts use a deep tint of their hue (red or amber 950 at 90%) with a matching 30% border; info toasts use Overlay Slate with a frost border.
-- **Tooltip:** 10px radius, Overlay Slate 95%, frost border, 11px Slate 100 text, `shadow-lg shadow-black/45`.
-- **Transfer tray:** floating bottom panel, 16px radius, Overlay Slate 96%, frost border, Overlay shadow. Progress bars are a 6px white 10% track with a flat Signal Cyan fill; the active-transfer dot is Waiting Amber.
+### Inputs / Fields
+- **Style:** 44px tall, rail fill, hairline edge, 2px corner, stencil text, stencil-faint placeholder.
+- **Focus:** the edge turns solid stencil; no glow.
+- **Error / Disabled:** error swaps the edge to the destructive red; disabled drops to 50% opacity.
+- **Toggle:** on is a stencil track with a port knob; off is a rail track with a hairline edge and a stencil-mute knob.
 
-### Context Menu
-- **Style:** Overlay Slate at 96%, frost border, Slate 100 text, Overlay shadow. Items highlight with a cyan 10% fill; separators are white 10%.
+### Navigation
+- **Rail items:** 40x28 icon buttons in stencil-mute; hover gains a hairline and white/5 wash; the active item has a 1px stencil outline and stencil icon. Tooltips sit on rail with a hairline, in label type.
+- **Context menus:** rail with hairline edge, 2px items, white/8 focus wash.
+
+### Session Tab (signature)
+The container end. Active: full line-colour fill with a 1px stencil outline. Inactive: the line colour mixed 55% into rib with a 1px hairline edge, hover white/25. Text is stencil, or port on an active ochre tab. Border and background transition over 120ms, removed under reduced motion; reordering flips over 140ms.
+
+State shapes, one per state:
+- **Live** (connected): filled dot, 8px.
+- **Waiting / connecting:** 8px ring, 2px stroke.
+- **Held** (disconnected or failed): the HELD seal.
+
+### Status Line (signature)
+24px rail band: an 8x12 line-colour swatch and the active `GRP·HOST` code in stencil, then user@host:port, the state label (red when held), and on the right the open count with a held count when any are held.
+
+### Group Heading (signature)
+In Connections, each group heading carries the same 8x12 line-colour swatch, the group name, its stencil code chip, and a count chip.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** use Signal Cyan only for the active, focused or primary element on a screen.
-- **Do** separate surfaces with a frost border (white 8–10%) and a white-opacity fill step.
-- **Do** keep the terminal on solid Terminal Ink, with no translucency behind text.
-- **Do** report connection state with the 8px status dot: green live, amber waiting, red failed.
-- **Do** match radius to surface size: 10px controls, 16px fields, ~22px cards, 28–32px panels.
+- **Do** mark every session with its group's line colour and `GRP·HOST` stencil code, on the tab and in the status line.
+- **Do** assign line colours from the four-colour set in group-name order, with graphite for ungrouped and local sessions.
+- **Do** mix inactive tab fills 55% into rib and keep a 1px hairline edge on them.
+- **Do** use filled dot for live, ring for waiting, and the HELD seal for dropped or failed.
+- **Do** make destructive confirms solid seal and trust confirms solid ochre; make primary actions solid stencil with port text.
+- **Do** keep every corner at 2px; use full rounding only for state dots and toggle parts.
+- **Do** keep the terminal on pure black ink (#000000).
 
 ### Don't:
-- **Don't** add drop shadows to resting cards or rows; shadows are for floating layers.
-- **Don't** introduce a second accent hue or a non-monospace font for chrome.
-- **Don't** use colored dots, glows or tints that don't report state.
-- **Don't** use raw hex in components where an existing token or Tailwind class covers it.
-- **Don't** tint leading icon tiles, eyebrows, folder icons or hover states cyan; they stay neutral until active.
-- **Don't** put translucency behind the terminal: the terminal frame and its tab-bar column are solid `terminal-ink`.
+- **Don't** use soft shadows, glows, backdrop blur, or glass surfaces anywhere.
+- **Don't** add a fifth line colour or tint a tab with opacity instead of the rib mix.
+- **Don't** put eyebrow labels above headings.
+- **Don't** tint the terminal background or use cool grey for secondary text; secondary text is stencil-derived.
+- **Don't** animate the HELD seal or add decorative motion.
+- **Don't** introduce a second typeface or weight.

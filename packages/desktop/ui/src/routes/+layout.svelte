@@ -502,7 +502,7 @@
     </div>
   {:else}
     <div
-      class="workspace-canvas flex h-screen w-screen overflow-hidden bg-background"
+      class="workspace-canvas flex h-full w-full overflow-hidden bg-background"
     >
       <Sidebar
         onLocalTerminal={openLocalTerminal}

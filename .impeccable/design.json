@@ -1,209 +1,224 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-01T12:00:00Z",
+  "generatedAt": "2026-11-01T00:00:00Z",
   "title": "Design System: Noverterm",
   "extensions": {
     "colorMeta": {
-      "signal-cyan": {
+      "stencil": {
         "role": "primary",
-        "displayName": "Signal Cyan",
-        "canonical": "#67e8f9",
+        "displayName": "Stencil White",
+        "canonical": "#e8e4d8",
         "tonalRamp": [
-          "#083344",
-          "#164e63",
-          "#155e75",
-          "#0e7490",
-          "#22d3ee",
-          "#67e8f9",
-          "#a5f3fc",
-          "#ecfeff"
+          "#2b2a26",
+          "#4a4842",
+          "#6a6862",
+          "#82807b",
+          "#9f9d96",
+          "#c1beb5",
+          "#e8e4d8",
+          "#f6f4ee"
         ]
       },
-      "signal-cyan-hover": {
-        "role": "primary",
-        "displayName": "Pale Signal",
-        "canonical": "#a5f3fc"
-      },
-      "signal-cyan-text": {
-        "role": "primary",
-        "displayName": "Pale Signal Text",
-        "canonical": "#a5f3fc"
-      },
-      "signal-cyan-glow": {
-        "role": "primary",
-        "displayName": "Signal Glow",
-        "canonical": "#ecfeff"
-      },
-      "midnight-canvas": {
+      "stencil-dim": {
         "role": "neutral",
-        "displayName": "Midnight Canvas",
-        "canonical": "#05070b",
+        "displayName": "Stencil Dim",
+        "canonical": "#c1beb5"
+      },
+      "stencil-mute": {
+        "role": "neutral",
+        "displayName": "Stencil Mute",
+        "canonical": "#9f9d96"
+      },
+      "stencil-faint": {
+        "role": "neutral",
+        "displayName": "Stencil Faint",
+        "canonical": "#82807b"
+      },
+      "port": {
+        "role": "neutral",
+        "displayName": "Port Slate",
+        "canonical": "#101317",
         "tonalRamp": [
-          "#05070b",
-          "#080c13",
-          "#0b1220",
-          "#0f172a",
-          "#1e293b",
-          "#334155",
-          "#475569",
-          "#64748b"
+          "#000000",
+          "#0b0e11",
+          "#101317",
+          "#161a1f",
+          "#1a1f25",
+          "#2a2f36",
+          "#3d434b",
+          "#5a6069"
         ]
       },
-      "midnight-canvas-deep": {
+      "rail": {
         "role": "neutral",
-        "displayName": "Midnight Canvas Deep",
-        "canonical": "#0b1220"
+        "displayName": "Rail Black",
+        "canonical": "#0b0e11"
+      },
+      "rib": {
+        "role": "neutral",
+        "displayName": "Rib Steel",
+        "canonical": "#1a1f25"
+      },
+      "rib-groove": {
+        "role": "neutral",
+        "displayName": "Rib Groove",
+        "canonical": "#161a1f"
       },
       "terminal-ink": {
         "role": "neutral",
         "displayName": "Terminal Ink",
-        "canonical": "#080c13"
+        "canonical": "#000000"
       },
-      "overlay-slate": {
+      "hairline": {
         "role": "neutral",
-        "displayName": "Overlay Slate",
-        "canonical": "#020617"
+        "displayName": "Hairline",
+        "canonical": "rgb(255 255 255 / 0.1)"
       },
-      "frost-border": {
-        "role": "neutral",
-        "displayName": "Frost Border",
-        "canonical": "rgb(255 255 255 / 0.10)"
-      },
-      "frost-border-faint": {
-        "role": "neutral",
-        "displayName": "Faint Frost Border",
-        "canonical": "rgb(255 255 255 / 0.08)"
-      },
-      "frost-fill": {
-        "role": "neutral",
-        "displayName": "Frost Fill",
-        "canonical": "rgb(255 255 255 / 0.05)"
-      },
-      "field-well": {
-        "role": "neutral",
-        "displayName": "Field Well",
-        "canonical": "rgb(0 0 0 / 0.20)"
-      },
-      "text-bright": {
-        "role": "neutral",
-        "displayName": "Bright White",
-        "canonical": "#ffffff"
-      },
-      "text-primary": {
-        "role": "neutral",
-        "displayName": "Slate 100",
-        "canonical": "#f1f5f9",
+      "seal": {
+        "role": "tertiary",
+        "displayName": "Seal Red",
+        "canonical": "#a33b28",
         "tonalRamp": [
-          "#1e293b",
-          "#334155",
-          "#475569",
-          "#64748b",
-          "#94a3b8",
-          "#cbd5e1",
-          "#e2e8f0",
-          "#f1f5f9"
+          "#2a0f0a",
+          "#4a1a12",
+          "#6e271b",
+          "#a33b28",
+          "#b4432f",
+          "#cf6a55",
+          "#e59d8e",
+          "#f6d6cf"
         ]
       },
-      "text-secondary": {
-        "role": "neutral",
-        "displayName": "Slate 300",
-        "canonical": "#cbd5e1"
-      },
-      "text-muted": {
-        "role": "neutral",
-        "displayName": "Slate 400",
-        "canonical": "#94a3b8"
-      },
-      "text-faint": {
-        "role": "neutral",
-        "displayName": "Slate 500",
-        "canonical": "#64748b"
-      },
-      "on-signal": {
-        "role": "neutral",
-        "displayName": "Midnight on Signal",
-        "canonical": "#020617"
-      },
-      "status-live": {
+      "seal-hover": {
         "role": "tertiary",
-        "displayName": "Live Green",
-        "canonical": "#34d399"
+        "displayName": "Seal Red Hover",
+        "canonical": "#b4432f"
       },
-      "status-waiting": {
-        "role": "tertiary",
-        "displayName": "Waiting Amber",
-        "canonical": "#fcd34d"
+      "line-rust": {
+        "role": "secondary",
+        "displayName": "Rust Line",
+        "canonical": "#a33b28"
       },
-      "status-error": {
-        "role": "tertiary",
-        "displayName": "Fault Red",
-        "canonical": "#f87171",
+      "line-harbour": {
+        "role": "secondary",
+        "displayName": "Harbour Blue Line",
+        "canonical": "#2a648f",
         "tonalRamp": [
-          "#450a0a",
-          "#7f1d1d",
-          "#991b1b",
-          "#dc2626",
-          "#f87171",
-          "#fca5a5",
-          "#fecaca",
-          "#fef2f2"
+          "#0b1a26",
+          "#123047",
+          "#1c4a6c",
+          "#2a648f",
+          "#3f7fad",
+          "#6ea2c8",
+          "#a6c8e1",
+          "#dbe9f3"
         ]
       },
-      "error-text": {
-        "role": "tertiary",
-        "displayName": "Error Text",
-        "canonical": "#fca5a5"
+      "line-evergreen": {
+        "role": "secondary",
+        "displayName": "Evergreen Line",
+        "canonical": "#336a41",
+        "tonalRamp": [
+          "#0c1a10",
+          "#16301d",
+          "#234d2e",
+          "#336a41",
+          "#4a8659",
+          "#75a682",
+          "#a9c9b0",
+          "#dcebdf"
+        ]
+      },
+      "line-ochre": {
+        "role": "secondary",
+        "displayName": "Trust Ochre Line",
+        "canonical": "#c9952e",
+        "tonalRamp": [
+          "#2e210a",
+          "#4f3912",
+          "#7a581b",
+          "#a77925",
+          "#c9952e",
+          "#d6a443",
+          "#e6c27a",
+          "#f5e6c4"
+        ]
+      },
+      "line-ochre-hover": {
+        "role": "secondary",
+        "displayName": "Ochre Hover",
+        "canonical": "#d6a443"
+      },
+      "ochre-text": {
+        "role": "secondary",
+        "displayName": "Ochre Warning Text",
+        "canonical": "#e6c27a"
+      },
+      "line-graphite": {
+        "role": "neutral",
+        "displayName": "Graphite Line",
+        "canonical": "#2a2f36"
       }
     },
     "typographyMeta": {
       "headline": {
         "displayName": "Headline",
-        "purpose": "Page and dialog titles."
+        "purpose": "View page titles."
       },
       "title": {
         "displayName": "Title",
-        "purpose": "View headers."
+        "purpose": "Dialog and overlay titles."
       },
       "body": {
         "displayName": "Body",
-        "purpose": "Default for tabs, rows, fields, buttons. Renders at the bundled 600 weight."
+        "purpose": "Descriptions, rows, field text."
+      },
+      "body-small": {
+        "displayName": "Body Small",
+        "purpose": "Metadata, fingerprints."
       },
       "label": {
-        "displayName": "Label",
-        "purpose": "Metadata, helper text, chips, compact buttons."
-      },
-      "section-label": {
-        "displayName": "Section Label",
-        "purpose": "Uppercase Slate 400 group headers above lists and form sections."
+        "displayName": "Stencil Label",
+        "purpose": "Stencil codes, status line, chips, tooltips, field labels, column headers."
       }
     },
     "shadows": [
       {
-        "name": "overlay",
-        "value": "0 25px 50px -12px rgb(0 0 0 / 0.45)",
-        "purpose": "Context menus, dialogs, popovers."
-      },
-      {
-        "name": "panel",
-        "value": "0 24px 70px rgb(0 0 0 / 0.36), inset 0 1px 0 rgb(255 255 255 / 0.06)",
-        "purpose": "The large ide-panel container; the inset line is the glass top edge."
-      },
-      {
-        "name": "status-glow",
-        "value": "0 0 10px rgb(52 211 153 / 0.55)",
-        "purpose": "Session status dots only, tinted to the dot's hue."
+        "name": "terminal-frame-edge",
+        "value": "inset 0 1px 0 rgb(255 255 255 / 0.06)",
+        "purpose": "1px top hairline on the terminal frame; an edge, not elevation. The system has no drop shadows."
       }
     ],
     "motion": [
       {
-        "name": "tab-transition",
-        "value": "150ms ease",
-        "purpose": "Tab hover, close-button reveal, view opacity swaps. Reduced motion collapses sidebar transitions to 1ms."
+        "name": "state-transition",
+        "value": "120ms",
+        "purpose": "Tab border/background and close-control opacity; removed under prefers-reduced-motion."
       },
       {
-        "name": "connecting-pulse",
-        "value": "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        "purpose": "Amber status dot while a session connects."
+        "name": "tab-reorder-flip",
+        "value": "140ms cubicOut",
+        "purpose": "Tab reorder after drag."
+      },
+      {
+        "name": "tooltip-fade",
+        "value": "150ms",
+        "purpose": "Rail tooltips and tab-strip opacity while a view is open."
+      },
+      {
+        "name": "toast-enter",
+        "value": "180ms ease-out",
+        "purpose": "Toast slide-in."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
       }
     ]
   },
@@ -212,115 +227,134 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The one cyan action on a screen: Save, New, Connect.",
-      "html": "<button class=\"ds-btn-primary\">Save connection</button>",
-      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid transparent; border-radius: 16px; background: #67e8f9; color: #020617; font: 600 14px 'Sarasa Term TC SemiBold', Menlo, monospace; cursor: pointer; transition: background 150ms; } .ds-btn-primary:hover { background: #a5f3fc; } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(103 232 249 / 0.5); } .ds-btn-primary:active { transform: translateY(1px); }"
+      "description": "Default action: solid stencil with port text.",
+      "html": "<button class=\"ds-btn-primary\">New Connection</button>",
+      "css": ".ds-btn-primary{font-family:'Sarasa Term TC SemiBold',Menlo,Monaco,'Courier New',monospace;font-weight:600;font-size:14px;height:32px;padding:0 16px;border:1px solid transparent;border-radius:2px;background:var(--color-stencil,#e8e4d8);color:var(--color-port,#101317);cursor:pointer;transition:background-color 120ms}.ds-btn-primary:hover{background:#ffffff}.ds-btn-primary:focus-visible{outline:1px solid #e8e4d8;outline-offset:2px}"
     },
     {
-      "name": "Ghost Button",
+      "name": "Destructive Confirm",
       "kind": "button",
-      "refersTo": "button-ghost",
-      "description": "Secondary actions on glass.",
-      "html": "<button class=\"ds-btn-ghost\">Cancel</button>",
-      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; height: 32px; padding: 0 10px; border: 1px solid rgb(255 255 255 / 0.10); border-radius: 10px; background: rgb(255 255 255 / 0.04); color: #fff; font: 600 14px 'Sarasa Term TC SemiBold', Menlo, monospace; cursor: pointer; transition: background 150ms; } .ds-btn-ghost:hover { background: rgb(255 255 255 / 0.08); } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(103 232 249 / 0.5); }"
+      "refersTo": "button-destructive",
+      "description": "Delete or reconnect-from-held confirm: solid seal.",
+      "html": "<button class=\"ds-btn-seal\">Delete</button>",
+      "css": ".ds-btn-seal{font-family:'Sarasa Term TC SemiBold',Menlo,Monaco,'Courier New',monospace;font-weight:600;font-size:14px;height:32px;padding:0 16px;border:0;border-radius:2px;background:#a33b28;color:#e8e4d8;cursor:pointer;transition:background-color 120ms}.ds-btn-seal:hover{background:#b4432f}.ds-btn-seal:focus-visible{outline:1px solid #e8e4d8;outline-offset:2px}"
+    },
+    {
+      "name": "Trust Confirm",
+      "kind": "button",
+      "refersTo": "button-trust",
+      "description": "Accept a host key or overwrite: solid ochre with dark text.",
+      "html": "<button class=\"ds-btn-trust\">Trust and Connect</button>",
+      "css": ".ds-btn-trust{font-family:'Sarasa Term TC SemiBold',Menlo,Monaco,'Courier New',monospace;font-weight:600;font-size:14px;min-height:32px;padding:4px 16px;border:0;border-radius:2px;background:#c9952e;color:#101317;cursor:pointer;transition:background-color 120ms}.ds-btn-trust:hover{background:#d6a443}.ds-btn-trust:focus-visible{outline:1px solid #e8e4d8;outline-offset:2px}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Cancel and secondary actions.",
+      "html": "<button class=\"ds-btn-outline\">Cancel</button>",
+      "css": ".ds-btn-outline{font-family:'Sarasa Term TC SemiBold',Menlo,Monaco,'Courier New',monospace;font-weight:600;font-size:14px;height:32px;padding:0 16px;border:1px solid rgb(255 255 255 / 0.1);border-radius:2px;background:transparent;color:#e8e4d8;cursor:pointer;transition:border-color 120ms,background-color 120ms}.ds-btn-outline:hover{border-color:rgb(255 255 255 / 0.2);background:rgb(255 255 255 / 0.05)}.ds-btn-outline:focus-visible{outline:1px solid #e8e4d8;outline-offset:2px}"
     },
     {
       "name": "Text Field",
       "kind": "input",
       "refersTo": "input-field",
-      "description": "Form field sunk into the glass as a darker well.",
-      "html": "<input class=\"ds-input\" placeholder=\"user@host\" />",
-      "css": ".ds-input { height: 44px; width: 280px; padding: 0 12px; border: 1px solid rgb(255 255 255 / 0.10); border-radius: 16px; background: rgb(0 0 0 / 0.20); color: #fff; font: 600 14px 'Sarasa Term TC SemiBold', Menlo, monospace; transition: border-color 150ms; } .ds-input::placeholder { color: #64748b; } .ds-input:focus-visible { outline: none; border-color: rgb(103 232 249 / 0.40); box-shadow: 0 0 0 1px rgb(103 232 249 / 0.20); }"
+      "description": "44px rail field; focus turns the edge stencil.",
+      "html": "<input class=\"ds-field\" placeholder=\"hostname or IP\" />",
+      "css": ".ds-field{font-family:'Sarasa Term TC SemiBold',Menlo,Monaco,'Courier New',monospace;font-weight:600;font-size:14px;height:44px;width:260px;padding:0 12px;border:1px solid rgb(255 255 255 / 0.1);border-radius:2px;background:#0b0e11;color:#e8e4d8;outline:none}.ds-field::placeholder{color:#82807b}.ds-field:focus-visible{border-color:#e8e4d8}"
     },
     {
-      "name": "Session Tab",
+      "name": "Session Tabs",
       "kind": "nav",
-      "refersTo": "session-tab",
-      "description": "Top-bar tab with status dot; the active tab gets the cyan wash.",
-      "html": "<div class=\"ds-tabs\"><div class=\"ds-tab ds-tab-active\"><span class=\"ds-dot ds-dot-live\"></span><span>prod-api</span></div><div class=\"ds-tab\"><span class=\"ds-dot ds-dot-error\"></span><span>staging-db</span></div></div>",
-      "css": ".ds-tabs { display: flex; gap: 4px; padding: 6px 12px; background: #080c13; } .ds-tab { display: flex; align-items: center; gap: 8px; min-width: 128px; padding: 4px 12px; border: 1px solid transparent; border-radius: 10px; color: #94a3b8; font: 600 14px 'Sarasa Term TC SemiBold', Menlo, monospace; cursor: pointer; transition: background 150ms, color 150ms, border-color 150ms; } .ds-tab:hover { border-color: rgb(255 255 255 / 0.10); background: rgb(255 255 255 / 0.045); color: #fff; } .ds-tab-active, .ds-tab-active:hover { border-color: rgb(103 232 249 / 0.30); background: rgb(103 232 249 / 0.10); color: #fff; } .ds-dot { width: 8px; height: 8px; border-radius: 9999px; } .ds-dot-live { background: #34d399; box-shadow: 0 0 10px rgb(52 211 153 / 0.55); } .ds-dot-error { background: #f87171; box-shadow: 0 0 10px rgb(248 113 113 / 0.45); }"
+      "refersTo": "session-tab-active",
+      "description": "Container-end tabs on the corrugated strip: active full fill with stencil outline, inactive 55% mix into rib, one state shape each.",
+      "html": "<div class=\"ds-strip\"><div class=\"ds-tab ds-tab-active\" style=\"background:#2a648f\"><span class=\"ds-code\">STG·api-02</span><span class=\"ds-dot\"></span></div><div class=\"ds-tab\" style=\"background:color-mix(in srgb,#336a41 55%,#1a1f25)\"><span class=\"ds-code\">DEV·worker</span><span class=\"ds-ring\"></span></div><div class=\"ds-tab\" style=\"background:color-mix(in srgb,#a33b28 55%,#1a1f25)\"><span class=\"ds-code\">PRD·db-01</span><span class=\"ds-held\">HELD</span></div></div>",
+      "css": ".ds-strip{display:flex;gap:4px;align-items:center;height:36px;padding:0 6px;background:repeating-linear-gradient(90deg,#1a1f25 0 7px,#161a1f 7px 8px)}.ds-tab{font-family:'Sarasa Term TC SemiBold',Menlo,Monaco,'Courier New',monospace;font-weight:600;display:flex;align-items:center;gap:8px;height:28px;width:200px;padding:0 10px;border:1px solid rgb(255 255 255 / 0.1);border-radius:2px;color:#e8e4d8;cursor:pointer;transition:border-color 120ms,background-color 120ms}.ds-tab:hover{border-color:rgb(255 255 255 / 0.25)}.ds-tab-active{border-color:#e8e4d8}.ds-tab:focus-visible{outline:1px solid #e8e4d8}.ds-code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;}.ds-dot{width:8px;height:8px;border-radius:9999px;background:currentColor}.ds-ring{width:8px;height:8px;border-radius:9999px;border:2px solid currentColor;box-sizing:border-box}.ds-held{background:#e8e4d8;color:#a33b28;padding:0 4px;line-height:16px;font-size:11px;letter-spacing:0.14em}"
     },
     {
-      "name": "List Card",
-      "kind": "card",
-      "refersTo": "list-card",
-      "description": "Row-sized glass card for connections, forwards, snippets.",
-      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">db-tunnel</div><div class=\"ds-card-meta\">localhost:5432 → db.internal:5432</div></div>",
-      "css": ".ds-card { width: 320px; padding: 16px; border: 1px solid rgb(255 255 255 / 0.10); border-radius: 1.35rem; background: rgb(255 255 255 / 0.03); font-family: 'Sarasa Term TC SemiBold', Menlo, monospace; cursor: pointer; transition: background 150ms; } .ds-card:hover { background: rgb(255 255 255 / 0.055); } .ds-card:focus-visible { outline: none; box-shadow: 0 0 0 2px rgb(103 232 249 / 0.40); } .ds-card-title { color: #fff; font-size: 14px; } .ds-card-meta { margin-top: 4px; color: #94a3b8; font-size: 12px; }"
-    },
-    {
-      "name": "Chip",
+      "name": "Stencil Chip",
       "kind": "chip",
-      "refersTo": "chip",
-      "description": "Small cyan pill for labels and counts.",
-      "html": "<span class=\"ds-chip\">3 ports</span>",
-      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border: 1px solid rgb(103 232 249 / 0.14); border-radius: 9999px; background: rgb(103 232 249 / 0.08); color: #a5f3fc; font: 600 12px 'Sarasa Term TC SemiBold', Menlo, monospace; }"
+      "refersTo": "stencil-chip",
+      "description": "Group code and count chips.",
+      "html": "<span class=\"ds-chip\">PRD</span> <span class=\"ds-chip ds-chip-count\">12</span>",
+      "css": ".ds-chip{font-family:'Sarasa Term TC SemiBold',Menlo,Monaco,'Courier New',monospace;font-weight:600;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;display:inline-block;padding:0 6px;border:1px solid rgb(255 255 255 / 0.1);border-radius:2px;background:#1a1f25;color:#c1beb5}.ds-chip-count{text-transform:none;letter-spacing:0;color:#9f9d96}"
     },
     {
-      "name": "Section Label",
+      "name": "Status Line",
       "kind": "custom",
-      "refersTo": "section-label",
-      "description": "Uppercase tracked group header.",
-      "html": "<div class=\"ds-section\">Saved hosts</div>",
-      "css": ".ds-section { color: #94a3b8; font: 600 11px 'Sarasa Term TC SemiBold', Menlo, monospace; letter-spacing: 0.22em; text-transform: uppercase; }"
+      "refersTo": "status-line",
+      "description": "24px footer: line swatch, active code, address, state, counts.",
+      "html": "<footer class=\"ds-status\"><span class=\"ds-status-code\"><span class=\"ds-swatch\"></span>PRD·db-01</span><span>deploy@10.0.4.12:22</span><span class=\"ds-status-held\">Disconnected</span><span class=\"ds-status-count\">4 open · 1 held</span></footer>",
+      "css": ".ds-status{font-family:'Sarasa Term TC SemiBold',Menlo,Monaco,'Courier New',monospace;font-weight:600;display:flex;align-items:center;gap:20px;height:24px;padding:0 12px;border-top:1px solid #1a1f25;background:#0b0e11;color:#9f9d96;font-size:11px}.ds-status-code{display:flex;align-items:center;gap:8px;color:#e8e4d8;text-transform:uppercase;letter-spacing:0.14em}.ds-swatch{width:12px;height:8px;background:#a33b28}.ds-status-held{color:#fca5a5}.ds-status-count{margin-left:auto;font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "Rail Nav",
+      "kind": "nav",
+      "refersTo": "",
+      "description": "56px rail with 40x28 icon items; active outlined 1px stencil.",
+      "html": "<nav class=\"ds-rail\"><button class=\"ds-rail-item ds-rail-active\" aria-label=\"Connections\"><svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"20\" height=\"8\" x=\"2\" y=\"2\" rx=\"2\"/><rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\"/><line x1=\"6\" x2=\"6.01\" y1=\"6\" y2=\"6\"/><line x1=\"6\" x2=\"6.01\" y1=\"18\" y2=\"18\"/></svg></button><button class=\"ds-rail-item\" aria-label=\"Keys\"><svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"7.5\" cy=\"15.5\" r=\"5.5\"/><path d=\"m21 2-9.6 9.6\"/><path d=\"m15.5 7.5 3 3L22 7l-3-3\"/></svg></button></nav>",
+      "css": ".ds-rail{display:grid;justify-items:center;gap:4px;width:56px;padding:12px 8px;background:#0b0e11;border-right:1px solid #1a1f25}.ds-rail-item{display:grid;place-items:center;width:40px;height:28px;border:1px solid transparent;border-radius:2px;background:transparent;color:#9f9d96;cursor:pointer;transition:border-color 120ms,color 120ms}.ds-rail-item:hover{border-color:rgb(255 255 255 / 0.1);background:rgb(255 255 255 / 0.05);color:#e8e4d8}.ds-rail-active{border-color:#e8e4d8;color:#e8e4d8}.ds-rail-item:focus-visible{outline:1px solid #e8e4d8}"
     }
   ],
   "narrative": {
-    "northStar": "The Glass Terminal",
-    "overview": "Noverterm is a dark, cool workspace where every piece of chrome is a thin sheet of frosted glass laid over a near-black blue gradient, and the terminal itself is the one opaque, solid surface. The glass is how the app says \"light\": panels are translucent white at single-digit opacity, edged by a one-pixel frost border, so the structure reads without adding visual weight.\n\nRestraint governs the glass. Hierarchy comes from borders and tonal steps in white opacity, not from lift. Signal Cyan is the only accent with a voice: it marks the active tab, the primary action, the focused field. Everything else is slate text on midnight. Status lights (green, amber, red dots) are the only other color, and they carry information, never decoration.\n\nThe whole interface is set in one monospaced face, Sarasa Term, so chrome and terminal share a single typographic voice. Density is moderate: 14px text, 44px fields and top bar, generous rounding that softens the monospace grid.",
+    "northStar": "Container Stencil",
+    "overview": "Every session is a container end in a night port. The ground is cold slate, the tab strip is corrugated steel, and each session tab is a painted container door carrying its group's line colour and a stencilled code (`PRD·web-01`). A dropped session is sealed HELD the way a customs-held box is. The engineer reads environment by colour and code before they read the host name.\n\nThe system is dense, dark, and flat. One monospace face does everything. Every edge is a whole-pixel 1px hairline, every corner is 2px, nothing is blurred, glowing, or lifted by a soft shadow. Colour is rationed: the slate and stencil neutrals carry the chrome, and saturated colour appears only as a group's line colour, the seal of a held or destructive state, or the ochre of a trust decision. The terminal itself sits on pure black ink and is never tinted.\n\nMotion is functional only: short opacity and border transitions on state, and a short flip when tabs reorder. Nothing animates for decoration, which keeps the client feeling as light as its claim.",
     "keyCharacteristics": [
-      "Near-black blue canvas with faint cyan and blue radial glows at the edges.",
-      "Translucent panels (white 4–10%) with a one-pixel white 8–10% border.",
-      "One accent, Signal Cyan, reserved for active and primary states.",
-      "A single monospace typeface for every text role.",
-      "Large, soft radii: 16px controls, ~22px cards, 28–32px panels and dialogs."
+      "Session identity is a line colour plus a stencilled `GRP·HOST` code in tracked caps.",
+      "Exactly four line colours plus graphite for ungrouped; no fifth.",
+      "One shape per session state, readable without colour.",
+      "1px hairlines, 2px corners, no soft shadows, no blur, no glass.",
+      "Pure black terminal ink inside slate chrome.",
+      "Sarasa Term in one weight everywhere."
     ],
     "rules": [
       {
-        "name": "The One Signal Rule",
-        "body": "Cyan means \"active, focused, or primary\". Never use it for decoration, headings, or illustration.",
+        "name": "The Four Lines Rule",
+        "body": "Group identity uses exactly the four line colours plus graphite, assigned by group-name order. Never add a fifth line colour or hand-pick one per screen.",
         "section": "colors"
       },
       {
-        "name": "The Lights Mean Something Rule",
-        "body": "Green, amber and red appear only as connection or result state. A colored dot that does not report state is a bug.",
+        "name": "The Inactive Mix Rule",
+        "body": "An inactive tab mixes its line colour 55% into rib (`color-mix(in srgb, <line> 55%, rib)`) with a 1px hairline edge. Never fade the tab with opacity; the stencil text has to keep its contrast.",
         "section": "colors"
       },
       {
-        "name": "The Neutral Hover Rule",
-        "body": "Hovering a resting card, row or nav item raises it with white opacity (border white 14%, fill white 5.5%), never with cyan. Cyan appears only once the element is active, selected, focused or a drop target.",
+        "name": "The Seal Is Rare Rule",
+        "body": "Seal red means held, failed, or about to be destroyed. It never decorates.",
         "section": "colors"
       },
       {
-        "name": "The One Voice Rule",
-        "body": "Never introduce a proportional sans for chrome. If text needs more emphasis, change size or color.",
+        "name": "The Stencil Code Rule",
+        "body": "Anything that identifies a container (group code, session code, HELD) is set in the label style: 11px uppercase tracked 0.14em, joined with a middle dot (`PRD·HOST`).",
         "section": "typography"
       },
       {
-        "name": "The One Label Rule",
-        "body": "Every small uppercase label (section headers, eyebrows above titles, table column headers) uses the .section-title class: 11px, 0.22em tracking, Slate 400. No ad-hoc tracking values. Inside a destructive or warning context the label may take the state hue (text-red-200/80, text-amber-200/80), never cyan.",
+        "name": "The Label Below Rule",
+        "body": "Tracked labels name the thing they sit on (a field, a column, a term). They never float above a heading as an eyebrow.",
         "section": "typography"
       },
       {
-        "name": "The Flat Glass Rule",
-        "body": "Resting surfaces get a border and a tonal step, not a drop shadow. Shadows belong to things that float above the workspace: menus, dialogs, the outer panel.",
+        "name": "The Pixel Honesty Rule",
+        "body": "Every edge is a whole-pixel 1px line. Nothing is soft: no drop shadows, no glows, no backdrop blur, no glass.",
         "section": "elevation"
       }
     ],
     "dos": [
-      "Do use Signal Cyan only for the active, focused or primary element on a screen.",
-      "Do separate surfaces with a frost border (white 8–10%) and a white-opacity fill step.",
-      "Do keep the terminal on solid Terminal Ink, with no translucency behind text.",
-      "Do report connection state with the 8px status dot: green live, amber waiting, red failed.",
-      "Do match radius to surface size: 10px controls, 16px fields, ~22px cards, 28–32px panels."
+      "**Do** mark every session with its group's line colour and `GRP·HOST` stencil code, on the tab and in the status line.",
+      "**Do** assign line colours from the four-colour set in group-name order, with graphite for ungrouped and local sessions.",
+      "**Do** mix inactive tab fills 55% into rib and keep a 1px hairline edge on them.",
+      "**Do** use filled dot for live, ring for waiting, and the HELD seal for dropped or failed.",
+      "**Do** make destructive confirms solid seal and trust confirms solid ochre; make primary actions solid stencil with port text.",
+      "**Do** keep every corner at 2px; use full rounding only for state dots and toggle parts.",
+      "**Do** keep the terminal on pure black ink (#000000)."
     ],
     "donts": [
-      "Don't add drop shadows to resting cards or rows; shadows are for floating layers.",
-      "Don't introduce a second accent hue or a non-monospace font for chrome.",
-      "Don't use colored dots, glows or tints that don't report state.",
-      "Don't use raw hex in components where an existing token or Tailwind class covers it.",
-      "Don't tint leading icon tiles, eyebrows, folder icons or hover states cyan; they stay neutral until active.",
-      "Don't put translucency behind the terminal: the terminal frame and its tab-bar column are solid `terminal-ink`."
+      "**Don't** use soft shadows, glows, backdrop blur, or glass surfaces anywhere.",
+      "**Don't** add a fifth line colour or tint a tab with opacity instead of the rib mix.",
+      "**Don't** put eyebrow labels above headings.",
+      "**Don't** tint the terminal background or use cool grey for secondary text; secondary text is stencil-derived.",
+      "**Don't** animate the HELD seal or add decorative motion.",
+      "**Don't** introduce a second typeface or weight."
     ]
   }
 }
