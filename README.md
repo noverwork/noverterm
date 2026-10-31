@@ -6,7 +6,7 @@
 
 [![Release](https://img.shields.io/github/v/release/noverwork/noverterm)](https://github.com/noverwork/noverterm/releases)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue)]()
-[![License](https://img.shields.io/badge/License-BSL_1.1-5f3dc4)](LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-5f3dc4)](LICENSE)
 
 [Download](https://github.com/noverwork/noverterm/releases) · [Website](https://noverwork.github.io/noverterm/) · [Report a bug](https://github.com/noverwork/noverterm/issues)
 
@@ -158,12 +158,7 @@ This repository is public for transparency and security auditing.
 
 ## License
 
-Noverterm is source available under the [Business Source License 1.1](LICENSE).
-
-- Free for personal and internal company use
-- Fork and modify for your own use
-- No commercial resale or managed hosting
-- Converts to the MIT License on 2029-05-25
+Noverterm is released under the [MIT License](LICENSE).
 
 ## Acknowledgements
 

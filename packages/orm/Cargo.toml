@@ -2,6 +2,7 @@
 name = "orm"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [dependencies]
 diesel = { version = "2.3", features = ["sqlite", "chrono"] }
