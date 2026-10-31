@@ -150,11 +150,11 @@ noverterm/
 
 ## Contributing
 
-This repository is public for transparency and security auditing.
+Contributions are welcome. Fork it, hack on it, and send a pull request.
 
-- **Bug reports:** open an [issue](https://github.com/noverwork/noverterm/issues).
+- **Bug reports and ideas:** open an [issue](https://github.com/noverwork/noverterm/issues).
+- **Pull requests:** welcome. Run `cargo make ci` before you open one.
 - **Security issues:** contact the maintainer directly. Do not open a public issue.
-- **Pull requests:** not accepted. Fork freely instead.
 
 ## License
 

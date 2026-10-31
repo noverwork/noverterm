@@ -32,7 +32,7 @@ Native and lightweight: built on Tauri 2 and Rust instead of Electron, around 50
 - Features shipped: SSH (password and key auth, host fingerprint verification, known hosts manager), multi-session tabs with duplicate and local terminal, port forwarding, SFTP, snippets, SSH key manager, connection groups, auto-update from GitHub Releases.
 - Stack: Svelte 5, Vite, TailwindCSS in the UI; Rust, Russh, Tokio, Diesel/SQLite behind Tauri commands.
 - UI copy is English only.
-- Open source under the MIT License; pull requests are not accepted.
+- Open source under the MIT License; pull requests are welcome.
 
 ## Brand Commitments
 
