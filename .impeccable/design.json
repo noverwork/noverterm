@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-01T00:00:00Z",
+  "title": "Design System: Noverterm",
+  "extensions": {
+    "colorMeta": {
+      "signal-cyan": { "role": "primary", "displayName": "Signal Cyan", "canonical": "#67e8f9", "tonalRamp": ["#083344", "#164e63", "#155e75", "#0e7490", "#22d3ee", "#67e8f9", "#a5f3fc", "#ecfeff"] },
+      "signal-cyan-hover": { "role": "primary", "displayName": "Pale Signal", "canonical": "#a5f3fc" },
+      "signal-cyan-text": { "role": "primary", "displayName": "Pale Signal Text", "canonical": "#a5f3fc" },
+      "signal-cyan-glow": { "role": "primary", "displayName": "Signal Glow", "canonical": "#ecfeff" },
+      "midnight-canvas": { "role": "neutral", "displayName": "Midnight Canvas", "canonical": "#05070b", "tonalRamp": ["#05070b", "#080c13", "#0b1220", "#0f172a", "#1e293b", "#334155", "#475569", "#64748b"] },
+      "midnight-canvas-deep": { "role": "neutral", "displayName": "Midnight Canvas Deep", "canonical": "#0b1220" },
+      "terminal-ink": { "role": "neutral", "displayName": "Terminal Ink", "canonical": "#080c13" },
+      "overlay-slate": { "role": "neutral", "displayName": "Overlay Slate", "canonical": "#020617" },
+      "frost-border": { "role": "neutral", "displayName": "Frost Border", "canonical": "rgb(255 255 255 / 0.10)" },
+      "frost-border-faint": { "role": "neutral", "displayName": "Faint Frost Border", "canonical": "rgb(255 255 255 / 0.08)" },
+      "frost-fill": { "role": "neutral", "displayName": "Frost Fill", "canonical": "rgb(255 255 255 / 0.05)" },
+      "field-well": { "role": "neutral", "displayName": "Field Well", "canonical": "rgb(0 0 0 / 0.20)" },
+      "text-bright": { "role": "neutral", "displayName": "Bright White", "canonical": "#ffffff" },
+      "text-primary": { "role": "neutral", "displayName": "Slate 100", "canonical": "#f1f5f9", "tonalRamp": ["#1e293b", "#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f1f5f9"] },
+      "text-secondary": { "role": "neutral", "displayName": "Slate 300", "canonical": "#cbd5e1" },
+      "text-muted": { "role": "neutral", "displayName": "Slate 400", "canonical": "#94a3b8" },
+      "text-faint": { "role": "neutral", "displayName": "Slate 500", "canonical": "#64748b" },
+      "on-signal": { "role": "neutral", "displayName": "Midnight on Signal", "canonical": "#020617" },
+      "status-live": { "role": "tertiary", "displayName": "Live Green", "canonical": "#34d399" },
+      "status-waiting": { "role": "tertiary", "displayName": "Waiting Amber", "canonical": "#fcd34d" },
+      "status-error": { "role": "tertiary", "displayName": "Fault Red", "canonical": "#f87171", "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#dc2626", "#f87171", "#fca5a5", "#fecaca", "#fef2f2"] },
+      "error-text": { "role": "tertiary", "displayName": "Error Text", "canonical": "#fca5a5" }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline", "purpose": "Page and dialog titles." },
+      "title": { "displayName": "Title", "purpose": "View headers." },
+      "body": { "displayName": "Body", "purpose": "Default for tabs, rows, fields, buttons. Renders at the bundled 600 weight." },
+      "label": { "displayName": "Label", "purpose": "Metadata, helper text, chips, compact buttons." },
+      "section-label": { "displayName": "Section Label", "purpose": "Uppercase Slate 400 group headers above lists and form sections." }
+    },
+    "shadows": [
+      { "name": "overlay", "value": "0 25px 50px -12px rgb(0 0 0 / 0.45)", "purpose": "Context menus, dialogs, popovers." },
+      { "name": "panel", "value": "0 24px 70px rgb(0 0 0 / 0.36), inset 0 1px 0 rgb(255 255 255 / 0.06)", "purpose": "The large ide-panel container; the inset line is the glass top edge." },
+      { "name": "status-glow", "value": "0 0 10px rgb(52 211 153 / 0.55)", "purpose": "Session status dots only, tinted to the dot's hue." }
+    ],
+    "motion": [
+      { "name": "tab-transition", "value": "150ms ease", "purpose": "Tab hover, close-button reveal, view opacity swaps. Reduced motion collapses sidebar transitions to 1ms." },
+      { "name": "connecting-pulse", "value": "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite", "purpose": "Amber status dot while a session connects." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one cyan action on a screen: Save, New, Connect.",
+      "html": "<button class=\"ds-btn-primary\">Save connection</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid transparent; border-radius: 16px; background: #67e8f9; color: #020617; font: 600 14px 'Sarasa Term TC SemiBold', Menlo, monospace; cursor: pointer; transition: background 150ms; } .ds-btn-primary:hover { background: #a5f3fc; } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(103 232 249 / 0.5); } .ds-btn-primary:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary actions on glass.",
+      "html": "<button class=\"ds-btn-ghost\">Cancel</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; height: 32px; padding: 0 10px; border: 1px solid rgb(255 255 255 / 0.10); border-radius: 10px; background: rgb(255 255 255 / 0.04); color: #fff; font: 600 14px 'Sarasa Term TC SemiBold', Menlo, monospace; cursor: pointer; transition: background 150ms; } .ds-btn-ghost:hover { background: rgb(255 255 255 / 0.08); } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(103 232 249 / 0.5); }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Form field sunk into the glass as a darker well.",
+      "html": "<input class=\"ds-input\" placeholder=\"user@host\" />",
+      "css": ".ds-input { height: 44px; width: 280px; padding: 0 12px; border: 1px solid rgb(255 255 255 / 0.10); border-radius: 16px; background: rgb(0 0 0 / 0.20); color: #fff; font: 600 14px 'Sarasa Term TC SemiBold', Menlo, monospace; transition: border-color 150ms; } .ds-input::placeholder { color: #64748b; } .ds-input:focus-visible { outline: none; border-color: rgb(103 232 249 / 0.40); box-shadow: 0 0 0 1px rgb(103 232 249 / 0.20); }"
+    },
+    {
+      "name": "Session Tab",
+      "kind": "nav",
+      "refersTo": "session-tab",
+      "description": "Top-bar tab with status dot; the active tab gets the cyan wash.",
+      "html": "<div class=\"ds-tabs\"><div class=\"ds-tab ds-tab-active\"><span class=\"ds-dot ds-dot-live\"></span><span>prod-api</span></div><div class=\"ds-tab\"><span class=\"ds-dot ds-dot-error\"></span><span>staging-db</span></div></div>",
+      "css": ".ds-tabs { display: flex; gap: 4px; padding: 6px 12px; background: #080c13; } .ds-tab { display: flex; align-items: center; gap: 8px; min-width: 128px; padding: 4px 12px; border: 1px solid transparent; border-radius: 10px; color: #94a3b8; font: 600 14px 'Sarasa Term TC SemiBold', Menlo, monospace; cursor: pointer; transition: background 150ms, color 150ms, border-color 150ms; } .ds-tab:hover { border-color: rgb(255 255 255 / 0.10); background: rgb(255 255 255 / 0.045); color: #fff; } .ds-tab-active, .ds-tab-active:hover { border-color: rgb(103 232 249 / 0.30); background: rgb(103 232 249 / 0.10); color: #fff; } .ds-dot { width: 8px; height: 8px; border-radius: 9999px; } .ds-dot-live { background: #34d399; box-shadow: 0 0 10px rgb(52 211 153 / 0.55); } .ds-dot-error { background: #f87171; box-shadow: 0 0 10px rgb(248 113 113 / 0.45); }"
+    },
+    {
+      "name": "List Card",
+      "kind": "card",
+      "refersTo": "list-card",
+      "description": "Row-sized glass card for connections, forwards, snippets.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">db-tunnel</div><div class=\"ds-card-meta\">localhost:5432 → db.internal:5432</div></div>",
+      "css": ".ds-card { width: 320px; padding: 16px; border: 1px solid rgb(255 255 255 / 0.10); border-radius: 1.35rem; background: rgb(255 255 255 / 0.03); font-family: 'Sarasa Term TC SemiBold', Menlo, monospace; cursor: pointer; transition: background 150ms; } .ds-card:hover { background: rgb(255 255 255 / 0.055); } .ds-card:focus-visible { outline: none; box-shadow: 0 0 0 2px rgb(103 232 249 / 0.40); } .ds-card-title { color: #fff; font-size: 14px; } .ds-card-meta { margin-top: 4px; color: #94a3b8; font-size: 12px; }"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Small cyan pill for labels and counts.",
+      "html": "<span class=\"ds-chip\">3 ports</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border: 1px solid rgb(103 232 249 / 0.14); border-radius: 9999px; background: rgb(103 232 249 / 0.08); color: #a5f3fc; font: 600 12px 'Sarasa Term TC SemiBold', Menlo, monospace; }"
+    },
+    {
+      "name": "Section Label",
+      "kind": "custom",
+      "refersTo": "section-label",
+      "description": "Uppercase tracked group header.",
+      "html": "<div class=\"ds-section\">Saved hosts</div>",
+      "css": ".ds-section { color: #94a3b8; font: 600 11px 'Sarasa Term TC SemiBold', Menlo, monospace; letter-spacing: 0.22em; text-transform: uppercase; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Glass Terminal",
+    "overview": "Noverterm is a dark, cool workspace where every piece of chrome is a thin sheet of frosted glass laid over a near-black blue gradient, and the terminal itself is the one opaque, solid surface. The glass is how the app says \"light\": panels are translucent white at single-digit opacity, edged by a one-pixel frost border, so the structure reads without adding visual weight.\n\nRestraint governs the glass. Hierarchy comes from borders and tonal steps in white opacity, not from lift. Signal Cyan is the only accent with a voice: it marks the active tab, the primary action, the focused field. Everything else is slate text on midnight. Status lights (green, amber, red dots) are the only other color, and they carry information, never decoration.\n\nThe whole interface is set in one monospaced face, Sarasa Term, so chrome and terminal share a single typographic voice. Density is moderate: 14px text, 44px fields and top bar, generous rounding that softens the monospace grid.",
+    "keyCharacteristics": [
+      "Near-black blue canvas with faint cyan and blue radial glows at the edges.",
+      "Translucent panels (white 4–10%) with a one-pixel white 8–10% border.",
+      "One accent, Signal Cyan, reserved for active and primary states.",
+      "A single monospace typeface for every text role.",
+      "Large, soft radii: 16px controls, ~22px cards, 28–32px panels and dialogs."
+    ],
+    "rules": [
+      { "name": "The One Signal Rule", "body": "Cyan means \"active, focused, or primary\". Never use it for decoration, headings, or illustration.", "section": "colors" },
+      { "name": "The Lights Mean Something Rule", "body": "Green, amber and red appear only as connection or result state. A colored dot that does not report state is a bug.", "section": "colors" },
+      { "name": "The One Voice Rule", "body": "Never introduce a proportional sans for chrome. If text needs more emphasis, change size or color.", "section": "typography" },
+      { "name": "The Flat Glass Rule", "body": "Resting surfaces get a border and a tonal step, not a drop shadow. Shadows belong to things that float above the workspace: menus, dialogs, the outer panel.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use Signal Cyan only for the active, focused or primary element on a screen.",
+      "Do separate surfaces with a frost border (white 8–10%) and a white-opacity fill step.",
+      "Do keep the terminal on solid Terminal Ink, with no translucency behind text.",
+      "Do report connection state with the 8px status dot: green live, amber waiting, red failed.",
+      "Do match radius to surface size: 10px controls, 16px fields, ~22px cards, 28–32px panels."
+    ],
+    "donts": [
+      "Don't add drop shadows to resting cards or rows; shadows are for floating layers.",
+      "Don't introduce a second accent hue or a non-monospace font for chrome.",
+      "Don't use colored dots, glows or tints that don't report state.",
+      "Don't use raw hex in components where an existing token or Tailwind class covers it."
+    ]
+  }
+}
