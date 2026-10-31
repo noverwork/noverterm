@@ -535,6 +535,21 @@ export function createAppShellStore(queryClient: QueryClient) {
     return await connectSavedConnection(connection);
   }
 
+  // Reconnecting gives the session a new id; keep the tab where it was.
+  async function retrySavedSessionInPlace(
+    sessionId: string,
+    connection: ConnectionConfig,
+  ) {
+    const order = activeSessions.map((session) => session.id);
+    const newId = await sessionStore.retrySavedConnection(
+      sessionId,
+      connection,
+      80,
+      24,
+    );
+    sessionOrder = order.map((id) => (id === sessionId ? newId : id));
+  }
+
   async function retryActiveConnection(): Promise<boolean> {
     if (!activeSession) {
       return false;
@@ -546,12 +561,7 @@ export function createAppShellStore(queryClient: QueryClient) {
       );
       if (connection) {
         try {
-          await sessionStore.retrySavedConnection(
-            activeSession.id,
-            connection,
-            80,
-            24,
-          );
+          await retrySavedSessionInPlace(activeSession.id, connection);
           void recordRecentConnection(connection.id).catch(() => undefined);
           return true;
         } catch {
@@ -585,12 +595,7 @@ export function createAppShellStore(queryClient: QueryClient) {
 
     try {
       await sessionStore.confirmHostTrust(confirmation);
-      await sessionStore.retrySavedConnection(
-        failedSessionId,
-        connection,
-        80,
-        24,
-      );
+      await retrySavedSessionInPlace(failedSessionId, connection);
       void recordRecentConnection(connection.id).catch(() => undefined);
       return true;
     } catch (error) {
