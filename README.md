@@ -154,7 +154,7 @@ Contributions are welcome. Fork it, hack on it, and send a pull request.
 
 - **Bug reports and ideas:** open an [issue](https://github.com/noverwork/noverterm/issues).
 - **Pull requests:** welcome. Run `cargo make ci` before you open one.
-- **Security issues:** contact the maintainer directly. Do not open a public issue.
+- **Security issues:** [report privately](https://github.com/noverwork/noverterm/security/advisories/new). Do not open a public issue.
 
 ## License
 
