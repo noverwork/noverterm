@@ -115,29 +115,28 @@
 </script>
 
 <div class="workspace-canvas flex h-full min-h-0 flex-col overflow-hidden px-5 py-6 lg:px-8">
-  <section class="ide-panel flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-white sm:p-6">
+  <section class="flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-stencil sm:p-6">
     <div class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <p class="section-title">Snippets</p>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight">Command Snippets</h1>
-        <p class="mt-2 text-sm text-slate-400">Reusable command templates organized by host.</p>
+        <h1 class="text-2xl font-semibold tracking-tight">Command Snippets</h1>
+        <p class="mt-2 text-sm text-stencil-mute">Reusable command templates organized by host.</p>
       </div>
 
       <div class="flex items-center gap-2 self-start">
         <div class="relative">
           <Search
-            class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-500"
+            class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-stencil-faint"
           />
           <Input
             type="search"
             bind:value={searchQuery}
             placeholder="Search snippets"
             aria-label="Search snippets"
-            class="h-8 w-48 rounded-2xl border border-white/10 bg-black/20 pl-8 text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
+            class="h-8 w-48 rounded-[2px] border border-white/10 bg-rail pl-8 text-sm text-stencil placeholder:text-stencil-faint focus-visible:border-stencil"
           />
         </div>
 
-        <Button onclick={onNew} variant="default" size="sm" class="gap-2 rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200">
+        <Button onclick={onNew} variant="default" size="sm" class="gap-2 rounded-[2px] bg-stencil text-port hover:bg-white">
           <Plus class="size-3.5" />
           Add snippet
         </Button>
@@ -145,18 +144,18 @@
     </div>
 
     {#if error}
-      <div class="mt-5 rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+      <div class="mt-5 rounded-[2px] border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
         {error}
       </div>
     {/if}
 
     <div class="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
       {#if snippets.length === 0}
-        <div class="flex h-full min-h-[16rem] items-center justify-center rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground">
+        <div class="flex h-full min-h-[16rem] items-center justify-center rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground">
           No snippets saved yet
         </div>
       {:else if visibleSnippets.length === 0}
-        <div class="rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground">
+        <div class="rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground">
           No snippets match your search.
         </div>
       {:else}
@@ -174,10 +173,10 @@
                       void handleRun(snippet);
                     }
                   }}
-                  class="group cursor-pointer rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"
+                  class="group cursor-pointer rounded-[2px] border border-white/10 bg-rib px-4 py-4 transition hover:border-white/20 hover:bg-[#1f252c]  focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil"
                 >
                   <div class="flex items-start gap-3">
-                    <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
+                    <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim">
                       {#if runningSnippetId === snippet.id}
                         <Loader2 class="size-5 animate-spin" />
                       {:else}
@@ -186,9 +185,9 @@
                     </div>
 
                     <div class="min-w-0 flex-1">
-                      <p class="truncate text-sm font-medium text-white">{snippet.title}</p>
-                      <p class="mt-1 truncate text-xs text-slate-400">Runs on {snippet.host_name}</p>
-                      <div class="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
+                      <p class="truncate text-sm font-medium text-stencil">{snippet.title}</p>
+                      <p class="mt-1 truncate text-xs text-stencil-mute">Runs on {snippet.host_name}</p>
+                      <div class="mt-1 flex items-center gap-2 text-[11px] text-stencil-mute">
                         <span>{commandLineCount(snippet.body)} {commandLineCount(snippet.body) === 1 ? "line" : "lines"}</span>
                         {#if extraLineLabel(snippet.body)}
                           <span>{extraLineLabel(snippet.body)}</span>
@@ -202,7 +201,7 @@
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        class="rounded-xl text-slate-400 hover:bg-white/8 hover:text-white"
+                        class="rounded-[2px] text-stencil-mute hover:bg-white/8 hover:text-stencil"
                         aria-label={`Copy ${snippet.title}`}
                         onclick={(event) => {
                           event.stopPropagation();
@@ -214,7 +213,7 @@
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        class="rounded-xl text-slate-400 hover:bg-white/8 hover:text-white"
+                        class="rounded-[2px] text-stencil-mute hover:bg-white/8 hover:text-stencil"
                         aria-label={`Edit ${snippet.title}`}
                         onclick={(event) => {
                           event.stopPropagation();
@@ -226,7 +225,7 @@
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        class="rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
+                        class="rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
                         aria-label={`Delete ${snippet.title}`}
                         disabled={deletingSnippetId === snippet.id}
                         onclick={(event) => {
@@ -239,19 +238,19 @@
                     </div>
                   </div>
 
-                  <div class="group/preview relative mt-3 rounded-lg bg-black/20 px-2 py-1.5 font-mono text-[11px] text-slate-300 transition hover:bg-black/30">
+                  <div class="group/preview relative mt-3 rounded-[2px] bg-rail px-2 py-1.5 font-mono text-[11px] text-stencil-dim transition hover:bg-black/50">
                     <p class="break-all">
-                      <span class="select-none text-slate-500">$</span>
+                      <span class="select-none text-stencil-faint">$</span>
                       {bodyPreview(snippet.body)}
                     </p>
 
                     <div class="pointer-events-none absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 translate-y-1 opacity-0 transition duration-150 group-hover/preview:translate-y-0 group-hover/preview:opacity-100">
-                      <div class="rounded-2xl border border-white/10 bg-slate-950/95 p-3 shadow-2xl shadow-black/45 backdrop-blur-xl">
+                      <div class="rounded-[2px] border border-white/10 bg-rail p-3">
                         <div class="mb-2 flex items-center justify-between gap-3">
                           <span class="section-title">Full script</span>
-                          <span class="text-[11px] text-slate-400">{commandLineCount(snippet.body)} {commandLineCount(snippet.body) === 1 ? "line" : "lines"}</span>
+                          <span class="text-[11px] text-stencil-mute">{commandLineCount(snippet.body)} {commandLineCount(snippet.body) === 1 ? "line" : "lines"}</span>
                         </div>
-                        <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-black/35 p-3 font-mono text-xs leading-5 text-slate-100">{snippet.body || "—"}</pre>
+                        <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-[2px] bg-rail p-3 font-mono text-xs leading-5 text-stencil">{snippet.body || "—"}</pre>
                       </div>
                     </div>
                   </div>
@@ -259,14 +258,14 @@
               </ContextMenu.Trigger>
 
               <ContextMenu.Content
-                class="min-w-44 border-white/10 bg-slate-950/96 text-slate-100 shadow-2xl shadow-black/45"
+                class="min-w-44 rounded-[2px] border-white/10 bg-rail text-stencil"
               >
-                <ContextMenu.Label class="max-w-56 truncate text-slate-400">
+                <ContextMenu.Label class="max-w-56 truncate text-stencil-mute">
                   {snippet.title}
                 </ContextMenu.Label>
                 <ContextMenu.Separator class="bg-white/10" />
                 <ContextMenu.Item
-                  class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                  class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                   disabled={runningSnippetId === snippet.id}
                   onclick={() => void handleRun(snippet)}
                 >
@@ -274,14 +273,14 @@
                   Run
                 </ContextMenu.Item>
                 <ContextMenu.Item
-                  class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                  class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                   onclick={() => void copyToClipboard(snippet.body)}
                 >
                   <Copy class="size-3.5" />
                   Copy
                 </ContextMenu.Item>
                 <ContextMenu.Item
-                  class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                  class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                   onclick={() => onEdit(snippet)}
                 >
                   <Pencil class="size-3.5" />
@@ -289,7 +288,7 @@
                 </ContextMenu.Item>
                 <ContextMenu.Separator class="bg-white/10" />
                 <ContextMenu.Item
-                  class="cursor-pointer text-red-300 focus:bg-red-400/10 focus:text-red-200"
+                  class="cursor-pointer rounded-[2px] text-red-300 focus:bg-seal/20 focus:text-red-200"
                   disabled={deletingSnippetId === snippet.id}
                   onclick={() => requestDelete(snippet)}
                 >

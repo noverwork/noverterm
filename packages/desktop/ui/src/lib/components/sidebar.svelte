@@ -61,14 +61,14 @@
   } = $props();
 
   const TOOLTIP_CLASS =
-    "pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950/95 px-2 py-1 text-[11px] font-medium text-slate-100 opacity-0 shadow-lg shadow-black/45 backdrop-blur transition-opacity duration-150 group-hover/tip:opacity-100";
+    "pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-[2px] border border-white/10 bg-rail px-2 py-1 text-[11px] uppercase tracking-[0.14em] text-stencil opacity-0 transition-opacity duration-150 group-hover/tip:opacity-100";
 
   function navButtonClass(section: SidebarSection): string {
     if (activeSection === section) {
-      return "h-10 w-full justify-center rounded-2xl px-0 border-cyan-300/35 bg-cyan-300/12 text-cyan-50 hover:border-cyan-300/45 hover:bg-cyan-300/16 hover:text-white";
+      return "h-7 w-10 justify-center rounded-[2px] px-0 border-stencil bg-transparent text-stencil hover:bg-white/5 dark:bg-transparent dark:border-stencil";
     }
 
-    return "h-10 w-full justify-center rounded-2xl px-0 border-white/10 bg-white/[0.035] text-slate-200 hover:border-white/10 hover:bg-white/8 hover:text-white";
+    return "h-7 w-10 justify-center rounded-[2px] px-0 border-transparent bg-transparent text-stencil-mute hover:border-white/10 hover:bg-white/5 hover:text-stencil dark:bg-transparent dark:border-transparent";
   }
 
   function withCount(label: string, count?: number): string {
@@ -120,30 +120,26 @@
 {/snippet}
 
 <aside
-  class="sidebar relative z-30 flex w-[4.5rem] shrink-0 flex-col border-r border-white/10 backdrop-blur-2xl"
+  class="sidebar relative z-30 flex w-14 shrink-0 flex-col border-r border-rib"
 >
-  <div
-    class="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-cyan-300/25 to-transparent"
-  ></div>
-
-  <div class="flex items-center justify-center px-3 pt-4 pb-3">
+  <div class="flex items-center justify-center px-2 pt-3 pb-2">
     <button
       type="button"
-      class="cursor-pointer rounded-2xl transition-colors hover:bg-white/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/30"
+      class="cursor-pointer rounded-[2px] transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil"
       onclick={onGoHome}
       aria-label="Go to Connections"
     >
       <div
-        class="grid size-10 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/5 text-slate-300"
+        class="grid size-10 shrink-0 place-items-center rounded-[2px] border border-rib"
       >
-        <img src="/favicon.png" alt="" class="size-7 rounded-xl" />
+        <img src="/favicon.png" alt="" class="size-7 rounded-[2px]" />
       </div>
     </button>
   </div>
 
   <div class="flex min-h-0 flex-1 flex-col">
-    <div class="px-3 py-4">
-      <div class="grid gap-2">
+    <div class="px-2 py-3">
+      <div class="grid justify-items-center gap-1">
         {#if onNewConnection}
           {@render navItem(onNewConnection, "hosts", "Connections", serverIcon, connectionCount)}
         {/if}
@@ -166,8 +162,8 @@
     </div>
 
     {#if onLaunchSnippet && onReorderSnippets && onEditSnippet && onUnpinSnippet && onAddShortcut}
-      <div class="mx-4 h-px shrink-0 bg-white/8"></div>
-      <div class="sidebar-shortcuts min-h-0 flex-1 overflow-y-auto px-3 py-4">
+      <div class="mx-3 h-px shrink-0 bg-rib"></div>
+      <div class="sidebar-shortcuts min-h-0 flex-1 overflow-y-auto px-2 py-3">
         <ShortcutPanel
           snippets={pinnedSnippets}
           localTerminalActive={activeSection === "terminal"}
@@ -183,14 +179,14 @@
       <div class="flex-1"></div>
     {/if}
 
-    <div class="border-t border-white/10 p-3">
+    <div class="flex justify-center border-t border-rib p-2">
       {#if onOpenSettings}
         <div class="group/tip relative">
           <Button
             onclick={onOpenSettings}
             variant="ghost"
             size="sm"
-            class="h-10 w-full justify-center rounded-2xl px-0 text-slate-300 hover:bg-white/7 hover:text-white"
+            class="h-7 w-10 justify-center rounded-[2px] px-0 text-stencil-mute hover:bg-white/5 hover:text-stencil"
             aria-label="Settings"
           >
             <Settings class="size-3.5" />

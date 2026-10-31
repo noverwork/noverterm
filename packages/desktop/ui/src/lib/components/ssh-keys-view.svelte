@@ -67,29 +67,28 @@
 </script>
 
 <div class="workspace-canvas flex h-full min-h-0 flex-col overflow-hidden px-5 py-6 lg:px-8">
-  <section class="ide-panel flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-white sm:p-6">
+  <section class="flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-stencil sm:p-6">
     <div class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <p class="section-title">Credentials</p>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight">SSH Keys</h1>
-        <p class="mt-2 text-sm text-slate-400">Encrypted private keys ready for saved host profiles.</p>
+        <h1 class="text-2xl font-semibold tracking-tight">SSH Keys</h1>
+        <p class="mt-2 text-sm text-stencil-mute">Encrypted private keys ready for saved host profiles.</p>
       </div>
 
       <div class="flex items-center gap-2 self-start">
         <div class="relative">
           <Search
-            class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-500"
+            class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-stencil-faint"
           />
           <Input
             type="search"
             bind:value={searchQuery}
             placeholder="Search keys"
             aria-label="Search SSH keys"
-            class="h-8 w-48 rounded-2xl border border-white/10 bg-black/20 pl-8 text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
+            class="h-8 w-48 rounded-[2px] border border-white/10 bg-rail pl-8 text-sm text-stencil placeholder:text-stencil-faint focus-visible:border-stencil"
           />
         </div>
 
-        <Button onclick={onNew} variant="default" size="sm" class="gap-2 rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200">
+        <Button onclick={onNew} variant="default" size="sm" class="gap-2 rounded-[2px] bg-stencil text-port hover:bg-white">
           <Plus class="size-3.5" />
           Add key
         </Button>
@@ -97,18 +96,18 @@
     </div>
 
     {#if error}
-      <div class="mt-5 rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+      <div class="mt-5 rounded-[2px] border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
         {error}
       </div>
     {/if}
 
     <div class="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
       {#if keys.length === 0}
-        <div class="flex h-full min-h-[16rem] items-center justify-center rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground">
+        <div class="flex h-full min-h-[16rem] items-center justify-center rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground">
           No SSH keys saved yet
         </div>
       {:else if visibleKeys.length === 0}
-        <div class="rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground">
+        <div class="rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground">
           No keys match your search.
         </div>
       {:else}
@@ -126,16 +125,16 @@
                       onEdit(key);
                     }
                   }}
-                  class="group cursor-pointer rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"
+                  class="group cursor-pointer rounded-[2px] border border-white/10 bg-rib px-4 py-4 transition hover:border-white/20 hover:bg-[#1f252c]  focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil"
                 >
                   <div class="flex items-start gap-3">
-                    <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
+                    <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim">
                       <KeyRound class="size-5" />
                     </div>
 
                     <div class="min-w-0 flex-1">
-                      <p class="truncate text-sm font-medium text-white">{key.name}</p>
-                      <p class="mt-1 text-xs text-slate-400">{formatFingerprint(key.fingerprint)}</p>
+                      <p class="truncate text-sm font-medium text-stencil">{key.name}</p>
+                      <p class="mt-1 text-xs text-stencil-mute">{formatFingerprint(key.fingerprint)}</p>
                     </div>
 
                     <div
@@ -144,7 +143,7 @@
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        class="rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
+                        class="rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
                         aria-label={`Delete ${key.name}`}
                         disabled={deletingKeyId === key.id}
                         onclick={(event) => {
@@ -160,14 +159,14 @@
               </ContextMenu.Trigger>
 
               <ContextMenu.Content
-                class="min-w-44 border-white/10 bg-slate-950/96 text-slate-100 shadow-2xl shadow-black/45"
+                class="min-w-44 rounded-[2px] border-white/10 bg-rail text-stencil"
               >
-                <ContextMenu.Label class="max-w-56 truncate text-slate-400">
+                <ContextMenu.Label class="max-w-56 truncate text-stencil-mute">
                   {key.name}
                 </ContextMenu.Label>
                 <ContextMenu.Separator class="bg-white/10" />
                 <ContextMenu.Item
-                  class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                  class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                   onclick={() => onEdit(key)}
                 >
                   <Pencil class="size-3.5" />
@@ -175,7 +174,7 @@
                 </ContextMenu.Item>
                 <ContextMenu.Separator class="bg-white/10" />
                 <ContextMenu.Item
-                  class="cursor-pointer text-red-300 focus:bg-red-400/10 focus:text-red-200"
+                  class="cursor-pointer rounded-[2px] text-red-300 focus:bg-seal/20 focus:text-red-200"
                   disabled={deletingKeyId === key.id}
                   onclick={() => requestDelete(key)}
                 >

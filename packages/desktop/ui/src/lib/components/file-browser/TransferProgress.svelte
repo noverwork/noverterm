@@ -76,15 +76,15 @@
     aria-label="Active file transfers"
     data-testid="transfer-status-bar"
   >
-    <div class="pointer-events-auto mx-auto w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-slate-950/96 text-white shadow-2xl shadow-black/45 ring-1 ring-white/10 backdrop-blur-xl">
+    <div class="pointer-events-auto mx-auto w-full max-w-5xl overflow-hidden rounded-[2px] border border-white/10 bg-rail text-stencil">
       <div class="flex items-center justify-between border-b border-white/10 px-3 py-2 sm:px-4">
         <div class="flex min-w-0 items-center gap-2">
-          <span class="size-2 shrink-0 rounded-full bg-amber-300 shadow-[0_0_10px_rgb(252_211_77/0.45)]" aria-hidden="true"></span>
+          <span class="size-2 shrink-0 rounded-full bg-amber-300" aria-hidden="true"></span>
           <p class="truncate section-title">
             Transfers
           </p>
         </div>
-        <span class="shrink-0 text-xs text-slate-400" data-testid="transfer-count">
+        <span class="shrink-0 text-xs text-stencil-mute" data-testid="transfer-count">
           {transferCount} active
         </span>
       </div>
@@ -93,12 +93,12 @@
       {#each transferList as transfer (transfer.transfer_id)}
         {@const progress = percent(transfer.bytes_transferred, transfer.total_bytes)}
         <div
-          class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-white/[0.04] sm:grid-cols-[auto_minmax(0,1fr)_auto_auto] sm:px-3"
+          class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[2px] px-2 py-2 transition-colors hover:bg-white/5 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto] sm:px-3"
           data-testid="transfer-row"
           data-transfer-id={transfer.transfer_id}
         >
           <div
-            class="grid size-8 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-300"
+            class="grid size-8 shrink-0 place-items-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim"
             aria-hidden="true"
           >
             {#if transfer.direction === "Upload"}
@@ -112,17 +112,17 @@
 
           <div class="min-w-0">
             <div class="flex items-center justify-between gap-2">
-              <p class="truncate text-sm font-medium text-white" title={transfer.transfer_id}>
+              <p class="truncate text-sm font-medium text-stencil" title={transfer.transfer_id}>
                 {transfer.direction === "Upload" ? "Uploading" : transfer.direction === "Copy" ? "Copying" : "Downloading"} {shortId(transfer.transfer_id)}
               </p>
-              <span class="shrink-0 font-mono text-xs tabular-nums text-slate-300">
+              <span class="shrink-0 font-mono text-xs tabular-nums text-stencil-dim">
                 {progress.toFixed(0)}%
               </span>
             </div>
 
-            <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+            <div class="mt-1.5 h-1.5 w-full overflow-hidden bg-white/10">
               <div
-                class="h-full rounded-full bg-cyan-300 transition-[width] duration-200 ease-out"
+                class="h-full bg-stencil transition-[width] duration-200 ease-out"
                 style:width="{progress}%"
                 role="progressbar"
                 aria-valuemin="0"
@@ -132,7 +132,7 @@
               ></div>
             </div>
 
-            <div class="mt-1 flex items-center justify-between gap-2 text-xs text-slate-400">
+            <div class="mt-1 flex items-center justify-between gap-2 text-xs text-stencil-mute">
               <span class="truncate" data-testid="transfer-size">
                 {formatBytes(transfer.bytes_transferred)} / {formatBytes(transfer.total_bytes)}
               </span>
@@ -142,13 +142,13 @@
             </div>
           </div>
 
-          <span class="hidden shrink-0 font-mono text-xs tabular-nums text-slate-300 sm:block" data-testid="transfer-speed">
+          <span class="hidden shrink-0 font-mono text-xs tabular-nums text-stencil-dim sm:block" data-testid="transfer-speed">
             {formatSpeed(transfer.speed_bps)}
           </span>
 
           <button
             type="button"
-            class="grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition-colors duration-150 hover:border-red-300/30 hover:bg-red-300/10 hover:text-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40"
+            class="grid size-7 shrink-0 cursor-pointer place-items-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim transition-colors duration-150 hover:border-seal/60 hover:bg-seal/20 hover:text-red-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil"
             onclick={() => onCancel(transfer.transfer_id)}
             aria-label="Cancel transfer {shortId(transfer.transfer_id)}"
             data-testid="transfer-cancel"

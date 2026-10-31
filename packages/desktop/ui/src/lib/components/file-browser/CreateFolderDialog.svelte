@@ -79,13 +79,13 @@
 
 {#if open}
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6"
     role="presentation"
     onclick={handleBackdropClick}
     onkeydown={handleKeydown}
   >
     <div
-      class="ide-panel w-full max-w-md overflow-hidden rounded-[2rem] text-white shadow-2xl shadow-black/45"
+      class="ide-panel w-full max-w-md overflow-hidden rounded-[2px] text-stencil"
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-folder-dialog-title"
@@ -93,15 +93,14 @@
     >
       <div class="border-b border-white/10 px-6 py-5">
         <div class="flex items-start gap-4">
-          <div class="grid size-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
+          <div class="grid size-11 shrink-0 place-items-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim">
             <FolderPlus class="size-5" />
           </div>
           <div class="min-w-0 flex-1">
-            <p class="section-title">New folder</p>
-            <h2 id="create-folder-dialog-title" class="mt-2 text-xl font-semibold tracking-tight text-white">
+            <h2 id="create-folder-dialog-title" class="text-xl font-semibold tracking-tight text-stencil">
               Create folder
             </h2>
-            <p id="create-folder-dialog-description" class="mt-2 text-sm leading-6 text-slate-400">
+            <p id="create-folder-dialog-description" class="mt-2 text-sm leading-6 text-stencil-mute">
               Enter a name for the new folder.
             </p>
           </div>
@@ -115,7 +114,7 @@
           handleConfirm();
         }}
       >
-        <label for="create-folder-name" class="section-title block text-slate-400">
+        <label for="create-folder-name" class="section-title block text-stencil-mute">
           Folder name
         </label>
         <Input
@@ -140,14 +139,14 @@
           <Button
             type="button"
             variant="outline"
-            class="rounded-2xl border-white/10 bg-white/[0.04] px-4 text-white hover:bg-white/[0.08]"
+            class="rounded-[2px] border-white/10 bg-transparent px-4 text-stencil hover:border-white/20 hover:bg-white/5"
             onclick={onCancel}
           >
             Cancel
           </Button>
           <Button
             type="submit"
-            class="rounded-2xl bg-cyan-300 px-4 text-slate-950 hover:bg-cyan-200"
+            class="rounded-[2px] bg-stencil px-4 text-port hover:bg-white"
           >
             Create
           </Button>

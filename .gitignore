@@ -38,3 +38,7 @@ vite.config.ts.timestamp-*
 # ts-rs writes a duplicate of packages/desktop/ui/src/bindings here on cargo test
 packages/shared/bindings/
 __pycache__/
+
+# Impeccable scratch: decision sketches and review screenshots (may show hosts/IPs)
+.impeccable/mocks/
+.impeccable/review/

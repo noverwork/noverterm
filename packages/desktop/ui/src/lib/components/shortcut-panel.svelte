@@ -27,7 +27,7 @@
   } = $props();
 
   const BUTTON_CLASS =
-    "grid size-10 cursor-pointer place-items-center rounded-2xl border transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50";
+    "grid h-7 w-10 cursor-pointer place-items-center rounded-[2px] border transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil";
 
   let draggingId = $state<string | null>(null);
   // Insertion index in `snippets` (0..length) where the dragged shortcut would land.
@@ -83,7 +83,7 @@
 </script>
 
 <div
-  class="flex flex-col items-center gap-2"
+  class="flex flex-col items-center gap-1"
   role="list"
   aria-label="Shortcuts"
   onpointerleave={() => (tooltip = null)}
@@ -92,15 +92,15 @@
     <button
       type="button"
       class="{BUTTON_CLASS} {localTerminalActive
-        ? 'border-cyan-300/35 bg-cyan-300/12 text-cyan-50 hover:border-cyan-300/45 hover:bg-cyan-300/16 hover:text-white'
-        : 'border-white/10 bg-white/[0.035] text-slate-300 hover:border-white/10 hover:bg-white/8 hover:text-white'}"
+        ? 'border-stencil text-stencil hover:bg-white/5'
+        : 'border-transparent text-stencil-mute hover:border-white/10 hover:bg-white/5 hover:text-stencil'}"
       aria-label="Local terminal"
       onclick={onLocalTerminal}
       onpointerenter={(event) => showTooltip(event, "Local terminal")}
       onfocus={(event) => showTooltip(event, "Local terminal")}
       onblur={() => (tooltip = null)}
     >
-      <Terminal class="size-4" />
+      <Terminal class="size-3.5" />
     </button>
   {/if}
 
@@ -113,7 +113,7 @@
     >
       {#if dropIndex === index}
         <span
-          class="pointer-events-none absolute -top-[5px] left-1 right-1 h-0.5 rounded-full bg-cyan-300"
+          class="pointer-events-none absolute -top-[3px] left-1 right-1 h-0.5 rounded-none bg-stencil"
         ></span>
       {/if}
       <ContextMenu.Root>
@@ -121,7 +121,7 @@
           <button
             type="button"
             draggable="true"
-            class="{BUTTON_CLASS} border-white/10 bg-white/[0.035] text-slate-300 hover:border-white/10 hover:bg-white/8 hover:text-white {draggingId ===
+            class="{BUTTON_CLASS} border-transparent text-stencil-mute hover:border-white/10 hover:bg-white/5 hover:text-stencil {draggingId ===
             snippet.id
               ? 'opacity-40'
               : ''}"
@@ -137,14 +137,14 @@
           </button>
         </ContextMenu.Trigger>
         <ContextMenu.Content
-          class="min-w-44 border-white/10 bg-slate-950/96 text-slate-100 shadow-2xl shadow-black/45"
+          class="min-w-44 rounded-[2px] border-white/10 bg-rail text-stencil"
         >
-          <ContextMenu.Label class="max-w-56 truncate text-slate-400">
+          <ContextMenu.Label class="max-w-56 truncate text-stencil-mute">
             {snippet.title}
           </ContextMenu.Label>
           <ContextMenu.Separator class="bg-white/10" />
           <ContextMenu.Item
-            class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+            class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
             onclick={() => onEdit(snippet)}
           >
             <Pencil class="size-3.5" />
@@ -161,7 +161,7 @@
       </ContextMenu.Root>
       {#if dropIndex === snippets.length && index === snippets.length - 1}
         <span
-          class="pointer-events-none absolute -bottom-[5px] left-1 right-1 h-0.5 rounded-full bg-cyan-300"
+          class="pointer-events-none absolute -bottom-[3px] left-1 right-1 h-0.5 rounded-none bg-stencil"
         ></span>
       {/if}
     </div>
@@ -169,20 +169,20 @@
 
   <button
     type="button"
-    class="{BUTTON_CLASS} border-dashed border-white/12 text-slate-400 hover:border-white/20 hover:text-white"
+    class="{BUTTON_CLASS} border-dashed border-white/10 text-stencil-mute hover:border-white/20 hover:text-stencil"
     aria-label="Add shortcut"
     onclick={onAdd}
     onpointerenter={(event) => showTooltip(event, "Add shortcut")}
     onfocus={(event) => showTooltip(event, "Add shortcut")}
     onblur={() => (tooltip = null)}
   >
-    <Plus class="size-4" />
+    <Plus class="size-3.5" />
   </button>
 </div>
 
 {#if tooltip}
   <span
-    class="pointer-events-none fixed z-50 -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950/95 px-2 py-1 text-[11px] font-medium text-slate-100 shadow-lg shadow-black/45 backdrop-blur"
+    class="pointer-events-none fixed z-50 -translate-y-1/2 whitespace-nowrap rounded-[2px] border border-white/10 bg-rail px-2 py-1 text-[11px] uppercase tracking-[0.14em] text-stencil"
     style="top: {tooltip.top}px; left: {tooltip.left}px"
     aria-hidden="true"
   >

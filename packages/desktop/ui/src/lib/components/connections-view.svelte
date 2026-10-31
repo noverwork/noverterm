@@ -16,6 +16,11 @@
   import { Input } from "$lib/components/ui/input/index.js";
   import type { HostGroupRecord } from "$lib/api/types.js";
   import type { ConnectionConfig } from "$lib/app-data-types.js";
+  import {
+    groupPrefix,
+    lineColorFor,
+    UNGROUPED_LINE,
+  } from "$lib/session-stencil.js";
 
   interface Props {
     connections: ConnectionConfig[];
@@ -297,16 +302,15 @@
 <div
   class="workspace-canvas flex h-full min-h-0 flex-col overflow-hidden px-5 py-6 lg:px-8"
 >
-  <section class="ide-panel flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-white sm:p-6">
+  <section class="flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-stencil sm:p-6">
     <div
       class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between"
     >
       <div>
-        <p class="section-title">Inventory</p>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight">
+        <h1 class="text-2xl font-semibold tracking-tight text-stencil">
           SSH Connections
         </h1>
-        <p class="mt-2 text-sm text-slate-400">
+        <p class="mt-2 text-sm text-stencil-mute">
           Curated hosts, credentials, and terminal targets.
         </p>
       </div>
@@ -314,14 +318,14 @@
       <div class="flex items-center gap-2 self-start">
         <div class="relative">
           <Search
-            class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400"
+            class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-stencil-mute"
           />
           <Input
             type="search"
             bind:value={searchQuery}
             placeholder="Search hosts"
             aria-label="Search connections"
-            class="h-8 w-48 rounded-2xl border border-white/10 bg-black/20 pl-8 text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
+            class="h-8 w-48 rounded-[2px] border border-white/10 bg-rail pl-8 text-sm text-stencil placeholder:text-stencil-faint focus-visible:border-stencil"
           />
         </div>
 
@@ -329,7 +333,7 @@
           onclick={onNew}
           variant="default"
           size="sm"
-          class="gap-2 rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+          class="gap-2 rounded-[2px] bg-stencil text-port hover:bg-white"
         >
           <Plus class="size-3.5" />
           Add connection
@@ -339,7 +343,7 @@
 
     {#if error}
       <div
-        class="mt-5 rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        class="mt-5 rounded-[2px] border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
         role="alert"
       >
         {error}
@@ -353,14 +357,14 @@
     >
       {#if sortedConnections.length === 0}
         <div
-          class="flex h-full min-h-[16rem] items-center justify-center rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground"
+          class="flex h-full min-h-[16rem] items-center justify-center rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground"
         >
           No saved connections yet
         </div>
       {:else}
         {#if isSearching && visibleSections.length === 0}
           <div
-            class="rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground"
+            class="rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground"
           >
             No connections match your search.
           </div>
@@ -371,8 +375,8 @@
             role="group"
             aria-label={section.group?.name ?? "Ungrouped"}
             class={dragOverKey === section.key && draggingConnectionId !== null
-              ? "group/section -mx-2 mb-2 rounded-2xl bg-cyan-300/[0.05] px-2 pb-1 ring-1 ring-cyan-300/35"
-              : "group/section -mx-2 mb-2 rounded-2xl px-2 pb-1"}
+              ? "group/section -mx-2 mb-2 rounded-[2px] bg-white/[0.04] px-2 pb-1 ring-1 ring-stencil"
+              : "group/section -mx-2 mb-2 rounded-[2px] px-2 pb-1"}
             ondragover={(event) => handleDragOver(event, section.key)}
             ondragleave={handleDragLeave}
             ondrop={(event) => void handleDrop(event, section.group?.id ?? null)}
@@ -386,14 +390,26 @@
               >
                 <ChevronRight
                   class={isCollapsed(section.key)
-                    ? "size-3.5 shrink-0 text-slate-400 transition-transform"
-                    : "size-3.5 shrink-0 rotate-90 text-slate-400 transition-transform"}
+                    ? "size-3.5 shrink-0 text-stencil-mute transition-transform"
+                    : "size-3.5 shrink-0 rotate-90 text-stencil-mute transition-transform"}
                 />
-                <span class="section-title truncate text-slate-300">
+                <span
+                  class="h-2 w-3 shrink-0"
+                  style:background-color={section.group
+                    ? lineColorFor(section.group.id, hostGroups).fill
+                    : UNGROUPED_LINE.fill}
+                ></span>
+                <span class="section-title truncate text-stencil-dim">
                   {section.group?.name ?? "Ungrouped"}
                 </span>
+                {#if section.group}
+                  <span
+                    class="rounded-[2px] border border-white/10 bg-rib px-1.5 text-[11px] uppercase tracking-[0.14em] text-stencil-dim"
+                    >{groupPrefix(section.group.name)}</span
+                  >
+                {/if}
                 <span
-                  class="rounded-full bg-white/10 px-1.5 py-0.5 text-[11px] text-slate-400"
+                  class="rounded-[2px] border border-white/10 bg-rib px-1.5 text-[11px] text-stencil-mute"
                   >{section.connections.length}</span
                 >
               </button>
@@ -401,7 +417,7 @@
               {#if section.group}
                 <button
                   type="button"
-                  class="ml-auto flex cursor-pointer items-center gap-1 rounded-lg px-1.5 py-1 text-slate-400 opacity-0 transition hover:bg-red-400/10 hover:text-red-300 focus-visible:opacity-100 group-hover/section:opacity-100"
+                  class="ml-auto flex cursor-pointer items-center gap-1 rounded-[2px] px-1.5 py-1 text-stencil-mute opacity-0 transition hover:bg-seal/20 hover:text-red-300 focus-visible:opacity-100 group-hover/section:opacity-100"
                   aria-label={`Delete group ${section.group.name}`}
                   onclick={() => section.group && requestDeleteGroup(section.group)}
                   disabled={deletingHostGroupId === section.group.id}
@@ -414,7 +430,7 @@
             {#if !isCollapsed(section.key)}
               {#if section.connections.length === 0}
                 <div
-                  class="my-3 rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.02] px-4 py-4 text-center text-xs text-slate-400"
+                  class="my-3 rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-4 text-center text-xs text-stencil-mute"
                 >
                   {draggingConnectionId !== null
                     ? "Drop here to move host"
@@ -423,6 +439,9 @@
               {:else}
                 <div class="grid gap-3 py-4 md:grid-cols-2 xl:grid-cols-3">
                   {#each section.connections as connection (connection.id)}
+                    {@const line = connection.groupId
+                      ? lineColorFor(connection.groupId, hostGroups)
+                      : UNGROUPED_LINE}
                     <ContextMenu.Root>
                       <ContextMenu.Trigger class="contents">
                         <div
@@ -439,22 +458,27 @@
                             }
                           }}
                           class={draggingConnectionId === connection.id
-                            ? "group cursor-pointer rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 opacity-40 transition hover:border-white/14 hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"
-                            : "group cursor-pointer rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"}
+                            ? "group cursor-pointer rounded-[2px] border border-white/10 bg-rib px-4 py-4 opacity-40 transition hover:border-white/20 hover:bg-[#1f252c] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil"
+                            : "group cursor-pointer rounded-[2px] border border-white/10 bg-rib px-4 py-4 transition hover:border-white/20 hover:bg-[#1f252c] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil"}
                         >
                           <div class="flex items-start gap-3">
-                            <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
+                            <div
+                              class={line.darkText
+                                ? "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-[2px] text-port"
+                                : "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-[2px] text-stencil"}
+                              style:background-color={line.fill}
+                            >
                               <Server class="size-5" />
                             </div>
 
                             <div class="min-w-0 flex-1">
-                              <p class="truncate text-sm font-medium text-white">
+                              <p class="truncate text-sm font-medium text-stencil">
                                 {connection.name}
                               </p>
-                              <p class="mt-2 truncate font-mono text-xs text-slate-400">
+                              <p class="mt-2 truncate font-mono text-xs text-stencil-mute">
                                 {connection.username}@{connection.host}:{connection.port}
                               </p>
-                              <p class="mt-1 text-xs text-slate-400">
+                              <p class="mt-1 text-xs text-stencil-mute">
                                 {getAuthLabel(connection)}
                               </p>
                             </div>
@@ -465,7 +489,7 @@
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                class="rounded-xl text-slate-400 hover:bg-white/8 hover:text-white"
+                                class="rounded-[2px] text-stencil-mute hover:bg-white/8 hover:text-stencil"
                                 aria-label={`Edit ${connection.name}`}
                                 onclick={(event) => {
                                   event.stopPropagation();
@@ -477,7 +501,7 @@
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                class="rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
+                                class="rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
                                 aria-label={`Delete ${connection.name}`}
                                 disabled={deletingConnectionId === connection.id}
                                 onclick={(event) => {
@@ -493,20 +517,20 @@
                       </ContextMenu.Trigger>
 
                       <ContextMenu.Content
-                        class="min-w-44 border-white/10 bg-slate-950/96 text-slate-100 shadow-2xl shadow-black/45"
+                        class="min-w-44 rounded-[2px] border-white/10 bg-rail text-stencil"
                       >
-                        <ContextMenu.Label class="max-w-56 truncate text-slate-400">
+                        <ContextMenu.Label class="max-w-56 truncate text-stencil-mute">
                           {connection.name}
                         </ContextMenu.Label>
                         <ContextMenu.Separator class="bg-white/10" />
                         <ContextMenu.Item
-                          class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                          class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                           onclick={() => onSelect(connection)}
                         >
                           Connect
                         </ContextMenu.Item>
                         <ContextMenu.Item
-                          class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                          class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                           onclick={() => onEdit(connection)}
                         >
                           <Pencil class="size-3.5" />
@@ -514,20 +538,20 @@
                         </ContextMenu.Item>
                         <ContextMenu.Sub>
                           <ContextMenu.SubTrigger
-                            class="cursor-pointer focus:bg-cyan-300/10 focus:text-white data-[state=open]:bg-cyan-300/10 data-[state=open]:text-white"
+                            class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil data-[state=open]:bg-white/8 data-[state=open]:text-stencil"
                           >
                             <FolderInput class="size-3.5" />
                             Move to group
                           </ContextMenu.SubTrigger>
                           <ContextMenu.SubContent
-                            class="min-w-40 border-white/10 bg-slate-950/96 text-slate-100 shadow-2xl shadow-black/45"
+                            class="min-w-40 rounded-[2px] border-white/10 bg-rail text-stencil"
                           >
                             <ContextMenu.Item
-                              class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                              class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                               onclick={() => void handleChangeGroup(connection, null)}
                             >
                               {#if connection.groupId === null}
-                                <Check class="size-3.5 text-cyan-200" />
+                                <Check class="size-3.5 text-stencil" />
                               {:else}
                                 <span class="size-3.5"></span>
                               {/if}
@@ -535,11 +559,11 @@
                             </ContextMenu.Item>
                             {#each sortedHostGroups as group (group.id)}
                               <ContextMenu.Item
-                                class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                                class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                                 onclick={() => void handleChangeGroup(connection, group.id)}
                               >
                                 {#if connection.groupId === group.id}
-                                  <Check class="size-3.5 text-cyan-200" />
+                                  <Check class="size-3.5 text-stencil" />
                                 {:else}
                                   <span class="size-3.5"></span>
                                 {/if}
@@ -550,7 +574,7 @@
                         </ContextMenu.Sub>
                         <ContextMenu.Separator class="bg-white/10" />
                         <ContextMenu.Item
-                          class="cursor-pointer text-red-300 focus:bg-red-400/10 focus:text-red-200"
+                          class="cursor-pointer text-red-300 rounded-[2px] focus:bg-seal/20 focus:text-red-200"
                           disabled={deletingConnectionId === connection.id}
                           onclick={() => requestDelete(connection)}
                         >
@@ -578,20 +602,20 @@
               <input
                 bind:value={newGroupName}
                 placeholder="Group name"
-                class="h-8 w-36 rounded-2xl border border-white/10 bg-black/20 px-2 text-sm text-white placeholder:text-slate-500 focus:border-cyan-300/40 focus:outline-none"
+                class="h-8 w-36 rounded-[2px] border border-white/10 bg-rail px-2 text-sm text-stencil placeholder:text-stencil-faint focus:border-stencil focus:outline-none"
                 disabled={isSavingGroup}
               />
               <Button
                 type="submit"
                 size="sm"
-                class="rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                class="rounded-[2px] bg-stencil text-port hover:bg-white"
                 disabled={isSavingGroup}>Add</Button
               >
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                class="rounded-2xl text-slate-300 hover:bg-white/8 hover:text-white"
+                class="rounded-[2px] text-stencil-dim hover:bg-white/8 hover:text-stencil"
                 onclick={() => {
                   isCreatingGroup = false;
                   newGroupName = "";
@@ -602,7 +626,7 @@
           {:else}
             <button
               type="button"
-              class="mt-2 flex cursor-pointer items-center gap-1.5 text-sm font-medium text-slate-400 transition hover:text-white"
+              class="mt-2 flex cursor-pointer items-center gap-1.5 text-sm font-medium text-stencil-mute transition hover:text-stencil"
               onclick={() => (isCreatingGroup = true)}
             >
               <Plus class="size-3.5" />

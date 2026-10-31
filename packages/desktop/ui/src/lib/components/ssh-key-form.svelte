@@ -128,7 +128,6 @@
 </script>
 
 <FormShell
-  eyebrow="Credentials"
   title={formTitle}
   description={formDescription}
   formId="ssh-key-form"
@@ -145,18 +144,18 @@
     hint="Name the key and unlock it if it is passphrase-protected."
   >
     {#if keyRecord}
-      <div class="rounded-2xl border border-white/8 bg-black/15 px-3 py-2.5">
+      <div class="rounded-[2px] border border-white/10 bg-rail px-3 py-2.5">
         <p class="section-title">
           Current fingerprint
         </p>
-        <p class="mt-1 truncate font-mono text-sm text-slate-300">
+        <p class="mt-1 truncate font-mono text-sm text-stencil-dim">
           {keyRecord.fingerprint ?? "—"}
         </p>
       </div>
     {/if}
 
     <div class="space-y-2">
-      <label for="ssh-key-name" class="text-sm font-medium text-slate-100">Key name</label>
+      <label for="ssh-key-name" class="text-sm font-medium text-stencil">Key name</label>
       <Input
         id="ssh-key-name"
         bind:value={keyName}
@@ -171,8 +170,8 @@
     </div>
 
     <div class="space-y-2">
-      <label for="ssh-key-passphrase" class="text-sm font-medium text-slate-100"
-        >Passphrase <span class="text-slate-400">(optional)</span></label
+      <label for="ssh-key-passphrase" class="text-sm font-medium text-stencil"
+        >Passphrase <span class="text-stencil-mute">(optional)</span></label
       >
       <Input
         id="ssh-key-passphrase"
@@ -191,7 +190,7 @@
     hint="Paste the full PEM block, including the BEGIN and END lines."
   >
     <div class="space-y-2">
-      <label for="ssh-key-private" class="text-sm font-medium text-slate-100">Private key</label>
+      <label for="ssh-key-private" class="text-sm font-medium text-stencil">Private key</label>
       <textarea
         id="ssh-key-private"
         bind:value={privateKey}
@@ -202,7 +201,7 @@
         disabled={isSaving || isLoadingSecret}
       ></textarea>
       {#if isEditing}
-        <p id="ssh-key-private-hint" class="text-xs leading-5 text-slate-400">
+        <p id="ssh-key-private-hint" class="text-xs leading-5 text-stencil-mute">
           This field shows the saved raw private key after vault decryption. Editing it
           will rotate the stored key on update.
         </p>

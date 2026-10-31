@@ -128,13 +128,13 @@
   function fileIconClass(type: FileType): string {
     switch (type) {
       case "Dir":
-        return "text-slate-300";
+        return "text-stencil-dim";
       case "File":
-        return "text-slate-300";
+        return "text-stencil-dim";
       case "Symlink":
-        return "text-slate-400";
+        return "text-stencil-mute";
       default:
-        return "text-slate-500";
+        return "text-stencil-faint";
     }
   }
 
@@ -244,7 +244,7 @@
 </script>
 
 <div
-  class="ide-panel flex h-full min-h-0 flex-col overflow-hidden p-3 text-white sm:p-4"
+  class="flex h-full min-h-0 flex-col overflow-hidden p-3 text-stencil sm:p-4"
   data-testid="file-list"
 >
   <div
@@ -252,7 +252,7 @@
   >
     <button
       type="button"
-      class="flex items-center gap-1.5 text-left transition-colors hover:text-slate-200"
+      class="flex items-center gap-1.5 text-left transition-colors hover:text-stencil"
       onclick={() => toggleSort("name")}
       aria-label="Sort by name"
     >
@@ -267,7 +267,7 @@
     </button>
     <button
       type="button"
-      class="flex items-center justify-end gap-1.5 text-right transition-colors hover:text-slate-200"
+      class="flex items-center justify-end gap-1.5 text-right transition-colors hover:text-stencil"
       onclick={() => toggleSort("size")}
       aria-label="Sort by size"
     >
@@ -282,7 +282,7 @@
     </button>
     <button
       type="button"
-      class="flex items-center justify-end gap-1.5 text-right transition-colors hover:text-slate-200"
+      class="flex items-center justify-end gap-1.5 text-right transition-colors hover:text-stencil"
       onclick={() => toggleSort("modified")}
       aria-label="Sort by modified date"
     >
@@ -305,7 +305,7 @@
   >
     {#if loading && sortedFiles.length === 0}
       <div
-        class="flex h-full min-h-[12rem] items-center justify-center gap-2 text-sm text-slate-400"
+        class="flex h-full min-h-[12rem] items-center justify-center gap-2 text-sm text-stencil-mute"
         data-testid="file-list-loading"
       >
         <Loader2 class="size-4 animate-spin" />
@@ -316,7 +316,7 @@
         {#if onNavigateUp}
           <li>
             <div
-              class="grid w-full grid-cols-[minmax(0,1fr)_6rem_10rem] items-center gap-3 cursor-pointer rounded-xl px-3 py-2 text-left text-sm transition-colors text-slate-200 hover:bg-white/[0.05]"
+              class="grid w-full grid-cols-[minmax(0,1fr)_6rem_10rem] items-center gap-3 cursor-pointer rounded-[2px] border border-transparent px-3 py-2 text-left text-sm transition-colors text-stencil hover:bg-white/[0.05]"
               data-testid="file-row-parent"
               data-panel={panelId}
               role="button"
@@ -330,27 +330,27 @@
               }}
             >
               <span class="flex min-w-0 items-center gap-2">
-                <Folder class="size-4 shrink-0 text-slate-300" />
+                <Folder class="size-4 shrink-0 text-stencil-dim" />
                 <span
-                  class="min-w-0 flex-1 truncate text-left font-medium text-white transition-colors hover:text-white"
+                  class="min-w-0 flex-1 truncate text-left font-medium text-stencil transition-colors hover:text-stencil"
                   title="Parent directory"
                 >
                   ..
                 </span>
               </span>
-              <span class="text-right font-mono text-xs text-slate-400">—</span>
-              <span class="text-right text-xs text-slate-400">—</span>
+              <span class="text-right font-mono text-xs text-stencil-mute">—</span>
+              <span class="text-right text-xs text-stencil-mute">—</span>
             </div>
           </li>
         {/if}
         {#each sortedFiles as entry, index (rowKey(entry, index))}
           <li>
             <div
-              class="grid w-full grid-cols-[minmax(0,1fr)_6rem_10rem] items-center gap-3 cursor-pointer rounded-xl px-3 py-2 text-left text-sm transition-colors {isSelected(
+              class="grid w-full grid-cols-[minmax(0,1fr)_6rem_10rem] items-center gap-3 cursor-pointer rounded-[2px] border px-3 py-2 text-left text-sm transition-colors {isSelected(
                 entry,
               )
-                ? 'bg-cyan-300/15 text-white ring-1 ring-cyan-300/30'
-                : 'text-slate-200 hover:bg-white/[0.05]'}"
+                ? 'border-stencil bg-white/[0.06] text-stencil'
+                : 'border-transparent text-stencil hover:bg-white/[0.05]'}"
               data-testid="file-row"
               data-file-name={entry.name}
               data-file-type={entry.file_type}
@@ -388,24 +388,24 @@
                 {/if}
                 {#if entry.file_type === "Dir"}
                   <span
-                    class="min-w-0 flex-1 truncate text-left font-medium text-white transition-colors hover:text-white"
+                    class="min-w-0 flex-1 truncate text-left font-medium text-stencil transition-colors hover:text-stencil"
                     title={entry.name}
                   >
                     {displayName(entry.name)}
                   </span>
                 {:else}
                   <span
-                    class="min-w-0 flex-1 truncate text-left text-slate-200 transition-colors hover:text-white"
+                    class="min-w-0 flex-1 truncate text-left text-stencil transition-colors hover:text-stencil"
                     title={entry.name}
                   >
                     {displayName(entry.name)}
                   </span>
                 {/if}
               </span>
-              <span class="text-right font-mono text-xs text-slate-400">
+              <span class="text-right font-mono text-xs text-stencil-mute">
                 {entry.file_type === "Dir" ? "—" : formatSize(entry.size)}
               </span>
-              <span class="text-right text-xs text-slate-400">
+              <span class="text-right text-xs text-stencil-mute">
                 {formatModified(entry.modified)}
               </span>
             </div>
@@ -415,7 +415,7 @@
 
       {#if loading}
         <div
-          class="pointer-events-none sticky bottom-2 ml-auto mr-2 flex w-fit items-center gap-2 rounded-full border border-white/10 bg-slate-950/90 px-3 py-1.5 text-xs text-slate-100 shadow-lg shadow-black/45 backdrop-blur"
+          class="pointer-events-none sticky bottom-2 ml-auto mr-2 flex w-fit items-center gap-2 rounded-[2px] border border-white/10 bg-rail px-3 py-1.5 text-xs text-stencil"
           data-testid="file-list-refreshing"
         >
           <Loader2 class="size-3.5 animate-spin" />

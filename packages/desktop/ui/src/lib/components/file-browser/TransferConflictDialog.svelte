@@ -29,13 +29,13 @@
 
 {#if conflict}
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6"
     role="presentation"
     onclick={handleBackdropClick}
     onkeydown={handleKeydown}
   >
     <div
-      class="ide-panel w-full max-w-lg overflow-hidden rounded-[2rem] text-white shadow-2xl shadow-black/45"
+      class="ide-panel w-full max-w-lg overflow-hidden rounded-[2px] text-stencil"
       role="dialog"
       aria-modal="true"
       aria-labelledby="transfer-conflict-dialog-title"
@@ -44,40 +44,39 @@
     >
       <div class="border-b border-white/10 px-6 py-5">
         <div class="flex items-start gap-4">
-          <div class="grid size-11 shrink-0 place-items-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-amber-200">
+          <div class="grid size-11 shrink-0 place-items-center rounded-[2px] border border-[#c9952e]/60 bg-transparent text-[#e6c27a]">
             <AlertTriangle class="size-5" />
           </div>
           <div class="min-w-0 flex-1">
-            <p class="section-title text-amber-200/80">{conflict.isDirectory ? "Folder" : "File"} already exists</p>
-            <h2 id="transfer-conflict-dialog-title" class="mt-2 text-xl font-semibold tracking-tight text-white">
-              Choose how to continue
+            <h2 id="transfer-conflict-dialog-title" class="text-xl font-semibold tracking-tight text-stencil">
+              {conflict.isDirectory ? "Folder" : "File"} already exists
             </h2>
-            <p id="transfer-conflict-dialog-description" class="mt-2 text-sm leading-6 text-slate-400">
-              A {conflict.isDirectory ? "folder" : "file"} named <span class="font-mono text-slate-200">{conflict.existingName}</span> already exists in <span class="text-slate-200">{conflict.destination}</span>.
+            <p id="transfer-conflict-dialog-description" class="mt-2 text-sm leading-6 text-stencil-mute">
+              A {conflict.isDirectory ? "folder" : "file"} named <span class="font-mono text-stencil">{conflict.existingName}</span> already exists in <span class="text-stencil">{conflict.destination}</span>.
             </p>
           </div>
         </div>
       </div>
 
       <div class="space-y-3 px-6 py-4">
-        <div class="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
+        <div class="rounded-[2px] border border-white/10 bg-rib px-4 py-3">
           <p class="section-title">Original</p>
-          <p class="mt-1 truncate font-mono text-sm text-slate-100" data-testid="transfer-conflict-original">
+          <p class="mt-1 truncate font-mono text-sm text-stencil" data-testid="transfer-conflict-original">
             {conflict.fileName}
           </p>
         </div>
 
         {#if conflict.isDirectory}
-          <div class="rounded-2xl border border-amber-300/15 bg-amber-300/[0.05] px-4 py-3" data-testid="transfer-conflict-inner">
+          <div class="rounded-[2px] border border-[#c9952e]/40 bg-rib px-4 py-3" data-testid="transfer-conflict-inner">
             {#if conflict.conflictingFiles === null}
-              <p class="section-title text-amber-200/80">Checking folder contents…</p>
+              <p class="section-title text-[#e6c27a]">Checking folder contents…</p>
             {:else if conflict.conflictingFiles.length === 0}
-              <p class="section-title text-amber-200/80">No files inside would be overwritten</p>
+              <p class="section-title text-[#e6c27a]">No files inside would be overwritten</p>
             {:else}
-              <p class="section-title text-amber-200/80">
+              <p class="section-title text-[#e6c27a]">
                 Overwrite replaces {conflict.conflictingFiles.length} existing {conflict.conflictingFiles.length === 1 ? "file" : "files"}
               </p>
-              <ul class="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-sm text-amber-50">
+              <ul class="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-sm text-stencil">
                 {#each conflict.conflictingFiles as path (path)}
                   <li class="truncate">{path}</li>
                 {/each}
@@ -86,19 +85,19 @@
           </div>
         {/if}
 
-        <div class="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+        <div class="rounded-[2px] border border-white/10 bg-rib px-4 py-3">
           <p class="section-title">Rename option</p>
-          <p class="mt-1 truncate font-mono text-sm text-slate-100" data-testid="transfer-conflict-suggested">
+          <p class="mt-1 truncate font-mono text-sm text-stencil" data-testid="transfer-conflict-suggested">
             {conflict.suggestedName}
           </p>
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center justify-end gap-3 border-t border-white/10 bg-white/[0.025] px-6 py-4">
+      <div class="flex flex-wrap items-center justify-end gap-3 border-t border-white/10 bg-port px-6 py-4">
         <Button
           type="button"
           variant="outline"
-          class="rounded-2xl border-white/10 bg-white/[0.04] px-4 text-white hover:bg-white/[0.08]"
+          class="rounded-[2px] border-white/10 bg-transparent px-4 text-stencil hover:border-white/20 hover:bg-white/5"
           onclick={onCancel}
         >
           Cancel
@@ -106,7 +105,7 @@
         <Button
           type="button"
           variant="outline"
-          class="gap-2 rounded-2xl border-amber-300/20 bg-amber-300/10 px-4 text-amber-100 hover:bg-amber-300/15"
+          class="gap-2 rounded-[2px] border-[#c9952e]/60 bg-transparent px-4 text-[#e6c27a] hover:bg-[#c9952e]/10"
           onclick={onOverwrite}
           data-testid="transfer-conflict-overwrite"
         >
@@ -115,7 +114,7 @@
         </Button>
         <Button
           type="button"
-          class="gap-2 rounded-2xl bg-cyan-300 px-4 text-slate-950 hover:bg-cyan-200"
+          class="gap-2 rounded-[2px] bg-stencil px-4 text-port hover:bg-white"
           onclick={onRename}
           data-testid="transfer-conflict-rename"
         >

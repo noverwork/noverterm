@@ -232,7 +232,7 @@ describe("FileList", () => {
 
     expect(firstRow?.getAttribute("data-selected")).toBe("false");
     expect(secondRow?.getAttribute("data-selected")).toBe("true");
-    expect(secondRow?.className).toContain("bg-cyan-300/15");
+    expect(secondRow?.className).toContain("border-stencil");
   });
 
   it("emits onSelect when a row is clicked", async () => {

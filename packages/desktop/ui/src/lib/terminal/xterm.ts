@@ -53,7 +53,7 @@ export interface TerminalController {
 
 function getTheme() {
   return {
-    background: "#080c13",
+    background: "#000000",
     foreground: "#e5e5e5",
     cursor: "#e5e5e5",
     selectionBackground: "#2563eb",

@@ -68,12 +68,11 @@
 </script>
 
 <div class="workspace-canvas flex h-full min-h-0 flex-col overflow-hidden px-5 py-6 lg:px-8">
-  <section class="ide-panel flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-white sm:p-6">
+  <section class="flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-stencil sm:p-6">
     <div class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <p class="section-title">SSH Trust Store</p>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight">Known Hosts</h1>
-        <p class="mt-2 text-sm text-slate-400">
+        <h1 class="text-2xl font-semibold tracking-tight">Known Hosts</h1>
+        <p class="mt-2 text-sm text-stencil-mute">
           Hosts you trusted after confirming their SSH fingerprint.
         </p>
       </div>
@@ -81,43 +80,43 @@
     </div>
 
     {#if error}
-      <div class="mt-5 rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+      <div class="mt-5 rounded-[2px] border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
         {error}
       </div>
     {/if}
 
     <div class="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
       {#if isLoading}
-        <div class="flex h-full min-h-[16rem] items-center justify-center rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground">
+        <div class="flex h-full min-h-[16rem] items-center justify-center rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground">
           Loading...
         </div>
       {:else if hosts.length === 0}
-        <div class="flex h-full min-h-[16rem] items-center justify-center rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground">
+        <div class="flex h-full min-h-[16rem] items-center justify-center rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground">
           No Known Hosts yet. Confirm a host fingerprint during SSH connection to add it here.
         </div>
       {:else}
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {#each hosts as host (hostKey(host))}
-            <article class="group rounded-[1.35rem] border border-white/8 bg-white/[0.03] px-4 py-4 transition hover:border-white/14 hover:bg-white/[0.055]">
+            <article class="group rounded-[2px] border border-white/10 bg-rib px-4 py-4 transition hover:border-white/20 hover:bg-[#1f252c] ">
               <div class="flex items-start gap-3">
-                <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
+                <div class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim">
                   <Server class="size-5" />
                 </div>
 
                 <div class="min-w-0 flex-1">
-                  <p class="break-all text-sm font-mono font-medium text-white">
+                  <p class="break-all text-sm font-mono font-medium text-stencil">
                     {host.host}:{host.port}
                   </p>
-                  <p class="mt-1 text-xs text-slate-400">{host.algorithm}</p>
+                  <p class="mt-1 text-xs text-stencil-mute">{host.algorithm}</p>
                 </div>
               </div>
 
-              <div class="mt-4 rounded-xl border border-white/8 bg-black/20 px-3 py-2.5">
+              <div class="mt-4 rounded-[2px] border border-white/10 bg-rail px-3 py-2.5">
                 <div class="flex items-center gap-2 section-title">
                   <Fingerprint class="size-3.5" />
                   Fingerprint
                 </div>
-                <p class="mt-2 break-all font-mono text-xs leading-5 text-slate-200">
+                <p class="mt-2 break-all font-mono text-xs leading-5 text-stencil">
                   {host.fingerprint}
                 </p>
               </div>
@@ -126,7 +125,7 @@
                 <Button
                   variant="ghost"
                   size="xs"
-                  class="gap-1.5 rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
+                  class="gap-1.5 rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
                   onclick={() => requestDelete(host)}
                   disabled={deletingHostKey === hostKey(host)}
                 >

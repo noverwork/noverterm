@@ -31,6 +31,8 @@
   import { getTabShortcut } from "$lib/terminal/keyboard-shortcuts.js";
   import { checkForAppUpdate } from "$lib/updater/auto-update.js";
   import type { SnippetRecord } from "$lib/api/types.js";
+  import { sessionStencil } from "$lib/session-stencil.js";
+  import type { SessionStatus } from "$lib/stores/session.svelte.js";
 
   interface Props {
     children: Snippet;
@@ -69,6 +71,26 @@
   const hasTerminalDisconnectedOverlay = $derived(
     isTerminalRoute && app.activeSession?.status === "disconnected",
   );
+  const heldSessionCount = $derived(
+    app.activeSessions.filter((session) => isHeld(session.status)).length,
+  );
+  const activeStencil = $derived(
+    app.activeSession
+      ? sessionStencil(app.activeSession, app.connections, app.hostGroups)
+      : null,
+  );
+
+  function isHeld(status: SessionStatus): boolean {
+    return status === "disconnected" || status === "error";
+  }
+
+  const STATUS_LABELS: Record<SessionStatus, string> = {
+    connected: "live",
+    connecting: "connecting",
+    trust_required: "awaiting host trust",
+    disconnected: "held · disconnected",
+    error: "held · failed",
+  };
   const sessionTabEdgeSize = 72;
   const sessionTabMaxScrollSpeed = 0.8;
   let sessionTabsElement = $state<HTMLDivElement | null>(null);
@@ -444,7 +466,7 @@
   {#if app.isLoading}
     <div class="flex min-h-screen items-center justify-center bg-background">
       <div class="flex flex-col items-center gap-4">
-        <Loader2 class="size-8 animate-spin text-primary" />
+        <Loader2 class="size-8 animate-spin text-stencil" />
         <p class="text-sm text-muted-foreground">Loading...</p>
       </div>
     </div>
@@ -453,17 +475,17 @@
       class="auth-shell flex min-h-screen items-center justify-center px-4 py-8"
     >
       <div
-        class="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-slate-950/78 p-6 text-center shadow-2xl shadow-black/45 backdrop-blur-2xl sm:p-8"
+        class="w-full max-w-2xl rounded-[2px] border border-white/10 bg-rail p-6 text-center sm:p-8"
       >
         <div
-          class="mx-auto flex size-16 items-center justify-center rounded-2xl bg-destructive/10 text-destructive"
+          class="mx-auto flex size-16 items-center justify-center rounded-[2px] border border-seal/60 text-red-300"
         >
           <AlertCircle class="size-8" />
         </div>
-        <h1 class="mt-5 text-2xl font-semibold text-white">
+        <h1 class="mt-5 text-2xl font-semibold text-stencil">
           Backend connection unavailable
         </h1>
-        <p class="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-300">
+        <p class="mx-auto mt-3 max-w-xl text-sm leading-7 text-stencil-dim">
           {app.error ??
             "Unable to connect to the backend. Remote features are unavailable."}
         </p>
@@ -471,7 +493,7 @@
           <Button
             variant="outline"
             onclick={() => void app.init()}
-            class="gap-2 border-white/10 bg-white/4 text-white hover:bg-white/8"
+            class="gap-2 rounded-[2px] border-white/10 bg-transparent text-stencil hover:border-white/20 hover:bg-white/5"
           >
             Retry
           </Button>
@@ -504,17 +526,17 @@
         activeSection={activeSidebarSection}
       />
 
-      <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-terminal-ink">
-        <div class="flex h-11 shrink-0 border-b border-white/10">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-port">
+        <div class="tab-rib flex h-9 shrink-0 border-b border-rib">
           {#if currentPage}
             <div
-              class="flex shrink-0 items-center overflow-hidden border-r border-white/10 px-3"
+              class="flex shrink-0 items-center overflow-hidden border-r border-rib bg-rail px-2"
               transition:slide={{ axis: "x", duration: 180, easing: cubicOut }}
             >
               <span
-                class="flex items-center gap-2 whitespace-nowrap rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-sm font-medium text-slate-100"
+                class="flex h-7 items-center gap-2 whitespace-nowrap rounded-[2px] border border-stencil px-2.5 text-[11px] uppercase tracking-[0.14em] text-stencil"
               >
-                <currentPage.icon class="size-3.5 text-slate-300" />
+                <currentPage.icon class="size-3.5 text-stencil-dim" />
                 {currentPage.label}
               </span>
             </div>
@@ -527,7 +549,7 @@
           >
           {#if canScrollSessionTabsLeft}
             <div
-              class="pointer-events-none absolute inset-y-0 left-0 z-20 flex w-12 items-center bg-gradient-to-r from-terminal-ink via-terminal-ink/90 to-transparent pl-1 text-slate-500"
+              class="pointer-events-none absolute inset-y-0 left-0 z-20 flex w-12 items-center bg-gradient-to-r from-rib via-rib/90 to-transparent pl-1 text-stencil-mute"
               aria-hidden="true"
             >
               <svg
@@ -549,7 +571,7 @@
             bind:this={sessionTabsElement}
             role="group"
             aria-label="Active terminal sessions"
-            class="session-tabs flex h-full items-center gap-1 overflow-x-auto px-3"
+            class="session-tabs flex h-full items-center gap-1 overflow-x-auto px-1.5"
             onscroll={updateSessionTabScrollIndicators}
             onpointerleave={stopSessionTabAutoScroll}
           >
@@ -560,43 +582,65 @@
               {@const isDragging =
                 dragState?.active && dragState.sessionId === session.id}
               {@const isDragOver = dragOverSessionId === session.id}
+              {@const stencil = sessionStencil(
+                session,
+                app.connections,
+                app.hostGroups,
+              )}
+              {@const darkText = isActive && stencil.line.darkText}
               <div
                 data-session-id={session.id}
-                class="min-w-32 max-w-60 flex-1 basis-0"
+                class="min-w-44 max-w-60 flex-1 basis-0"
                 animate:flip={{ duration: 140, easing: cubicOut }}
               >
                 <ContextMenu.Root>
                   <ContextMenu.Trigger class="contents">
                     <div
-                      class={isActive
-                        ? `group relative flex w-full items-center gap-2 rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-sm text-white transition hover:bg-cyan-300/10${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`
-                        : `group relative flex w-full items-center gap-2 rounded-lg border border-transparent px-3 py-1 text-sm text-slate-400 transition hover:border-white/10 hover:bg-white/[0.045] hover:text-white${isDragging ? " opacity-40" : ""}${isDragOver ? " ring-1 ring-cyan-300/50" : ""}`}
+                      class="group relative flex h-7 w-full items-center gap-2 rounded-[2px] border px-2.5 transition-[border-color,background-color] duration-[120ms] motion-reduce:transition-none {isActive
+                        ? 'border-stencil'
+                        : 'border-white/10 hover:border-white/25'} {darkText
+                        ? 'text-port'
+                        : 'text-stencil'}{isDragging ? ' opacity-40' : ''}{isDragOver
+                        ? ' ring-1 ring-stencil'
+                        : ''}"
+                      style:background-color={isActive
+                        ? stencil.line.fill
+                        : `color-mix(in srgb, ${stencil.line.fill} 55%, var(--color-rib))`}
                     >
                       <button
                         type="button"
-                        class="absolute inset-y-0 left-0 right-7 cursor-pointer rounded-l-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50"
+                        class="absolute inset-y-0 left-0 right-7 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil"
                         onmousedown={(event) =>
                           handleTabMouseDown(event, session.id)}
                         onclick={() => activateSession(session.id)}
-                        aria-label={`Switch to ${session.name}`}
+                        aria-label={`Switch to ${session.name}, ${STATUS_LABELS[session.status]}`}
                       ></button>
                       <span
-                        class="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center gap-2 text-left"
+                        class="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center gap-2 text-left text-[11px] uppercase tracking-[0.14em]"
                       >
-                        <span
-                          class={session.status === "connected"
-                            ? "size-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_10px_rgb(52_211_153/0.55)]"
-                            : session.status === "connecting"
-                              ? "size-2 shrink-0 rounded-full bg-amber-300 shadow-[0_0_10px_rgb(252_211_77/0.45)] animate-pulse"
-                              : session.status === "trust_required"
-                                ? "size-2 shrink-0 rounded-full bg-amber-300 shadow-[0_0_10px_rgb(252_211_77/0.45)]"
-                                : "size-2 shrink-0 rounded-full bg-red-400 shadow-[0_0_10px_rgb(248_113_113/0.45)]"}
-                        ></span>
-                        <span class="truncate font-medium">{session.name}</span>
+                        <span class="truncate"
+                          >{stencil.prefix}·{session.name}</span
+                        >
                       </span>
+                      {#if isHeld(session.status)}
+                        <span
+                          class="pointer-events-none relative z-10 shrink-0 bg-stencil px-1 text-[11px] leading-4 tracking-[0.14em] text-seal"
+                          >HELD</span
+                        >
+                      {:else if session.status === "connected"}
+                        <span
+                          class="pointer-events-none relative z-10 size-2 shrink-0 rounded-full bg-current"
+                          aria-hidden="true"
+                        ></span>
+                      {:else}
+                        <span
+                          class="pointer-events-none relative z-10 size-2 shrink-0 rounded-full border-2 border-current"
+                          aria-hidden="true"
+                        ></span>
+                      {/if}
                       <button
                         type="button"
-                        class="relative z-20 flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition-[opacity,color,background-color] duration-150 hover:bg-white/10 hover:text-white focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 group-hover:opacity-100 {isActive
+                        class="relative z-20 flex size-5 shrink-0 items-center justify-center rounded-[2px] transition-opacity duration-[120ms] hover:bg-black/25 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil group-hover:opacity-100 motion-reduce:transition-none {isActive
                           ? 'opacity-70'
                           : 'opacity-0'}"
                         onclick={(event) => {
@@ -621,20 +665,20 @@
                     </div>
                   </ContextMenu.Trigger>
                   <ContextMenu.Content
-                    class="min-w-44 border-white/10 bg-slate-950/96 text-slate-100 shadow-2xl shadow-black/45"
+                    class="min-w-44 rounded-[2px] border-white/10 bg-rail text-stencil"
                   >
-                    <ContextMenu.Label class="max-w-56 truncate text-slate-400">
+                    <ContextMenu.Label class="max-w-56 truncate text-stencil-mute">
                       {session.name}
                     </ContextMenu.Label>
                     <ContextMenu.Separator class="bg-white/10" />
                     <ContextMenu.Item
-                      class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                      class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                       onclick={() => void closeSessionAndNavigate(session.id)}
                     >
                       Close
                     </ContextMenu.Item>
                     <ContextMenu.Item
-                      class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                      class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                       disabled={session.type !== "local" &&
                         !session.connectionId}
                       onclick={() => void app.duplicateSession(session.id)}
@@ -642,7 +686,7 @@
                       Duplicate Tab
                     </ContextMenu.Item>
                     <ContextMenu.Item
-                      class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                      class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                       disabled={sessionIndex === 0}
                       onclick={() =>
                         void closeSessionIdsAndNavigate(
@@ -652,7 +696,7 @@
                       Close Tabs to the Left
                     </ContextMenu.Item>
                     <ContextMenu.Item
-                      class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                      class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                       disabled={sessionIndex === app.activeSessions.length - 1}
                       onclick={() =>
                         void closeSessionIdsAndNavigate(
@@ -663,7 +707,7 @@
                     </ContextMenu.Item>
                     <ContextMenu.Separator class="bg-white/10" />
                     <ContextMenu.Item
-                      class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                      class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                       onclick={() =>
                         void closeSessionIdsAndNavigate(allSessionIds())}
                     >
@@ -677,7 +721,7 @@
 
           {#if canScrollSessionTabsRight}
             <div
-              class="pointer-events-none absolute inset-y-0 right-0 z-20 flex w-12 items-center justify-end bg-gradient-to-l from-terminal-ink via-terminal-ink/90 to-transparent pr-1 text-slate-500"
+              class="pointer-events-none absolute inset-y-0 right-0 z-20 flex w-12 items-center justify-end bg-gradient-to-l from-rib via-rib/90 to-transparent pr-1 text-stencil-mute"
               aria-hidden="true"
             >
               <svg
@@ -713,18 +757,21 @@
                 aria-live="polite"
               >
                 <div
-                  class="w-full max-w-lg rounded-[2rem] border border-red-300/20 bg-red-400/8 p-8 text-center shadow-2xl shadow-black/45"
+                  class="w-full max-w-lg rounded-[2px] border border-seal/60 bg-rail p-8 text-center"
                 >
                   <div
-                    class="mx-auto grid size-14 place-items-center rounded-2xl bg-red-400/12 text-red-300"
+                    class="flex items-center justify-center gap-2 text-[11px] uppercase tracking-[0.14em] text-stencil"
                   >
-                    <AlertCircle class="size-7" />
+                    {#if activeStencil}<span
+                        >{activeStencil.prefix}·{app.activeSession.name}</span
+                      >{/if}
+                    <span class="bg-stencil px-1 leading-4 text-seal">HELD</span>
                   </div>
-                  <h2 class="mt-5 text-xl font-semibold text-white">
+                  <h2 class="mt-4 text-xl font-semibold text-stencil">
                     Terminal disconnected
                   </h2>
                   <p
-                    class="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-400"
+                    class="mx-auto mt-2 max-w-md text-sm leading-6 text-stencil-mute"
                   >
                     {app.activeSession.name} is no longer connected. The tab stays
                     open so you can see it failed and decide whether to retry or close
@@ -734,7 +781,7 @@
                     {#if app.activeSession.connectionId}
                       <Button
                         onclick={retryActiveConnection}
-                        class="gap-2 rounded-2xl bg-red-300 px-5 text-red-950 hover:bg-red-200"
+                        class="gap-2 rounded-[2px] bg-seal px-5 text-stencil hover:bg-[#b4432f]"
                       >
                         Retry session
                       </Button>
@@ -745,7 +792,7 @@
                         void closeSessionAndNavigate(
                           app.activeSession?.id ?? "",
                         )}
-                      class="rounded-2xl border-white/10 bg-white/4 px-5 text-white hover:bg-white/8"
+                      class="rounded-[2px] border-white/10 bg-transparent px-5 text-stencil hover:border-white/20 hover:bg-white/5"
                     >
                       Close tab
                     </Button>
@@ -758,6 +805,9 @@
               <ConnectionStatusOverlay
                 status={app.activeSession.status}
                 name={app.activeSession.name}
+                code={activeStencil
+                  ? `${activeStencil.prefix}·${app.activeSession.name}`
+                  : undefined}
                 error={app.activeSession.error}
                 trustPrompt={app.activeSession.trustPrompt}
                 trustMismatch={app.activeSession.trustMismatch}
@@ -780,11 +830,11 @@
           {#if app.mountedTerminalSessions.length > 0}
             <div
               class={isTerminalVisible
-                ? "absolute inset-0 z-10 flex h-full min-h-0 flex-col overflow-hidden p-3"
-                : "pointer-events-none absolute inset-0 z-10 flex h-full min-h-0 flex-col overflow-hidden p-3 opacity-0"}
+                ? "absolute inset-0 z-10 flex h-full min-h-0 flex-col overflow-hidden"
+                : "pointer-events-none absolute inset-0 z-10 flex h-full min-h-0 flex-col overflow-hidden opacity-0"}
             >
               <div
-                class="terminal-frame relative min-h-0 flex-1 overflow-hidden rounded-[1.35rem] border border-white/10 bg-terminal-ink"
+                class="relative min-h-0 flex-1 overflow-hidden bg-terminal-ink"
               >
                 {#each app.mountedTerminalSessions as session (session.id)}
                   <div
@@ -839,6 +889,45 @@
             </div>
           {/if}
         </div>
+
+        <footer
+          class="flex h-6 shrink-0 items-center gap-5 border-t border-rib bg-rail px-3 text-[11px] text-stencil-mute"
+          aria-label="Session status"
+        >
+          {#if app.activeSession && activeStencil}
+            <span
+              class="flex min-w-0 items-center gap-2 uppercase tracking-[0.14em] text-stencil"
+            >
+              <span
+                class="h-2 w-3 shrink-0"
+                style:background-color={activeStencil.line.fill}
+                aria-hidden="true"
+              ></span>
+              <span class="truncate"
+                >{activeStencil.prefix}·{app.activeSession.name}</span
+              >
+            </span>
+            {#if app.activeSession.type === "local"}
+              <span>local shell</span>
+            {:else}
+              <span class="truncate"
+                >{app.activeSession.username}@{app.activeSession.host}:{app
+                  .activeSession.port}</span
+              >
+            {/if}
+            <span
+              class={isHeld(app.activeSession.status) ? "text-red-300" : ""}
+              >{STATUS_LABELS[app.activeSession.status]}</span
+            >
+          {:else}
+            <span>No session selected</span>
+          {/if}
+          <span class="ml-auto shrink-0 tabular-nums"
+            >{app.activeSessions.length} open{heldSessionCount > 0
+              ? ` · ${heldSessionCount} held`
+              : ""}</span
+          >
+        </footer>
       </div>
 
       <SettingsModal open={app.showSettings} onClose={app.closeSettings} />

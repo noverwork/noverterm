@@ -26,20 +26,20 @@
   const toneClass = $derived.by(() => {
     switch (type) {
       case "warning":
-        return "border-amber-300/30 bg-amber-950/90 text-amber-100 shadow-black/45";
+        return "border-[#c9952e]/60 bg-rail text-[#e6c27a]";
       case "info":
-        return "border-white/10 bg-slate-950/95 text-slate-100 shadow-black/45";
+        return "border-white/10 bg-rail text-stencil";
       default:
-        return "border-red-300/30 bg-red-950/90 text-red-100 shadow-black/45";
+        return "border-seal/60 bg-rail text-red-200";
     }
   });
 
   const iconClass = $derived.by(() => {
     switch (type) {
       case "warning":
-        return "text-amber-200";
+        return "text-[#e6c27a]";
       case "info":
-        return "text-slate-300";
+        return "text-stencil-dim";
       default:
         return "text-red-200";
     }
@@ -56,7 +56,7 @@
 </script>
 
 <div
-  class="animate-[toast-slide-in_180ms_ease-out] rounded-2xl border px-4 py-3 shadow-2xl backdrop-blur {toneClass}"
+  class="animate-[toast-slide-in_180ms_ease-out] rounded-[2px] border px-4 py-3 {toneClass}"
   role="alert"
   data-testid="error-toast"
   data-toast-type={type}
@@ -76,7 +76,7 @@
 
     <button
       type="button"
-      class="-mr-1 -mt-1 grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-current opacity-70 transition hover:bg-white/10 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+      class="-mr-1 -mt-1 grid size-7 shrink-0 cursor-pointer place-items-center rounded-[2px] text-current opacity-70 transition hover:bg-white/10 hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil"
       aria-label="Dismiss notification"
       onclick={onDismiss}
       data-testid="error-toast-dismiss"

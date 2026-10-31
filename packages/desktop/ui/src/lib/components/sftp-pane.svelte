@@ -167,29 +167,29 @@
   {#if pane.isReady}
     <button
       type="button"
-      class="group flex min-w-0 items-center gap-3 border-b border-white/8 bg-white/[0.03] px-4 py-3 text-left transition hover:bg-white/[0.055] focus-visible:bg-white/[0.055] focus-visible:outline-none"
+      class="group flex min-w-0 items-center gap-3 border-b border-white/10 bg-rib px-4 py-3 text-left transition hover:bg-[#1f252c] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-stencil"
       onclick={() => pane.isLocal ? pane.chooseMachine() : onDisconnect()}
       title={pane.isLocal ? "Switch machine" : "Disconnect and switch machine"}
       aria-label="Switch machine"
       data-testid="{pane.side}-connection-identity"
     >
       {#if pane.isLocal}
-        <Laptop class="size-4 shrink-0 text-slate-300" />
+        <Laptop class="size-4 shrink-0 text-stencil-dim" />
       {:else}
-        <Server class="size-4 shrink-0 text-slate-300" />
+        <Server class="size-4 shrink-0 text-stencil-dim" />
       {/if}
       <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-medium text-white">{pane.label}</p>
-        <p class="break-all text-xs text-slate-400">
+        <p class="truncate text-sm font-medium text-stencil">{pane.label}</p>
+        <p class="break-all text-xs text-stencil-mute">
           {pane.isLocal ? "This machine" : pane.connection ? formatHost(pane.connection) : ""}
         </p>
       </div>
-      <ChevronsUpDown class="size-4 shrink-0 text-slate-500 transition group-hover:text-white" />
+      <ChevronsUpDown class="size-4 shrink-0 text-stencil-faint transition group-hover:text-stencil" />
     </button>
     <div class="flex items-center justify-between border-b border-white/8 px-4 py-3">
       <input
         type="text"
-        class="min-w-0 flex-1 truncate rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-slate-400 outline-none hover:border-white/10 focus:border-cyan-300/40 focus:bg-white/5 focus:text-white"
+        class="min-w-0 flex-1 truncate rounded-[2px] border border-transparent bg-transparent px-1 py-0.5 text-xs text-stencil-mute outline-none hover:border-white/10 focus:border-stencil focus:bg-transparent focus:text-stencil"
         value={pane.path}
         placeholder={pane.isLocal ? "~" : "/"}
         spellcheck="false"
@@ -201,7 +201,7 @@
       <div class="flex shrink-0 items-center gap-1">
         <button
           type="button"
-          class="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
+          class="rounded-[2px] p-1.5 text-stencil-mute hover:bg-white/10 hover:text-stencil"
           onclick={() => pane.refresh()}
           title="Refresh"
         >
@@ -212,7 +212,7 @@
         </button>
         <button
           type="button"
-          class="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
+          class="rounded-[2px] p-1.5 text-stencil-mute hover:bg-white/10 hover:text-stencil"
           onclick={() => showCreateFolderDialog = true}
           title="New folder"
         >
@@ -224,7 +224,7 @@
         </button>
         <button
           type="button"
-          class="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-30"
+          class="rounded-[2px] p-1.5 text-stencil-mute hover:bg-white/10 hover:text-stencil disabled:opacity-30"
           onclick={() => renameEntry = pane.selected[0]}
           disabled={pane.selected.length !== 1}
           title="Rename"
@@ -236,7 +236,7 @@
         </button>
         <button
           type="button"
-          class="rounded-lg p-1.5 text-slate-400 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-30"
+          class="rounded-[2px] p-1.5 text-stencil-mute hover:bg-seal/20 hover:text-red-300 disabled:opacity-30"
           onclick={() => deleteEntries = pane.selected}
           disabled={pane.selected.length === 0}
           title="Delete"
@@ -249,7 +249,7 @@
       </div>
     </div>
     <div
-      class="flex-1 overflow-auto p-2 {isDragOver ? 'bg-cyan-300/10 ring-2 ring-cyan-300/40 ring-inset rounded-lg' : ''}"
+      class="flex-1 overflow-auto p-2 {isDragOver ? 'bg-white/[0.04] ring-1 ring-stencil ring-inset' : ''}"
       ondragover={handleDragOver}
       ondragleave={handleDragLeave}
       ondrop={handleDrop}
@@ -271,21 +271,21 @@
     </div>
   {:else}
     <div class="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-      <h2 class="mb-3 text-sm font-medium text-white">Select a connection</h2>
+      <h2 class="mb-3 text-sm font-medium text-stencil">Select a connection</h2>
       <div class="grid gap-2">
         <button
           type="button"
-          class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-white/14 hover:bg-white/[0.055] disabled:opacity-50"
+          class="flex items-center gap-3 rounded-[2px] border border-white/10 bg-rib p-3 text-left transition hover:border-white/20 hover:bg-[#1f252c] disabled:opacity-50"
           onclick={onUseLocal}
           disabled={pickerDisabled || otherMachine === LOCAL_MACHINE}
           title={otherMachine === LOCAL_MACHINE ? takenTitle : undefined}
         >
-          <div class="grid size-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-300">
+          <div class="grid size-8 shrink-0 place-items-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim">
             <Laptop class="size-4" />
           </div>
           <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-medium text-white">Local</p>
-            <p class="truncate text-xs text-slate-400">This machine</p>
+            <p class="truncate text-sm font-medium text-stencil">Local</p>
+            <p class="truncate text-xs text-stencil-mute">This machine</p>
           </div>
         </button>
 
@@ -294,17 +294,17 @@
           {#each sshSessions as session (session.id)}
             <button
               type="button"
-              class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-white/14 hover:bg-white/[0.055] disabled:opacity-50"
+              class="flex items-center gap-3 rounded-[2px] border border-white/10 bg-rib p-3 text-left transition hover:border-white/20 hover:bg-[#1f252c] disabled:opacity-50"
               onclick={() => onOpenSession(session)}
               disabled={pickerDisabled || otherMachine === machineKey(session)}
               title={otherMachine === machineKey(session) ? takenTitle : undefined}
             >
-              <div class="grid size-8 shrink-0 place-items-center rounded-lg border border-emerald-300/20 bg-emerald-300/12 text-emerald-200">
+              <div class="grid size-8 shrink-0 place-items-center rounded-[2px] border border-emerald-300/30 bg-transparent text-emerald-200">
                 <TerminalSquare class="size-4" />
               </div>
               <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium text-white">{session.name}</p>
-                <p class="truncate text-xs text-slate-400">{formatHost(session)}</p>
+                <p class="truncate text-sm font-medium text-stencil">{session.name}</p>
+                <p class="truncate text-xs text-stencil-mute">{formatHost(session)}</p>
               </div>
             </button>
           {/each}
@@ -314,26 +314,26 @@
         {#each connections as connection (connection.id)}
           <button
             type="button"
-            class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-white/14 hover:bg-white/[0.055] disabled:opacity-50"
+            class="flex items-center gap-3 rounded-[2px] border border-white/10 bg-rib p-3 text-left transition hover:border-white/20 hover:bg-[#1f252c] disabled:opacity-50"
             onclick={() => onConnect(connection)}
             disabled={pickerDisabled || otherMachine === machineKey(connection)}
             title={otherMachine === machineKey(connection) ? takenTitle : undefined}
           >
-            <div class="grid size-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-300">
+            <div class="grid size-8 shrink-0 place-items-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim">
               <Server class="size-4" />
             </div>
             <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-medium text-white">{connection.name}</p>
-              <p class="truncate text-xs text-slate-400">{formatHost(connection)}</p>
+              <p class="truncate text-sm font-medium text-stencil">{connection.name}</p>
+              <p class="truncate text-xs text-stencil-mute">{formatHost(connection)}</p>
             </div>
           </button>
         {/each}
         {#if connections.length === 0}
-          <p class="py-4 text-center text-sm text-slate-400">No saved connections. Add one in Connections.</p>
+          <p class="py-4 text-center text-sm text-stencil-mute">No saved connections. Add one in Connections.</p>
         {/if}
       </div>
       {#if pane.isClosing}
-        <div class="mt-3 flex items-center gap-2 text-sm text-slate-400" role="status">
+        <div class="mt-3 flex items-center gap-2 text-sm text-stencil-mute" role="status">
           <Loader2 class="size-4 animate-spin" />
           <span>Disconnecting...</span>
         </div>

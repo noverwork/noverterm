@@ -14,47 +14,55 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --radius: 0.625rem;
+  --radius: 2px;
   color-scheme: dark;
-  --background: oklch(0.17 0.02 255);
-  --foreground: oklch(0.965 0.01 255);
-  --card: oklch(0.22 0.02 255);
-  --card-foreground: oklch(0.965 0.01 255);
-  --popover: oklch(0.129 0.042 264.695 / 0.96);
-  --popover-foreground: oklch(0.965 0.01 255);
-  --primary: oklch(0.865 0.127 207.078);
-  --primary-foreground: oklch(0.129 0.042 264.695);
-  --secondary: oklch(0.26 0.02 255);
-  --secondary-foreground: oklch(0.965 0.01 255);
-  --muted: oklch(0.26 0.02 255);
-  --muted-foreground: oklch(0.76 0.02 255);
-  --accent: oklch(0.865 0.127 207.078 / 0.1);
-  --accent-foreground: oklch(0.975 0.01 255);
+  --background: #101317;
+  --foreground: #e8e4d8;
+  --card: #1a1f25;
+  --card-foreground: #e8e4d8;
+  --popover: #0b0e11;
+  --popover-foreground: #e8e4d8;
+  --primary: #e8e4d8;
+  --primary-foreground: #101317;
+  --secondary: #1a1f25;
+  --secondary-foreground: #e8e4d8;
+  --muted: #1a1f25;
+  --muted-foreground: #9f9d96;
+  --accent: rgb(255 255 255 / 0.08);
+  --accent-foreground: #e8e4d8;
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 0.1);
   --input: oklch(1 0 0 / 0.1);
-  --ring: oklch(0.865 0.127 207.078);
+  --ring: #e8e4d8;
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.2 0.02 255);
-  --sidebar-foreground: oklch(0.965 0.01 255);
-  --sidebar-primary: oklch(0.865 0.127 207.078);
-  --sidebar-primary-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-accent: oklch(0.26 0.02 255);
-  --sidebar-accent-foreground: oklch(0.975 0.01 255);
-  --sidebar-border: oklch(0.34 0.02 255);
-  --sidebar-ring: oklch(0.865 0.127 207.078);
+  --sidebar: #0b0e11;
+  --sidebar-foreground: #e8e4d8;
+  --sidebar-primary: #e8e4d8;
+  --sidebar-primary-foreground: #101317;
+  --sidebar-accent: #1a1f25;
+  --sidebar-accent-foreground: #e8e4d8;
+  --sidebar-border: #1a1f25;
+  --sidebar-ring: #e8e4d8;
 }
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-terminal-ink: #080c13;
+  --radius-xl: var(--radius);
+  --color-terminal-ink: #000000;
+  --color-port: #101317;
+  --color-rail: #0b0e11;
+  --color-rib: #1a1f25;
+  --color-stencil: #e8e4d8;
+  --color-seal: #a33b28;
+  --color-stencil-dim: #c1beb5;
+  --color-stencil-mute: #9f9d96;
+  --color-stencil-faint: #82807b;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -97,7 +105,7 @@
   * {
     @apply border-border outline-ring/50;
     scrollbar-width: thin;
-    scrollbar-color: rgb(148 163 184 / 0.34) transparent;
+    scrollbar-color: rgb(232 228 216 / 0.28) transparent;
   }
 
   *::-webkit-scrollbar {
@@ -110,16 +118,20 @@
   }
 
   *::-webkit-scrollbar-thumb {
-    border-radius: 999px;
-    background: rgb(148 163 184 / 0.32);
+    border-radius: 0;
+    background: rgb(232 228 216 / 0.26);
   }
 
   *::-webkit-scrollbar-thumb:hover {
-    background: rgb(203 213 225 / 0.46);
+    background: rgb(232 228 216 / 0.42);
   }
 
   *::-webkit-scrollbar-corner {
     background: transparent;
+  }
+
+  ::selection {
+    background: rgb(232 228 216 / 0.28);
   }
 
   body {
@@ -134,68 +146,33 @@
 
 @layer components {
   .auth-shell {
-    background:
-      radial-gradient(
-        circle at top left,
-        rgb(34 211 238 / 0.09),
-        transparent 30%
-      ),
-      radial-gradient(
-        circle at top right,
-        rgb(34 211 238 / 0.06),
-        transparent 28%
-      ),
-      linear-gradient(180deg, #05070b 0%, #080c13 55%, #0b1220 100%);
+    background: var(--color-port);
   }
 
   .workspace-canvas,
   .workspace-surface {
-    background:
-      radial-gradient(
-        circle at 16% 0%,
-        rgb(34 211 238 / 0.09),
-        transparent 24rem
-      ),
-      radial-gradient(
-        circle at 88% 12%,
-        rgb(59 130 246 / 0.11),
-        transparent 28rem
-      ),
-      linear-gradient(135deg, #05070b 0%, #080c13 45%, #0b1220 100%);
+    background: var(--color-port);
+  }
+
+  /* Corrugated steel: a 1px rib every 8px behind the session tabs. */
+  .tab-rib {
+    background: repeating-linear-gradient(
+      90deg,
+      var(--color-rib) 0 7px,
+      #161a1f 7px 8px
+    );
   }
 
   .panel-glass {
-    @apply border border-white/10 bg-white/6 backdrop-blur-xl;
+    @apply border border-white/10 bg-rib;
   }
 
   .ide-panel {
     position: relative;
     overflow: hidden;
-    border-radius: 1.75rem;
+    border-radius: 2px;
     border: 1px solid rgb(255 255 255 / 0.1);
-    background:
-      linear-gradient(
-        180deg,
-        rgb(255 255 255 / 0.065),
-        rgb(255 255 255 / 0.028)
-      ),
-      rgb(8 12 19 / 0.86);
-    box-shadow:
-      0 24px 70px rgb(0 0 0 / 0.36),
-      inset 0 1px 0 rgb(255 255 255 / 0.06);
-    backdrop-filter: blur(20px);
-  }
-
-  .ide-panel::before {
-    content: "";
-    pointer-events: none;
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(
-      circle at top right,
-      rgb(34 211 238 / 0.08),
-      transparent 22rem
-    );
+    background: var(--color-rail);
   }
 
   .ide-panel > * {
@@ -204,15 +181,15 @@
   }
 
   .hero-chip {
-    @apply inline-flex items-center gap-2 rounded-full border border-cyan-300/14 bg-cyan-300/8 px-3 py-1 text-xs font-medium text-cyan-200;
+    @apply inline-flex items-center gap-2 rounded-[2px] border border-white/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.14em] text-stencil;
   }
 
   .section-title {
-    @apply text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground;
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-stencil-mute;
   }
 
   .metric-card {
-    @apply rounded-[1.35rem] border border-white/8 bg-white/5 p-4 backdrop-blur-sm;
+    @apply rounded-[2px] border border-white/10 bg-rib p-4;
   }
 
   .terminal-container {
@@ -278,13 +255,7 @@
   .sidebar {
     scrollbar-width: thin;
     scrollbar-color: var(--sidebar-border) transparent;
-    background:
-      radial-gradient(
-        circle at 22% 0%,
-        rgb(34 211 238 / 0.08),
-        transparent 13rem
-      ),
-      linear-gradient(180deg, rgb(7 11 18 / 0.98), rgb(5 9 15 / 0.98));
+    background: var(--color-rail);
   }
 
   .sidebar [data-sidebar-scroll] {

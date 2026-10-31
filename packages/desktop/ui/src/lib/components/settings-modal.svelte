@@ -60,7 +60,7 @@
 
 {#if open}
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
     onclick={(event) => event.target === event.currentTarget && onClose()}
     onkeydown={(event) => event.key === "Escape" && onClose()}
     role="dialog"
@@ -69,19 +69,18 @@
     tabindex="-1"
   >
     <div
-      class="ide-panel flex w-full max-w-lg flex-col overflow-hidden rounded-[2rem] text-white shadow-2xl shadow-black/45"
+      class="ide-panel flex w-full max-w-lg flex-col overflow-hidden rounded-[2px] text-stencil"
     >
       <div
         class="flex shrink-0 items-center justify-between border-b border-white/10 px-6 py-4"
       >
         <div>
-          <p class="section-title">Workspace preferences</p>
-          <h2 class="mt-1 text-xl font-semibold tracking-tight">Settings</h2>
+          <h2 class="text-xl font-semibold tracking-tight">Settings</h2>
         </div>
         <Button
           variant="ghost"
           size="icon-sm"
-          class="rounded-2xl text-slate-400 hover:bg-white/8 hover:text-white"
+          class="rounded-[2px] text-stencil-mute hover:bg-white/8 hover:text-stencil"
           onclick={onClose}
           aria-label="Close settings"
           title="Close settings"
@@ -92,17 +91,17 @@
 
       <div class="space-y-6 px-6 py-8">
         <div
-          class="rounded-[1.35rem] border border-white/10 bg-white/[0.025] px-5 py-5"
+          class="rounded-[2px] border border-white/10 bg-transparent px-5 py-5"
         >
           <div class="flex items-center gap-3">
             <div
-              class="grid size-10 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-300"
+              class="grid size-10 place-items-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim"
             >
               <Settings class="size-4" />
             </div>
             <div class="flex-1">
-              <p class="text-sm font-semibold text-white">About Noverterm</p>
-              <p class="text-xs text-slate-400">Version {appVersion}</p>
+              <p class="text-sm font-semibold text-stencil">About Noverterm</p>
+              <p class="text-xs text-stencil-mute">Version {appVersion}</p>
             </div>
           </div>
 
@@ -110,7 +109,7 @@
             <Button
               variant="outline"
               size="sm"
-              class="flex-1 rounded-xl border-white/10 bg-white/5 text-sm text-white hover:bg-white/10 disabled:opacity-50"
+              class="flex-1 rounded-[2px] border-white/10 bg-transparent text-sm text-stencil hover:border-white/20 hover:bg-white/5 disabled:opacity-50"
               onclick={handleCheckUpdate}
               disabled={checking}
             >
@@ -132,17 +131,17 @@
         </div>
 
         <div
-          class="rounded-[1.35rem] border border-white/10 bg-white/[0.025] px-5 py-5"
+          class="rounded-[2px] border border-white/10 bg-transparent px-5 py-5"
         >
           <div class="flex items-center gap-3">
             <div
-              class="grid size-10 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-300"
+              class="grid size-10 place-items-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim"
             >
               <DatabaseBackup class="size-4" />
             </div>
             <div class="flex-1">
-              <p class="text-sm font-semibold text-white">Backup</p>
-              <p class="text-xs text-slate-400">
+              <p class="text-sm font-semibold text-stencil">Backup</p>
+              <p class="text-xs text-stencil-mute">
                 Connections, keys and snippets are stored in plain text — keep
                 the file somewhere private.
               </p>
@@ -153,7 +152,7 @@
             <Button
               variant="outline"
               size="sm"
-              class="flex-1 rounded-xl border-white/10 bg-white/5 text-sm text-white hover:bg-white/10 disabled:opacity-50"
+              class="flex-1 rounded-[2px] border-white/10 bg-transparent text-sm text-stencil hover:border-white/20 hover:bg-white/5 disabled:opacity-50"
               onclick={handleBackup}
               disabled={backingUp}
             >

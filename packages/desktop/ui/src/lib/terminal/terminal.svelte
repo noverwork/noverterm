@@ -223,28 +223,28 @@
 
   {#if searchOpen}
     <div
-      class="absolute right-2 top-2 z-30 flex h-8 items-center gap-1 rounded-xl border border-white/10 bg-terminal-ink/95 px-2 py-1 text-slate-100 shadow-2xl shadow-black/45 backdrop-blur-sm"
+      class="absolute right-2 top-2 z-30 flex h-8 items-center gap-1 rounded-[2px] border border-white/10 bg-rail px-2 py-1 text-stencil"
       role="search"
       aria-label="Terminal search"
     >
-      <Search class="size-3.5 text-slate-400" aria-hidden="true" />
+      <Search class="size-3.5 text-stencil-mute" aria-hidden="true" />
       <Input
         bind:ref={searchInput}
         bind:value={searchTerm}
         aria-label="Search terminal buffer"
         placeholder="Search"
-        class="h-6 w-44 border-white/10 bg-black/20 px-2 py-0 text-xs text-slate-100 placeholder:text-slate-500 focus-visible:ring-1"
+        class="h-6 w-44 rounded-[2px] border-white/10 bg-port px-2 py-0 text-xs text-stencil placeholder:text-stencil-faint focus-visible:ring-1 focus-visible:ring-stencil"
         onkeydown={handleSearchKeydown}
       />
       {#if searchMatched === false && searchTerm.length > 0}
-        <span class="px-1 text-[0.68rem] text-amber-300" aria-live="polite">
+        <span class="px-1 text-[0.68rem] text-[#e6c27a]" aria-live="polite">
           No match
         </span>
       {/if}
       <Button
         variant="ghost"
         size="icon-xs"
-        class="size-6 cursor-pointer text-slate-300 hover:bg-white/10 hover:text-white"
+        class="size-6 cursor-pointer text-stencil-dim hover:bg-white/10 hover:text-stencil"
         disabled={searchTerm.length === 0}
         title="Previous result"
         aria-label="Previous search result"
@@ -255,7 +255,7 @@
       <Button
         variant="ghost"
         size="icon-xs"
-        class="size-6 cursor-pointer text-slate-300 hover:bg-white/10 hover:text-white"
+        class="size-6 cursor-pointer text-stencil-dim hover:bg-white/10 hover:text-stencil"
         disabled={searchTerm.length === 0}
         title="Next result"
         aria-label="Next search result"
@@ -266,7 +266,7 @@
       <Button
         variant="ghost"
         size="icon-xs"
-        class="size-6 cursor-pointer text-slate-400 hover:bg-white/10 hover:text-white"
+        class="size-6 cursor-pointer text-stencil-mute hover:bg-white/10 hover:text-stencil"
         title="Close search"
         aria-label="Close terminal search"
         onclick={closeSearch}

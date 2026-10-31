@@ -223,10 +223,10 @@
         };
       default:
         return {
-          tone: "bg-slate-500",
+          tone: "bg-stencil-faint",
           label: "Stopped",
-          text: "text-slate-400",
-          border: "border-white/8",
+          text: "text-stencil-mute",
+          border: "border-white/10",
         };
     }
   }
@@ -255,16 +255,15 @@
 <div
   class="workspace-canvas flex h-full min-h-0 flex-col overflow-hidden px-5 py-6 lg:px-8"
 >
-  <section class="ide-panel flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-white sm:p-6">
+  <section class="flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-stencil sm:p-6">
     <div
       class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between"
     >
       <div>
-        <p class="section-title">Network</p>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight">
+        <h1 class="text-2xl font-semibold tracking-tight">
           Port Forwards
         </h1>
-        <p class="mt-2 text-sm text-slate-400">
+        <p class="mt-2 text-sm text-stencil-mute">
           Save reusable SSH tunnels, then start them with one click.
         </p>
       </div>
@@ -272,14 +271,14 @@
       <div class="flex items-center gap-2 self-start">
         <div class="relative">
           <Search
-            class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-500"
+            class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-stencil-faint"
           />
           <Input
             type="search"
             bind:value={searchQuery}
             placeholder="Search forwards"
             aria-label="Search port forwards"
-            class="h-8 w-48 rounded-2xl border border-white/10 bg-black/20 pl-8 text-sm text-white placeholder:text-slate-500 focus-visible:border-cyan-300/40"
+            class="h-8 w-48 rounded-[2px] border border-white/10 bg-rail pl-8 text-sm text-stencil placeholder:text-stencil-faint focus-visible:border-stencil"
           />
         </div>
 
@@ -287,7 +286,7 @@
           onclick={onNew}
           variant="default"
           size="sm"
-          class="gap-2 rounded-2xl bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+          class="gap-2 rounded-[2px] bg-stencil text-port hover:bg-white"
         >
           <Plus class="size-3.5" />
           New Forward
@@ -297,7 +296,7 @@
 
     {#if error}
       <div
-        class="mt-5 rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        class="mt-5 rounded-[2px] border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
         role="alert"
       >
         {error}
@@ -307,13 +306,13 @@
     <div class="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
       {#if sortedSavedForwards.length === 0}
         <div
-          class="flex h-full min-h-[16rem] items-center justify-center rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground"
+          class="flex h-full min-h-[16rem] items-center justify-center rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground"
         >
           No saved forwards yet
         </div>
       {:else if visibleForwards.length === 0}
         <div
-          class="rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-8 text-center text-sm text-muted-foreground"
+          class="rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground"
         >
           No forwards match your search.
         </div>
@@ -339,13 +338,13 @@
                       handleCardActivate(savedForward, connection, runtimes, state);
                     }
                   }}
-                  class="group cursor-pointer rounded-[1.35rem] border bg-white/[0.03] px-4 py-4 transition hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40 {badge
+                  class="group cursor-pointer rounded-[2px] border bg-rib px-4 py-4 transition hover:bg-[#1f252c] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil {badge
                     ? badge.border
-                    : 'border-white/8 hover:border-white/14'}"
+                    : 'border-white/10 hover:border-white/20'}"
                 >
                   <div class="flex items-start gap-3">
                     <div
-                      class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300"
+                      class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim"
                     >
                       {#if isBusy(savedForward.id)}
                         <Loader2 class="size-5 animate-spin" />
@@ -356,24 +355,24 @@
 
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-2">
-                        <p class="truncate text-sm font-medium text-white">
+                        <p class="truncate text-sm font-medium text-stencil">
                           {savedForward.name}
                         </p>
                         <span
-                          class="flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide {badge
+                          class="flex shrink-0 items-center gap-1.5 rounded-[2px] border border-white/10 bg-rib px-1.5 text-[11px] uppercase tracking-[0.14em] {badge
                             ? badge.text
-                            : 'text-slate-400'}"
+                            : 'text-stencil-mute'}"
                         >
                           <span
                             class="inline-block size-1.5 rounded-full {badge
                               ? badge.tone
-                              : 'bg-slate-600'}"
+                              : 'bg-stencil-faint'}"
                           ></span>
                           {badge ? badge.label : "Idle"}
                         </span>
                       </div>
                       {#if connection}
-                        <p class="mt-1 truncate font-mono text-xs text-slate-400">
+                        <p class="mt-1 truncate font-mono text-xs text-stencil-mute">
                           {connection.username}@{connection.host}:{connection.port}
                         </p>
                       {:else}
@@ -390,7 +389,7 @@
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        class="rounded-xl text-slate-400 hover:bg-white/8 hover:text-white"
+                        class="rounded-[2px] text-stencil-mute hover:bg-white/8 hover:text-stencil"
                         aria-label={`Edit ${savedForward.name}`}
                         title={state ? "Stop the forward to edit it" : "Edit"}
                         disabled={state !== null}
@@ -404,7 +403,7 @@
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        class="rounded-xl text-slate-400 hover:bg-red-400/10 hover:text-red-300"
+                        class="rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
                         aria-label={`Delete ${savedForward.name}`}
                         title={state ? "Stop the forward to delete it" : "Delete"}
                         disabled={state !== null ||
@@ -420,7 +419,7 @@
                   </div>
 
                   <ul
-                    class="mt-3 divide-y divide-white/6 rounded-xl border border-white/8 bg-black/20 text-xs"
+                    class="mt-3 divide-y divide-white/6 rounded-[2px] border border-white/10 bg-rail text-xs"
                   >
                     {#each savedForward.mappings as mapping, index (index)}
                       {@const runtime = runtimes[index]}
@@ -429,16 +428,16 @@
                           <span
                             class="inline-block size-1.5 shrink-0 rounded-full {runtime
                               ? stateBadge(runtime.state).tone
-                              : 'bg-slate-600'}"
+                              : 'bg-stencil-faint'}"
                           ></span>
-                          <span class="truncate font-mono text-slate-100"
+                          <span class="truncate font-mono text-stencil"
                             >{mapping.bind_host}:{mapping.bind_port}</span
                           >
                           <ArrowRight
-                            class="size-3 shrink-0 text-slate-500"
+                            class="size-3 shrink-0 text-stencil-faint"
                             aria-label="forwards to"
                           />
-                          <span class="truncate font-mono text-slate-300"
+                          <span class="truncate font-mono text-stencil-dim"
                             >{mapping.target_host}:{mapping.target_port}</span
                           >
                         </div>
@@ -458,9 +457,9 @@
               </ContextMenu.Trigger>
 
               <ContextMenu.Content
-                class="min-w-44 border-white/10 bg-slate-950/96 text-slate-100 shadow-2xl shadow-black/45"
+                class="min-w-44 rounded-[2px] border-white/10 bg-rail text-stencil"
               >
-                <ContextMenu.Label class="max-w-56 truncate text-slate-400">
+                <ContextMenu.Label class="max-w-56 truncate text-stencil-mute">
                   {savedForward.name}
                 </ContextMenu.Label>
                 <ContextMenu.Separator class="bg-white/10" />
@@ -475,7 +474,7 @@
                   </ContextMenu.Item>
                 {:else}
                   <ContextMenu.Item
-                    class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                    class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                     disabled={!connection ||
                       forwardingPresetIds.includes(savedForward.id)}
                     onclick={() => void handleForward(savedForward)}
@@ -485,7 +484,7 @@
                   </ContextMenu.Item>
                 {/if}
                 <ContextMenu.Item
-                  class="cursor-pointer focus:bg-cyan-300/10 focus:text-white"
+                  class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                   disabled={state !== null}
                   onclick={() => void onEdit(savedForward)}
                 >
@@ -494,7 +493,7 @@
                 </ContextMenu.Item>
                 <ContextMenu.Separator class="bg-white/10" />
                 <ContextMenu.Item
-                  class="cursor-pointer text-red-300 focus:bg-red-400/10 focus:text-red-200"
+                  class="cursor-pointer rounded-[2px] text-red-300 focus:bg-seal/20 focus:text-red-200"
                   disabled={state !== null ||
                     deletingSavedForwardIds.includes(savedForward.id)}
                   onclick={() => requestDeleteSaved(savedForward)}

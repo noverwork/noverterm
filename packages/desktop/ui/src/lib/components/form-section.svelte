@@ -15,18 +15,18 @@
   } = $props();
 </script>
 
-<fieldset class="rounded-[1.35rem] border border-white/8 bg-white/[0.03] p-4">
+<fieldset class="rounded-[2px] border border-white/10 bg-rib p-4">
   <legend class="sr-only">{title}</legend>
 
   <div class="flex items-center gap-3">
     <div
-      class="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300"
+      class="flex size-10 shrink-0 items-center justify-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim"
     >
       <Icon class="size-5" />
     </div>
     <div>
-      <h2 class="text-sm font-medium text-white">{title}</h2>
-      <p class="mt-1 text-xs text-slate-400">{hint}</p>
+      <h2 class="text-sm font-medium text-stencil">{title}</h2>
+      <p class="mt-1 text-xs text-stencil-mute">{hint}</p>
     </div>
   </div>
 

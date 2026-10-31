@@ -181,7 +181,6 @@
 </script>
 
 <FormShell
-  eyebrow="Network"
   title={formTitle}
   description="Save a reusable SSH tunnel from a local bind port to a target reachable from the selected host."
   formId="port-forward-form"
@@ -198,18 +197,18 @@
   >
     {#if sortedConnections.length === 0}
       <div
-        class="rounded-2xl border border-dashed border-white/10 bg-white/[0.025] px-4 py-6 text-center"
+        class="rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-6 text-center"
       >
-        <Server class="mx-auto mb-3 size-8 text-slate-500" />
-        <p class="text-sm text-slate-400">No saved connections yet.</p>
-        <p class="mt-1 text-xs text-slate-400">
-          Create a Host in <span class="text-slate-200">Connections</span> first,
+        <Server class="mx-auto mb-3 size-8 text-stencil-faint" />
+        <p class="text-sm text-stencil-mute">No saved connections yet.</p>
+        <p class="mt-1 text-xs text-stencil-mute">
+          Create a Host in <span class="text-stencil">Connections</span> first,
           then return here to save a tunnel.
         </p>
       </div>
     {:else}
       <div class="space-y-2">
-        <label for="pf-connection" class="text-sm font-medium text-slate-100"
+        <label for="pf-connection" class="text-sm font-medium text-stencil"
           >Connection</label
         >
         <div class="relative">
@@ -219,35 +218,35 @@
             class={SELECT_CLASS}
             disabled={isSaving}
           >
-            <option value="" class="bg-slate-900">— Select a saved connection —</option>
+            <option value="" class="bg-rail">— Select a saved connection —</option>
             {#each sortedConnections as connection (connection.id)}
-              <option value={connection.id} class="bg-slate-900">
+              <option value={connection.id} class="bg-rail">
                 {connection.name} ({connection.username}@{connection.host}:{connection.port})
               </option>
             {/each}
           </select>
           <ChevronDown
-            class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+            class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-stencil-mute"
           />
         </div>
       </div>
 
       {#if selectedConnection}
-        <div class="rounded-2xl border border-white/8 bg-black/15 px-3 py-2.5">
-          <p class="truncate text-sm font-medium text-white">
+        <div class="rounded-[2px] border border-white/10 bg-rail px-3 py-2.5">
+          <p class="truncate text-sm font-medium text-stencil">
             {selectedConnection.name}
           </p>
-          <p class="mt-0.5 truncate font-mono text-[11px] text-slate-400">
+          <p class="mt-0.5 truncate font-mono text-[11px] text-stencil-mute">
             {selectedConnection.username}@{selectedConnection.host}:{selectedConnection.port}
           </p>
-          <p class="mt-0.5 text-[11px] text-slate-400">
+          <p class="mt-0.5 text-[11px] text-stencil-mute">
             {getAuthLabel(selectedConnection)}
           </p>
         </div>
       {/if}
 
       <div class="space-y-2">
-        <label for="pf-name" class="text-sm font-medium text-slate-100">Name</label>
+        <label for="pf-name" class="text-sm font-medium text-stencil">Name</label>
         <Input
           id="pf-name"
           bind:value={formName}
@@ -265,7 +264,7 @@
     hint="Bind locally, then connect to the target from the SSH host. All ports in this forward start and stop together."
   >
     {#each rows as row, index (index)}
-      <div class="rounded-2xl border border-white/8 bg-black/15 p-3">
+      <div class="rounded-[2px] border border-white/10 bg-rail p-3">
         <div class="flex items-center justify-between">
           <span
             class="section-title"
@@ -276,7 +275,7 @@
             type="button"
             variant="ghost"
             size="xs"
-            class="rounded-xl text-slate-400 hover:bg-destructive/10 hover:text-destructive"
+            class="rounded-[2px] text-stencil-mute hover:bg-destructive/10 hover:text-destructive"
             onclick={() => removeRow(index)}
             disabled={isSaving || rows.length === 1}
             aria-label={`Remove port ${index + 1}`}
@@ -290,7 +289,7 @@
             <div class="space-y-2">
               <label
                 for={`pf-bind-host-${index}`}
-                class="text-sm font-medium text-slate-100">Bind host</label
+                class="text-sm font-medium text-stencil">Bind host</label
               >
               <Input
                 id={`pf-bind-host-${index}`}
@@ -307,7 +306,7 @@
             <div class="space-y-2">
               <label
                 for={`pf-bind-port-${index}`}
-                class="text-sm font-medium text-slate-100">Bind port</label
+                class="text-sm font-medium text-stencil">Bind port</label
               >
               <Input
                 id={`pf-bind-port-${index}`}
@@ -324,14 +323,14 @@
           </div>
 
           <div class="flex items-center justify-center py-1" aria-hidden="true">
-            <ArrowDown class="size-4 text-slate-500" />
+            <ArrowDown class="size-4 text-stencil-faint" />
           </div>
 
           <div class="grid grid-cols-[1fr_7rem] gap-3">
             <div class="space-y-2">
               <label
                 for={`pf-target-host-${index}`}
-                class="text-sm font-medium text-slate-100">Target host</label
+                class="text-sm font-medium text-stencil">Target host</label
               >
               <Input
                 id={`pf-target-host-${index}`}
@@ -348,7 +347,7 @@
             <div class="space-y-2">
               <label
                 for={`pf-target-port-${index}`}
-                class="text-sm font-medium text-slate-100">Target port</label
+                class="text-sm font-medium text-stencil">Target port</label
               >
               <Input
                 id={`pf-target-port-${index}`}
@@ -370,7 +369,7 @@
       type="button"
       variant="ghost"
       size="sm"
-      class="gap-1.5 rounded-2xl border border-white/10 bg-white/5 text-white hover:bg-white/8"
+      class="gap-1.5 rounded-[2px] border border-white/10 bg-transparent text-stencil hover:border-white/20 hover:bg-white/5"
       onclick={addRow}
       disabled={isSaving}
     >

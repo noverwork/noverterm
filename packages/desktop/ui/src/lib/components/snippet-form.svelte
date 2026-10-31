@@ -100,16 +100,15 @@
     title={value}
     disabled={isSaving}
     onclick={() => (pinIcon = value)}
-    class="grid size-10 cursor-pointer place-items-center rounded-xl border transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 disabled:cursor-not-allowed disabled:opacity-50 {selected
-      ? 'border-cyan-300/30 bg-cyan-300/10 text-cyan-50'
-      : 'border-white/10 bg-white/[0.03] text-slate-400 hover:border-white/20 hover:bg-white/[0.06] hover:text-white'}"
+    class="grid size-10 cursor-pointer place-items-center rounded-[2px] border transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil disabled:cursor-not-allowed disabled:opacity-50 {selected
+      ? 'border-stencil bg-white/[0.06] text-stencil'
+      : 'border-white/10 bg-rib text-stencil-mute hover:border-white/20 hover:text-stencil'}"
   >
     <SnippetPinIcon name={value} />
   </button>
 {/snippet}
 
 <FormShell
-  eyebrow="Snippets"
   title={pageTitle}
   description={pageDescription}
   formId="snippet-form"
@@ -125,7 +124,7 @@
     hint="Choose the target host and give this snippet a name."
   >
     <div class="space-y-2">
-      <label for="snippet-host" class="text-sm font-medium text-slate-100">Host</label>
+      <label for="snippet-host" class="text-sm font-medium text-stencil">Host</label>
       <div class="relative">
         <select
           id="snippet-host"
@@ -133,21 +132,21 @@
           class={SELECT_CLASS}
           disabled={isSaving}
         >
-          <option value="" class="bg-slate-900">Local Terminal</option>
+          <option value="" class="bg-rail">Local Terminal</option>
           {#each hosts as host (host.id)}
-            <option value={host.id} class="bg-slate-900">
+            <option value={host.id} class="bg-rail">
               {host.name} ({host.host})
             </option>
           {/each}
         </select>
         <ChevronDown
-          class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+          class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-stencil-mute"
         />
       </div>
     </div>
 
     <div class="space-y-2">
-      <label for="snippet-title" class="text-sm font-medium text-slate-100">Title</label>
+      <label for="snippet-title" class="text-sm font-medium text-stencil">Title</label>
       <Input
         id="snippet-title"
         bind:value={title}
@@ -164,7 +163,7 @@
     hint="The command or script that will run on the selected host."
   >
     <div class="space-y-2">
-      <label for="snippet-body" class="text-sm font-medium text-slate-100">Command</label>
+      <label for="snippet-body" class="text-sm font-medium text-stencil">Command</label>
       <textarea
         id="snippet-body"
         bind:value={body}
@@ -184,17 +183,17 @@
     hint="Launch this snippet from the sidebar. Each click opens a new tab and runs the command."
   >
     <label
-      class="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 transition-colors duration-150 hover:border-white/20"
+      class="flex cursor-pointer items-start gap-3 rounded-[2px] border border-white/10 bg-rib px-3 py-3 transition-colors duration-150 hover:border-white/20"
     >
       <input
         type="checkbox"
         bind:checked={showOnPanel}
         disabled={isSaving}
-        class="mt-0.5 size-4 shrink-0 cursor-pointer accent-cyan-300"
+        class="mt-0.5 size-4 shrink-0 cursor-pointer accent-stencil"
       />
       <span class="min-w-0">
-        <span class="block text-sm font-medium text-slate-100">Show on shortcut panel</span>
-        <span class="mt-0.5 block text-xs text-slate-400">
+        <span class="block text-sm font-medium text-stencil">Show on shortcut panel</span>
+        <span class="mt-0.5 block text-xs text-stencil-mute">
           Drag shortcuts in the sidebar to change their order.
         </span>
       </span>
@@ -202,7 +201,7 @@
 
     {#if showOnPanel}
       <div class="space-y-2">
-        <span id="snippet-icon-label" class="text-sm font-medium text-slate-100">Icon</span>
+        <span id="snippet-icon-label" class="text-sm font-medium text-stencil">Icon</span>
         <div
           role="radiogroup"
           aria-labelledby="snippet-icon-label"

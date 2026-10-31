@@ -55,8 +55,8 @@
 
   function segmentClass(active: boolean) {
     return active
-      ? "flex-1 cursor-pointer rounded-xl bg-cyan-300/12 px-3 py-2 text-sm font-medium text-cyan-100 transition-colors"
-      : "flex-1 cursor-pointer rounded-xl px-3 py-2 text-sm text-slate-400 transition-colors hover:bg-white/6 hover:text-white";
+      ? "flex-1 cursor-pointer rounded-[2px] border border-stencil px-3 py-2 text-sm font-medium text-stencil transition-colors"
+      : "flex-1 cursor-pointer rounded-[2px] border border-transparent px-3 py-2 text-sm text-stencil-mute transition-colors hover:bg-white/5 hover:text-stencil";
   }
 
   $effect(() => {
@@ -184,7 +184,6 @@
 </script>
 
 <FormShell
-  eyebrow="Inventory"
   title={formTitle}
   description="Save host details and encrypted credentials for terminal and forwarding workflows."
   formId="connection-form"
@@ -200,7 +199,7 @@
     hint="Name the host and define where the SSH session connects."
   >
     <div class="space-y-2">
-      <label for="conn-name" class="text-sm font-medium text-slate-100">Name</label>
+      <label for="conn-name" class="text-sm font-medium text-stencil">Name</label>
       <Input
         id="conn-name"
         bind:value={$formData.name}
@@ -223,7 +222,7 @@
 
     <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_7rem]">
       <div class="space-y-2">
-        <label for="conn-host" class="text-sm font-medium text-slate-100">Hostname</label>
+        <label for="conn-host" class="text-sm font-medium text-stencil">Hostname</label>
         <Input
           id="conn-host"
           bind:value={$formData.host}
@@ -245,7 +244,7 @@
       </div>
 
       <div class="space-y-2">
-        <label for="conn-port" class="text-sm font-medium text-slate-100">Port</label>
+        <label for="conn-port" class="text-sm font-medium text-stencil">Port</label>
         <Input
           id="conn-port"
           type="number"
@@ -267,7 +266,7 @@
     </div>
 
     <div class="space-y-2">
-      <label for="conn-username" class="text-sm font-medium text-slate-100">Username</label>
+      <label for="conn-username" class="text-sm font-medium text-stencil">Username</label>
       <Input
         id="conn-username"
         bind:value={$formData.username}
@@ -295,7 +294,7 @@
     hint="Credentials are encrypted at rest. Use a password, an SSH key, or both."
   >
     <div class="space-y-2">
-      <label for="conn-password" class="text-sm font-medium text-slate-100">Password</label>
+      <label for="conn-password" class="text-sm font-medium text-stencil">Password</label>
       <div class="relative">
         <Input
           id="conn-password"
@@ -311,7 +310,7 @@
         />
         <button
           type="button"
-          class="absolute right-3 top-1/2 flex size-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/8 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          class="absolute right-3 top-1/2 flex size-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-[2px] text-stencil-mute transition-colors hover:bg-white/8 hover:text-stencil disabled:cursor-not-allowed disabled:opacity-50"
           onclick={() => {
             showPassword = !showPassword;
           }}
@@ -333,11 +332,11 @@
       {/if}
     </div>
 
-    <div class="border-t border-white/8 pt-3">
+    <div class="border-t border-white/10 pt-3">
       <div class="flex items-center justify-between gap-4">
         <div>
-          <p class="text-sm font-medium text-slate-100">SSH key</p>
-          <p class="mt-1 text-xs text-slate-400">
+          <p class="text-sm font-medium text-stencil">SSH key</p>
+          <p class="mt-1 text-xs text-stencil-mute">
             {#if connection?.sshKeyId}
               Select a saved key, paste a replacement, or disable key auth.
             {:else}
@@ -353,13 +352,13 @@
           onclick={toggleSshKey}
           disabled={isSaving}
           class={$formData.useSshKey
-            ? "relative h-6 w-11 shrink-0 cursor-pointer rounded-full bg-cyan-300/80 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            : "relative h-6 w-11 shrink-0 cursor-pointer rounded-full border border-white/10 bg-white/8 transition-colors hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-50"}
+            ? "relative h-6 w-11 shrink-0 cursor-pointer rounded-full bg-stencil transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            : "relative h-6 w-11 shrink-0 cursor-pointer rounded-full border border-white/10 bg-rail transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-50"}
         >
           <span
             class={$formData.useSshKey
-              ? "absolute left-0.5 top-0.5 size-5 translate-x-5 rounded-full bg-slate-950 transition-transform"
-              : "absolute left-0.5 top-0.5 size-5 rounded-full bg-slate-300 transition-transform"}
+              ? "absolute left-0.5 top-0.5 size-5 translate-x-5 rounded-full bg-port transition-transform"
+              : "absolute left-0.5 top-0.5 size-5 rounded-full bg-stencil-mute transition-transform"}
           ></span>
         </button>
       </div>
@@ -368,7 +367,7 @@
         <div class="mt-4 space-y-3">
           {#if keys.length > 0}
             <div
-              class="flex gap-1 rounded-2xl border border-white/10 bg-black/20 p-1"
+              class="flex gap-1 rounded-[2px] border border-white/10 bg-rail p-1"
               role="group"
               aria-label="SSH key source"
             >
@@ -395,7 +394,7 @@
 
           {#if $formData.keyMode === "saved" && keys.length > 0}
             <div class="space-y-2">
-              <label for="conn-key-select" class="text-sm font-medium text-slate-100"
+              <label for="conn-key-select" class="text-sm font-medium text-stencil"
                 >Saved key</label
               >
               <div class="relative">
@@ -405,9 +404,9 @@
                   class={SELECT_CLASS}
                   disabled={isSaving}
                 >
-                  <option value="" class="bg-slate-900">— Select a saved key —</option>
+                  <option value="" class="bg-rail">— Select a saved key —</option>
                   {#each keys as key (key.id)}
-                    <option value={key.id} class="bg-slate-900">
+                    <option value={key.id} class="bg-rail">
                       {key.name} ({key.kind}){key.fingerprint
                         ? " — " + key.fingerprint.slice(0, 16) + "…"
                         : ""}
@@ -415,7 +414,7 @@
                   {/each}
                 </select>
                 <ChevronDown
-                  class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+                  class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-stencil-mute"
                 />
               </div>
               {#if selectedKeyWillBeUsed}
@@ -428,8 +427,8 @@
 
           {#if pastingNewKey || keys.length === 0}
             <div class="space-y-2">
-              <label for="conn-key-name" class="text-sm font-medium text-slate-100"
-                >Key name <span class="text-slate-400">(optional)</span></label
+              <label for="conn-key-name" class="text-sm font-medium text-stencil"
+                >Key name <span class="text-stencil-mute">(optional)</span></label
               >
               <Input
                 id="conn-key-name"
@@ -445,7 +444,7 @@
             </div>
 
             <div class="space-y-2">
-              <label for="conn-private-key" class="text-sm font-medium text-slate-100"
+              <label for="conn-private-key" class="text-sm font-medium text-stencil"
                 >Private key</label
               >
               <textarea
@@ -472,8 +471,8 @@
             </div>
 
             <div class="space-y-2">
-              <label for="conn-passphrase" class="text-sm font-medium text-slate-100"
-                >Key passphrase <span class="text-slate-400">(optional)</span></label
+              <label for="conn-passphrase" class="text-sm font-medium text-stencil"
+                >Key passphrase <span class="text-stencil-mute">(optional)</span></label
               >
               <Input
                 id="conn-passphrase"
