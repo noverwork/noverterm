@@ -194,6 +194,7 @@ let count = $state(0);
 6. **Use** `onMount` for initial data fetching (still valid in Svelte 5)
 7. **Use** callback props (`onChange`, `onSubmit`) instead of `createEventDispatcher`
 8. **Filename**: `kebab-case.svelte`
+9. **Avoid** unnecessary secondary labels and descriptions; let the layout do the explaining
 
 ## Data Fetching Pattern
 
