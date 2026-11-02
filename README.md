@@ -56,6 +56,7 @@ Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fa
 ### Connections and keys
 
 - Organize connections into folders
+- Reach private servers through jump hosts (like `ssh -J`), chained up to five hops; terminal, SFTP, and port forwarding all tunnel through them
 - Import and manage SSH keys
 
 ### App
@@ -79,6 +80,14 @@ Get the latest version from [Releases](https://github.com/noverwork/noverterm/re
 3. Connect. On first connect, verify the host fingerprint.
 4. Open more sessions in tabs, or open a **Local Terminal**.
 5. Use the sidebar for SFTP, port forwards, SSH keys, and snippets.
+
+### Connect through a jump host
+
+1. Save the bastion as a normal connection.
+2. Create a connection for the private server. Enter its address as the bastion sees it, such as `10.0.1.5`.
+3. Under **Jump host**, select the bastion and save.
+
+Connecting asks you to verify the bastion's fingerprint first, then the target's. Each host signs in with its own saved credentials, and your private keys stay on your machine. To chain more hops, give the bastion a jump host of its own. The bastion's SSH server must allow TCP forwarding (`AllowTcpForwarding yes`, the OpenSSH default).
 
 ## Keyboard Shortcuts
 
