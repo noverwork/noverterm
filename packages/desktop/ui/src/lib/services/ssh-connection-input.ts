@@ -28,7 +28,7 @@ function connectionAuthInput(connection: ConnectionConfig): ConnectionAuthInput 
         passphrase: connection.auth.passphrase,
       };
     default:
-      throw new Error("host has no connectable authentication material");
+      throw new Error(`${connection.name} has no saved password or SSH key`);
   }
 }
 

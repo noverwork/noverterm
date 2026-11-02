@@ -4,6 +4,7 @@ import { SvelteDate, SvelteMap, SvelteSet } from "svelte/reactivity";
 
 import { commands as tauriCommands } from "../../bindings.js";
 import type {
+  DirectSshConnectInput,
   HostTrustConfirmation,
   HostTrustMismatch,
   HostTrustPrompt,
@@ -509,11 +510,16 @@ export function createSessionStore() {
     cols: number,
     rows: number,
   ): Promise<string> {
-    const result = await tauriCommands.sshConnectDirect(
-      await createDirectSshConnectInput(connection),
-      cols,
-      rows,
-    );
+    let input: DirectSshConnectInput;
+    try {
+      input = createDirectSshConnectInput(connection);
+    } catch (error) {
+      // Fail the pending tab; otherwise it spins on "Connecting" forever.
+      const message = error instanceof Error ? error.message : String(error);
+      updateSession(pendingSessionId, { status: "error", error: message });
+      throw error;
+    }
+    const result = await tauriCommands.sshConnectDirect(input, cols, rows);
     if (result.status === "error") {
       updateSession(pendingSessionId, { status: "error", error: result.error });
       throw new Error(result.error);

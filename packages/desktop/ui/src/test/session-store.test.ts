@@ -180,3 +180,38 @@ describe("session output transport", () => {
     });
   });
 });
+
+describe("saved connection without credentials", () => {
+  const store = createSessionStore();
+
+  afterEach(() => {
+    for (const session of store.getSessions()) store.removeSession(session.id);
+    store.cleanup();
+  });
+
+  it("fails the pending session instead of leaving it connecting", async () => {
+    vi.clearAllMocks();
+    invoke.mockImplementation(async () => undefined);
+
+    await expect(
+      store.connectSavedConnection({
+        id: "rp5",
+        name: "RP5",
+        groupId: null,
+        host: "192.168.31.152",
+        port: 22,
+        username: "pi",
+        sshKeyId: null,
+        hasPassword: false,
+        auth: null,
+        jumpHostId: "bastion",
+        jumps: [],
+      }),
+    ).rejects.toThrow("RP5 has no saved password or SSH key");
+
+    const [session] = store.getSessions();
+    expect(session.status).toBe("error");
+    expect(session.error).toBe("RP5 has no saved password or SSH key");
+    expect(invoke).not.toHaveBeenCalledWith("ssh_connect_direct", expect.anything());
+  });
+});
