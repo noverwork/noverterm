@@ -32,6 +32,8 @@ const connection: ConnectionConfig = {
   sshKeyId: null,
   hasPassword: true,
   auth: { kind: "password", password: "never-display-this-secret" },
+  jumpHostId: null,
+  jumps: [],
 };
 const prompt: HostTrustPrompt = {
   host: connection.host,
@@ -126,7 +128,7 @@ describe("SFTP host trust", () => {
     expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "sftp_connect_direct").map(([, args]) => args))
       .toEqual([1, 2].map(() => ({
         host: connection.host, port: connection.port, username: connection.username,
-        password: "never-display-this-secret", privateKey: null, passphrase: null,
+        password: "never-display-this-secret", privateKey: null, passphrase: null, jumps: [],
       })));
     expect(invoke).not.toHaveBeenCalledWith("sftp_open", expect.anything());
   });

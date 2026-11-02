@@ -105,6 +105,7 @@
         password: input.password ?? undefined,
         privateKey: input.private_key ?? undefined,
         passphrase: input.passphrase ?? undefined,
+        jumps: input.jumps,
       });
     } catch (error: unknown) {
       if (generation !== pane.attemptGeneration) return;

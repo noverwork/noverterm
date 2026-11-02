@@ -65,6 +65,7 @@ diesel::table! {
         group_id -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        jump_host_id -> Nullable<Text>,
     }
 }
 

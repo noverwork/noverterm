@@ -44,5 +44,6 @@ export function createDirectSshConnectInput(
     password: auth.password,
     private_key: auth.privateKey,
     passphrase: auth.passphrase,
+    jumps: connection.jumps,
   };
 }

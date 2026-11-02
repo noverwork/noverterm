@@ -23,6 +23,7 @@ pub struct SshHostRecord {
     pub username: String,
     pub ssh_key_id: Option<String>,
     pub group_id: Option<String>,
+    pub jump_host_id: Option<String>,
     pub auth: Option<SshHostAuthMaterial>,
 }
 

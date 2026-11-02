@@ -17,6 +17,7 @@
   let {
     connection = null,
     keys = [],
+    hosts = [],
     onSave,
     onCancel,
     error = null,
@@ -24,6 +25,7 @@
   }: {
     connection?: ConnectionConfig | null;
     keys?: SshKeyRecord[];
+    hosts?: ConnectionConfig[];
     onSave: (connection: SaveConnectionInput) => void | Promise<void>;
     onCancel: () => void;
     error?: string | null;
@@ -50,6 +52,7 @@
   const { form: formData, errors } = form;
 
   let keyName = $state("");
+  let jumpHostId = $state("");
   let initializedConnectionId = $state<string | null>(null);
   let showPassword = $state(false);
 
@@ -67,6 +70,7 @@
 
     initializedConnectionId = connectionId;
     keyName = "";
+    jumpHostId = connection?.jumpHostId ?? "";
     showPassword = false;
     $formData = {
       name: connection?.name ?? "",
@@ -102,6 +106,10 @@
 
     return null;
   }
+
+  const jumpHostOptions = $derived(
+    hosts.filter((host) => host.id !== connection?.id),
+  );
 
   const selectedKey = $derived(
     keys.find((key) => key.id === $formData.selectedKeyId) ?? null,
@@ -160,6 +168,7 @@
       ...(connection?.id ? { id: connection.id } : {}),
       name: $formData.name.trim(),
       groupId: connection?.groupId ?? null,
+      jumpHostId: jumpHostId || null,
       host: $formData.host.trim(),
       port: $formData.port,
       username: $formData.username.trim(),
@@ -285,6 +294,28 @@
           {$errors.username}
         </p>
       {/if}
+    </div>
+
+    <div class="space-y-2">
+      <label for="conn-jump-host" class="text-sm font-medium text-stencil">Jump host</label>
+      <div class="relative">
+        <select
+          id="conn-jump-host"
+          bind:value={jumpHostId}
+          class={SELECT_CLASS}
+          disabled={isSaving || jumpHostOptions.length === 0}
+        >
+          <option value="" class="bg-rail">None</option>
+          {#each jumpHostOptions as host (host.id)}
+            <option value={host.id} class="bg-rail">
+              {host.name} ({host.username}@{host.host})
+            </option>
+          {/each}
+        </select>
+        <ChevronDown
+          class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-stencil-mute"
+        />
+      </div>
     </div>
   </FormSection>
 

@@ -28,6 +28,7 @@ import type { SaveConnectionInput } from "$lib/app-data-types.js";
   <ConnectionForm
     {connection}
     keys={app.keys}
+    hosts={app.connections}
     error={app.connectionFormError}
     isSaving={app.connectionSaving}
     onSave={handleSave}

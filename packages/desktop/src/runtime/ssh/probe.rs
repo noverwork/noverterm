@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use russh::client::{self, Msg};
+use russh::client::Msg;
 use russh::ChannelMsg;
 use tokio::sync::Mutex;
 use tokio::time::timeout;
@@ -11,9 +11,8 @@ use uuid::Uuid;
 use crate::trust::{SshTrustStore, TrustCheck};
 
 use super::authentication::{authenticate_session, client_config};
-use super::{
-    AuthMethod, ClientHandler, HostSystemInfo, SshProbeHostInfoResponse, SshSessionManager,
-};
+use super::jump::{open_transport, OpenTransportError, SshHopInput};
+use super::{AuthMethod, HostSystemInfo, SshProbeHostInfoResponse, SshSessionManager};
 
 const SSH_PROBE_TIMEOUT: Duration = Duration::from_secs(8);
 const SSH_PROBE_OUTPUT_LIMIT: usize = 16 * 1024;
@@ -172,24 +171,26 @@ impl SshSessionManager {
         port: u16,
         user: String,
         auth: AuthMethod,
+        jumps: Vec<SshHopInput>,
     ) -> Result<SshProbeHostInfoResponse, String> {
         let probe_id = Uuid::new_v4().to_string();
         info!(probe_id, host, port, user, "Starting SSH host info probe");
 
         let config = client_config(Some(SSH_PROBE_TIMEOUT));
-        let trust_check = Arc::new(Mutex::new(None));
-        let handler = ClientHandler::new(host.clone(), port, trust_store, trust_check.clone());
 
         let connect_result = timeout(
             SSH_PROBE_TIMEOUT,
-            client::connect(config, (host.clone(), port), handler),
+            open_transport(config, &host, port, jumps, &trust_store, &probe_id),
         )
         .await
         .map_err(|_| "SSH probe timed out while connecting".to_string())?;
 
         let mut session = match connect_result {
             Ok(session) => session,
-            Err(error) => return map_probe_connect_error(error, trust_check).await,
+            Err(OpenTransportError::Connect { error, trust_check }) => {
+                return map_probe_connect_error(error, trust_check).await
+            }
+            Err(OpenTransportError::Other(error)) => return Err(error),
         };
 
         authenticate_session(&mut session, &user, auth, &probe_id).await?;

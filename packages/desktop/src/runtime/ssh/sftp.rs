@@ -18,6 +18,7 @@ use crate::runtime::sftp::{
 use crate::trust::SshTrustStore;
 
 use super::authentication::{authenticate_session, client_config, map_connect_error};
+use super::jump::{open_transport, OpenTransportError, SshHopInput};
 use super::{
     keepalive_loop, AuthMethod, ClientHandler, SshConnectResponse, SshSession, SshSessionManager,
     SSH_KEEPALIVE_TIMEOUT,
@@ -95,6 +96,7 @@ impl SshSessionManager {
         password: Option<&str>,
         private_key: Option<&str>,
         passphrase: Option<&str>,
+        jumps: Vec<SshHopInput>,
         trust_store: SshTrustStore,
     ) -> Result<SshConnectResponse, String> {
         let sftp_session_id = Uuid::new_v4().to_string();
@@ -104,15 +106,27 @@ impl SshSessionManager {
         );
 
         let config = client_config(None);
-        let trust_check = Arc::new(Mutex::new(None));
-        let handler = ClientHandler::new(host.to_string(), port, trust_store, trust_check.clone());
-
-        let (stream, transport) = DirectSftpTransport::connect(host, port, config.nodelay)
-            .await
-            .map_err(|error| format!("Failed to connect SFTP transport: {error}"))?;
-        let mut session = match client::connect_stream(config, stream, handler).await {
-            Ok(session) => session,
-            Err(error) => return map_connect_error(error, trust_check).await,
+        // ponytail: force-shutdown only covers direct sockets; a tunneled transport
+        // relies on russh disconnect and closes its jump sessions when it drops.
+        let (mut session, transport) = if jumps.is_empty() {
+            let trust_check = Arc::new(Mutex::new(None));
+            let handler =
+                ClientHandler::new(host.to_string(), port, trust_store, trust_check.clone());
+            let (stream, transport) = DirectSftpTransport::connect(host, port, config.nodelay)
+                .await
+                .map_err(|error| format!("Failed to connect SFTP transport: {error}"))?;
+            match client::connect_stream(config, stream, handler).await {
+                Ok(session) => (session, Some(transport)),
+                Err(error) => return map_connect_error(error, trust_check).await,
+            }
+        } else {
+            match open_transport(config, host, port, jumps, &trust_store, &sftp_session_id).await {
+                Ok(session) => (session, None),
+                Err(OpenTransportError::Connect { error, trust_check }) => {
+                    return map_connect_error(error, trust_check).await
+                }
+                Err(OpenTransportError::Other(error)) => return Err(error),
+            }
         };
 
         let auth_method = if let Some(key_content) = private_key {
@@ -175,7 +189,7 @@ impl SshSessionManager {
                 keepalive_task: Some(keepalive_task),
                 writer_task: None,
                 output: None,
-                direct_sftp_transport: Some(transport),
+                direct_sftp_transport: transport,
             },
         );
 

@@ -1,7 +1,7 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { SvelteMap } from "svelte/reactivity";
 
-import { commands as tauriCommands } from "../../bindings.js";
+import { commands as tauriCommands, type SshHopInput } from "../../bindings.js";
 import type { PortForwardRecord } from "$lib/api/types.js";
 import type { ConnectionConfig } from "$lib/app-data-types.js";
 
@@ -27,6 +27,7 @@ export interface PortForwardCreateInput {
   password?: string;
   privateKey?: string;
   passphrase?: string;
+  jumps?: SshHopInput[];
   bind_host: string;
   bind_port: number;
   target_host: string;
@@ -197,6 +198,7 @@ export function createPortForwardStore() {
       password: input.password?.trim() || null,
       private_key: input.privateKey?.trim() || null,
       passphrase: input.passphrase?.trim() || null,
+      jumps: input.jumps ?? [],
       bind_host: input.bind_host,
       bind_port: input.bind_port,
       target_host: input.target_host,
@@ -234,6 +236,7 @@ export function createPortForwardStore() {
       password: auth.password ?? undefined,
       privateKey: auth.privateKey ?? undefined,
       passphrase: auth.passphrase ?? undefined,
+      jumps: input.connection.jumps,
       bind_host: input.bind_host,
       bind_port: input.bind_port,
       target_host: input.target_host,

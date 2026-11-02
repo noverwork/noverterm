@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
-import { commands, type HostTrustMismatch, type HostTrustPrompt, type Result } from "../../bindings";
+import { commands, type HostTrustMismatch, type HostTrustPrompt, type Result, type SshHopInput } from "../../bindings";
 import type {
   FileEntry,
   TransferComplete,
@@ -351,6 +351,7 @@ export class SftpPane {
     password?: string;
     privateKey?: string;
     passphrase?: string;
+    jumps?: SshHopInput[];
   }): Promise<void> {
     const generation = ++this.connectionGeneration;
     this.mode = "remote";
@@ -377,6 +378,7 @@ export class SftpPane {
         options.password ?? null,
         options.privateKey ?? null,
         options.passphrase ?? null,
+        options.jumps ?? [],
       ));
       if (generation !== this.connectionGeneration) {
         if (response.status === "connected") {

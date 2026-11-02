@@ -1,5 +1,6 @@
 import type { AppDataMetadata, Setting, SshHostRecord } from "$lib/api/types.js";
 import type { ConnectionConfig, TerminalConfig } from "$lib/app-data-types.js";
+import type { SshHopInput } from "../bindings.js";
 
 interface NovertermConfig {
   terminal?: Partial<TerminalConfig>;
@@ -107,9 +108,39 @@ export function parseRecentConnectionIds(settings: Setting[]): string[] {
   return parseNovertermConfig(settings).recentConnectionIds ?? [];
 }
 
+const MAX_JUMP_HOPS = 5;
+
+function hopInput(host: SshHostRecord): SshHopInput {
+  const auth = host.auth;
+  return {
+    host: host.host,
+    port: host.port,
+    username: host.username,
+    password: auth && auth.kind !== "public_key" ? auth.password : null,
+    private_key: auth && auth.kind !== "password" ? auth.private_key : null,
+    passphrase: auth && auth.kind !== "password" ? auth.passphrase : null,
+  };
+}
+
+function resolveJumps(
+  host: SshHostRecord,
+  hostsById: Map<string, SshHostRecord>,
+): SshHopInput[] {
+  const jumps: SshHopInput[] = [];
+  let next = host.jump_host_id ? hostsById.get(host.jump_host_id) : undefined;
+  // The store rejects loops and chains deeper than MAX_JUMP_HOPS; the cap only
+  // keeps stale data from spinning forever.
+  while (next && jumps.length < MAX_JUMP_HOPS) {
+    jumps.unshift(hopInput(next));
+    next = next.jump_host_id ? hostsById.get(next.jump_host_id) : undefined;
+  }
+  return jumps;
+}
+
 export function mapHostsToConnections(
   hosts: SshHostRecord[],
 ): ConnectionConfig[] {
+  const hostsById = new Map(hosts.map((host) => [host.id, host]));
   return hosts.map((host) => ({
     id: host.id,
     name: host.name,
@@ -122,6 +153,8 @@ export function mapHostsToConnections(
       host.auth?.kind === "password" ||
       host.auth?.kind === "public_key_and_password",
     auth: host.auth,
+    jumpHostId: host.jump_host_id,
+    jumps: resolveJumps(host, hostsById),
   }));
 }
 

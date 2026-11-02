@@ -384,9 +384,9 @@ async sftpClose(sessionId: string) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
-async sftpConnectDirect(host: string, port: number, username: string, password: string | null, privateKey: string | null, passphrase: string | null) : Promise<Result<SshConnectResponse, string>> {
+async sftpConnectDirect(host: string, port: number, username: string, password: string | null, privateKey: string | null, passphrase: string | null, jumps: SshHopInput[]) : Promise<Result<SshConnectResponse, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("sftp_connect_direct", { host, port, username, password, privateKey, passphrase }) };
+    return { status: "ok", data: await TAURI_INVOKE("sftp_connect_direct", { host, port, username, password, privateKey, passphrase, jumps }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -567,7 +567,11 @@ async knownHostsRemove(host: string, port: number) : Promise<Result<KnownHostsRe
 
 /** user-defined types **/
 
-export type DirectSshConnectInput = { host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null }
+export type DirectSshConnectInput = { host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null; 
+/**
+ * Jump hosts to tunnel through, outermost first.
+ */
+jumps?: SshHopInput[] }
 export type FileEntry = { name: string; size: number; modified: number | null; file_type: FileType }
 export type FileType = "File" | "Dir" | "Symlink" | "Other"
 export type HostGroupRecord = { id: string; name: string }
@@ -584,17 +588,25 @@ export type KeyUpdateInput = { name: string; kind: string; fingerprint: string |
 export type KnownHostsResponse = { hosts: TrustedSshHost[] }
 export type PortForwardMappingInput = { bind_host: string; bind_port: number; target_host: string; target_port: number }
 export type PortForwardRecord = { id: string; name: string; host_id: string; host_name: string; mappings: PortForwardMappingInput[] }
-export type PortForwardStartInput = { name: string; host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null; bind_host: string; bind_port: number; target_host: string; target_port: number }
+export type PortForwardStartInput = { name: string; host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null; 
+/**
+ * Jump hosts to tunnel through, outermost first.
+ */
+jumps?: SshHopInput[]; bind_host: string; bind_port: number; target_host: string; target_port: number }
 export type PortForwardState = "connecting" | "listening" | "stopped" | "error"
 export type PortForwardStatus = { id: string; name: string; host: string; port: number; username: string; bind_host: string; bind_port: number; target_host: string; target_port: number; state: PortForwardState; error: string | null }
 export type PortForwardWriteRequest = { name: string; host_id: string; mappings: PortForwardMappingInput[] }
-export type SaveConnectionInput = { id: string | null; name: string; host: string; port: number; username: string; group_id?: string | null; password: string | null; private_key: string | null; passphrase: string | null; key_name: string | null; existing_key_id: string | null }
+export type SaveConnectionInput = { id: string | null; name: string; host: string; port: number; username: string; group_id?: string | null; jump_host_id?: string | null; password: string | null; private_key: string | null; passphrase: string | null; key_name: string | null; existing_key_id: string | null }
 export type Setting = { key: string; value: string }
 export type SnippetRecord = { id: string; host_id: string | null; host_name: string; title: string; body: string; pin_icon: string | null; pin_order: number | null }
 export type SnippetWriteRequest = { host_id: string | null; title: string; body: string; pin_icon: string | null }
 export type SshConnectResponse = { status: "connected"; session_id: string } | { status: "trust_required"; prompt: HostTrustPrompt } | { status: "trust_mismatch"; mismatch: HostTrustMismatch }
+/**
+ * One bastion on the way to the target, in connect order (outermost first).
+ */
+export type SshHopInput = { host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null }
 export type SshHostAuthMaterial = { kind: "password"; password: string } | { kind: "public_key"; private_key: string; passphrase: string | null } | { kind: "public_key_and_password"; private_key: string; passphrase: string | null; password: string }
-export type SshHostRecord = { id: string; name: string; host: string; port: number; username: string; ssh_key_id: string | null; group_id: string | null; auth: SshHostAuthMaterial | null }
+export type SshHostRecord = { id: string; name: string; host: string; port: number; username: string; ssh_key_id: string | null; group_id: string | null; jump_host_id: string | null; auth: SshHostAuthMaterial | null }
 export type SshKeyRecord = { id: string; name: string; kind: string; fingerprint: string | null }
 export type SshKeySecret = { private_key: string; passphrase: string | null }
 export type SshLocalPortForwardInput = { session_id: string; bind_host: string; bind_port: number; target_host: string; target_port: number }

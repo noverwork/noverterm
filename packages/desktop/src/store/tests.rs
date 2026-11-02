@@ -52,6 +52,7 @@ fn connection_input(name: &str) -> SaveConnectionInput {
         port: 22,
         username: "deploy".to_string(),
         group_id: None,
+        jump_host_id: None,
         password: None,
         private_key: None,
         passphrase: None,
@@ -92,6 +93,7 @@ fn migrations_apply_and_foreign_keys_cascade() {
             group_id: None,
             created_at: now,
             updated_at: now,
+            jump_host_id: None,
         })
         .execute(&mut connection)
         .expect("insert host");
@@ -613,4 +615,58 @@ async fn a_port_forward_preset_keeps_its_mappings_in_order_and_dies_with_its_hos
         .await
         .expect("list presets");
     assert!(presets.is_empty(), "presets cascade with their host");
+}
+
+#[tokio::test]
+async fn jump_host_chains_reject_loops_and_excess_depth() {
+    let (app, _directory) = test_app();
+    let save = |input: SaveConnectionInput| super::hosts::host_save(input, app.state::<DbPool>());
+
+    let bastion = save(connection_input("bastion"))
+        .await
+        .expect("save bastion");
+    let target = save(SaveConnectionInput {
+        jump_host_id: Some(bastion.id.clone()),
+        ..connection_input("target")
+    })
+    .await
+    .expect("save target behind bastion");
+    assert_eq!(target.jump_host_id.as_deref(), Some(bastion.id.as_str()));
+
+    let looped = save(SaveConnectionInput {
+        id: Some(bastion.id.clone()),
+        jump_host_id: Some(target.id.clone()),
+        ..connection_input("bastion")
+    })
+    .await;
+    assert!(
+        looped.is_err(),
+        "bastion -> target -> bastion must be rejected"
+    );
+
+    let own = save(SaveConnectionInput {
+        id: Some(bastion.id.clone()),
+        jump_host_id: Some(bastion.id.clone()),
+        ..connection_input("bastion")
+    })
+    .await;
+    assert!(own.is_err(), "a host cannot jump through itself");
+
+    // bastion <- target is 1 hop deep; four more hosts make a 5-hop chain.
+    let mut last = target.id.clone();
+    for name in ["hop3", "hop4", "hop5", "hop6"] {
+        last = save(SaveConnectionInput {
+            jump_host_id: Some(last),
+            ..connection_input(name)
+        })
+        .await
+        .expect("chain up to five hops")
+        .id;
+    }
+    let too_deep = save(SaveConnectionInput {
+        jump_host_id: Some(last),
+        ..connection_input("hop7")
+    })
+    .await;
+    assert!(too_deep.is_err(), "a sixth hop must be rejected");
 }

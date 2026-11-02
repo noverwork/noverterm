@@ -22,6 +22,7 @@ export async function saveConnection(
       port: connection.port,
       username: connection.username,
       group_id: trimOptional(connection.groupId),
+      jump_host_id: trimOptional(connection.jumpHostId),
       password:
         trimOptional(connection.password) ??
         trimOptional(connection.preservedPassword),

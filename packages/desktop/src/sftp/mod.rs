@@ -10,7 +10,7 @@ use crate::runtime::local_fs;
 use crate::runtime::sftp::{
     FileEntry, TransferCancellation, TransferComplete, TransferDirection, TransferError,
 };
-use crate::runtime::ssh::{SshConnectResponse, SshSessionManager};
+use crate::runtime::ssh::{SshConnectResponse, SshHopInput, SshSessionManager};
 use crate::trust::SshTrustStore;
 
 use self::state::TransferState;
@@ -56,6 +56,7 @@ pub async fn sftp_connect_direct(
     password: Option<String>,
     private_key: Option<String>,
     passphrase: Option<String>,
+    jumps: Vec<SshHopInput>,
     ssh_manager: State<'_, SshSessionManager>,
     trust_store: State<'_, SshTrustStore>,
 ) -> Result<SshConnectResponse, String> {
@@ -68,6 +69,7 @@ pub async fn sftp_connect_direct(
             password.as_deref(),
             private_key.as_deref(),
             passphrase.as_deref(),
+            jumps,
             trust_store.inner().clone(),
         )
         .await

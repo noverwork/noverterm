@@ -15,6 +15,8 @@ const connection: ConnectionConfig = {
   sshKeyId: null,
   hasPassword: true,
   auth: null,
+  jumpHostId: null,
+  jumps: [],
 };
 
 const preset: PortForwardRecord = {

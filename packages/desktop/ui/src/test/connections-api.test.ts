@@ -37,6 +37,7 @@ describe("connections API", () => {
         port: 22,
         username: "deploy",
         group_id: "g1",
+        jump_host_id: null,
         password: "hunter2",
         private_key: "PRIVATE KEY",
         passphrase: "secret",
@@ -73,6 +74,8 @@ describe("connections API", () => {
       sshKeyId: "k1",
       hasPassword: false,
       auth: null,
+      jumpHostId: null,
+      jumps: [],
     });
 
     expect(mockInvoke).toHaveBeenCalledWith("host_delete", {

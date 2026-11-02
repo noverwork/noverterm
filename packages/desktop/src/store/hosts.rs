@@ -7,6 +7,9 @@ use uuid::Uuid;
 
 use super::{internal_error, run_db, DbPool};
 
+/// Most bastions a saved host may tunnel through.
+const MAX_JUMP_HOPS: usize = 5;
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct SaveConnectionInput {
     pub id: Option<String>,
@@ -16,6 +19,8 @@ pub struct SaveConnectionInput {
     pub username: String,
     #[serde(default)]
     pub group_id: Option<String>,
+    #[serde(default)]
+    pub jump_host_id: Option<String>,
     pub password: Option<String>,
     pub private_key: Option<String>,
     pub passphrase: Option<String>,
@@ -73,6 +78,10 @@ pub async fn host_save(
         };
 
         let group_id = trimmed(connection.group_id);
+        let jump_host_id = trimmed(connection.jump_host_id);
+        if let Some(jump_host_id) = &jump_host_id {
+            validate_jump_chain(db, connection.id.as_deref(), jump_host_id)?;
+        }
         let host = match connection.id {
             Some(id) => diesel::update(ssh_hosts::table.filter(ssh_hosts::id.eq(id)))
                 .set(UpdateSshHost {
@@ -83,6 +92,7 @@ pub async fn host_save(
                     ssh_key_id: Some(ssh_key_id),
                     password: Some(password),
                     group_id: Some(group_id),
+                    jump_host_id: Some(jump_host_id),
                     updated_at: now,
                 })
                 .get_result::<SshHost>(db)
@@ -101,6 +111,7 @@ pub async fn host_save(
                     group_id,
                     created_at: now,
                     updated_at: now,
+                    jump_host_id,
                 })
                 .get_result::<SshHost>(db)
                 .map_err(internal_error)?,
@@ -173,8 +184,37 @@ fn to_record(keys: &[SshKey], host: SshHost) -> SshHostRecord {
         username: host.username,
         ssh_key_id: host.ssh_key_id,
         group_id: host.group_id,
+        jump_host_id: host.jump_host_id,
         auth,
     }
+}
+
+/// Rejects a jump chain that loops back to the saved host or exceeds
+/// `MAX_JUMP_HOPS`, so connecting can always resolve a finite chain.
+fn validate_jump_chain(
+    db: &mut SqliteConnection,
+    host_id: Option<&str>,
+    jump_host_id: &str,
+) -> Result<(), String> {
+    let mut next = Some(jump_host_id.to_string());
+    let mut hops = 0;
+    while let Some(current) = next {
+        if Some(current.as_str()) == host_id {
+            return Err("Jump host chain loops back to this host".to_string());
+        }
+        hops += 1;
+        if hops > MAX_JUMP_HOPS {
+            return Err(format!("Jump host chain exceeds {MAX_JUMP_HOPS} hops"));
+        }
+        next = ssh_hosts::table
+            .filter(ssh_hosts::id.eq(&current))
+            .select(ssh_hosts::jump_host_id)
+            .first::<Option<String>>(db)
+            .optional()
+            .map_err(internal_error)?
+            .ok_or_else(|| "Jump host not found".to_string())?;
+    }
+    Ok(())
 }
 
 fn trimmed(value: Option<String>) -> Option<String> {

@@ -1,5 +1,6 @@
 mod authentication;
 mod forwarding;
+mod jump;
 mod probe;
 mod sftp;
 mod shell;
@@ -8,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use russh::client::{self, Handle};
+use russh::client::Handle;
 use russh::Disconnect;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
@@ -27,6 +28,8 @@ use forwarding::{emit_port_forward_event, stopped_port_forward_status};
 use shell::{read_loop, run_shell_write_loop, SSH_WRITE_QUEUE_CAPACITY};
 
 pub(crate) use authentication::ClientHandler;
+pub use jump::SshHopInput;
+pub(crate) use jump::{auth_method, open_transport, OpenTransportError};
 
 const SSH_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(10);
 const SSH_KEEPALIVE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -69,6 +72,7 @@ pub struct SshConnectRequest {
     pub port: u16,
     pub user: String,
     pub auth: AuthMethod,
+    pub jumps: Vec<SshHopInput>,
     pub cols: u32,
     pub rows: u32,
 }
@@ -86,6 +90,7 @@ impl SshSessionManager {
             port,
             user,
             auth,
+            jumps,
             cols,
             rows,
         } = request;
@@ -93,14 +98,16 @@ impl SshSessionManager {
         info!(session_id, host, port, user, "Starting SSH connection flow");
 
         let config = client_config(None);
-        let trust_check = Arc::new(Mutex::new(None));
-        let handler = ClientHandler::new(host.clone(), port, trust_store, trust_check.clone());
 
         info!(session_id, host, port, "Opening TCP/SSH transport");
-        let mut session = match client::connect(config, (host.clone(), port), handler).await {
-            Ok(session) => session,
-            Err(error) => return map_connect_error(error, trust_check).await,
-        };
+        let mut session =
+            match open_transport(config, &host, port, jumps, &trust_store, &session_id).await {
+                Ok(session) => session,
+                Err(OpenTransportError::Connect { error, trust_check }) => {
+                    return map_connect_error(error, trust_check).await
+                }
+                Err(OpenTransportError::Other(error)) => return Err(error),
+            };
         info!(session_id, "TCP/SSH transport established");
 
         authenticate_session(&mut session, &user, auth, &session_id).await?;

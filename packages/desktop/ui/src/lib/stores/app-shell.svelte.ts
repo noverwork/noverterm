@@ -377,6 +377,7 @@ export function createAppShellStore(queryClient: QueryClient) {
       id: connection.id,
       name: connection.name,
       groupId,
+      jumpHostId: connection.jumpHostId,
       host: connection.host,
       port: connection.port,
       username: connection.username,

@@ -1,6 +1,4 @@
 use russh::client::{self, AuthResult, Handle};
-use russh::keys::ssh_key::HashAlg;
-use russh::keys::ssh_key::PublicKey;
 use russh::Disconnect;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -19,54 +17,7 @@ use uuid::Uuid;
 use crate::trust::{SshTrustStore, TrustCheck};
 
 use super::keys::{is_rsa_key, load_key_pair, rsa_hash_candidates};
-
-struct ClientHandler {
-    host: String,
-    port: u16,
-    trust_store: SshTrustStore,
-    trust_check: Arc<Mutex<Option<TrustCheck>>>,
-}
-
-impl ClientHandler {
-    fn new(
-        host: String,
-        port: u16,
-        trust_store: SshTrustStore,
-        trust_check: Arc<Mutex<Option<TrustCheck>>>,
-    ) -> Self {
-        Self {
-            host,
-            port,
-            trust_store,
-            trust_check,
-        }
-    }
-}
-
-impl client::Handler for ClientHandler {
-    type Error = russh::Error;
-
-    fn check_server_key(
-        &mut self,
-        server_public_key: &PublicKey,
-    ) -> impl std::future::Future<Output = Result<bool, Self::Error>> + Send {
-        let host = self.host.clone();
-        let port = self.port;
-        let trust_store = self.trust_store.clone();
-        let trust_check = self.trust_check.clone();
-        let algorithm = server_public_key.algorithm().to_string();
-        let fingerprint = server_public_key.fingerprint(HashAlg::Sha256).to_string();
-
-        async move {
-            let check = trust_store
-                .evaluate(&host, port, &algorithm, &fingerprint)
-                .await;
-            let trusted = matches!(check, TrustCheck::Trusted);
-            *trust_check.lock().await = Some(check);
-            Ok(trusted)
-        }
-    }
-}
+use super::ssh::{open_transport, ClientHandler, OpenTransportError, SshHopInput};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct PortForwardCreateInput {
@@ -75,6 +26,9 @@ pub struct PortForwardCreateInput {
     pub port: u16,
     pub username: String,
     pub auth: PortForwardAuth,
+    /// Jump hosts to tunnel through, outermost first.
+    #[serde(default)]
+    pub jumps: Vec<SshHopInput>,
     pub bind_host: String,
     pub bind_port: u16,
     pub target_host: String,
@@ -450,20 +404,24 @@ async fn connect_session(
         keepalive_interval: Some(Duration::from_secs(15)),
         ..<_>::default()
     });
-    let trust_check = Arc::new(Mutex::new(None));
-    let handler = ClientHandler::new(
-        input.host.clone(),
-        input.port,
-        trust_store.clone(),
-        trust_check.clone(),
-    );
 
     info!(host = %input.host, port = input.port, "Connecting to SSH server");
 
-    let mut session = match client::connect(config, (input.host.clone(), input.port), handler).await
+    let mut session = match open_transport(
+        config,
+        &input.host,
+        input.port,
+        input.jumps.clone(),
+        trust_store,
+        &input.name,
+    )
+    .await
     {
         Ok(session) => session,
-        Err(error) => return Err(map_connect_error(&error, &trust_check).await),
+        Err(OpenTransportError::Connect { error, trust_check }) => {
+            return Err(map_connect_error(&error, &trust_check).await)
+        }
+        Err(OpenTransportError::Other(error)) => return Err(error),
     };
 
     info!(host = %input.host, "SSH transport established, authenticating");
@@ -625,6 +583,7 @@ fn normalize_input(input: PortForwardCreateInput) -> Result<PortForwardCreateInp
         port: input.port,
         username,
         auth: input.auth,
+        jumps: input.jumps,
         bind_host,
         bind_port: input.bind_port,
         target_host,

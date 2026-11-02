@@ -1,4 +1,5 @@
 import type { SshHostAuthMaterial } from "$lib/api/types.js";
+import type { SshHopInput } from "../bindings.js";
 
 export interface TerminalConfig {
   fontSize: number;
@@ -18,12 +19,16 @@ export interface ConnectionConfig {
   sshKeyId: string | null;
   hasPassword: boolean;
   auth: SshHostAuthMaterial | null;
+  jumpHostId: string | null;
+  /** Resolved jump chain, outermost bastion first. */
+  jumps: SshHopInput[];
 }
 
 export interface SaveConnectionInput {
   id?: string;
   name: string;
   groupId?: string | null;
+  jumpHostId?: string | null;
   host: string;
   port: number;
   username: string;

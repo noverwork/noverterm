@@ -6,7 +6,7 @@ use crate::runtime::port_forward::{
     PortForwardStatus,
 };
 use crate::runtime::ssh::{
-    AuthMethod, SshConnectRequest, SshConnectResponse, SshLocalPortForwardInput,
+    auth_method, SshConnectRequest, SshConnectResponse, SshHopInput, SshLocalPortForwardInput,
     SshPortForwardStatus, SshProbeHostInfoResponse, SshSessionManager,
 };
 use crate::runtime::terminal_output::{TerminalFrame, TerminalOutput};
@@ -48,6 +48,9 @@ pub struct DirectSshConnectInput {
     pub password: Option<String>,
     pub private_key: Option<String>,
     pub passphrase: Option<String>,
+    /// Jump hosts to tunnel through, outermost first.
+    #[serde(default)]
+    pub jumps: Vec<SshHopInput>,
 }
 
 #[tauri::command]
@@ -60,7 +63,7 @@ pub async fn ssh_connect_direct(
     cols: u32,
     rows: u32,
 ) -> Result<SshConnectResponse, String> {
-    let auth_method = direct_auth_method(input.password, input.private_key, input.passphrase)?;
+    let auth_method = auth_method(input.password, input.private_key, input.passphrase)?;
 
     ssh_manager
         .connect(SshConnectRequest {
@@ -70,6 +73,7 @@ pub async fn ssh_connect_direct(
             port: input.port,
             user: input.username,
             auth: auth_method,
+            jumps: input.jumps,
             cols,
             rows,
         })
@@ -92,7 +96,7 @@ pub async fn ssh_probe_host_info(
     ssh_manager: State<'_, SshSessionManager>,
     trust_store: State<'_, SshTrustStore>,
 ) -> Result<SshProbeHostInfoResponse, String> {
-    let auth_method = direct_auth_method(input.password, input.private_key, input.passphrase)?;
+    let auth_method = auth_method(input.password, input.private_key, input.passphrase)?;
 
     ssh_manager
         .probe_host_info(
@@ -101,6 +105,7 @@ pub async fn ssh_probe_host_info(
             input.port,
             input.username,
             auth_method,
+            input.jumps,
         )
         .await
 }
@@ -209,6 +214,9 @@ pub struct PortForwardStartInput {
     pub password: Option<String>,
     pub private_key: Option<String>,
     pub passphrase: Option<String>,
+    /// Jump hosts to tunnel through, outermost first.
+    #[serde(default)]
+    pub jumps: Vec<SshHopInput>,
     pub bind_host: String,
     pub bind_port: u16,
     pub target_host: String,
@@ -234,6 +242,7 @@ pub async fn port_forward_start(
                 port: input.port,
                 username: input.username,
                 auth,
+                jumps: input.jumps,
                 bind_host: input.bind_host,
                 bind_port: input.bind_port,
                 target_host: input.target_host,
@@ -305,51 +314,6 @@ fn port_forward_auth_method(
             passphrase,
         }),
         (Some(password), None, _) => Ok(PortForwardAuth::Password(password)),
-        (None, None, _) => Err("password or private key is required".to_string()),
-    }
-}
-
-fn direct_auth_method(
-    password: Option<String>,
-    private_key: Option<String>,
-    passphrase: Option<String>,
-) -> Result<AuthMethod, String> {
-    match (
-        password.and_then(|value| {
-            let trimmed = value.trim().to_string();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed)
-            }
-        }),
-        private_key.and_then(|value| {
-            let trimmed = value.trim().to_string();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed)
-            }
-        }),
-        passphrase.and_then(|value| {
-            let trimmed = value.trim().to_string();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed)
-            }
-        }),
-    ) {
-        (Some(password), Some(private_key), passphrase) => Ok(AuthMethod::PublicKeyAndPassword {
-            private_key,
-            passphrase,
-            password,
-        }),
-        (None, Some(private_key), passphrase) => Ok(AuthMethod::PublicKey {
-            private_key,
-            passphrase,
-        }),
-        (Some(password), None, _) => Ok(AuthMethod::Password(password)),
         (None, None, _) => Err("password or private key is required".to_string()),
     }
 }
