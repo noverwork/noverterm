@@ -167,7 +167,7 @@
       <textarea
         id="snippet-body"
         bind:value={body}
-        placeholder="sudo systemctl restart nginx"
+        placeholder="e.g. sudo systemctl restart nginx"
         rows="10"
         autocapitalize="none"
         spellcheck="false"

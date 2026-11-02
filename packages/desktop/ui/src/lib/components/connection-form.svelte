@@ -216,7 +216,7 @@
       <Input
         id="conn-name"
         bind:value={$formData.name}
-        placeholder="Awesome host"
+        placeholder="e.g. prod-web-01"
         autocapitalize="none"
         autocomplete="off"
         autocorrect="off"
@@ -239,7 +239,7 @@
         <Input
           id="conn-host"
           bind:value={$formData.host}
-          placeholder="prod.example.com"
+          placeholder="e.g. prod.example.com"
           autocapitalize="none"
           autocomplete="off"
           autocorrect="off"
@@ -283,7 +283,7 @@
       <Input
         id="conn-username"
         bind:value={$formData.username}
-        placeholder="deploy"
+        placeholder="e.g. ubuntu"
         autocapitalize="none"
         autocomplete="username"
         autocorrect="off"
@@ -335,9 +335,7 @@
           id="conn-password"
           type={showPassword ? "text" : "password"}
           bind:value={$formData.password}
-          placeholder={connection?.hasPassword
-            ? "Saved password"
-            : "Leave blank for key-only auth"}
+          placeholder={connection?.hasPassword ? "Saved password" : undefined}
           aria-invalid={$errors.password ? "true" : undefined}
           aria-describedby={$errors.password ? "conn-password-error" : undefined}
           class={fieldClass($errors.password, "pr-11")}
@@ -468,7 +466,7 @@
               <Input
                 id="conn-key-name"
                 bind:value={keyName}
-                placeholder="my-github-key"
+                placeholder="e.g. GitHub key"
                 autocapitalize="none"
                 autocomplete="off"
                 autocorrect="off"
@@ -513,7 +511,6 @@
                 id="conn-passphrase"
                 type="password"
                 bind:value={$formData.passphrase}
-                placeholder="Optional passphrase"
                 class={fieldClass()}
                 disabled={isSaving}
               />

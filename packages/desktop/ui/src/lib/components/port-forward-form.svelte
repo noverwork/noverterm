@@ -250,7 +250,7 @@
         <Input
           id="pf-name"
           bind:value={formName}
-          placeholder="My tunnel"
+          placeholder="e.g. Staging Postgres"
           class={fieldClass()}
           disabled={isSaving}
         />
@@ -294,7 +294,7 @@
               <Input
                 id={`pf-bind-host-${index}`}
                 bind:value={row.bind_host}
-                placeholder="127.0.0.1"
+                placeholder="e.g. 127.0.0.1"
                 autocapitalize="none"
                 autocomplete="off"
                 autocorrect="off"
@@ -335,7 +335,7 @@
               <Input
                 id={`pf-target-host-${index}`}
                 bind:value={row.target_host}
-                placeholder="127.0.0.1"
+                placeholder="e.g. 127.0.0.1"
                 autocapitalize="none"
                 autocomplete="off"
                 autocorrect="off"

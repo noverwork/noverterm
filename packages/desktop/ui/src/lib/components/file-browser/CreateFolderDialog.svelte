@@ -122,7 +122,7 @@
           bind:ref={inputRef}
           bind:value={name}
           type="text"
-          placeholder="my-folder"
+          placeholder="e.g. backups"
           autocomplete="off"
           spellcheck={false}
           class={fieldClass(error !== null, "mt-2 px-3 text-sm")}

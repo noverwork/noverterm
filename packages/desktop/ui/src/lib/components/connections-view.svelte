@@ -602,6 +602,7 @@
               <input
                 bind:value={newGroupName}
                 placeholder="Group name"
+                aria-label="Group name"
                 class="h-8 w-36 rounded-[2px] border border-white/10 bg-rail px-2 text-sm text-stencil placeholder:text-stencil-faint focus:border-stencil focus:outline-none"
                 disabled={isSavingGroup}
               />

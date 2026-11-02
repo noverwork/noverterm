@@ -159,7 +159,7 @@
       <Input
         id="ssh-key-name"
         bind:value={keyName}
-        placeholder="My GitHub key"
+        placeholder="e.g. GitHub key"
         autocapitalize="none"
         autocomplete="off"
         autocorrect="off"
@@ -177,7 +177,7 @@
         id="ssh-key-passphrase"
         type="password"
         bind:value={passphrase}
-        placeholder={isEditing ? "Loading saved passphrase if present" : "Optional passphrase"}
+        placeholder={isLoadingSecret ? "Loading saved passphrase…" : undefined}
         class={fieldClass()}
         disabled={isSaving || isLoadingSecret}
       />
@@ -194,7 +194,7 @@
       <textarea
         id="ssh-key-private"
         bind:value={privateKey}
-        placeholder={isEditing ? "Loading saved private key…" : "-----BEGIN OPENSSH PRIVATE KEY-----"}
+        placeholder={isLoadingSecret ? "Loading saved private key…" : "-----BEGIN OPENSSH PRIVATE KEY-----"}
         rows="10"
         aria-describedby={isEditing ? "ssh-key-private-hint" : undefined}
         class={textareaClass()}
