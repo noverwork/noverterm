@@ -148,8 +148,12 @@
   async function handleSubmit(event: SubmitEvent) {
     event.preventDefault();
 
-    const result = connectionSchema.safeParse($formData);
-    if (!result.success || isSaving) {
+    if (isSaving) {
+      return;
+    }
+    // update: true fills $errors so a missing required field is shown, not silently skipped.
+    const result = await form.validateForm({ update: true, focusOnError: true });
+    if (!result.valid) {
       return;
     }
 
