@@ -15,6 +15,7 @@
     KeyRound,
     Loader2,
     Network,
+    Plug,
     Server,
   } from "@lucide/svelte";
 
@@ -28,6 +29,8 @@
     setAppShellContext,
   } from "$lib/stores/app-shell.svelte.js";
   import TerminalView from "$lib/terminal/terminal.svelte";
+  import McpApprovalDialog from "$lib/components/mcp-approval-dialog.svelte";
+  import { startMcpEvents } from "$lib/mcp/mcp-events.svelte.js";
   import { getTabShortcut } from "$lib/terminal/keyboard-shortcuts.js";
   import { checkForAppUpdate } from "$lib/updater/auto-update.js";
   import type { SnippetRecord } from "$lib/api/types.js";
@@ -131,6 +134,10 @@
       return "sftp";
     }
 
+    if (routePath.startsWith("/mcp")) {
+      return "mcp";
+    }
+
     return "terminal";
   });
   const sidebarPages = $derived({
@@ -140,6 +147,7 @@
     "known-hosts": { label: t("Known Hosts"), icon: Server },
     snippets: { label: t("Snippets"), icon: FileText },
     sftp: { label: "SFTP", icon: FolderOpen },
+    mcp: { label: "MCP", icon: Plug },
   } as const);
   const currentPage = $derived(
     activeSidebarSection === "terminal"
@@ -148,6 +156,7 @@
   );
 
   onMount(async () => {
+    startMcpEvents();
     window.addEventListener("contextmenu", handleGlobalContextMenu);
     await app.init();
     void checkForAppUpdate();
@@ -515,6 +524,7 @@
         onAddShortcut={() => goto("/snippets/new?shortcut=1")}
         onManageKeys={() => goto("/keys")}
         onManageKnownHosts={() => goto("/known-hosts")}
+        onMcp={() => goto("/mcp")}
         onPortForwards={() => goto("/forwards")}
         onSnippets={() => goto("/snippets")}
         onSftp={() => goto("/sftp")}
@@ -929,6 +939,7 @@
       </div>
 
       <SettingsModal open={app.showSettings} onClose={app.closeSettings} />
+      <McpApprovalDialog />
     </div>
   {/if}
 </QueryClientProvider>

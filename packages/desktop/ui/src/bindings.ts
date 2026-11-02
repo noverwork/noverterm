@@ -69,6 +69,30 @@ async aiHasApiKey(provider: AiProvider) : Promise<Result<boolean, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+async mcpStatus() : Promise<Result<McpStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("mcp_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async mcpConfigure(settings: McpSettings) : Promise<Result<McpStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("mcp_configure", { settings }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async mcpRespond(requestId: string, decision: McpDecision) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("mcp_respond", { requestId, decision }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async sshConfigScan() : Promise<Result<SshConfigHost[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ssh_config_scan") };
@@ -684,6 +708,27 @@ export type KeyInput = { name: string; kind: string; fingerprint: string | null;
  */
 export type KeyUpdateInput = { name: string; kind: string; fingerprint: string | null; private_key: string | null; passphrase: string | null }
 export type KnownHostsResponse = { hosts: TrustedSshHost[] }
+export type McpActivity = { host_name: string; command: string; 
+/**
+ * `denied`, `failed`, or `finished`.
+ */
+status: string; exit_status: number | null }
+export type McpApprovalRequest = { id: string; host_name: string; target: string; command: string }
+export type McpDecision = "allow" | 
+/**
+ * Allow this and later commands on the same host until the app restarts.
+ */
+"allow_host" | "deny"
+export type McpSettings = { enabled: boolean; port: number }
+export type McpStatus = { settings: McpSettings; running: boolean; url: string; 
+/**
+ * The bearer token clients must send; present once the server was enabled.
+ */
+token: string | null; 
+/**
+ * Why the server is not running although it is enabled.
+ */
+error: string | null }
 export type PortForwardMappingInput = { bind_host: string; bind_port: number; target_host: string; target_port: number }
 export type PortForwardRecord = { id: string; name: string; host_id: string; host_name: string; mappings: PortForwardMappingInput[] }
 export type PortForwardStartInput = { name: string; host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null; 

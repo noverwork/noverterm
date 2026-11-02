@@ -2,6 +2,7 @@
   import {
     KeyRound,
     Network,
+    Plug,
     Server,
     Settings,
     FileText,
@@ -15,7 +16,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { t } from "$lib/i18n/index.svelte.js";
 
-  type SidebarSection = "terminal" | "hosts" | "keys" | "forwards" | "known-hosts" | "snippets" | "sftp";
+  type SidebarSection = "terminal" | "hosts" | "keys" | "forwards" | "known-hosts" | "snippets" | "sftp" | "mcp";
 
   let {
     onLocalTerminal,
@@ -27,6 +28,7 @@
     onAddShortcut,
     onManageKeys,
     onManageKnownHosts,
+    onMcp,
     onPortForwards,
     onNewConnection,
     onGoHome,
@@ -48,6 +50,7 @@
     onAddShortcut?: () => void;
     onManageKeys?: () => void;
     onManageKnownHosts?: () => void;
+    onMcp?: () => void;
     onPortForwards?: () => void;
     onNewConnection?: () => void;
     onGoHome?: () => void;
@@ -116,6 +119,10 @@
   <FileText class="size-3.5" />
 {/snippet}
 
+{#snippet mcpIcon()}
+  <Plug class="size-3.5" />
+{/snippet}
+
 {#snippet forwardIcon()}
   <Network class="size-3.5" />
 {/snippet}
@@ -158,6 +165,9 @@
         {/if}
         {#if onManageKnownHosts}
           {@render navItem(onManageKnownHosts, "known-hosts", t("Known Hosts"), serverIcon)}
+        {/if}
+        {#if onMcp}
+          {@render navItem(onMcp, "mcp", "MCP", mcpIcon)}
         {/if}
       </div>
     </div>

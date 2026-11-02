@@ -1,4 +1,5 @@
 mod authentication;
+mod exec;
 mod forwarding;
 mod jump;
 mod probe;
@@ -28,6 +29,7 @@ use forwarding::{emit_port_forward_event, stopped_port_forward_status};
 use shell::{read_loop, run_shell_write_loop, SSH_WRITE_QUEUE_CAPACITY};
 
 pub(crate) use authentication::ClientHandler;
+pub use exec::{exec_command, ExecOutput, ExecTarget};
 pub use jump::SshHopInput;
 pub(crate) use jump::{auth_method, open_transport, OpenTransportError};
 

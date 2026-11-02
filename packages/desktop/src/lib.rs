@@ -1,6 +1,7 @@
 pub mod ai;
 pub mod bootstrap;
 pub mod connect;
+pub mod mcp;
 pub mod runtime;
 pub mod sftp;
 pub mod store;
