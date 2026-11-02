@@ -29,6 +29,7 @@ import type { ConnectionConfig } from "$lib/app-data-types.js";
   onSelect={handleSelectConnection}
   onEdit={handleEditConnection}
   onNew={handleNewConnection}
+  onImported={app.refreshMetadata}
   onDelete={app.deleteConnection}
   onCreateGroup={app.createHostGroup}
   onDeleteGroup={app.deleteHostGroup}

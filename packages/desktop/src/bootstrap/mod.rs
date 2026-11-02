@@ -23,6 +23,8 @@ fn command_builder() -> Builder<tauri::Wry> {
         crate::store::hosts::host_list,
         crate::store::hosts::host_save,
         crate::store::hosts::host_delete,
+        crate::store::ssh_config::ssh_config_scan,
+        crate::store::ssh_config::ssh_config_import,
         crate::store::groups::host_group_list,
         crate::store::groups::host_group_create,
         crate::store::groups::host_group_delete,

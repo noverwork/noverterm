@@ -670,3 +670,50 @@ async fn jump_host_chains_reject_loops_and_excess_depth() {
     .await;
     assert!(too_deep.is_err(), "a sixth hop must be rejected");
 }
+
+#[test]
+fn ssh_config_import_links_jumps_shares_keys_and_skips_duplicates() {
+    let pool = memory_pool();
+    let mut db = pool.get().expect("connection");
+    let home = tempfile::tempdir().expect("temp dir");
+    let ssh_dir = home.path().join(".ssh");
+    std::fs::create_dir_all(&ssh_dir).expect("ssh dir");
+    std::fs::write(ssh_dir.join("id_ed25519"), "SHARED KEY\n").expect("key");
+    std::fs::write(
+        ssh_dir.join("config"),
+        "Host bastion\n  HostName 203.0.113.5\n  User ops\n\
+         Host app\n  HostName 10.0.0.2\n  User deploy\n  ProxyJump bastion\n\
+         Host skipped\n  HostName 10.0.0.3\n",
+    )
+    .expect("config");
+
+    let all = ["bastion", "app"].map(String::from);
+    let created = super::ssh_config::import(&mut db, &ssh_dir, &all).expect("import");
+    assert_eq!(created, 2, "only the chosen aliases are imported");
+
+    let hosts = orm::schema::ssh_hosts::table
+        .load::<orm::models::SshHost>(&mut db)
+        .expect("hosts");
+    let bastion = hosts
+        .iter()
+        .find(|host| host.name == "bastion")
+        .expect("bastion");
+    let app = hosts.iter().find(|host| host.name == "app").expect("app");
+    assert_eq!(app.jump_host_id.as_deref(), Some(bastion.id.as_str()));
+    assert!(bastion.ssh_key_id.is_some());
+    assert_eq!(
+        bastion.ssh_key_id, app.ssh_key_id,
+        "one key row for one key file"
+    );
+
+    let scanned = super::ssh_config::scan(&mut db, &ssh_dir).expect("scan");
+    assert!(scanned
+        .iter()
+        .filter(|host| host.alias != "skipped")
+        .all(|host| host.exists));
+    assert_eq!(
+        super::ssh_config::import(&mut db, &ssh_dir, &all).expect("reimport"),
+        0,
+        "saved hosts are not imported twice"
+    );
+}

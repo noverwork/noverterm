@@ -45,6 +45,25 @@ async hostDelete(id: string, sshKeyId: string | null) : Promise<Result<null, str
     else return { status: "error", error: String(e) };
 }
 },
+async sshConfigScan() : Promise<Result<SshConfigHost[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ssh_config_scan") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Imports the chosen aliases and returns how many connections were created.
+ */
+async sshConfigImport(aliases: string[]) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ssh_config_import", { aliases }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async hostGroupList() : Promise<Result<HostGroupRecord[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("host_group_list") };
@@ -600,6 +619,15 @@ export type SaveConnectionInput = { id: string | null; name: string; host: strin
 export type Setting = { key: string; value: string }
 export type SnippetRecord = { id: string; host_id: string | null; host_name: string; title: string; body: string; pin_icon: string | null; pin_order: number | null }
 export type SnippetWriteRequest = { host_id: string | null; title: string; body: string; pin_icon: string | null }
+export type SshConfigHost = { alias: string; host: string; port: number; username: string; identity_file: string | null; 
+/**
+ * Alias of the jump host, when `ProxyJump` names another config host.
+ */
+jump_alias: string | null; 
+/**
+ * A saved connection already has this host, port and user.
+ */
+exists: boolean }
 export type SshConnectResponse = { status: "connected"; session_id: string } | { status: "trust_required"; prompt: HostTrustPrompt } | { status: "trust_mismatch"; mismatch: HostTrustMismatch }
 /**
  * One bastion on the way to the target, in connect order (outermost first).

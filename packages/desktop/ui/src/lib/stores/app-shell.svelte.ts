@@ -765,6 +765,7 @@ export function createAppShellStore(queryClient: QueryClient) {
     resetConnectionFormError,
     saveConnection,
     deleteConnection,
+    refreshMetadata,
     createHostGroup,
     deleteHostGroup,
     moveConnectionToGroup,

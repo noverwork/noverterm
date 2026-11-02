@@ -4,6 +4,7 @@ pub mod keys;
 pub mod port_forwards;
 pub mod settings;
 pub mod snippets;
+pub mod ssh_config;
 
 use std::path::Path;
 

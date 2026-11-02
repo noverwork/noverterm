@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
+import type { SshConfigHost } from "../../bindings.js";
 import type { HostGroupRecord, SshHostRecord } from "./types.js";
 import type {
   SaveConnectionInput,
@@ -49,4 +50,13 @@ export async function deleteConnection(
     id: connection.id,
     sshKeyId: connection.sshKeyId,
   });
+}
+
+export async function scanSshConfig(): Promise<SshConfigHost[]> {
+  return invoke<SshConfigHost[]>("ssh_config_scan");
+}
+
+/** Resolves to how many connections were created. */
+export async function importSshConfig(aliases: string[]): Promise<number> {
+  return invoke<number>("ssh_config_import", { aliases });
 }

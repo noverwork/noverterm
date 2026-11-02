@@ -191,7 +191,7 @@ fn to_record(keys: &[SshKey], host: SshHost) -> SshHostRecord {
 
 /// Rejects a jump chain that loops back to the saved host or exceeds
 /// `MAX_JUMP_HOPS`, so connecting can always resolve a finite chain.
-fn validate_jump_chain(
+pub(super) fn validate_jump_chain(
     db: &mut SqliteConnection,
     host_id: Option<&str>,
     jump_host_id: &str,

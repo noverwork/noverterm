@@ -2,6 +2,7 @@
   import {
     Check,
     ChevronRight,
+    FileInput,
     FolderInput,
     Pencil,
     Plus,
@@ -11,6 +12,7 @@
   } from "@lucide/svelte";
 
   import DeleteConfirmDialog from "$lib/components/delete-confirm-dialog.svelte";
+  import SshConfigImportDialog from "$lib/components/ssh-config-import-dialog.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
@@ -28,6 +30,7 @@
     onSelect: (conn: ConnectionConfig) => void;
     onEdit: (conn: ConnectionConfig) => void;
     onNew: () => void;
+    onImported: () => Promise<unknown>;
     onDelete: (conn: ConnectionConfig) => Promise<void>;
     onCreateGroup: (name: string) => Promise<HostGroupRecord>;
     onDeleteGroup: (group: HostGroupRecord) => Promise<void>;
@@ -43,6 +46,7 @@
     onSelect,
     onEdit,
     onNew,
+    onImported,
     onDelete,
     onCreateGroup,
     onDeleteGroup,
@@ -63,6 +67,7 @@
   let pendingDeleteConnection = $state<ConnectionConfig | null>(null);
   let deletingHostGroupId = $state<string | null>(null);
   let pendingDeleteHostGroup = $state<HostGroupRecord | null>(null);
+  let isImporting = $state(false);
   let isCreatingGroup = $state(false);
   let newGroupName = $state("");
   let isSavingGroup = $state(false);
@@ -330,6 +335,16 @@
         </div>
 
         <Button
+          onclick={() => (isImporting = true)}
+          variant="outline"
+          size="sm"
+          class="gap-2 rounded-[2px] border-white/10 bg-transparent text-stencil hover:border-white/20 hover:bg-white/5"
+        >
+          <FileInput class="size-3.5" />
+          Import
+        </Button>
+
+        <Button
           onclick={onNew}
           variant="default"
           size="sm"
@@ -359,7 +374,18 @@
         <div
           class="flex h-full min-h-[16rem] items-center justify-center rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground"
         >
-          No saved connections yet
+          <div class="flex flex-col items-center gap-3">
+            No saved connections yet
+            <Button
+              onclick={() => (isImporting = true)}
+              variant="outline"
+              size="sm"
+              class="gap-2 rounded-[2px] border-white/10 bg-transparent text-stencil hover:border-white/20 hover:bg-white/5"
+            >
+              <FileInput class="size-3.5" />
+              Import from ~/.ssh/config
+            </Button>
+          </div>
         </div>
       {:else}
         {#if isSearching && visibleSections.length === 0}
@@ -639,6 +665,12 @@
     </div>
   </section>
 </div>
+
+<SshConfigImportDialog
+  open={isImporting}
+  {onImported}
+  onClose={() => (isImporting = false)}
+/>
 
 <DeleteConfirmDialog
   open={pendingDeleteConnection !== null}
