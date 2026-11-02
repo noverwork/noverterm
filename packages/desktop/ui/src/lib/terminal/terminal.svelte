@@ -4,6 +4,7 @@
   import { onMount, tick } from "svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
+  import AiAssistantPanel from "./ai-assistant-panel.svelte";
   import { createTerminal } from "./xterm.js";
   import type { TerminalConfig } from "$lib/app-data-types.js";
   import type {
@@ -45,6 +46,19 @@
   let searchTerm = $state("");
   let searchMatched = $state<boolean | null>(null);
   let searchInput = $state<HTMLInputElement | null>(null);
+  /** Rows sent to the AI as context: enough for the prompt, OS and recent errors. */
+  const ASSISTANT_CONTEXT_LINES = 40;
+  /** `undefined` while closed; `null` when open with no selection to explain. */
+  let assistantSelection = $state<string | null | undefined>(undefined);
+
+  function openAssistant() {
+    assistantSelection = term?.copySelection() ?? null;
+  }
+
+  function closeAssistant() {
+    assistantSelection = undefined;
+    term?.focus();
+  }
   function updateSelectionState() {
     onSelectionChange?.();
   }
@@ -166,6 +180,7 @@
       onSearchRequest: () => {
         void openSearch();
       },
+      onAssistantRequest: openAssistant,
       subscribeOutput,
     });
     term.init(container);
@@ -221,6 +236,20 @@
 
 <div class="relative h-full w-full">
   <div bind:this={container} class="terminal-container h-full w-full"></div>
+
+  {#if assistantSelection !== undefined}
+    {#key assistantSelection}
+      <AiAssistantPanel
+        selection={assistantSelection}
+        getContext={() => term?.recentText(ASSISTANT_CONTEXT_LINES) ?? ""}
+        onInsert={(command) => {
+          term?.paste(command);
+          closeAssistant();
+        }}
+        onClose={closeAssistant}
+      />
+    {/key}
+  {/if}
 
   {#if searchOpen}
     <div

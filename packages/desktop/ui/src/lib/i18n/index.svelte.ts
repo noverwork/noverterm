@@ -1,3 +1,4 @@
+import ai from "./zh-tw/ai.js";
 import connections from "./zh-tw/connections.js";
 import shell from "./zh-tw/shell.js";
 import transfer from "./zh-tw/transfer.js";
@@ -10,7 +11,7 @@ export const LOCALES: { value: Locale; label: string }[] = [
 ];
 
 /** English source text → 繁體中文. English needs no table: the key is the text. */
-const zhTW: Record<string, string> = { ...shell, ...connections, ...transfer };
+const zhTW: Record<string, string> = { ...shell, ...connections, ...transfer, ...ai };
 
 const STORAGE_KEY = "noverterm.locale";
 

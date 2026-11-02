@@ -3,6 +3,7 @@
   import { getVersion } from "@tauri-apps/api/app";
   import { invoke } from "@tauri-apps/api/core";
 
+  import AiSettingsSection from "$lib/components/ai-settings-section.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { t } from "$lib/i18n/index.svelte.js";
   import { getLocale, LOCALES, setLocale, type Locale } from "$lib/i18n/index.svelte.js";
@@ -71,7 +72,7 @@
     tabindex="-1"
   >
     <div
-      class="ide-panel flex w-full max-w-lg flex-col overflow-hidden rounded-[2px] text-stencil"
+      class="ide-panel flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-[2px] text-stencil"
     >
       <div
         class="flex shrink-0 items-center justify-between border-b border-white/10 px-6 py-4"
@@ -91,7 +92,7 @@
         </Button>
       </div>
 
-      <div class="space-y-6 px-6 py-8">
+      <div class="min-h-0 space-y-6 overflow-y-auto px-6 py-8">
         <div
           class="rounded-[2px] border border-white/10 bg-transparent px-5 py-5"
         >
@@ -116,6 +117,8 @@
             </select>
           </div>
         </div>
+
+        <AiSettingsSection />
 
         <div
           class="rounded-[2px] border border-white/10 bg-transparent px-5 py-5"

@@ -11,6 +11,7 @@ export interface TerminalKeyboardActions {
   openSearchPrompt(): void;
   repeatSearch(backwards: boolean): void;
   closeTerminal(): void;
+  openAssistant(): void;
 }
 
 export type TabShortcut = { index: number } | { offset: 1 | -1 };
@@ -81,6 +82,14 @@ export function createTerminalKeyHandler(
     } else if (key === "w" && !event.shiftKey && command) {
       action = () => {
         actions.closeTerminal();
+      };
+    } else if (
+      key === "k" &&
+      ((command && !event.shiftKey) || (control && event.shiftKey))
+    ) {
+      // Cmd+K on macOS; Ctrl+Shift+K elsewhere, since Ctrl+K is the shell's kill-line.
+      action = () => {
+        actions.openAssistant();
       };
     } else if (key === "g" && command) {
       action = () => {

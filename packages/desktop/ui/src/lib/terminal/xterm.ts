@@ -30,6 +30,7 @@ interface TerminalOptions {
   onError?: (message: string) => void;
   onRequestClose?: () => void;
   onSearchRequest?: () => void;
+  onAssistantRequest?: () => void;
   subscribeOutput?: (callback: TerminalOutputCallback) => () => void;
 }
 
@@ -37,6 +38,8 @@ export interface TerminalController {
   readonly terminal: Terminal | null;
   init(container: HTMLElement): void;
   copySelection(): string | null;
+  /** The last `lines` rows of the buffer, ending at the cursor line. */
+  recentText(lines: number): string;
   paste(text: string): void;
   clear(): void;
   findNext(term: string): boolean;
@@ -205,6 +208,9 @@ export function createTerminal(options: TerminalOptions): TerminalController {
       },
       openSearchPrompt: requestSearch,
       repeatSearch,
+      openAssistant() {
+        options.onAssistantRequest?.();
+      },
       closeTerminal() {
         options.onRequestClose?.();
       },
@@ -373,6 +379,17 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     return terminal?.getSelection() || null;
   }
 
+  function recentText(lines: number) {
+    const buffer = terminal?.buffer.active;
+    if (!buffer) return "";
+    const end = buffer.baseY + buffer.cursorY;
+    const rows: string[] = [];
+    for (let row = Math.max(0, end - lines + 1); row <= end; row++) {
+      rows.push(buffer.getLine(row)?.translateToString(true) ?? "");
+    }
+    return rows.join("\n").trim();
+  }
+
   function paste(text: string) {
     markUserInput();
     keyboardProtocol?.paste(text);
@@ -445,6 +462,7 @@ export function createTerminal(options: TerminalOptions): TerminalController {
     },
     init,
     copySelection,
+    recentText,
     paste,
     clear,
     findNext,

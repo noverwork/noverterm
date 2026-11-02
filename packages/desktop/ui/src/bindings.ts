@@ -45,6 +45,30 @@ async hostDelete(id: string, sshKeyId: string | null) : Promise<Result<null, str
     else return { status: "error", error: String(e) };
 }
 },
+async aiAsk(input: AiAskInput) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_ask", { input }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async aiSetApiKey(provider: AiProvider, apiKey: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_set_api_key", { provider, apiKey }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async aiHasApiKey(provider: AiProvider) : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_has_api_key", { provider }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async sshConfigScan() : Promise<Result<SshConfigHost[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ssh_config_scan") };
@@ -586,6 +610,61 @@ async knownHostsRemove(host: string, port: number) : Promise<Result<KnownHostsRe
 
 /** user-defined types **/
 
+/**
+ * The wire format a model is reached through.
+ */
+export type AiApiFormat = 
+/**
+ * `/messages`
+ */
+"anthropic" | 
+/**
+ * `/chat/completions`
+ */
+"openai" | 
+/**
+ * `/responses`, OpenAI's Responses API
+ */
+"responses" | 
+/**
+ * Google's `generateContent`
+ */
+"gemini"
+export type AiAskInput = { provider: AiProvider; model: string; base_url: string | null; 
+/**
+ * Only OpenCode Go uses this; `None` picks the format from the model name.
+ */
+api_format: AiApiFormat | null; task: AiTask; input: string; 
+/**
+ * Recent terminal output, so the model can see the shell, OS and cwd.
+ */
+context: string | null; 
+/**
+ * Extra question about an explained selection.
+ */
+question: string | null; 
+/**
+ * Reply language, e.g. "繁體中文" or "English".
+ */
+language: string }
+export type AiProvider = "anthropic" | 
+/**
+ * Any OpenAI-compatible chat completions API: OpenAI, Ollama, LM Studio, …
+ */
+"openai_compatible" | 
+/**
+ * One key for many vendors' models, each served in its own endpoint format.
+ */
+"opencode_go"
+export type AiTask = 
+/**
+ * `input` is what the user wants done; reply is one shell command.
+ */
+"command" | 
+/**
+ * `input` is selected terminal text; reply is a short explanation.
+ */
+"explain"
 export type DirectSshConnectInput = { host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null; 
 /**
  * Jump hosts to tunnel through, outermost first.

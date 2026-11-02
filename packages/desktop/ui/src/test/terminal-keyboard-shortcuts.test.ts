@@ -31,6 +31,7 @@ function createActions(): TerminalKeyboardActions {
     openSearchPrompt: vi.fn(),
     repeatSearch: vi.fn(),
     closeTerminal: vi.fn(),
+    openAssistant: vi.fn(),
   };
 }
 
@@ -149,6 +150,16 @@ describe("terminal keyboard shortcuts", () => {
     expect(metaW.preventDefault).toHaveBeenCalledTimes(1);
     expect(metaW.stopPropagation).toHaveBeenCalledTimes(1);
     expect(ctrlW.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("opens the assistant on Cmd+K or Ctrl+Shift+K and leaves Ctrl+K to the shell", () => {
+    const actions = createActions();
+    const handler = createTerminalKeyHandler(() => createTarget(), actions);
+
+    expect(handler(createKeyEvent("k", { metaKey: true }))).toBe(false);
+    expect(handler(createKeyEvent("K", { ctrlKey: true, shiftKey: true }))).toBe(false);
+    expect(handler(createKeyEvent("k", { ctrlKey: true }))).toBe(true);
+    expect(actions.openAssistant).toHaveBeenCalledTimes(2);
   });
 
   it("passes tab shortcuts to the app without sending them to the PTY", () => {

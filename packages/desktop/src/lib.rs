@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod bootstrap;
 pub mod connect;
 pub mod runtime;

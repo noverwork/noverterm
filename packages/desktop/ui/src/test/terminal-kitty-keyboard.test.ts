@@ -245,6 +245,7 @@ describe("Kitty keyboard protocol", () => {
         openSearchPrompt() {},
         repeatSearch() {},
         closeTerminal() {},
+        openAssistant() {},
       },
       () => protocol,
     );
