@@ -590,7 +590,7 @@ export function createSessionStore() {
   }
 
   async function connectLocal(
-    name: string = "Local Terminal",
+    name: string = t("Local Terminal"),
     cols: number = 80,
     rows: number = 24,
   ): Promise<string> {
