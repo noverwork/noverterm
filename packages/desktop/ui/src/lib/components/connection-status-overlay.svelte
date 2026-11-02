@@ -10,7 +10,6 @@
     name?: string;
     /** Stencil code of the session, e.g. "PRO·API-01". */
     code?: string;
-    protocol?: "terminal" | "sftp";
     error?: string | null;
     trustPrompt?: HostTrustPrompt | null;
     trustMismatch?: HostTrustMismatch | null;
@@ -27,7 +26,6 @@
     status,
     name,
     code,
-    protocol = "terminal",
     error = null,
     trustPrompt = null,
     trustMismatch = null,

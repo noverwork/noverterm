@@ -345,7 +345,6 @@
     <ConnectionStatusOverlay
       status={connectionStatus}
       name={pane.connection?.name}
-      protocol="sftp"
       error={pane.connectionError}
       trustPrompt={pane.trustPrompt}
       trustMismatch={pane.trustMismatch}
