@@ -1,13 +1,20 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use russh::client::{self, Handle};
 use tokio::sync::Mutex;
+use tokio::time::timeout;
 use tracing::info;
 
 use crate::trust::{SshTrustStore, TrustCheck};
 
 use super::authentication::{authenticate_session, ClientHandler};
 use super::AuthMethod;
+
+/// How long one hop may take to open its TCP stream (or tunnel channel) and
+/// finish the SSH handshake. Without it, a jump host that cannot route to the
+/// next hop leaves the tab spinning until the OS TCP timeout, often minutes.
+const HOP_CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// One bastion on the way to the target, in connect order (outermost first).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -35,7 +42,7 @@ pub(crate) enum OpenTransportError {
 ///
 /// Each tunnel channel holds a sender to its jump session, so the jump
 /// sessions live exactly as long as the transport stacked on them.
-// ponytail: hops open sequentially; no per-hop timeout beyond the russh config.
+// ponytail: hops open sequentially; authentication has no timeout of its own.
 pub(crate) async fn open_transport(
     config: Arc<client::Config>,
     host: &str,
@@ -83,21 +90,31 @@ async fn connect_hop(
         trust_store.clone(),
         trust_check.clone(),
     );
-    let connected = match tunnel {
-        None => client::connect(config.clone(), (host.to_string(), port), handler).await,
-        Some(jump) => {
-            info!(session_id, host, port, "Opening tunnel through jump host");
-            let channel = jump
-                .channel_open_direct_tcpip(host, u32::from(port), "127.0.0.1", 0)
-                .await
-                .map_err(|error| {
-                    OpenTransportError::Other(format!(
-                        "Jump host could not reach {host}:{port}: {error}"
-                    ))
-                })?;
-            client::connect_stream(config.clone(), channel.into_stream(), handler).await
+    let tunneled = tunnel.is_some();
+    let attempt = async {
+        match tunnel {
+            None => Ok(client::connect(config.clone(), (host.to_string(), port), handler).await),
+            Some(jump) => {
+                info!(session_id, host, port, "Opening tunnel through jump host");
+                let channel = jump
+                    .channel_open_direct_tcpip(host, u32::from(port), "127.0.0.1", 0)
+                    .await
+                    .map_err(|error| {
+                        OpenTransportError::Other(format!(
+                            "Jump host could not reach {host}:{port}: {error}"
+                        ))
+                    })?;
+                Ok(client::connect_stream(config.clone(), channel.into_stream(), handler).await)
+            }
         }
     };
+    let connected = timeout(HOP_CONNECT_TIMEOUT, attempt).await.map_err(|_| {
+        OpenTransportError::Other(if tunneled {
+            format!("Jump host could not reach {host}:{port} (timed out)")
+        } else {
+            format!("Timed out connecting to {host}:{port}")
+        })
+    })??;
     connected.map_err(|error| OpenTransportError::Connect { error, trust_check })
 }
 
