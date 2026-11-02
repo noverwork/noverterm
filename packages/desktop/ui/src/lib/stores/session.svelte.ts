@@ -13,6 +13,7 @@ import type {
 } from "../../bindings.js";
 import { createDirectSshConnectInput } from "$lib/services/ssh-connection-input.js";
 import type { ConnectionConfig } from "$lib/app-data-types.js";
+import { t } from "$lib/i18n/index.svelte.js";
 import { writeTerminalInput } from "$lib/terminal/input.js";
 
 export type SessionType = "ssh" | "local";
@@ -257,14 +258,21 @@ function savedConnectionSessionName(
 
 function connectResponseError(response: SshConnectResponse) {
   if (response.status === "trust_required" && response.prompt) {
-    return `Host trust confirmation required for ${response.prompt.host} (${response.prompt.fingerprint})`;
+    return t("Host trust confirmation required for {host} ({fingerprint})", {
+      host: response.prompt.host,
+      fingerprint: response.prompt.fingerprint,
+    });
   }
 
   if (response.status === "trust_mismatch" && response.mismatch) {
-    return `Host trust mismatch for ${response.mismatch.host}: expected ${response.mismatch.expected_fingerprint}, got ${response.mismatch.presented_fingerprint}`;
+    return t("Host trust mismatch for {host}: expected {expected}, got {presented}", {
+      host: response.mismatch.host,
+      expected: response.mismatch.expected_fingerprint,
+      presented: response.mismatch.presented_fingerprint,
+    });
   }
 
-  return "SSH connection failed";
+  return t("SSH connection failed");
 }
 
 function connectResponseSessionUpdates(
@@ -528,7 +536,7 @@ export function createSessionStore() {
     if (result.data.status !== "connected") {
       const updates = connectResponseSessionUpdates(result.data);
       updateSession(pendingSessionId, updates);
-      throw new Error(updates.error ?? "SSH connection failed");
+      throw new Error(updates.error ?? t("SSH connection failed"));
     }
 
     return finishConnection(pendingSessionId, result.data.session_id);
@@ -575,7 +583,7 @@ export function createSessionStore() {
     if (result.data.status !== "connected") {
       const updates = connectResponseSessionUpdates(result.data);
       updateSession(tempId, updates);
-      throw new Error(updates.error ?? "SSH connection failed");
+      throw new Error(updates.error ?? t("SSH connection failed"));
     }
 
     return finishConnection(tempId, result.data.session_id);

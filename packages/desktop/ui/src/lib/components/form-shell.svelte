@@ -3,6 +3,7 @@
   import type { Snippet } from "svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
+  import { t } from "$lib/i18n/index.svelte.js";
 
   let {
     title,
@@ -65,7 +66,7 @@
         onclick={onCancel}
         disabled={busy}
       >
-        Cancel
+        {t("Cancel")}
       </Button>
       <Button
         type="submit"

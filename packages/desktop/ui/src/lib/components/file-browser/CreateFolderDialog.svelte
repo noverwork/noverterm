@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n/index.svelte.js";
   import { FolderPlus } from "@lucide/svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
@@ -33,15 +34,15 @@
   function validate(value: string): string | null {
     const trimmed = value.trim();
     if (trimmed.length === 0) {
-      return "Folder name is required";
+      return t("Folder name is required");
     }
 
     if (trimmed === "." || trimmed === "..") {
-      return "Folder name cannot be '.' or '..'";
+      return t("Folder name cannot be '.' or '..'");
     }
 
     if (!NAME_PATTERN.test(trimmed)) {
-      return "Folder name contains invalid characters";
+      return t("Folder name contains invalid characters");
     }
 
     return null;
@@ -98,10 +99,10 @@
           </div>
           <div class="min-w-0 flex-1">
             <h2 id="create-folder-dialog-title" class="text-xl font-semibold tracking-tight text-stencil">
-              Create folder
+              {t("Create folder")}
             </h2>
             <p id="create-folder-dialog-description" class="mt-2 text-sm leading-6 text-stencil-mute">
-              Enter a name for the new folder.
+              {t("Enter a name for the new folder.")}
             </p>
           </div>
         </div>
@@ -115,14 +116,14 @@
         }}
       >
         <label for="create-folder-name" class="section-title block text-stencil-mute">
-          Folder name
+          {t("Folder name")}
         </label>
         <Input
           id="create-folder-name"
           bind:ref={inputRef}
           bind:value={name}
           type="text"
-          placeholder="e.g. backups"
+          placeholder={t("e.g. {example}", { example: "backups" })}
           autocomplete="off"
           spellcheck={false}
           class={fieldClass(error !== null, "mt-2 px-3 text-sm")}
@@ -142,13 +143,13 @@
             class="rounded-[2px] border-white/10 bg-transparent px-4 text-stencil hover:border-white/20 hover:bg-white/5"
             onclick={onCancel}
           >
-            Cancel
+            {t("Cancel")}
           </Button>
           <Button
             type="submit"
             class="rounded-[2px] bg-stencil px-4 text-port hover:bg-white"
           >
-            Create
+            {t("Create")}
           </Button>
         </div>
       </form>

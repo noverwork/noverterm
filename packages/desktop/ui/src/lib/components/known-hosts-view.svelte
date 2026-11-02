@@ -3,6 +3,7 @@
   import { Fingerprint, Server, Trash2 } from "@lucide/svelte";
   import { invoke } from "@tauri-apps/api/core";
 
+  import { t } from "$lib/i18n/index.svelte.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import DeleteConfirmDialog from "$lib/components/delete-confirm-dialog.svelte";
 
@@ -30,7 +31,7 @@
       const result = await invoke<{ hosts: TrustedSshHost[] }>("known_hosts_get");
       hosts = result.hosts;
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Failed to load Known Hosts";
+      error = cause instanceof Error ? cause.message : t("Failed to load Known Hosts");
     } finally {
       isLoading = false;
     }
@@ -56,7 +57,7 @@
       hosts = result.hosts;
       pendingDelete = null;
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Failed to remove Known Host";
+      error = cause instanceof Error ? cause.message : t("Failed to remove Known Host");
     } finally {
       deletingHostKey = null;
     }
@@ -71,9 +72,9 @@
   <section class="flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-stencil sm:p-6">
     <div class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight">Known Hosts</h1>
+        <h1 class="text-2xl font-semibold tracking-tight">{t("Known Hosts")}</h1>
         <p class="mt-2 text-sm text-stencil-mute">
-          Hosts you trusted after confirming their SSH fingerprint.
+          {t("Hosts you trusted after confirming their SSH fingerprint.")}
         </p>
       </div>
 
@@ -88,11 +89,11 @@
     <div class="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
       {#if isLoading}
         <div class="flex h-full min-h-[16rem] items-center justify-center rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground">
-          Loading...
+          {t("Loading...")}
         </div>
       {:else if hosts.length === 0}
         <div class="flex h-full min-h-[16rem] items-center justify-center rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground">
-          No Known Hosts yet. Confirm a host fingerprint during SSH connection to add it here.
+          {t("No Known Hosts yet. Confirm a host fingerprint during SSH connection to add it here.")}
         </div>
       {:else}
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -114,7 +115,7 @@
               <div class="mt-4 rounded-[2px] border border-white/10 bg-rail px-3 py-2.5">
                 <div class="flex items-center gap-2 section-title">
                   <Fingerprint class="size-3.5" />
-                  Fingerprint
+                  {t("Fingerprint")}
                 </div>
                 <p class="mt-2 break-all font-mono text-xs leading-5 text-stencil">
                   {host.fingerprint}
@@ -130,7 +131,7 @@
                   disabled={deletingHostKey === hostKey(host)}
                 >
                   <Trash2 class="size-3" />
-                  Remove
+                  {t("Remove")}
                 </Button>
               </div>
             </article>
@@ -143,10 +144,10 @@
 
 <DeleteConfirmDialog
   open={pendingDelete !== null}
-  title="Remove Known Host?"
-  description="This removes the saved SSH fingerprint. The next connection to this host will ask you to trust it again."
+  title={t("Remove Known Host?")}
+  description={t("This removes the saved SSH fingerprint. The next connection to this host will ask you to trust it again.")}
   itemName={pendingDelete ? hostKey(pendingDelete) : undefined}
-  confirmLabel="Remove host"
+  confirmLabel={t("Remove host")}
   isDeleting={deletingHostKey !== null}
   onConfirm={confirmDelete}
   onCancel={() => (pendingDelete = null)}

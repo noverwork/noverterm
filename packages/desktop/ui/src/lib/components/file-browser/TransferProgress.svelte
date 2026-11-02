@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n/index.svelte.js";
   import { ArrowDown, ArrowLeftRight, ArrowUp, X } from "@lucide/svelte";
 
   import type { TransferProgress as TransferProgressType } from "$lib/types/sftp.js";
@@ -73,7 +74,7 @@
   <div
     class="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-3 pb-3 sm:px-5 sm:pb-4"
     role="region"
-    aria-label="Active file transfers"
+    aria-label={t("Active file transfers")}
     data-testid="transfer-status-bar"
   >
     <div class="pointer-events-auto mx-auto w-full max-w-5xl overflow-hidden rounded-[2px] border border-white/10 bg-rail text-stencil">
@@ -81,11 +82,11 @@
         <div class="flex min-w-0 items-center gap-2">
           <span class="size-2 shrink-0 rounded-full bg-amber-300" aria-hidden="true"></span>
           <p class="truncate section-title">
-            Transfers
+            {t("Transfers")}
           </p>
         </div>
         <span class="shrink-0 text-xs text-stencil-mute" data-testid="transfer-count">
-          {transferCount} active
+          {t("{count} active", { count: transferCount })}
         </span>
       </div>
 
@@ -113,7 +114,7 @@
           <div class="min-w-0">
             <div class="flex items-center justify-between gap-2">
               <p class="truncate text-sm font-medium text-stencil" title={transfer.transfer_id}>
-                {transfer.direction === "Upload" ? "Uploading" : transfer.direction === "Copy" ? "Copying" : "Downloading"} {shortId(transfer.transfer_id)}
+                {transfer.direction === "Upload" ? t("Uploading {id}", { id: shortId(transfer.transfer_id) }) : transfer.direction === "Copy" ? t("Copying {id}", { id: shortId(transfer.transfer_id) }) : t("Downloading {id}", { id: shortId(transfer.transfer_id) })}
               </p>
               <span class="shrink-0 font-mono text-xs tabular-nums text-stencil-dim">
                 {progress.toFixed(0)}%
@@ -150,7 +151,7 @@
             type="button"
             class="grid size-7 shrink-0 cursor-pointer place-items-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim transition-colors duration-150 hover:border-seal/60 hover:bg-seal/20 hover:text-red-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil"
             onclick={() => onCancel(transfer.transfer_id)}
-            aria-label="Cancel transfer {shortId(transfer.transfer_id)}"
+            aria-label={t("Cancel transfer {id}", { id: shortId(transfer.transfer_id) })}
             data-testid="transfer-cancel"
           >
             <X class="size-3.5" />

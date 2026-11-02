@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n/index.svelte.js";
   import SftpView from "$lib/components/sftp-view.svelte";
   import { getAppShellContext } from "$lib/stores/app-shell.svelte.js";
   import { machineKey, sftpStore, type SftpPane } from "$lib/stores/sftp.svelte.js";
@@ -150,7 +151,7 @@
     }
     const connection = app.connections.find((candidate) => candidate.id === pane.connectionId);
     if (!connection) {
-      pane.connectionError = "Saved connection not found. Open Connections and try again.";
+      pane.connectionError = t("Saved connection not found. Open Connections and try again.");
       return;
     }
     await handleConnect(pane, connection);
@@ -159,7 +160,7 @@
   async function confirmTrustAndRetry(pane: SftpPane, confirmation: HostTrustConfirmation): Promise<void> {
     if (pane.trustConfirming || !pane.connectionId) return;
     if (!app.connections.some((connection) => connection.id === pane.connectionId)) {
-      pane.trustError = "Saved connection not found. Open Connections and try again.";
+      pane.trustError = t("Saved connection not found. Open Connections and try again.");
       return;
     }
     const generation = pane.attemptGeneration;

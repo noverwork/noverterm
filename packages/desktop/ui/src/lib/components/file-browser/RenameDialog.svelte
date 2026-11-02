@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t, tParts } from "$lib/i18n/index.svelte.js";
   import { Pencil } from "@lucide/svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
@@ -18,6 +19,8 @@
   let error = $state<string | null>(null);
   let inputRef = $state<HTMLInputElement | null>(null);
   let initializedFor = $state<string | null>(null);
+
+  const descParts = $derived(tParts("Choose a new name for {name}.", ["name"]));
 
   const NAME_PATTERN = /^[^/\\:*?"<>|]+$/;
 
@@ -47,19 +50,19 @@
   function validate(value: string): string | null {
     const trimmed = value.trim();
     if (trimmed.length === 0) {
-      return "Name is required";
+      return t("Name is required");
     }
 
     if (trimmed === currentName) {
-      return "Name is unchanged";
+      return t("Name is unchanged");
     }
 
     if (trimmed === "." || trimmed === "..") {
-      return "Name cannot be '.' or '..'";
+      return t("Name cannot be '.' or '..'");
     }
 
     if (!NAME_PATTERN.test(trimmed)) {
-      return "Name contains invalid characters";
+      return t("Name contains invalid characters");
     }
 
     return null;
@@ -116,10 +119,10 @@
           </div>
           <div class="min-w-0 flex-1">
             <h2 id="rename-dialog-title" class="text-xl font-semibold tracking-tight text-stencil">
-              Rename item
+              {t("Rename item")}
             </h2>
             <p id="rename-dialog-description" class="mt-2 text-sm leading-6 text-stencil-mute">
-              Choose a new name for <span class="font-mono text-stencil">{currentName}</span>.
+              {descParts[0]}<span class="font-mono text-stencil">{currentName}</span>{descParts[2]}
             </p>
           </div>
         </div>
@@ -133,7 +136,7 @@
         }}
       >
         <label for="rename-input" class="section-title block text-stencil-mute">
-          New name
+          {t("New name")}
         </label>
         <Input
           id="rename-input"
@@ -159,13 +162,13 @@
             class="rounded-[2px] border-white/10 bg-transparent px-4 text-stencil hover:border-white/20 hover:bg-white/5"
             onclick={onCancel}
           >
-            Cancel
+            {t("Cancel")}
           </Button>
           <Button
             type="submit"
             class="rounded-[2px] bg-stencil px-4 text-port hover:bg-white"
           >
-            Rename
+            {t("Rename")}
           </Button>
         </div>
       </form>

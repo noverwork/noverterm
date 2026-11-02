@@ -6,6 +6,7 @@
     PortForwardWriteRequest,
   } from "$lib/api/types.js";
   import type { ConnectionConfig } from "$lib/app-data-types.js";
+  import { t, tParts } from "$lib/i18n/index.svelte.js";
   import FormSection from "$lib/components/form-section.svelte";
   import FormShell from "$lib/components/form-shell.svelte";
   import { fieldClass, SELECT_CLASS } from "$lib/components/form-styles.js";
@@ -58,13 +59,13 @@
       : null,
   );
 
-  const formTitle = $derived(forward ? "Edit port forward" : "New port forward");
+  const formTitle = $derived(forward ? t("Edit port forward") : t("New port forward"));
   const submitLabel = $derived.by(() => {
     if (isSaving) {
-      return "Saving…";
+      return t("Saving…");
     }
 
-    return forward ? "Save changes" : "Save forward";
+    return forward ? t("Save changes") : t("Save forward");
   });
 
   $effect(() => {
@@ -90,11 +91,11 @@
   function getAuthLabel(connection: ConnectionConfig): string {
     switch (connection.auth?.kind) {
       case "public_key_and_password":
-        return "Key + Password";
+        return t("Key + Password");
       case "public_key":
-        return "SSH Key";
+        return t("SSH Key");
       default:
-        return "Password";
+        return t("Password");
     }
   }
 
@@ -114,12 +115,12 @@
   function parsePort(value: string | number, label: string): number {
     const trimmedValue = String(value ?? "").trim();
     if (!/^\d+$/.test(trimmedValue)) {
-      throw new Error(`${label} must be a number from 1 to 65535`);
+      throw new Error(t("{label} must be a number from 1 to 65535", { label }));
     }
 
     const port = Number.parseInt(trimmedValue, 10);
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
-      throw new Error(`${label} must be a number from 1 to 65535`);
+      throw new Error(t("{label} must be a number from 1 to 65535", { label }));
     }
     return port;
   }
@@ -129,17 +130,17 @@
     error = null;
 
     if (!selectedConnection) {
-      error = "Select a saved connection to continue";
+      error = t("Select a saved connection to continue");
       return;
     }
 
     if (!formName.trim()) {
-      error = "Name is required";
+      error = t("Name is required");
       return;
     }
 
     if (rows.length === 0) {
-      error = "Add at least one port mapping";
+      error = t("Add at least one port mapping");
       return;
     }
 
@@ -148,12 +149,12 @@
     try {
       const seenBindAddresses: string[] = [];
       const mappings = rows.map((row, index) => {
-        const label = `Row ${index + 1}`;
+        const label = t("Row {number}", { number: index + 1 });
         const bindHost = row.bind_host.trim();
-        const bindPort = parsePort(row.bind_port, `${label}: Bind port`);
+        const bindPort = parsePort(row.bind_port, t("{label}: Bind port", { label }));
         const bindAddress = `${bindHost}:${bindPort}`;
         if (seenBindAddresses.includes(bindAddress)) {
-          throw new Error(`${label}: ${bindAddress} is already used above`);
+          throw new Error(t("{label}: {address} is already used above", { label, address: bindAddress }));
         }
         seenBindAddresses.push(bindAddress);
 
@@ -161,7 +162,7 @@
           bind_host: bindHost,
           bind_port: bindPort,
           target_host: row.target_host.trim(),
-          target_port: parsePort(row.target_port, `${label}: Target port`),
+          target_port: parsePort(row.target_port, t("{label}: Target port", { label })),
         };
       });
 
@@ -173,7 +174,7 @@
       });
     } catch (cause) {
       error =
-        cause instanceof Error ? cause.message : "Failed to save port forward";
+        cause instanceof Error ? cause.message : t("Failed to save port forward");
     } finally {
       isSaving = false;
     }
@@ -182,7 +183,7 @@
 
 <FormShell
   title={formTitle}
-  description="Save a reusable SSH tunnel from a local bind port to a target reachable from the selected host."
+  description={t("Save a reusable SSH tunnel from a local bind port to a target reachable from the selected host.")}
   formId="port-forward-form"
   {submitLabel}
   {error}
@@ -192,24 +193,23 @@
 >
   <FormSection
     icon={Server}
-    title="Saved connection"
-    hint="Target host is resolved from this SSH server, not your local machine."
+    title={t("Saved connection")}
+    hint={t("Target host is resolved from this SSH server, not your local machine.")}
   >
     {#if sortedConnections.length === 0}
       <div
         class="rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-6 text-center"
       >
         <Server class="mx-auto mb-3 size-8 text-stencil-faint" />
-        <p class="text-sm text-stencil-mute">No saved connections yet.</p>
+        <p class="text-sm text-stencil-mute">{t("No saved connections yet.")}</p>
         <p class="mt-1 text-xs text-stencil-mute">
-          Create a Host in <span class="text-stencil">Connections</span> first,
-          then return here to save a tunnel.
+          {#each tParts("Create a Host in {page} first, then return here to save a tunnel.", ["page"]) as part, index (index)}{#if index % 2 === 0}{part}{:else}<span class="text-stencil">{t("Connections")}</span>{/if}{/each}
         </p>
       </div>
     {:else}
       <div class="space-y-2">
         <label for="pf-connection" class="text-sm font-medium text-stencil"
-          >Connection</label
+          >{t("Connection")}</label
         >
         <div class="relative">
           <select
@@ -218,7 +218,7 @@
             class={SELECT_CLASS}
             disabled={isSaving}
           >
-            <option value="" class="bg-rail">— Select a saved connection —</option>
+            <option value="" class="bg-rail">{t("— Select a saved connection —")}</option>
             {#each sortedConnections as connection (connection.id)}
               <option value={connection.id} class="bg-rail">
                 {connection.name} ({connection.username}@{connection.host}:{connection.port})
@@ -246,11 +246,11 @@
       {/if}
 
       <div class="space-y-2">
-        <label for="pf-name" class="text-sm font-medium text-stencil">Name</label>
+        <label for="pf-name" class="text-sm font-medium text-stencil">{t("Name")}</label>
         <Input
           id="pf-name"
           bind:value={formName}
-          placeholder="e.g. Staging Postgres"
+          placeholder={t("e.g. {example}", { example: "Staging Postgres" })}
           class={fieldClass()}
           disabled={isSaving}
         />
@@ -260,8 +260,8 @@
 
   <FormSection
     icon={Network}
-    title="Forward route"
-    hint="Bind locally, then connect to the target from the SSH host. All ports in this forward start and stop together."
+    title={t("Forward route")}
+    hint={t("Bind locally, then connect to the target from the SSH host. All ports in this forward start and stop together.")}
   >
     {#each rows as row, index (index)}
       <div class="rounded-[2px] border border-white/10 bg-rail p-3">
@@ -269,7 +269,7 @@
           <span
             class="section-title"
           >
-            Port {index + 1}
+            {t("Port {number}", { number: index + 1 })}
           </span>
           <Button
             type="button"
@@ -278,7 +278,7 @@
             class="rounded-[2px] text-stencil-mute hover:bg-destructive/10 hover:text-destructive"
             onclick={() => removeRow(index)}
             disabled={isSaving || rows.length === 1}
-            aria-label={`Remove port ${index + 1}`}
+            aria-label={t("Remove port {number}", { number: index + 1 })}
           >
             <Trash2 class="size-3" />
           </Button>
@@ -289,12 +289,12 @@
             <div class="space-y-2">
               <label
                 for={`pf-bind-host-${index}`}
-                class="text-sm font-medium text-stencil">Bind host</label
+                class="text-sm font-medium text-stencil">{t("Bind host")}</label
               >
               <Input
                 id={`pf-bind-host-${index}`}
                 bind:value={row.bind_host}
-                placeholder="e.g. 127.0.0.1"
+                placeholder={t("e.g. {example}", { example: "127.0.0.1" })}
                 autocapitalize="none"
                 autocomplete="off"
                 autocorrect="off"
@@ -306,7 +306,7 @@
             <div class="space-y-2">
               <label
                 for={`pf-bind-port-${index}`}
-                class="text-sm font-medium text-stencil">Bind port</label
+                class="text-sm font-medium text-stencil">{t("Bind port")}</label
               >
               <Input
                 id={`pf-bind-port-${index}`}
@@ -330,12 +330,12 @@
             <div class="space-y-2">
               <label
                 for={`pf-target-host-${index}`}
-                class="text-sm font-medium text-stencil">Target host</label
+                class="text-sm font-medium text-stencil">{t("Target host")}</label
               >
               <Input
                 id={`pf-target-host-${index}`}
                 bind:value={row.target_host}
-                placeholder="e.g. 127.0.0.1"
+                placeholder={t("e.g. {example}", { example: "127.0.0.1" })}
                 autocapitalize="none"
                 autocomplete="off"
                 autocorrect="off"
@@ -347,7 +347,7 @@
             <div class="space-y-2">
               <label
                 for={`pf-target-port-${index}`}
-                class="text-sm font-medium text-stencil">Target port</label
+                class="text-sm font-medium text-stencil">{t("Target port")}</label
               >
               <Input
                 id={`pf-target-port-${index}`}
@@ -374,7 +374,7 @@
       disabled={isSaving}
     >
       <Plus class="size-3.5" />
-      Add port
+      {t("Add port")}
     </Button>
   </FormSection>
 </FormShell>

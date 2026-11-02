@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n/index.svelte.js";
   import { FolderOpen } from "@lucide/svelte";
   import { untrack } from "svelte";
 
@@ -50,8 +51,8 @@
         <FolderOpen class="size-5" />
       </div>
       <div>
-        <h1 class="text-xl font-semibold text-stencil">SFTP File Browser</h1>
-        <p class="text-xs text-stencil-mute">Pick a machine on each side, then drag files across</p>
+        <h1 class="text-xl font-semibold text-stencil">{t("SFTP File Browser")}</h1>
+        <p class="text-xs text-stencil-mute">{t("Pick a machine on each side, then drag files across")}</p>
       </div>
     </div>
   </div>

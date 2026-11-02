@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n/index.svelte.js";
   import { AlertTriangle, Trash2 } from "@lucide/svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
@@ -47,10 +48,10 @@
           </div>
           <div class="min-w-0 flex-1">
             <h2 id="delete-confirm-dialog-title" class="text-xl font-semibold tracking-tight text-stencil">
-              Delete this item?
+              {t("Delete this item?")}
             </h2>
             <p id="delete-confirm-dialog-description" class="mt-2 text-sm leading-6 text-stencil-mute">
-              This action cannot be undone. The item will be permanently removed.
+              {t("This action cannot be undone. The item will be permanently removed.")}
             </p>
           </div>
         </div>
@@ -58,7 +59,7 @@
 
       <div class="px-6 py-4">
         <div class="rounded-[2px] border border-seal/40 bg-rib px-4 py-3">
-          <p class="section-title text-red-200/80">Target</p>
+          <p class="section-title text-red-200/80">{t("Target")}</p>
           <p class="mt-1 truncate font-mono text-sm text-stencil">{itemName}</p>
         </div>
       </div>
@@ -70,7 +71,7 @@
           class="rounded-[2px] border-white/10 bg-transparent px-4 text-stencil hover:border-white/20 hover:bg-white/5"
           onclick={onCancel}
         >
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button
           type="button"
@@ -78,7 +79,7 @@
           onclick={onConfirm}
         >
           <Trash2 class="size-4" />
-          Delete
+          {t("Delete")}
         </Button>
       </div>
     </div>

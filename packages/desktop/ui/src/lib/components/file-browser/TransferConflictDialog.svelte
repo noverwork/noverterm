@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t, tParts } from "$lib/i18n/index.svelte.js";
   import { AlertTriangle, Copy, FileWarning } from "@lucide/svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
@@ -12,6 +13,12 @@
   }
 
   let { conflict, onOverwrite, onRename, onCancel }: Props = $props();
+
+  const descParts = $derived(
+    tParts("A {kind} named {name} already exists in {destination}.", ["name", "destination"], {
+      kind: conflict?.isDirectory ? t("folder") : t("file"),
+    }),
+  );
 
   function handleKeydown(event: KeyboardEvent): void {
     if (event.key === "Escape") {
@@ -49,10 +56,10 @@
           </div>
           <div class="min-w-0 flex-1">
             <h2 id="transfer-conflict-dialog-title" class="text-xl font-semibold tracking-tight text-stencil">
-              {conflict.isDirectory ? "Folder" : "File"} already exists
+              {t("{kind} already exists", { kind: conflict.isDirectory ? t("Folder") : t("File") })}
             </h2>
             <p id="transfer-conflict-dialog-description" class="mt-2 text-sm leading-6 text-stencil-mute">
-              A {conflict.isDirectory ? "folder" : "file"} named <span class="font-mono text-stencil">{conflict.existingName}</span> already exists in <span class="text-stencil">{conflict.destination}</span>.
+              {#each descParts as part, index (index)}{#if index % 2 === 0}{part}{:else if part === "name"}<span class="font-mono text-stencil">{conflict.existingName}</span>{:else}<span class="text-stencil">{conflict.destination}</span>{/if}{/each}
             </p>
           </div>
         </div>
@@ -60,7 +67,7 @@
 
       <div class="space-y-3 px-6 py-4">
         <div class="rounded-[2px] border border-white/10 bg-rib px-4 py-3">
-          <p class="section-title">Original</p>
+          <p class="section-title">{t("Original")}</p>
           <p class="mt-1 truncate font-mono text-sm text-stencil" data-testid="transfer-conflict-original">
             {conflict.fileName}
           </p>
@@ -69,12 +76,12 @@
         {#if conflict.isDirectory}
           <div class="rounded-[2px] border border-[#c9952e]/40 bg-rib px-4 py-3" data-testid="transfer-conflict-inner">
             {#if conflict.conflictingFiles === null}
-              <p class="section-title text-[#e6c27a]">Checking folder contents…</p>
+              <p class="section-title text-[#e6c27a]">{t("Checking folder contents…")}</p>
             {:else if conflict.conflictingFiles.length === 0}
-              <p class="section-title text-[#e6c27a]">No files inside would be overwritten</p>
+              <p class="section-title text-[#e6c27a]">{t("No files inside would be overwritten")}</p>
             {:else}
               <p class="section-title text-[#e6c27a]">
-                Overwrite replaces {conflict.conflictingFiles.length} existing {conflict.conflictingFiles.length === 1 ? "file" : "files"}
+                {conflict.conflictingFiles.length === 1 ? t("Overwrite replaces {count} existing file", { count: 1 }) : t("Overwrite replaces {count} existing files", { count: conflict.conflictingFiles.length })}
               </p>
               <ul class="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-sm text-stencil">
                 {#each conflict.conflictingFiles as path (path)}
@@ -86,7 +93,7 @@
         {/if}
 
         <div class="rounded-[2px] border border-white/10 bg-rib px-4 py-3">
-          <p class="section-title">Rename option</p>
+          <p class="section-title">{t("Rename option")}</p>
           <p class="mt-1 truncate font-mono text-sm text-stencil" data-testid="transfer-conflict-suggested">
             {conflict.suggestedName}
           </p>
@@ -100,7 +107,7 @@
           class="rounded-[2px] border-white/10 bg-transparent px-4 text-stencil hover:border-white/20 hover:bg-white/5"
           onclick={onCancel}
         >
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button
           type="button"
@@ -110,7 +117,7 @@
           data-testid="transfer-conflict-overwrite"
         >
           <FileWarning class="size-4" />
-          Overwrite
+          {t("Overwrite")}
         </Button>
         <Button
           type="button"
@@ -119,7 +126,7 @@
           data-testid="transfer-conflict-rename"
         >
           <Copy class="size-4" />
-          Rename to copy
+          {t("Rename to copy")}
         </Button>
       </div>
     </div>

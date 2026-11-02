@@ -1,3 +1,4 @@
+import { t } from "$lib/i18n/index.svelte.js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
@@ -161,7 +162,7 @@ export class SftpPane {
   );
   /** Has a listing that files can be transferred to or from. */
   isReady = $derived(this.isLocal || this.isConnected);
-  label = $derived(this.isLocal ? "Local" : this.connection?.name ?? "Remote");
+  label = $derived(this.isLocal ? t("Local") : this.connection?.name ?? t("Remote"));
   /** Machine this pane shows or is connecting to; null while picking. */
   machine = $derived(
     this.isLocal ? LOCAL_MACHINE : this.connection ? machineKey(this.connection) : null,
@@ -201,7 +202,7 @@ export class SftpPane {
   async navigate(path: string): Promise<void> {
     const sessionId = this.sftpSessionId;
     if (!this.isLocal && !sessionId) {
-      this.error = "SFTP session is not connected.";
+      this.error = t("SFTP session is not connected.");
       this.store.showError(this.error, "warning");
       return;
     }
@@ -333,7 +334,7 @@ export class SftpPane {
       }
     } catch (error: unknown) {
       if (generation === this.connectionGeneration) {
-        this.store.showError(`Disconnected. Remote cleanup failed: ${errorMessage(error)}`, "warning");
+        this.store.showError(t("Disconnected. Remote cleanup failed: {error}", { error: errorMessage(error) }), "warning");
       }
     } finally {
       if (generation === this.connectionGeneration) {
@@ -392,7 +393,11 @@ export class SftpPane {
       }
       if (response.status === "trust_mismatch") {
         this.trustMismatch = response.mismatch;
-        this.connectionError = `Host trust mismatch for ${response.mismatch.host}: expected ${response.mismatch.expected_fingerprint}, got ${response.mismatch.presented_fingerprint}`;
+        this.connectionError = t("Host trust mismatch for {host}: expected {expected}, got {presented}", {
+          host: response.mismatch.host,
+          expected: response.mismatch.expected_fingerprint,
+          presented: response.mismatch.presented_fingerprint,
+        });
         return;
       }
       const sessionId = response.session_id;
@@ -445,7 +450,7 @@ export class SftpPane {
   }
 
   private requireSession(): string {
-    if (!this.sftpSessionId) throw new Error("SFTP session is not connected.");
+    if (!this.sftpSessionId) throw new Error(t("SFTP session is not connected."));
     return this.sftpSessionId;
   }
 
@@ -474,7 +479,7 @@ export class SftpPane {
         unwrapCommandResult(await commands.sftpClose(sessionId));
       } catch (cleanupError: unknown) {
         if (generation === this.connectionGeneration) {
-          this.store.showError(`Remote cleanup failed: ${errorMessage(cleanupError)}`, "warning");
+          this.store.showError(t("Remote cleanup failed: {error}", { error: errorMessage(cleanupError) }), "warning");
         }
       }
     }
@@ -524,11 +529,11 @@ export class SftpStore {
   async transfer(source: SftpPane, entry: FileEntry): Promise<string | undefined> {
     const target = this.otherPane(source);
     if (source.machine !== null && source.machine === target.machine) {
-      this.showError("Both sides are the same machine. Pick a different one on one side.", "warning");
+      this.showError(t("Both sides are the same machine. Pick a different one on one side."), "warning");
       return undefined;
     }
     if (!source.isReady || !target.isReady) {
-      this.showError("Connect to a server on both sides before transferring files", "warning");
+      this.showError(t("Connect to a server on both sides before transferring files"), "warning");
       return undefined;
     }
 
@@ -678,7 +683,7 @@ export class SftpStore {
       try {
         unlisten();
       } catch (error: unknown) {
-        this.showError(`Could not remove SFTP listener: ${errorMessage(error)}`, "warning");
+        this.showError(t("Could not remove SFTP listener: {error}", { error: errorMessage(error) }), "warning");
       }
     }
   }
@@ -768,23 +773,23 @@ export class SftpStore {
     try {
       await this.setupEventListeners();
       let transferId: string;
-      let action: string;
+      let message: string;
       if (source.isLocal) {
-        action = "Uploading";
+        message = t("Uploading {name}...", { name: fileName });
         transferId = await invoke<string>("sftp_upload", {
           sessionId: target.sftpSessionId,
           localPath: sourcePath,
           remotePath: targetPath,
         });
       } else if (target.isLocal) {
-        action = "Downloading";
+        message = t("Downloading {name}...", { name: fileName });
         transferId = await invoke<string>("sftp_download", {
           sessionId: source.sftpSessionId,
           remotePath: sourcePath,
           localPath: targetPath,
         });
       } else {
-        action = "Copying";
+        message = t("Copying {name}...", { name: fileName });
         transferId = await invoke<string>("sftp_copy", {
           sourceSessionId: source.sftpSessionId,
           sourcePath,
@@ -792,7 +797,7 @@ export class SftpStore {
           targetPath,
         });
       }
-      this.showError(`${action} ${fileName}...`, "info");
+      this.showError(message, "info");
       return transferId;
     } catch (error: unknown) {
       this.showError(errorMessage(error));

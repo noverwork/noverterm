@@ -1,13 +1,14 @@
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
+import { t } from "$lib/i18n/index.svelte.js";
 
 function updateNotes(version: string, body?: string): string {
   const details = body?.trim();
   if (!details) {
-    return `Noverterm ${version} is available. Install it now?`;
+    return t("Noverterm {version} is available. Install it now?", { version });
   }
 
-  return `Noverterm ${version} is available. Install it now?\n\n${details}`;
+  return `${t("Noverterm {version} is available. Install it now?", { version })}\n\n${details}`;
 }
 
 export async function checkForAppUpdate(): Promise<void> {

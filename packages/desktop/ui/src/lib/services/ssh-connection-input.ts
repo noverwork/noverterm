@@ -1,4 +1,5 @@
 import type { DirectSshConnectInput } from "../../bindings.js";
+import { t } from "$lib/i18n/index.svelte.js";
 import type { ConnectionConfig } from "$lib/app-data-types.js";
 
 interface ConnectionAuthInput {
@@ -28,7 +29,7 @@ function connectionAuthInput(connection: ConnectionConfig): ConnectionAuthInput 
         passphrase: connection.auth.passphrase,
       };
     default:
-      throw new Error(`${connection.name} has no saved password or SSH key`);
+      throw new Error(t("{name} has no saved password or SSH key", { name: connection.name }));
   }
 }
 

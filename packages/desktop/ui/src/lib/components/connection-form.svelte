@@ -9,6 +9,7 @@
   SaveConnectionInput,
 } from "$lib/app-data-types.js";
   import type { SshKeyRecord } from "$lib/api/types.js";
+  import { t } from "$lib/i18n/index.svelte.js";
   import FormSection from "$lib/components/form-section.svelte";
   import FormShell from "$lib/components/form-shell.svelte";
   import { fieldClass, SELECT_CLASS, textareaClass } from "$lib/components/form-styles.js";
@@ -56,6 +57,10 @@
   let initializedConnectionId = $state<string | null>(null);
   let showPassword = $state(false);
 
+  function translateErrors(messages: string[]): string {
+    return messages.map((message) => t(message)).join(", ");
+  }
+
   function segmentClass(active: boolean) {
     return active
       ? "flex-1 cursor-pointer rounded-[2px] border border-stencil px-3 py-2 text-sm font-medium text-stencil transition-colors"
@@ -87,13 +92,13 @@
     };
   });
 
-  const formTitle = $derived(connection ? "Edit connection" : "New connection");
+  const formTitle = $derived(connection ? t("Edit connection") : t("New connection"));
   const submitLabel = $derived.by(() => {
     if (isSaving) {
-      return "Saving…";
+      return t("Saving…");
     }
 
-    return connection ? "Save changes" : "Save";
+    return connection ? t("Save changes") : t("Save");
   });
 
   function savedPasswordFor(connection: ConnectionConfig): string | null {
@@ -198,7 +203,7 @@
 
 <FormShell
   title={formTitle}
-  description="Save host details and encrypted credentials for terminal and forwarding workflows."
+  description={t("Save host details and encrypted credentials for terminal and forwarding workflows.")}
   formId="connection-form"
   {submitLabel}
   {error}
@@ -208,15 +213,15 @@
 >
   <FormSection
     icon={Server}
-    title="Endpoint"
-    hint="Name the host and define where the SSH session connects."
+    title={t("Endpoint")}
+    hint={t("Name the host and define where the SSH session connects.")}
   >
     <div class="space-y-2">
-      <label for="conn-name" class="text-sm font-medium text-stencil">Name</label>
+      <label for="conn-name" class="text-sm font-medium text-stencil">{t("Name")}</label>
       <Input
         id="conn-name"
         bind:value={$formData.name}
-        placeholder="e.g. prod-web-01"
+        placeholder={t("e.g. {example}", { example: "prod-web-01" })}
         autocapitalize="none"
         autocomplete="off"
         autocorrect="off"
@@ -228,18 +233,18 @@
       />
       {#if $errors.name}
         <p id="conn-name-error" class="text-xs text-destructive" role="alert">
-          {$errors.name}
+          {translateErrors($errors.name)}
         </p>
       {/if}
     </div>
 
     <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_7rem]">
       <div class="space-y-2">
-        <label for="conn-host" class="text-sm font-medium text-stencil">Hostname</label>
+        <label for="conn-host" class="text-sm font-medium text-stencil">{t("Hostname")}</label>
         <Input
           id="conn-host"
           bind:value={$formData.host}
-          placeholder="e.g. prod.example.com"
+          placeholder={t("e.g. {example}", { example: "prod.example.com" })}
           autocapitalize="none"
           autocomplete="off"
           autocorrect="off"
@@ -251,13 +256,13 @@
         />
         {#if $errors.host}
           <p id="conn-host-error" class="text-xs text-destructive" role="alert">
-            {$errors.host}
+            {translateErrors($errors.host)}
           </p>
         {/if}
       </div>
 
       <div class="space-y-2">
-        <label for="conn-port" class="text-sm font-medium text-stencil">Port</label>
+        <label for="conn-port" class="text-sm font-medium text-stencil">{t("Port")}</label>
         <Input
           id="conn-port"
           type="number"
@@ -272,18 +277,18 @@
         />
         {#if $errors.port}
           <p id="conn-port-error" class="text-xs text-destructive" role="alert">
-            {$errors.port}
+            {translateErrors($errors.port)}
           </p>
         {/if}
       </div>
     </div>
 
     <div class="space-y-2">
-      <label for="conn-username" class="text-sm font-medium text-stencil">Username</label>
+      <label for="conn-username" class="text-sm font-medium text-stencil">{t("Username")}</label>
       <Input
         id="conn-username"
         bind:value={$formData.username}
-        placeholder="e.g. ubuntu"
+        placeholder={t("e.g. {example}", { example: "ubuntu" })}
         autocapitalize="none"
         autocomplete="username"
         autocorrect="off"
@@ -295,13 +300,13 @@
       />
       {#if $errors.username}
         <p id="conn-username-error" class="text-xs text-destructive" role="alert">
-          {$errors.username}
+          {translateErrors($errors.username)}
         </p>
       {/if}
     </div>
 
     <div class="space-y-2">
-      <label for="conn-jump-host" class="text-sm font-medium text-stencil">Jump host</label>
+      <label for="conn-jump-host" class="text-sm font-medium text-stencil">{t("Jump host")}</label>
       <div class="relative">
         <select
           id="conn-jump-host"
@@ -309,7 +314,7 @@
           class={SELECT_CLASS}
           disabled={isSaving || jumpHostOptions.length === 0}
         >
-          <option value="" class="bg-rail">None</option>
+          <option value="" class="bg-rail">{t("None")}</option>
           {#each jumpHostOptions as host (host.id)}
             <option value={host.id} class="bg-rail">
               {host.name} ({host.username}@{host.host})
@@ -325,17 +330,17 @@
 
   <FormSection
     icon={KeyRound}
-    title="Authentication"
-    hint="Credentials are encrypted at rest. Use a password, an SSH key, or both."
+    title={t("Authentication")}
+    hint={t("Credentials are encrypted at rest. Use a password, an SSH key, or both.")}
   >
     <div class="space-y-2">
-      <label for="conn-password" class="text-sm font-medium text-stencil">Password</label>
+      <label for="conn-password" class="text-sm font-medium text-stencil">{t("Password")}</label>
       <div class="relative">
         <Input
           id="conn-password"
           type={showPassword ? "text" : "password"}
           bind:value={$formData.password}
-          placeholder={connection?.hasPassword ? "Saved password" : undefined}
+          placeholder={connection?.hasPassword ? t("Saved password") : undefined}
           aria-invalid={$errors.password ? "true" : undefined}
           aria-describedby={$errors.password ? "conn-password-error" : undefined}
           class={fieldClass($errors.password, "pr-11")}
@@ -348,8 +353,8 @@
             showPassword = !showPassword;
           }}
           disabled={isSaving || !$formData.password}
-          aria-label={showPassword ? "Hide password" : "Show password"}
-          title={showPassword ? "Hide password" : "Show password"}
+          aria-label={showPassword ? t("Hide password") : t("Show password")}
+          title={showPassword ? t("Hide password") : t("Show password")}
         >
           {#if showPassword}
             <EyeOff class="size-4" />
@@ -360,7 +365,7 @@
       </div>
       {#if $errors.password}
         <p id="conn-password-error" class="text-xs text-destructive" role="alert">
-          {$errors.password}
+          {translateErrors($errors.password)}
         </p>
       {/if}
     </div>
@@ -368,12 +373,12 @@
     <div class="border-t border-white/10 pt-3">
       <div class="flex items-center justify-between gap-4">
         <div>
-          <p class="text-sm font-medium text-stencil">SSH key</p>
+          <p class="text-sm font-medium text-stencil">{t("SSH key")}</p>
           <p class="mt-1 text-xs text-stencil-mute">
             {#if connection?.sshKeyId}
-              Select a saved key, paste a replacement, or disable key auth.
+              {t("Select a saved key, paste a replacement, or disable key auth.")}
             {:else}
-              Select a saved key or paste a new SSH private key.
+              {t("Select a saved key or paste a new SSH private key.")}
             {/if}
           </p>
         </div>
@@ -381,7 +386,7 @@
           type="button"
           role="switch"
           aria-checked={$formData.useSshKey}
-          aria-label="Use SSH key"
+          aria-label={t("Use SSH key")}
           onclick={toggleSshKey}
           disabled={isSaving}
           class={$formData.useSshKey
@@ -402,7 +407,7 @@
             <div
               class="flex gap-1 rounded-[2px] border border-white/10 bg-rail p-1"
               role="group"
-              aria-label="SSH key source"
+              aria-label={t("SSH key source")}
             >
               <button
                 type="button"
@@ -411,7 +416,7 @@
                 onclick={() => handleKeyModeChange("saved")}
                 disabled={isSaving}
               >
-                Saved key
+                {t("Saved key")}
               </button>
               <button
                 type="button"
@@ -420,7 +425,7 @@
                 onclick={() => handleKeyModeChange("new")}
                 disabled={isSaving}
               >
-                Paste new key
+                {t("Paste new key")}
               </button>
             </div>
           {/if}
@@ -428,7 +433,7 @@
           {#if $formData.keyMode === "saved" && keys.length > 0}
             <div class="space-y-2">
               <label for="conn-key-select" class="text-sm font-medium text-stencil"
-                >Saved key</label
+                >{t("Saved key")}</label
               >
               <div class="relative">
                 <select
@@ -437,7 +442,7 @@
                   class={SELECT_CLASS}
                   disabled={isSaving}
                 >
-                  <option value="" class="bg-rail">— Select a saved key —</option>
+                  <option value="" class="bg-rail">{t("— Select a saved key —")}</option>
                   {#each keys as key (key.id)}
                     <option value={key.id} class="bg-rail">
                       {key.name} ({key.kind}){key.fingerprint
@@ -452,7 +457,7 @@
               </div>
               {#if selectedKeyWillBeUsed}
                 <p class="text-xs text-emerald-400">
-                  Using saved key: {selectedKey?.name ?? ""}
+                  {t("Using saved key: {name}", { name: selectedKey?.name ?? "" })}
                 </p>
               {/if}
             </div>
@@ -461,12 +466,12 @@
           {#if pastingNewKey || keys.length === 0}
             <div class="space-y-2">
               <label for="conn-key-name" class="text-sm font-medium text-stencil"
-                >Key name <span class="text-stencil-mute">(optional)</span></label
+                >{t("Key name")} <span class="text-stencil-mute">{t("(optional)")}</span></label
               >
               <Input
                 id="conn-key-name"
                 bind:value={keyName}
-                placeholder="e.g. GitHub key"
+                placeholder={t("e.g. {example}", { example: "GitHub key" })}
                 autocapitalize="none"
                 autocomplete="off"
                 autocorrect="off"
@@ -478,7 +483,7 @@
 
             <div class="space-y-2">
               <label for="conn-private-key" class="text-sm font-medium text-stencil"
-                >Private key</label
+                >{t("Private key")}</label
               >
               <textarea
                 id="conn-private-key"
@@ -498,14 +503,14 @@
                   class="text-xs text-destructive"
                   role="alert"
                 >
-                  {$errors.privateKey}
+                  {translateErrors($errors.privateKey)}
                 </p>
               {/if}
             </div>
 
             <div class="space-y-2">
               <label for="conn-passphrase" class="text-sm font-medium text-stencil"
-                >Key passphrase <span class="text-stencil-mute">(optional)</span></label
+                >{t("Key passphrase")} <span class="text-stencil-mute">{t("(optional)")}</span></label
               >
               <Input
                 id="conn-passphrase"

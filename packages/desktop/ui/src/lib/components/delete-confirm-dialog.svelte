@@ -2,6 +2,7 @@
   import { AlertTriangle, Loader2, Trash2 } from "@lucide/svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
+  import { t } from "$lib/i18n/index.svelte.js";
 
   interface Props {
     open: boolean;
@@ -19,7 +20,7 @@
     title,
     description,
     itemName,
-    confirmLabel = "Delete",
+    confirmLabel,
     isDeleting = false,
     onConfirm,
     onCancel,
@@ -60,7 +61,7 @@
       {#if itemName}
         <div class="px-6 py-4">
           <div class="rounded-[2px] border border-white/10 bg-rib px-4 py-3">
-            <p class="section-title text-red-200/80">Target</p>
+            <p class="section-title text-red-200/80">{t("Target")}</p>
             <p class="mt-1 truncate font-mono text-sm text-stencil">{itemName}</p>
           </div>
         </div>
@@ -74,7 +75,7 @@
           onclick={onCancel}
           disabled={isDeleting}
         >
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button
           type="button"
@@ -87,7 +88,7 @@
           {:else}
             <Trash2 class="size-4" />
           {/if}
-          {isDeleting ? "Deleting…" : confirmLabel}
+          {isDeleting ? t("Deleting…") : (confirmLabel ?? t("Delete"))}
         </Button>
       </div>
     </div>

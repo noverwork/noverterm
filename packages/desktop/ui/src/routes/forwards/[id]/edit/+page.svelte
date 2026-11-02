@@ -3,6 +3,7 @@
   import { page } from "$app/stores";
   import AlertCircle from "@lucide/svelte/icons/alert-circle";
 
+  import { t } from "$lib/i18n/index.svelte.js";
   import PortForwardForm from "$lib/components/port-forward-form.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import type { PortForwardWriteRequest } from "$lib/api/types.js";
@@ -39,15 +40,15 @@
       >
         <AlertCircle class="size-7" />
       </div>
-      <h1 class="mt-5 text-xl font-semibold">Port forward not found</h1>
+      <h1 class="mt-5 text-xl font-semibold">{t("Port forward not found")}</h1>
       <p class="mt-2 max-w-md text-sm leading-6 text-stencil-mute">
-        This saved port forward may have been deleted.
+        {t("This saved port forward may have been deleted.")}
       </p>
       <Button
         class="mt-6 rounded-[2px] bg-stencil text-port hover:bg-white"
         onclick={() => goto("/forwards")}
       >
-        Back to port forwards
+        {t("Back to port forwards")}
       </Button>
     </section>
   </div>

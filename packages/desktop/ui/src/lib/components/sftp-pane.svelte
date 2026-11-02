@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n/index.svelte.js";
   import { ChevronsUpDown, Laptop, Loader2, Server, TerminalSquare } from "@lucide/svelte";
 
   import FileList from "./file-browser/FileList.svelte";
@@ -43,7 +44,7 @@
     onReplaceTrust,
   }: Props = $props();
 
-  const sideLabel = $derived(pane.side === "left" ? "Left" : "Right");
+  const sideLabel = $derived(pane.side === "left" ? t("Left") : t("Right"));
   const connectionStatus = $derived(
     pane.isConnecting ? "connecting"
       : pane.trustPrompt ? "trust_required"
@@ -52,7 +53,7 @@
   );
   const pickerDisabled = $derived(connectionStatus !== null || pane.isClosing);
   const otherMachine = $derived(sftpStore.otherPane(pane).machine);
-  const takenTitle = "Already open on the other side";
+  const takenTitle = $derived(t("Already open on the other side"));
 
   let showCreateFolderDialog = $state(false);
   let renameEntry = $state<FileEntry | null>(null);
@@ -169,8 +170,8 @@
       type="button"
       class="group flex min-w-0 items-center gap-3 border-b border-white/10 bg-rib px-4 py-3 text-left transition hover:bg-[#1f252c] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-stencil"
       onclick={() => pane.isLocal ? pane.chooseMachine() : onDisconnect()}
-      title={pane.isLocal ? "Switch machine" : "Disconnect and switch machine"}
-      aria-label="Switch machine"
+      title={pane.isLocal ? t("Switch machine") : t("Disconnect and switch machine")}
+      aria-label={t("Switch machine")}
       data-testid="{pane.side}-connection-identity"
     >
       {#if pane.isLocal}
@@ -181,7 +182,7 @@
       <div class="min-w-0 flex-1">
         <p class="truncate text-sm font-medium text-stencil">{pane.label}</p>
         <p class="break-all text-xs text-stencil-mute">
-          {pane.isLocal ? "This machine" : pane.connection ? formatHost(pane.connection) : ""}
+          {pane.isLocal ? t("This machine") : pane.connection ? formatHost(pane.connection) : ""}
         </p>
       </div>
       <ChevronsUpDown class="size-4 shrink-0 text-stencil-faint transition group-hover:text-stencil" />
@@ -193,8 +194,8 @@
         value={pane.path}
         placeholder={pane.isLocal ? "~" : "/"}
         spellcheck="false"
-        title="Type a path and press Enter"
-        aria-label="{sideLabel} path"
+        title={t("Type a path and press Enter")}
+        aria-label={t("{side} path", { side: sideLabel })}
         data-testid="{pane.side}-path-input"
         onkeydown={handlePathKeydown}
       />
@@ -203,7 +204,7 @@
           type="button"
           class="rounded-[2px] p-1.5 text-stencil-mute hover:bg-white/10 hover:text-stencil"
           onclick={() => pane.refresh()}
-          title="Refresh"
+          title={t("Refresh")}
         >
           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
@@ -214,7 +215,7 @@
           type="button"
           class="rounded-[2px] p-1.5 text-stencil-mute hover:bg-white/10 hover:text-stencil"
           onclick={() => showCreateFolderDialog = true}
-          title="New folder"
+          title={t("New folder")}
         >
           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
@@ -227,7 +228,7 @@
           class="rounded-[2px] p-1.5 text-stencil-mute hover:bg-white/10 hover:text-stencil disabled:opacity-30"
           onclick={() => renameEntry = pane.selected[0]}
           disabled={pane.selected.length !== 1}
-          title="Rename"
+          title={t("Rename")}
         >
           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 20h9" />
@@ -239,7 +240,7 @@
           class="rounded-[2px] p-1.5 text-stencil-mute hover:bg-seal/20 hover:text-red-300 disabled:opacity-30"
           onclick={() => deleteEntries = pane.selected}
           disabled={pane.selected.length === 0}
-          title="Delete"
+          title={t("Delete")}
         >
           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="3 6 5 6 21 6" />
@@ -254,7 +255,7 @@
       ondragleave={handleDragLeave}
       ondrop={handleDrop}
       role="region"
-      aria-label="{sideLabel} file drop zone"
+      aria-label={t("{side} file drop zone", { side: sideLabel })}
       data-testid="{pane.side}-drop-zone"
     >
       <FileList
@@ -271,7 +272,7 @@
     </div>
   {:else}
     <div class="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-      <h2 class="mb-3 text-sm font-medium text-stencil">Select a connection</h2>
+      <h2 class="mb-3 text-sm font-medium text-stencil">{t("Select a connection")}</h2>
       <div class="grid gap-2">
         <button
           type="button"
@@ -284,13 +285,13 @@
             <Laptop class="size-4" />
           </div>
           <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-medium text-stencil">Local</p>
-            <p class="truncate text-xs text-stencil-mute">This machine</p>
+            <p class="truncate text-sm font-medium text-stencil">{t("Local")}</p>
+            <p class="truncate text-xs text-stencil-mute">{t("This machine")}</p>
           </div>
         </button>
 
         {#if sshSessions.length > 0}
-          <h3 class="mt-2 section-title">Open sessions</h3>
+          <h3 class="mt-2 section-title">{t("Open sessions")}</h3>
           {#each sshSessions as session (session.id)}
             <button
               type="button"
@@ -310,7 +311,7 @@
           {/each}
         {/if}
 
-        <h3 class="mt-2 section-title">Saved connections</h3>
+        <h3 class="mt-2 section-title">{t("Saved connections")}</h3>
         {#each connections as connection (connection.id)}
           <button
             type="button"
@@ -329,13 +330,13 @@
           </button>
         {/each}
         {#if connections.length === 0}
-          <p class="py-4 text-center text-sm text-stencil-mute">No saved connections. Add one in Connections.</p>
+          <p class="py-4 text-center text-sm text-stencil-mute">{t("No saved connections. Add one in Connections.")}</p>
         {/if}
       </div>
       {#if pane.isClosing}
         <div class="mt-3 flex items-center gap-2 text-sm text-stencil-mute" role="status">
           <Loader2 class="size-4 animate-spin" />
-          <span>Disconnecting...</span>
+          <span>{t("Disconnecting...")}</span>
         </div>
       {/if}
     </div>
@@ -380,7 +381,7 @@
 {#if deleteEntries.length > 0}
   <DeleteConfirmDialog
     open={true}
-    itemName={deleteEntries.length === 1 ? deleteEntries[0].name : `${deleteEntries.length} items`}
+    itemName={deleteEntries.length === 1 ? deleteEntries[0].name : t("{count} items", { count: deleteEntries.length })}
     onConfirm={handleDelete}
     onCancel={() => deleteEntries = []}
   />

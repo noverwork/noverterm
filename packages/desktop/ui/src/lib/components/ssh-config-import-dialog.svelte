@@ -3,6 +3,7 @@
 
   import type { SshConfigHost } from "../../bindings.js";
   import { importSshConfig, scanSshConfig } from "$lib/api/connections-api.js";
+  import { t } from "$lib/i18n/index.svelte.js";
   import { Button } from "$lib/components/ui/button/index.js";
 
   interface Props {
@@ -76,22 +77,22 @@
     >
       <div class="border-b border-white/10 px-6 py-5">
         <h2 id="ssh-config-import-title" class="text-xl font-semibold tracking-tight">
-          Import from ~/.ssh/config
+          {t("Import from {path}", { path: "~/.ssh/config" })}
         </h2>
         <p class="mt-2 text-sm leading-6 text-stencil-mute">
-          Key files are copied into Noverterm. Hosts already saved are skipped.
+          {t("Key files are copied into Noverterm. Hosts already saved are skipped.")}
         </p>
       </div>
 
       <div class="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         {#if isScanning}
           <p class="flex items-center gap-2 text-sm text-stencil-mute">
-            <Loader2 class="size-4 animate-spin" /> Reading config…
+            <Loader2 class="size-4 animate-spin" /> {t("Reading config…")}
           </p>
         {:else if error}
           <p class="text-sm text-destructive" role="alert">{error}</p>
         {:else if hosts.length === 0}
-          <p class="text-sm text-stencil-mute">No hosts found in ~/.ssh/config.</p>
+          <p class="text-sm text-stencil-mute">{t("No hosts found in {path}.", { path: "~/.ssh/config" })}</p>
         {:else}
           <ul class="space-y-1">
             {#each hosts as host (host.alias)}
@@ -109,12 +110,12 @@
                     <span class="block truncate text-sm font-medium">{host.alias}</span>
                     <span class="block truncate font-mono text-xs text-stencil-mute">
                       {host.username}@{host.host}:{host.port}{host.jump_alias
-                        ? ` via ${host.jump_alias}`
+                        ? t(" via {alias}", { alias: host.jump_alias })
                         : ""}
                     </span>
                   </span>
                   {#if host.exists}
-                    <span class="text-xs text-stencil-mute">Already saved</span>
+                    <span class="text-xs text-stencil-mute">{t("Already saved")}</span>
                   {/if}
                 </label>
               </li>
@@ -131,7 +132,7 @@
           onclick={onClose}
           disabled={isImporting}
         >
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button
           type="button"
@@ -144,7 +145,7 @@
           {:else}
             <FileInput class="size-4" />
           {/if}
-          Import {selected.length || ""}
+          {t("Import {count}", { count: selected.length || "" })}
         </Button>
       </div>
     </div>

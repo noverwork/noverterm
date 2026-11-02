@@ -2,6 +2,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { SvelteMap } from "svelte/reactivity";
 
 import { commands as tauriCommands, type SshHopInput } from "../../bindings.js";
+import { t } from "$lib/i18n/index.svelte.js";
 import type { PortForwardRecord } from "$lib/api/types.js";
 import type { ConnectionConfig } from "$lib/app-data-types.js";
 
@@ -136,7 +137,7 @@ async function connectionAuthInput(connection: ConnectionConfig): Promise<{
         passphrase: connection.auth.passphrase,
       };
     default:
-      throw new Error(`${connection.name} has no saved password or SSH key`);
+      throw new Error(t("{name} has no saved password or SSH key", { name: connection.name }));
   }
 }
 

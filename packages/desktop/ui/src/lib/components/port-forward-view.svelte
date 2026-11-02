@@ -12,6 +12,7 @@
     Trash2,
   } from "@lucide/svelte";
 
+  import { t } from "$lib/i18n/index.svelte.js";
   import DeleteConfirmDialog from "$lib/components/delete-confirm-dialog.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
@@ -129,7 +130,7 @@
       await onForward(savedForward);
     } catch (cause) {
       error =
-        cause instanceof Error ? cause.message : "Failed to start port forward";
+        cause instanceof Error ? cause.message : t("Failed to start port forward");
     } finally {
       forwardingPresetIds = forwardingPresetIds.filter(
         (id) => id !== savedForward.id,
@@ -159,7 +160,7 @@
       }
     } catch (cause) {
       error =
-        cause instanceof Error ? cause.message : "Failed to stop port forward";
+        cause instanceof Error ? cause.message : t("Failed to stop port forward");
     } finally {
       deletingRuntimeForwardIds = deletingRuntimeForwardIds.filter(
         (id) => id !== savedForward.id,
@@ -190,7 +191,7 @@
       error =
         cause instanceof Error
           ? cause.message
-          : "Failed to delete saved port forward";
+          : t("Failed to delete saved port forward");
     } finally {
       deletingSavedForwardIds = deletingSavedForwardIds.filter(
         (id) => id !== forward.id,
@@ -203,28 +204,28 @@
       case "listening":
         return {
           tone: "bg-emerald-400",
-          label: "Listening",
+          label: t("Listening"),
           text: "text-emerald-300",
           border: "border-emerald-300/30",
         };
       case "connecting":
         return {
           tone: "bg-amber-300 motion-safe:animate-pulse",
-          label: "Connecting",
+          label: t("Connecting"),
           text: "text-amber-300",
           border: "border-amber-300/30",
         };
       case "error":
         return {
           tone: "bg-red-400",
-          label: "Error",
+          label: t("Error"),
           text: "text-red-300",
           border: "border-red-300/35",
         };
       default:
         return {
           tone: "bg-stencil-faint",
-          label: "Stopped",
+          label: t("Stopped"),
           text: "text-stencil-mute",
           border: "border-white/10",
         };
@@ -232,11 +233,11 @@
   }
 
   function deleteDialogTitle(): string {
-    return "Delete saved forward?";
+    return t("Delete saved forward?");
   }
 
   function deleteDialogDescription(): string {
-    return "This removes the saved forwarding preset. Existing runtime forwards are not stopped automatically.";
+    return t("This removes the saved forwarding preset. Existing runtime forwards are not stopped automatically.");
   }
 
   function deleteDialogItemName(): string | undefined {
@@ -261,10 +262,10 @@
     >
       <div>
         <h1 class="text-2xl font-semibold tracking-tight">
-          Port Forwards
+          {t("Port Forwards")}
         </h1>
         <p class="mt-2 text-sm text-stencil-mute">
-          Save reusable SSH tunnels, then start them with one click.
+          {t("Save reusable SSH tunnels, then start them with one click.")}
         </p>
       </div>
 
@@ -276,8 +277,8 @@
           <Input
             type="search"
             bind:value={searchQuery}
-            placeholder="Search forwards"
-            aria-label="Search port forwards"
+            placeholder={t("Search forwards")}
+            aria-label={t("Search port forwards")}
             class="h-8 w-48 rounded-[2px] border border-white/10 bg-rail pl-8 text-sm text-stencil placeholder:text-stencil-faint focus-visible:border-stencil"
           />
         </div>
@@ -289,7 +290,7 @@
           class="gap-2 rounded-[2px] bg-stencil text-port hover:bg-white"
         >
           <Plus class="size-3.5" />
-          New Forward
+          {t("New Forward")}
         </Button>
       </div>
     </div>
@@ -308,13 +309,13 @@
         <div
           class="flex h-full min-h-[16rem] items-center justify-center rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground"
         >
-          No saved forwards yet
+          {t("No saved forwards yet")}
         </div>
       {:else if visibleForwards.length === 0}
         <div
           class="rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground"
         >
-          No forwards match your search.
+          {t("No forwards match your search.")}
         </div>
       {:else}
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -329,8 +330,8 @@
                   role="button"
                   tabindex="0"
                   aria-label={state
-                    ? `Stop ${savedForward.name}`
-                    : `Start ${savedForward.name}`}
+                    ? t("Stop {name}", { name: savedForward.name })
+                    : t("Start {name}", { name: savedForward.name })}
                   onclick={() =>
                     handleCardActivate(savedForward, connection, runtimes, state)}
                   onkeydown={(event) => {
@@ -368,7 +369,7 @@
                               ? badge.tone
                               : 'bg-stencil-faint'}"
                           ></span>
-                          {badge ? badge.label : "Idle"}
+                          {badge ? badge.label : t("Idle")}
                         </span>
                       </div>
                       {#if connection}
@@ -378,7 +379,7 @@
                       {:else}
                         <p class="mt-1 flex items-center gap-1.5 text-xs text-amber-300">
                           <CircleAlert class="size-3 shrink-0" />
-                          Connection was deleted
+                          {t("Connection was deleted")}
                         </p>
                       {/if}
                     </div>
@@ -390,8 +391,8 @@
                         variant="ghost"
                         size="icon-sm"
                         class="rounded-[2px] text-stencil-mute hover:bg-white/8 hover:text-stencil"
-                        aria-label={`Edit ${savedForward.name}`}
-                        title={state ? "Stop the forward to edit it" : "Edit"}
+                        aria-label={t("Edit {name}", { name: savedForward.name })}
+                        title={state ? t("Stop the forward to edit it") : t("Edit")}
                         disabled={state !== null}
                         onclick={(event) => {
                           event.stopPropagation();
@@ -404,8 +405,8 @@
                         variant="ghost"
                         size="icon-sm"
                         class="rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
-                        aria-label={`Delete ${savedForward.name}`}
-                        title={state ? "Stop the forward to delete it" : "Delete"}
+                        aria-label={t("Delete {name}", { name: savedForward.name })}
+                        title={state ? t("Stop the forward to delete it") : t("Delete")}
                         disabled={state !== null ||
                           deletingSavedForwardIds.includes(savedForward.id)}
                         onclick={(event) => {
@@ -435,7 +436,7 @@
                           >
                           <ArrowRight
                             class="size-3 shrink-0 text-stencil-faint"
-                            aria-label="forwards to"
+                            aria-label={t("forwards to")}
                           />
                           <span class="truncate font-mono text-stencil-dim"
                             >{mapping.target_host}:{mapping.target_port}</span
@@ -470,7 +471,7 @@
                     onclick={() => void handleStopGroup(savedForward, runtimes)}
                   >
                     <Square class="size-3.5" />
-                    Stop
+                    {t("Stop")}
                   </ContextMenu.Item>
                 {:else}
                   <ContextMenu.Item
@@ -480,7 +481,7 @@
                     onclick={() => void handleForward(savedForward)}
                   >
                     <Play class="size-3.5" />
-                    Forward
+                    {t("Forward")}
                   </ContextMenu.Item>
                 {/if}
                 <ContextMenu.Item
@@ -489,7 +490,7 @@
                   onclick={() => void onEdit(savedForward)}
                 >
                   <Pencil class="size-3.5" />
-                  Edit
+                  {t("Edit")}
                 </ContextMenu.Item>
                 <ContextMenu.Separator class="bg-white/10" />
                 <ContextMenu.Item
@@ -499,7 +500,7 @@
                   onclick={() => requestDeleteSaved(savedForward)}
                 >
                   <Trash2 class="size-3.5" />
-                  Delete
+                  {t("Delete")}
                 </ContextMenu.Item>
               </ContextMenu.Content>
             </ContextMenu.Root>
@@ -515,7 +516,7 @@
   title={deleteDialogTitle()}
   description={deleteDialogDescription()}
   itemName={deleteDialogItemName()}
-  confirmLabel="Delete forward"
+  confirmLabel={t("Delete forward")}
   isDeleting={deleteDialogIsDeleting()}
   onConfirm={confirmDelete}
   onCancel={() => (pendingDeleteTarget = null)}

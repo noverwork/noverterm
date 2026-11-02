@@ -2,6 +2,7 @@
   import { AlertCircle, Loader2 } from "@lucide/svelte";
 
   import { Button } from "$lib/components/ui/button/index.js";
+  import { t } from "$lib/i18n/index.svelte.js";
   import type { HostTrustMismatch, HostTrustPrompt } from "../../bindings";
 
   interface Props {
@@ -48,10 +49,10 @@
   >
     <Loader2 class="mb-4 size-8 shrink-0 animate-spin text-stencil motion-reduce:animate-none" />
     <p class="text-sm font-semibold text-stencil">
-      {name ? `Connecting to ${name}` : "Connecting…"}
+      {name ? t("Connecting to {name}", { name }) : t("Connecting…")}
     </p>
     <p class="mt-2 text-xs text-stencil-mute">
-      Negotiating {protocol === "sftp" ? "SFTP" : "terminal"} session…
+      {protocol === "sftp" ? t("Negotiating SFTP session…") : t("Negotiating terminal session…")}
     </p>
     {#if onCancel}
       <Button
@@ -59,7 +60,7 @@
         onclick={() => onCancel?.()}
         class="mt-6 rounded-[2px] border-white/10 bg-transparent px-4 text-stencil hover:border-white/20 hover:bg-white/5"
       >
-        Cancel
+        {t("Cancel")}
       </Button>
     {/if}
   </div>
@@ -70,7 +71,7 @@
   >
     <div
       role="dialog"
-      aria-label={trustPrompt ? "Verify SSH host identity" : "Connection failed"}
+      aria-label={trustPrompt ? t("Verify SSH host identity") : t("Connection failed")}
       class={status === "trust_required"
         ? "max-h-full w-full min-w-0 max-w-xl overflow-y-auto rounded-[2px] border border-[#c9952e]/60 bg-rail text-left [overflow-wrap:anywhere]"
         : "max-h-full min-w-0 max-w-lg overflow-y-auto rounded-[2px] border border-seal/60 bg-rail p-8 [overflow-wrap:anywhere]"}
@@ -88,15 +89,14 @@
                 <span
                   class="rounded-[2px] border border-white/10 bg-rib px-1.5 text-[11px] uppercase tracking-[0.14em] text-stencil-dim"
                 >
-                  SSH host identity
+                  {t("SSH host identity")}
                 </span>
               </div>
               <h2 class="mt-3 text-xl font-semibold tracking-tight text-stencil">
-                Verify SSH host identity
+                {t("Verify SSH host identity")}
               </h2>
               <p class="mt-2 text-sm leading-6 text-stencil-mute">
-                Confirm this fingerprint before opening {protocol === "sftp" ? "an SFTP" : "a terminal"}
-                session.
+                {protocol === "sftp" ? t("Confirm this fingerprint before opening an SFTP session.") : t("Confirm this fingerprint before opening a terminal session.")}
               </p>
             </div>
           </div>
@@ -108,7 +108,7 @@
               class="flex items-center justify-between gap-4 rounded-[2px] border border-white/10 bg-rib px-4 py-3"
             >
               <dt class="shrink-0 section-title">
-                Host
+                {t("Host")}
               </dt>
               <dd class="min-w-0 break-all text-right font-mono text-stencil">
                 {trustPrompt.host}:{trustPrompt.port}
@@ -118,7 +118,7 @@
               class="flex items-center justify-between gap-4 rounded-[2px] border border-white/10 bg-rib px-4 py-3"
             >
               <dt class="shrink-0 section-title">
-                Algorithm
+                {t("Algorithm")}
               </dt>
               <dd class="min-w-0 break-all text-right font-mono text-stencil">
                 {trustPrompt.algorithm}
@@ -126,7 +126,7 @@
             </div>
             <div class="rounded-[2px] border border-white/10 bg-rib p-4">
               <dt class="section-title">
-                Fingerprint
+                {t("Fingerprint")}
               </dt>
               <dd
                 class="mt-3 break-all rounded-[2px] border border-white/10 bg-rail px-3 py-2.5 font-mono text-sm leading-6 text-stencil"
@@ -136,8 +136,7 @@
             </div>
           </dl>
           <p class="mt-4 text-xs leading-5 text-stencil-mute">
-            Only continue if this fingerprint matches the server you expect. It
-            will be saved locally in Known Hosts.
+            {t("Only continue if this fingerprint matches the server you expect. It will be saved locally in Known Hosts.")}
           </p>
         </div>
 
@@ -160,11 +159,11 @@
               {#if trustConfirming}
                 <Loader2 class="size-4 animate-spin" />
               {/if}
-              Trust host and retry
+              {t("Trust host and retry")}
             </Button>
           {:else if !canTrust}
             <p class="max-w-md text-sm leading-6 text-stencil-mute">
-              Save this connection first to trust the host and retry automatically.
+              {t("Save this connection first to trust the host and retry automatically.")}
             </p>
           {/if}
           {#if onCancel}
@@ -173,7 +172,7 @@
               onclick={() => onCancel?.()}
               class="rounded-[2px] border-white/10 bg-transparent px-4 text-stencil hover:border-white/20 hover:bg-white/5"
             >
-              Cancel
+              {t("Cancel")}
             </Button>
           {/if}
         </div>
@@ -185,27 +184,27 @@
           <span class="bg-stencil px-1 leading-4 text-seal">HELD</span>
         </div>
         <h2 class="mt-4 text-center text-xl font-semibold text-stencil">
-          Connection failed
+          {t("Connection failed")}
         </h2>
         <p class="mx-auto mt-2 max-w-md text-center text-sm leading-6 text-stencil-mute">
-          {error ?? "Unknown error"}
+          {error ?? t("Unknown error")}
         </p>
         {#if trustMismatch}
           <div
             class="mt-5 rounded-[2px] border border-seal/60 bg-rib p-4 text-left"
           >
             <p class="text-sm font-semibold text-red-200">
-              Saved fingerprint does not match.
+              {t("Saved fingerprint does not match.")}
             </p>
             <dl class="mt-3 grid gap-2 text-xs text-stencil-dim">
               <div class="space-y-1">
-                <dt class="text-stencil-mute">Expected</dt>
+                <dt class="text-stencil-mute">{t("Expected")}</dt>
                 <dd class="break-all rounded-[2px] bg-rail px-3 py-2 font-mono">
                   {trustMismatch.expected_fingerprint}
                 </dd>
               </div>
               <div class="space-y-1">
-                <dt class="text-stencil-mute">Presented</dt>
+                <dt class="text-stencil-mute">{t("Presented")}</dt>
                 <dd
                   class="break-all rounded-[2px] bg-rail px-3 py-2 font-mono text-red-100"
                 >
@@ -214,8 +213,7 @@
               </div>
             </dl>
             <p class="mt-3 text-xs leading-5 text-stencil-mute">
-              This may indicate the server changed keys or a man-in-the-middle risk.
-              Not updating trust automatically.
+              {t("This may indicate the server changed keys or a man-in-the-middle risk. Not updating trust automatically.")}
             </p>
           </div>
           {#if trustError}
@@ -235,7 +233,7 @@
                 {#if trustConfirming}
                   <Loader2 class="size-4 animate-spin" />
                 {/if}
-                Delete &amp; trust new key
+                {t("Delete & trust new key")}
               </Button>
             {/if}
             {#if onRetry}
@@ -245,7 +243,7 @@
                 disabled={trustConfirming}
                 class="h-auto min-h-8 max-w-full whitespace-normal rounded-[2px] border-white/10 bg-transparent px-5 py-1 text-stencil hover:border-white/20 hover:bg-white/5"
               >
-                Retry session
+                {t("Retry session")}
               </Button>
             {/if}
             {#if onCancel}
@@ -254,7 +252,7 @@
                 onclick={() => onCancel?.()}
                 class="rounded-[2px] border-white/10 bg-transparent px-4 text-stencil hover:border-white/20 hover:bg-white/5"
               >
-                Cancel
+                {t("Cancel")}
               </Button>
             {/if}
           </div>
@@ -265,7 +263,7 @@
                 onclick={() => onRetry?.()}
                 class="h-auto min-h-8 max-w-full gap-2 whitespace-normal rounded-[2px] bg-seal px-5 py-1 text-stencil hover:bg-[#b4432f]"
               >
-                Retry session
+                {t("Retry session")}
               </Button>
             {/if}
             {#if onCancel}
@@ -274,7 +272,7 @@
                 onclick={() => onCancel?.()}
                 class="rounded-[2px] border-white/10 bg-transparent px-4 text-stencil hover:border-white/20 hover:bg-white/5"
               >
-                Cancel
+                {t("Cancel")}
               </Button>
             {/if}
           </div>

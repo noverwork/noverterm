@@ -7,6 +7,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
+  import { t } from "$lib/i18n/index.svelte.js";
 
   interface Props {
     snippets: SnippetRecord[];
@@ -56,7 +57,7 @@
       await onDelete(snippet);
       pendingDeleteSnippet = null;
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Failed to delete snippet";
+      error = cause instanceof Error ? cause.message : t("Failed to delete snippet");
     } finally {
       deletingSnippetId = null;
     }
@@ -75,7 +76,7 @@
       ? connections.find((c) => c.id === snippet.host_id)
       : null;
     if (connection === undefined) {
-      error = `Connection "${snippet.host_name}" not found. It may have been deleted.`;
+      error = t('Connection "{name}" not found. It may have been deleted.', { name: snippet.host_name });
       return;
     }
 
@@ -85,10 +86,10 @@
     try {
       const success = await onRun(connection, snippet.body);
       if (!success) {
-        error = `Failed to connect to ${snippet.host_name}`;
+        error = t("Failed to connect to {name}", { name: snippet.host_name });
       }
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Failed to run snippet";
+      error = cause instanceof Error ? cause.message : t("Failed to run snippet");
     } finally {
       runningSnippetId = null;
     }
@@ -104,13 +105,20 @@
     return body.split("\n").filter((line) => line.trim()).length;
   }
 
+  function lineCountLabel(body: string): string {
+    const count = commandLineCount(body);
+    return count === 1 ? t("{count} line", { count }) : t("{count} lines", { count });
+  }
+
   function extraLineLabel(body: string): string | null {
     const hiddenLineCount = commandLineCount(body) - 1;
     if (hiddenLineCount <= 0) {
       return null;
     }
 
-    return `+${hiddenLineCount} more ${hiddenLineCount === 1 ? "line" : "lines"}`;
+    return hiddenLineCount === 1
+      ? t("+{count} more line", { count: hiddenLineCount })
+      : t("+{count} more lines", { count: hiddenLineCount });
   }
 </script>
 
@@ -118,8 +126,8 @@
   <section class="flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-stencil sm:p-6">
     <div class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight">Command Snippets</h1>
-        <p class="mt-2 text-sm text-stencil-mute">Reusable command templates organized by host.</p>
+        <h1 class="text-2xl font-semibold tracking-tight">{t("Command Snippets")}</h1>
+        <p class="mt-2 text-sm text-stencil-mute">{t("Reusable command templates organized by host.")}</p>
       </div>
 
       <div class="flex items-center gap-2 self-start">
@@ -130,15 +138,15 @@
           <Input
             type="search"
             bind:value={searchQuery}
-            placeholder="Search snippets"
-            aria-label="Search snippets"
+            placeholder={t("Search snippets")}
+            aria-label={t("Search snippets")}
             class="h-8 w-48 rounded-[2px] border border-white/10 bg-rail pl-8 text-sm text-stencil placeholder:text-stencil-faint focus-visible:border-stencil"
           />
         </div>
 
         <Button onclick={onNew} variant="default" size="sm" class="gap-2 rounded-[2px] bg-stencil text-port hover:bg-white">
           <Plus class="size-3.5" />
-          Add snippet
+          {t("Add snippet")}
         </Button>
       </div>
     </div>
@@ -152,11 +160,11 @@
     <div class="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
       {#if snippets.length === 0}
         <div class="flex h-full min-h-[16rem] items-center justify-center rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground">
-          No snippets saved yet
+          {t("No snippets saved yet")}
         </div>
       {:else if visibleSnippets.length === 0}
         <div class="rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground">
-          No snippets match your search.
+          {t("No snippets match your search.")}
         </div>
       {:else}
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -166,7 +174,7 @@
                 <div
                   role="button"
                   tabindex="0"
-                  aria-label={`Run ${snippet.title}`}
+                  aria-label={t("Run {title}", { title: snippet.title })}
                   onclick={() => void handleRun(snippet)}
                   onkeydown={(event) => {
                     if (event.key === "Enter") {
@@ -186,9 +194,9 @@
 
                     <div class="min-w-0 flex-1">
                       <p class="truncate text-sm font-medium text-stencil">{snippet.title}</p>
-                      <p class="mt-1 truncate text-xs text-stencil-mute">Runs on {snippet.host_name}</p>
+                      <p class="mt-1 truncate text-xs text-stencil-mute">{t("Runs on {name}", { name: snippet.host_name })}</p>
                       <div class="mt-1 flex items-center gap-2 text-[11px] text-stencil-mute">
-                        <span>{commandLineCount(snippet.body)} {commandLineCount(snippet.body) === 1 ? "line" : "lines"}</span>
+                        <span>{lineCountLabel(snippet.body)}</span>
                         {#if extraLineLabel(snippet.body)}
                           <span>{extraLineLabel(snippet.body)}</span>
                         {/if}
@@ -202,7 +210,7 @@
                         variant="ghost"
                         size="icon-sm"
                         class="rounded-[2px] text-stencil-mute hover:bg-white/8 hover:text-stencil"
-                        aria-label={`Copy ${snippet.title}`}
+                        aria-label={t("Copy {title}", { title: snippet.title })}
                         onclick={(event) => {
                           event.stopPropagation();
                           void copyToClipboard(snippet.body);
@@ -214,7 +222,7 @@
                         variant="ghost"
                         size="icon-sm"
                         class="rounded-[2px] text-stencil-mute hover:bg-white/8 hover:text-stencil"
-                        aria-label={`Edit ${snippet.title}`}
+                        aria-label={t("Edit {title}", { title: snippet.title })}
                         onclick={(event) => {
                           event.stopPropagation();
                           onEdit(snippet);
@@ -226,7 +234,7 @@
                         variant="ghost"
                         size="icon-sm"
                         class="rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
-                        aria-label={`Delete ${snippet.title}`}
+                        aria-label={t("Delete {title}", { title: snippet.title })}
                         disabled={deletingSnippetId === snippet.id}
                         onclick={(event) => {
                           event.stopPropagation();
@@ -247,8 +255,8 @@
                     <div class="pointer-events-none absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 translate-y-1 opacity-0 transition duration-150 group-hover/preview:translate-y-0 group-hover/preview:opacity-100">
                       <div class="rounded-[2px] border border-white/10 bg-rail p-3">
                         <div class="mb-2 flex items-center justify-between gap-3">
-                          <span class="section-title">Full script</span>
-                          <span class="text-[11px] text-stencil-mute">{commandLineCount(snippet.body)} {commandLineCount(snippet.body) === 1 ? "line" : "lines"}</span>
+                          <span class="section-title">{t("Full script")}</span>
+                          <span class="text-[11px] text-stencil-mute">{lineCountLabel(snippet.body)}</span>
                         </div>
                         <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-[2px] bg-rail p-3 font-mono text-xs leading-5 text-stencil">{snippet.body || "—"}</pre>
                       </div>
@@ -270,21 +278,21 @@
                   onclick={() => void handleRun(snippet)}
                 >
                   <Play class="size-3.5" />
-                  Run
+                  {t("Run")}
                 </ContextMenu.Item>
                 <ContextMenu.Item
                   class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                   onclick={() => void copyToClipboard(snippet.body)}
                 >
                   <Copy class="size-3.5" />
-                  Copy
+                  {t("Copy")}
                 </ContextMenu.Item>
                 <ContextMenu.Item
                   class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                   onclick={() => onEdit(snippet)}
                 >
                   <Pencil class="size-3.5" />
-                  Edit
+                  {t("Edit")}
                 </ContextMenu.Item>
                 <ContextMenu.Separator class="bg-white/10" />
                 <ContextMenu.Item
@@ -293,7 +301,7 @@
                   onclick={() => requestDelete(snippet)}
                 >
                   <Trash2 class="size-3.5" />
-                  Delete
+                  {t("Delete")}
                 </ContextMenu.Item>
               </ContextMenu.Content>
             </ContextMenu.Root>
@@ -306,10 +314,10 @@
 
 <DeleteConfirmDialog
   open={pendingDeleteSnippet !== null}
-  title="Delete snippet?"
-  description="This action cannot be undone."
+  title={t("Delete snippet?")}
+  description={t("This action cannot be undone.")}
   itemName={pendingDeleteSnippet?.title}
-  confirmLabel="Delete snippet"
+  confirmLabel={t("Delete snippet")}
   isDeleting={deletingSnippetId !== null}
   onConfirm={confirmDelete}
   onCancel={() => (pendingDeleteSnippet = null)}

@@ -5,6 +5,7 @@
   import SnippetPinIcon from "$lib/components/snippet-pin-icon.svelte";
   import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
   import { moveToInsertionIndex } from "$lib/reorder.js";
+  import { t } from "$lib/i18n/index.svelte.js";
 
   let {
     snippets,
@@ -85,7 +86,7 @@
 <div
   class="flex flex-col items-center gap-1"
   role="list"
-  aria-label="Shortcuts"
+  aria-label={t("Shortcuts")}
   onpointerleave={() => (tooltip = null)}
 >
   {#if onLocalTerminal}
@@ -94,10 +95,10 @@
       class="{BUTTON_CLASS} {localTerminalActive
         ? 'border-stencil text-stencil hover:bg-white/5'
         : 'border-transparent text-stencil-mute hover:border-white/10 hover:bg-white/5 hover:text-stencil'}"
-      aria-label="Local terminal"
+      aria-label={t("Local terminal")}
       onclick={onLocalTerminal}
-      onpointerenter={(event) => showTooltip(event, "Local terminal")}
-      onfocus={(event) => showTooltip(event, "Local terminal")}
+      onpointerenter={(event) => showTooltip(event, t("Local terminal"))}
+      onfocus={(event) => showTooltip(event, t("Local terminal"))}
       onblur={() => (tooltip = null)}
     >
       <Terminal class="size-3.5" />
@@ -148,14 +149,14 @@
             onclick={() => onEdit(snippet)}
           >
             <Pencil class="size-3.5" />
-            Edit shortcut
+            {t("Edit shortcut")}
           </ContextMenu.Item>
           <ContextMenu.Item
             class="cursor-pointer text-red-300 focus:bg-red-400/10 focus:text-red-200"
             onclick={() => onUnpin(snippet)}
           >
             <PinOff class="size-3.5" />
-            Remove from panel
+            {t("Remove from panel")}
           </ContextMenu.Item>
         </ContextMenu.Content>
       </ContextMenu.Root>
@@ -170,10 +171,10 @@
   <button
     type="button"
     class="{BUTTON_CLASS} border-dashed border-white/10 text-stencil-mute hover:border-white/20 hover:text-stencil"
-    aria-label="Add shortcut"
+    aria-label={t("Add shortcut")}
     onclick={onAdd}
-    onpointerenter={(event) => showTooltip(event, "Add shortcut")}
-    onfocus={(event) => showTooltip(event, "Add shortcut")}
+    onpointerenter={(event) => showTooltip(event, t("Add shortcut"))}
+    onfocus={(event) => showTooltip(event, t("Add shortcut"))}
     onblur={() => (tooltip = null)}
   >
     <Plus class="size-3.5" />

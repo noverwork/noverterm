@@ -2,6 +2,7 @@
   import { KeyRound, Pencil, Plus, Search, Trash2 } from "@lucide/svelte";
 
   import type { SshKeyRecord } from "$lib/api/types.js";
+  import { t } from "$lib/i18n/index.svelte.js";
   import DeleteConfirmDialog from "$lib/components/delete-confirm-dialog.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
@@ -51,7 +52,7 @@
       await onDelete(key);
       pendingDeleteKey = null;
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Failed to delete key";
+      error = cause instanceof Error ? cause.message : t("Failed to delete key");
     } finally {
       deletingKeyId = null;
     }
@@ -70,8 +71,8 @@
   <section class="flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-stencil sm:p-6">
     <div class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight">SSH Keys</h1>
-        <p class="mt-2 text-sm text-stencil-mute">Encrypted private keys ready for saved host profiles.</p>
+        <h1 class="text-2xl font-semibold tracking-tight">{t("SSH Keys")}</h1>
+        <p class="mt-2 text-sm text-stencil-mute">{t("Encrypted private keys ready for saved host profiles.")}</p>
       </div>
 
       <div class="flex items-center gap-2 self-start">
@@ -82,15 +83,15 @@
           <Input
             type="search"
             bind:value={searchQuery}
-            placeholder="Search keys"
-            aria-label="Search SSH keys"
+            placeholder={t("Search keys")}
+            aria-label={t("Search SSH keys")}
             class="h-8 w-48 rounded-[2px] border border-white/10 bg-rail pl-8 text-sm text-stencil placeholder:text-stencil-faint focus-visible:border-stencil"
           />
         </div>
 
         <Button onclick={onNew} variant="default" size="sm" class="gap-2 rounded-[2px] bg-stencil text-port hover:bg-white">
           <Plus class="size-3.5" />
-          Add key
+          {t("Add key")}
         </Button>
       </div>
     </div>
@@ -104,11 +105,11 @@
     <div class="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
       {#if keys.length === 0}
         <div class="flex h-full min-h-[16rem] items-center justify-center rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground">
-          No SSH keys saved yet
+          {t("No SSH keys saved yet")}
         </div>
       {:else if visibleKeys.length === 0}
         <div class="rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground">
-          No keys match your search.
+          {t("No keys match your search.")}
         </div>
       {:else}
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -118,7 +119,7 @@
                 <div
                   role="button"
                   tabindex="0"
-                  aria-label={`Edit ${key.name}`}
+                  aria-label={t("Edit {name}", { name: key.name })}
                   onclick={() => onEdit(key)}
                   onkeydown={(event) => {
                     if (event.key === "Enter") {
@@ -144,7 +145,7 @@
                         variant="ghost"
                         size="icon-sm"
                         class="rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
-                        aria-label={`Delete ${key.name}`}
+                        aria-label={t("Delete {name}", { name: key.name })}
                         disabled={deletingKeyId === key.id}
                         onclick={(event) => {
                           event.stopPropagation();
@@ -170,7 +171,7 @@
                   onclick={() => onEdit(key)}
                 >
                   <Pencil class="size-3.5" />
-                  Edit
+                  {t("Edit")}
                 </ContextMenu.Item>
                 <ContextMenu.Separator class="bg-white/10" />
                 <ContextMenu.Item
@@ -179,7 +180,7 @@
                   onclick={() => requestDelete(key)}
                 >
                   <Trash2 class="size-3.5" />
-                  Delete
+                  {t("Delete")}
                 </ContextMenu.Item>
               </ContextMenu.Content>
             </ContextMenu.Root>
@@ -192,10 +193,10 @@
 
 <DeleteConfirmDialog
   open={pendingDeleteKey !== null}
-  title="Delete SSH key?"
-  description="Saved connections using this key may no longer be able to authenticate. This action cannot be undone."
+  title={t("Delete SSH key?")}
+  description={t("Saved connections using this key may no longer be able to authenticate. This action cannot be undone.")}
   itemName={pendingDeleteKey?.name}
-  confirmLabel="Delete key"
+  confirmLabel={t("Delete key")}
   isDeleting={deletingKeyId !== null}
   onConfirm={confirmDelete}
   onCancel={() => (pendingDeleteKey = null)}

@@ -43,6 +43,7 @@ import { reorderSnippetPins, updateSnippet } from "$lib/api/snippets-api.js";
 import { snippetListQueryOptions } from "$lib/queries/snippet-queries.js";
 import type { HostTrustConfirmation } from "../../bindings.js";
 import { createPortForwardStore } from "$lib/stores/port-forward.svelte.js";
+import { t } from "$lib/i18n/index.svelte.js";
 import {
   createSessionStore,
   type Session,
@@ -457,7 +458,7 @@ export function createAppShellStore(queryClient: QueryClient) {
     );
     if (!connection) {
       throw new Error(
-        "Saved connection not found. Open Connections and verify this host still exists.",
+        t("Saved connection not found. Open Connections and verify this host still exists."),
       );
     }
 
@@ -586,7 +587,7 @@ export function createAppShellStore(queryClient: QueryClient) {
     );
     if (!connection) {
       trustError =
-        "Saved connection not found. Open Connections and try again.";
+        t("Saved connection not found. Open Connections and try again.");
       return false;
     }
 

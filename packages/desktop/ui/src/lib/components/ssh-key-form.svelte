@@ -2,6 +2,7 @@
   import { KeyRound } from "@lucide/svelte";
 
   import type { SshKeyRecord, SshKeySecret } from "$lib/api/types.js";
+  import { t } from "$lib/i18n/index.svelte.js";
   import FormSection from "$lib/components/form-section.svelte";
   import FormShell from "$lib/components/form-shell.svelte";
   import { fieldClass, textareaClass } from "$lib/components/form-styles.js";
@@ -43,39 +44,39 @@
   });
 
   const isEditing = $derived(keyRecord !== null);
-  const formTitle = $derived(isEditing ? "Edit SSH key" : "New SSH key");
+  const formTitle = $derived(isEditing ? t("Edit SSH key") : t("New SSH key"));
   const formDescription = $derived(
     isEditing
-      ? "The saved private key is loaded automatically so you can inspect or replace it."
-      : "Save an SSH private key for connection profiles.",
+      ? t("The saved private key is loaded automatically so you can inspect or replace it.")
+      : t("Save an SSH private key for connection profiles."),
   );
   const submitLabel = $derived.by(() => {
     if (isLoadingSecret) {
-      return "Loading key…";
+      return t("Loading key…");
     }
 
     if (isSaving) {
-      return isEditing ? "Updating…" : "Saving…";
+      return isEditing ? t("Updating…") : t("Saving…");
     }
 
-    return isEditing ? "Update key" : "Save key";
+    return isEditing ? t("Update key") : t("Save key");
   });
 
   async function handleSubmit(event: SubmitEvent) {
     event.preventDefault();
 
     if (!keyName.trim()) {
-      error = "Key name is required";
+      error = t("Key name is required");
       return;
     }
 
     if (!isEditing && !privateKey.trim()) {
-      error = "Private key is required";
+      error = t("Private key is required");
       return;
     }
 
     if (isEditing && !privateKey.trim() && passphrase.trim()) {
-      error = "Paste a replacement private key before changing the passphrase";
+      error = t("Paste a replacement private key before changing the passphrase");
       return;
     }
 
@@ -94,7 +95,7 @@
         await onSave(keyName.trim(), privateKey.trim(), passphrase.trim());
       }
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Failed to save key";
+      error = cause instanceof Error ? cause.message : t("Failed to save key");
     } finally {
       isSaving = false;
     }
@@ -117,7 +118,7 @@
       passphrase = secret.passphrase ?? "";
     } catch (cause) {
       if (initializedKeyId === keyId) {
-        error = cause instanceof Error ? cause.message : "Failed to load key secret";
+        error = cause instanceof Error ? cause.message : t("Failed to load key secret");
       }
     } finally {
       if (initializedKeyId === keyId) {
@@ -140,13 +141,13 @@
 >
   <FormSection
     icon={KeyRound}
-    title="Key identity"
-    hint="Name the key and unlock it if it is passphrase-protected."
+    title={t("Key identity")}
+    hint={t("Name the key and unlock it if it is passphrase-protected.")}
   >
     {#if keyRecord}
       <div class="rounded-[2px] border border-white/10 bg-rail px-3 py-2.5">
         <p class="section-title">
-          Current fingerprint
+          {t("Current fingerprint")}
         </p>
         <p class="mt-1 truncate font-mono text-sm text-stencil-dim">
           {keyRecord.fingerprint ?? "—"}
@@ -155,11 +156,11 @@
     {/if}
 
     <div class="space-y-2">
-      <label for="ssh-key-name" class="text-sm font-medium text-stencil">Key name</label>
+      <label for="ssh-key-name" class="text-sm font-medium text-stencil">{t("Key name")}</label>
       <Input
         id="ssh-key-name"
         bind:value={keyName}
-        placeholder="e.g. GitHub key"
+        placeholder={t("e.g. {example}", { example: "GitHub key" })}
         autocapitalize="none"
         autocomplete="off"
         autocorrect="off"
@@ -171,13 +172,13 @@
 
     <div class="space-y-2">
       <label for="ssh-key-passphrase" class="text-sm font-medium text-stencil"
-        >Passphrase <span class="text-stencil-mute">(optional)</span></label
+        >{t("Passphrase")} <span class="text-stencil-mute">{t("(optional)")}</span></label
       >
       <Input
         id="ssh-key-passphrase"
         type="password"
         bind:value={passphrase}
-        placeholder={isLoadingSecret ? "Loading saved passphrase…" : undefined}
+        placeholder={isLoadingSecret ? t("Loading saved passphrase…") : undefined}
         class={fieldClass()}
         disabled={isSaving || isLoadingSecret}
       />
@@ -186,15 +187,15 @@
 
   <FormSection
     icon={KeyRound}
-    title="Private key"
-    hint="Paste the full PEM block, including the BEGIN and END lines."
+    title={t("Private key")}
+    hint={t("Paste the full PEM block, including the BEGIN and END lines.")}
   >
     <div class="space-y-2">
-      <label for="ssh-key-private" class="text-sm font-medium text-stencil">Private key</label>
+      <label for="ssh-key-private" class="text-sm font-medium text-stencil">{t("Private key")}</label>
       <textarea
         id="ssh-key-private"
         bind:value={privateKey}
-        placeholder={isLoadingSecret ? "Loading saved private key…" : "-----BEGIN OPENSSH PRIVATE KEY-----"}
+        placeholder={isLoadingSecret ? t("Loading saved private key…") : "-----BEGIN OPENSSH PRIVATE KEY-----"}
         rows="10"
         aria-describedby={isEditing ? "ssh-key-private-hint" : undefined}
         class={textareaClass()}
@@ -202,8 +203,7 @@
       ></textarea>
       {#if isEditing}
         <p id="ssh-key-private-hint" class="text-xs leading-5 text-stencil-mute">
-          This field shows the saved raw private key after vault decryption. Editing it
-          will rotate the stored key on update.
+          {t("This field shows the saved raw private key after vault decryption. Editing it will rotate the stored key on update.")}
         </p>
       {/if}
     </div>

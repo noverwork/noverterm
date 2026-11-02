@@ -8,6 +8,7 @@
   import SnippetPinIcon, { PIN_ICON_NAMES } from "$lib/components/snippet-pin-icon.svelte";
   import { fieldClass, SELECT_CLASS, textareaClass } from "$lib/components/form-styles.js";
   import { Input } from "$lib/components/ui/input/index.js";
+  import { t } from "$lib/i18n/index.svelte.js";
 
   interface Props {
     hosts: ConnectionConfig[];
@@ -42,18 +43,18 @@
   let initializedSnippetId = $state<string | null>(null);
 
   const isEditing = $derived(snippet !== null);
-  const pageTitle = $derived(isEditing ? "Edit Snippet" : "New Snippet");
+  const pageTitle = $derived(isEditing ? t("Edit Snippet") : t("New Snippet"));
   const pageDescription = $derived(
     isEditing
-      ? "Update the host, title, or command for this snippet."
-      : "Create a reusable command template for a host.",
+      ? t("Update the host, title, or command for this snippet.")
+      : t("Create a reusable command template for a host."),
   );
   const submitLabel = $derived.by(() => {
     if (isSaving) {
-      return isEditing ? "Updating…" : "Saving…";
+      return isEditing ? t("Updating…") : t("Saving…");
     }
 
-    return isEditing ? "Update snippet" : "Save snippet";
+    return isEditing ? t("Update snippet") : t("Save snippet");
   });
 
   $effect(() => {
@@ -73,7 +74,7 @@
     event.preventDefault();
 
     if (!title.trim()) {
-      error = "Title is required";
+      error = t("Title is required");
       return;
     }
 
@@ -83,7 +84,7 @@
     try {
       await onSave(hostId || null, title.trim(), body, showOnPanel ? pinIcon : null);
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Failed to save snippet";
+      error = cause instanceof Error ? cause.message : t("Failed to save snippet");
     } finally {
       isSaving = false;
     }
@@ -120,11 +121,11 @@
 >
   <FormSection
     icon={Server}
-    title="Host & title"
-    hint="Choose the target host and give this snippet a name."
+    title={t("Host & title")}
+    hint={t("Choose the target host and give this snippet a name.")}
   >
     <div class="space-y-2">
-      <label for="snippet-host" class="text-sm font-medium text-stencil">Host</label>
+      <label for="snippet-host" class="text-sm font-medium text-stencil">{t("Host")}</label>
       <div class="relative">
         <select
           id="snippet-host"
@@ -132,7 +133,7 @@
           class={SELECT_CLASS}
           disabled={isSaving}
         >
-          <option value="" class="bg-rail">Local Terminal</option>
+          <option value="" class="bg-rail">{t("Local Terminal")}</option>
           {#each hosts as host (host.id)}
             <option value={host.id} class="bg-rail">
               {host.name} ({host.host})
@@ -146,11 +147,11 @@
     </div>
 
     <div class="space-y-2">
-      <label for="snippet-title" class="text-sm font-medium text-stencil">Title</label>
+      <label for="snippet-title" class="text-sm font-medium text-stencil">{t("Title")}</label>
       <Input
         id="snippet-title"
         bind:value={title}
-        placeholder="e.g. Restart Nginx"
+        placeholder={t("e.g. {example}", { example: "Restart Nginx" })}
         class={fieldClass()}
         disabled={isSaving}
       />
@@ -159,15 +160,15 @@
 
   <FormSection
     icon={FileText}
-    title="Command"
-    hint="The command or script that will run on the selected host."
+    title={t("Command")}
+    hint={t("The command or script that will run on the selected host.")}
   >
     <div class="space-y-2">
-      <label for="snippet-body" class="text-sm font-medium text-stencil">Command</label>
+      <label for="snippet-body" class="text-sm font-medium text-stencil">{t("Command")}</label>
       <textarea
         id="snippet-body"
         bind:value={body}
-        placeholder="e.g. sudo systemctl restart nginx"
+        placeholder={t("e.g. {example}", { example: "sudo systemctl restart nginx" })}
         rows="10"
         autocapitalize="none"
         spellcheck="false"
@@ -179,8 +180,8 @@
 
   <FormSection
     icon={Pin}
-    title="Shortcut panel"
-    hint="Launch this snippet from the sidebar. Each click opens a new tab and runs the command."
+    title={t("Shortcut panel")}
+    hint={t("Launch this snippet from the sidebar. Each click opens a new tab and runs the command.")}
   >
     <label
       class="flex cursor-pointer items-start gap-3 rounded-[2px] border border-white/10 bg-rib px-3 py-3 transition-colors duration-150 hover:border-white/20"
@@ -192,16 +193,16 @@
         class="mt-0.5 size-4 shrink-0 cursor-pointer accent-stencil"
       />
       <span class="min-w-0">
-        <span class="block text-sm font-medium text-stencil">Show on shortcut panel</span>
+        <span class="block text-sm font-medium text-stencil">{t("Show on shortcut panel")}</span>
         <span class="mt-0.5 block text-xs text-stencil-mute">
-          Drag shortcuts in the sidebar to change their order.
+          {t("Drag shortcuts in the sidebar to change their order.")}
         </span>
       </span>
     </label>
 
     {#if showOnPanel}
       <div class="space-y-2">
-        <span id="snippet-icon-label" class="text-sm font-medium text-stencil">Icon</span>
+        <span id="snippet-icon-label" class="text-sm font-medium text-stencil">{t("Icon")}</span>
         <div
           role="radiogroup"
           aria-labelledby="snippet-icon-label"

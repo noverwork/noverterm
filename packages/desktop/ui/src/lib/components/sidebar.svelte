@@ -13,6 +13,7 @@
   import type { SnippetRecord } from "$lib/api/types.js";
   import ShortcutPanel from "$lib/components/shortcut-panel.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
+  import { t } from "$lib/i18n/index.svelte.js";
 
   type SidebarSection = "terminal" | "hosts" | "keys" | "forwards" | "known-hosts" | "snippets" | "sftp";
 
@@ -127,7 +128,7 @@
       type="button"
       class="cursor-pointer rounded-[2px] transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil"
       onclick={onGoHome}
-      aria-label="Go to Connections"
+      aria-label={t("Go to Connections")}
     >
       <div
         class="grid size-10 shrink-0 place-items-center rounded-[2px] border border-rib"
@@ -141,22 +142,22 @@
     <div class="px-2 py-3">
       <div class="grid justify-items-center gap-1">
         {#if onNewConnection}
-          {@render navItem(onNewConnection, "hosts", "Connections", serverIcon, connectionCount)}
+          {@render navItem(onNewConnection, "hosts", t("Connections"), serverIcon, connectionCount)}
         {/if}
         {#if onSftp}
           {@render navItem(onSftp, "sftp", "SFTP", sftpIcon)}
         {/if}
         {#if onManageKeys}
-          {@render navItem(onManageKeys, "keys", "Keys", keyIcon, keyCount)}
+          {@render navItem(onManageKeys, "keys", t("Keys"), keyIcon, keyCount)}
         {/if}
         {#if onSnippets}
-          {@render navItem(onSnippets, "snippets", "Snippets", snippetIcon, snippetCount)}
+          {@render navItem(onSnippets, "snippets", t("Snippets"), snippetIcon, snippetCount)}
         {/if}
         {#if onPortForwards}
-          {@render navItem(onPortForwards, "forwards", "Forwards", forwardIcon, forwardCount)}
+          {@render navItem(onPortForwards, "forwards", t("Forwards"), forwardIcon, forwardCount)}
         {/if}
         {#if onManageKnownHosts}
-          {@render navItem(onManageKnownHosts, "known-hosts", "Known Hosts", serverIcon)}
+          {@render navItem(onManageKnownHosts, "known-hosts", t("Known Hosts"), serverIcon)}
         {/if}
       </div>
     </div>
@@ -187,11 +188,11 @@
             variant="ghost"
             size="sm"
             class="h-7 w-10 justify-center rounded-[2px] px-0 text-stencil-mute hover:bg-white/5 hover:text-stencil"
-            aria-label="Settings"
+            aria-label={t("Settings")}
           >
             <Settings class="size-3.5" />
           </Button>
-          <span class={TOOLTIP_CLASS} aria-hidden="true">Settings</span>
+          <span class={TOOLTIP_CLASS} aria-hidden="true">{t("Settings")}</span>
         </div>
       {/if}
     </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n/index.svelte.js";
   import {
     ArrowDown,
     ArrowUp,
@@ -254,9 +255,9 @@
       type="button"
       class="flex items-center gap-1.5 text-left transition-colors hover:text-stencil"
       onclick={() => toggleSort("name")}
-      aria-label="Sort by name"
+      aria-label={t("Sort by name")}
     >
-      <span>Name</span>
+      <span>{t("Name")}</span>
       {#if nameIndicator("name") === ArrowUp}
         <ArrowUp class="size-3" />
       {:else if nameIndicator("name") === ArrowDown}
@@ -269,9 +270,9 @@
       type="button"
       class="flex items-center justify-end gap-1.5 text-right transition-colors hover:text-stencil"
       onclick={() => toggleSort("size")}
-      aria-label="Sort by size"
+      aria-label={t("Sort by size")}
     >
-      <span>Size</span>
+      <span>{t("Size")}</span>
       {#if nameIndicator("size") === ArrowUp}
         <ArrowUp class="size-3" />
       {:else if nameIndicator("size") === ArrowDown}
@@ -284,9 +285,9 @@
       type="button"
       class="flex items-center justify-end gap-1.5 text-right transition-colors hover:text-stencil"
       onclick={() => toggleSort("modified")}
-      aria-label="Sort by modified date"
+      aria-label={t("Sort by modified date")}
     >
-      <span>Modified</span>
+      <span>{t("Modified")}</span>
       {#if nameIndicator("modified") === ArrowUp}
         <ArrowUp class="size-3" />
       {:else if nameIndicator("modified") === ArrowDown}
@@ -309,7 +310,7 @@
         data-testid="file-list-loading"
       >
         <Loader2 class="size-4 animate-spin" />
-        <span>Loading…</span>
+        <span>{t("Loading…")}</span>
       </div>
     {:else}
       <ul class="flex flex-col gap-0.5 py-1" data-testid="file-list-rows">
@@ -333,7 +334,7 @@
                 <Folder class="size-4 shrink-0 text-stencil-dim" />
                 <span
                   class="min-w-0 flex-1 truncate text-left font-medium text-stencil transition-colors hover:text-stencil"
-                  title="Parent directory"
+                  title={t("Parent directory")}
                 >
                   ..
                 </span>
@@ -419,7 +420,7 @@
           data-testid="file-list-refreshing"
         >
           <Loader2 class="size-3.5 animate-spin" />
-          <span>Refreshing…</span>
+          <span>{t("Refreshing…")}</span>
         </div>
       {/if}
     {/if}

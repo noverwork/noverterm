@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { Settings, X, Download, CheckCircle, DatabaseBackup } from "@lucide/svelte";
+  import { Settings, X, Download, CheckCircle, DatabaseBackup, Languages } from "@lucide/svelte";
   import { getVersion } from "@tauri-apps/api/app";
   import { invoke } from "@tauri-apps/api/core";
 
   import { Button } from "$lib/components/ui/button/index.js";
+  import { t } from "$lib/i18n/index.svelte.js";
+  import { getLocale, LOCALES, setLocale, type Locale } from "$lib/i18n/index.svelte.js";
   import { checkForAppUpdate } from "$lib/updater/auto-update.js";
 
   let {
@@ -34,7 +36,7 @@
 
     try {
       const fileName = await invoke<string>("db_backup");
-      backupNotice = `Saved to Downloads/${fileName}`;
+      backupNotice = t("Saved to Downloads/{fileName}", { fileName });
     } catch (cause) {
       backupError = cause instanceof Error ? cause.message : String(cause);
     } finally {
@@ -65,7 +67,7 @@
     onkeydown={(event) => event.key === "Escape" && onClose()}
     role="dialog"
     aria-modal="true"
-    aria-label="Settings"
+    aria-label={t("Settings")}
     tabindex="-1"
   >
     <div
@@ -75,15 +77,15 @@
         class="flex shrink-0 items-center justify-between border-b border-white/10 px-6 py-4"
       >
         <div>
-          <h2 class="text-xl font-semibold tracking-tight">Settings</h2>
+          <h2 class="text-xl font-semibold tracking-tight">{t("Settings")}</h2>
         </div>
         <Button
           variant="ghost"
           size="icon-sm"
           class="rounded-[2px] text-stencil-mute hover:bg-white/8 hover:text-stencil"
           onclick={onClose}
-          aria-label="Close settings"
-          title="Close settings"
+          aria-label={t("Close settings")}
+          title={t("Close settings")}
         >
           <X class="size-4" />
         </Button>
@@ -97,11 +99,36 @@
             <div
               class="grid size-10 place-items-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim"
             >
+              <Languages class="size-4" />
+            </div>
+            <label for="settings-language" class="flex-1 text-sm font-semibold text-stencil">
+              {t("Language")}
+            </label>
+            <select
+              id="settings-language"
+              class="h-8 rounded-[2px] border border-white/10 bg-rail px-2 text-sm text-stencil focus:border-stencil focus:outline-none"
+              value={getLocale()}
+              onchange={(event) => setLocale(event.currentTarget.value as Locale)}
+            >
+              {#each LOCALES as option (option.value)}
+                <option value={option.value}>{option.label}</option>
+              {/each}
+            </select>
+          </div>
+        </div>
+
+        <div
+          class="rounded-[2px] border border-white/10 bg-transparent px-5 py-5"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="grid size-10 place-items-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim"
+            >
               <Settings class="size-4" />
             </div>
             <div class="flex-1">
-              <p class="text-sm font-semibold text-stencil">About Noverterm</p>
-              <p class="text-xs text-stencil-mute">Version {appVersion}</p>
+              <p class="text-sm font-semibold text-stencil">{t("About Noverterm")}</p>
+              <p class="text-xs text-stencil-mute">{t("Version {version}", { version: appVersion })}</p>
             </div>
           </div>
 
@@ -114,19 +141,19 @@
               disabled={checking}
             >
               {#if checking}
-                <span class="animate-pulse">Checking...</span>
+                <span class="animate-pulse">{t("Checking...")}</span>
               {:else if updateStatus === "up-to-date"}
                 <CheckCircle class="mr-1.5 size-3.5 text-emerald-400" />
-                <span class="text-emerald-400">Up to date</span>
+                <span class="text-emerald-400">{t("Up to date")}</span>
               {:else}
                 <Download class="mr-1.5 size-3.5" />
-                Check for updates
+                {t("Check for updates")}
               {/if}
             </Button>
           </div>
 
           {#if updateStatus === "error"}
-            <p class="mt-2 text-xs text-red-300">Failed to check for updates</p>
+            <p class="mt-2 text-xs text-red-300">{t("Failed to check for updates")}</p>
           {/if}
         </div>
 
@@ -140,10 +167,9 @@
               <DatabaseBackup class="size-4" />
             </div>
             <div class="flex-1">
-              <p class="text-sm font-semibold text-stencil">Backup</p>
+              <p class="text-sm font-semibold text-stencil">{t("Backup")}</p>
               <p class="text-xs text-stencil-mute">
-                Connections, keys and snippets are stored in plain text — keep
-                the file somewhere private.
+                {t("Connections, keys and snippets are stored in plain text — keep the file somewhere private.")}
               </p>
             </div>
           </div>
@@ -157,10 +183,10 @@
               disabled={backingUp}
             >
               {#if backingUp}
-                <span class="animate-pulse">Backing up...</span>
+                <span class="animate-pulse">{t("Backing up...")}</span>
               {:else}
                 <DatabaseBackup class="mr-1.5 size-3.5" />
-                Back up to Downloads
+                {t("Back up to Downloads")}
               {/if}
             </Button>
           </div>

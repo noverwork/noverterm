@@ -31,6 +31,7 @@
   import { getTabShortcut } from "$lib/terminal/keyboard-shortcuts.js";
   import { checkForAppUpdate } from "$lib/updater/auto-update.js";
   import type { SnippetRecord } from "$lib/api/types.js";
+  import { t } from "$lib/i18n/index.svelte.js";
   import { sessionStencil } from "$lib/session-stencil.js";
   import type { SessionStatus } from "$lib/stores/session.svelte.js";
 
@@ -84,13 +85,13 @@
     return status === "disconnected" || status === "error";
   }
 
-  const STATUS_LABELS: Record<SessionStatus, string> = {
-    connected: "live",
-    connecting: "connecting",
-    trust_required: "awaiting host trust",
-    disconnected: "held · disconnected",
-    error: "held · failed",
-  };
+  const STATUS_LABELS: Record<SessionStatus, string> = $derived({
+    connected: t("live"),
+    connecting: t("connecting"),
+    trust_required: t("awaiting host trust"),
+    disconnected: t("held · disconnected"),
+    error: t("held · failed"),
+  });
   const sessionTabEdgeSize = 72;
   const sessionTabMaxScrollSpeed = 0.8;
   let sessionTabsElement = $state<HTMLDivElement | null>(null);
@@ -132,14 +133,14 @@
 
     return "terminal";
   });
-  const sidebarPages = {
-    hosts: { label: "Connections", icon: Server },
-    keys: { label: "Keys", icon: KeyRound },
-    forwards: { label: "Forwards", icon: Network },
-    "known-hosts": { label: "Known Hosts", icon: Server },
-    snippets: { label: "Snippets", icon: FileText },
+  const sidebarPages = $derived({
+    hosts: { label: t("Connections"), icon: Server },
+    keys: { label: t("Keys"), icon: KeyRound },
+    forwards: { label: t("Forwards"), icon: Network },
+    "known-hosts": { label: t("Known Hosts"), icon: Server },
+    snippets: { label: t("Snippets"), icon: FileText },
     sftp: { label: "SFTP", icon: FolderOpen },
-  } as const;
+  } as const);
   const currentPage = $derived(
     activeSidebarSection === "terminal"
       ? null
@@ -346,7 +347,7 @@
   function handleTabMouseDown(event: MouseEvent, sessionId: string) {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement;
-    if (target.closest("[aria-label^='Close']")) return;
+    if (target.closest('[data-tab-close]')) return;
     dragState = { sessionId, startX: event.clientX, active: false };
   }
 
@@ -467,7 +468,7 @@
     <div class="flex min-h-screen items-center justify-center bg-background">
       <div class="flex flex-col items-center gap-4">
         <Loader2 class="size-8 animate-spin text-stencil" />
-        <p class="text-sm text-muted-foreground">Loading...</p>
+        <p class="text-sm text-muted-foreground">{t("Loading...")}</p>
       </div>
     </div>
   {:else if app.isError}
@@ -483,11 +484,11 @@
           <AlertCircle class="size-8" />
         </div>
         <h1 class="mt-5 text-2xl font-semibold text-stencil">
-          Backend connection unavailable
+          {t("Backend connection unavailable")}
         </h1>
         <p class="mx-auto mt-3 max-w-xl text-sm leading-7 text-stencil-dim">
           {app.error ??
-            "Unable to connect to the backend. Remote features are unavailable."}
+            t("Unable to connect to the backend. Remote features are unavailable.")}
         </p>
         <div class="mt-8 flex flex-wrap justify-center gap-3">
           <Button
@@ -495,7 +496,7 @@
             onclick={() => void app.init()}
             class="gap-2 rounded-[2px] border-white/10 bg-transparent text-stencil hover:border-white/20 hover:bg-white/5"
           >
-            Retry
+            {t("Retry")}
           </Button>
         </div>
       </div>
@@ -570,7 +571,7 @@
           <div
             bind:this={sessionTabsElement}
             role="group"
-            aria-label="Active terminal sessions"
+            aria-label={t("Active terminal sessions")}
             class="session-tabs flex h-full items-center gap-1 overflow-x-auto px-1.5"
             onscroll={updateSessionTabScrollIndicators}
             onpointerleave={stopSessionTabAutoScroll}
@@ -613,7 +614,10 @@
                         onmousedown={(event) =>
                           handleTabMouseDown(event, session.id)}
                         onclick={() => activateSession(session.id)}
-                        aria-label={`Switch to ${session.name}, ${STATUS_LABELS[session.status]}`}
+                        aria-label={t("Switch to {name}, {status}", {
+                          name: session.name,
+                          status: STATUS_LABELS[session.status],
+                        })}
                       ></button>
                       <span
                         class="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center gap-2 text-left text-[11px] uppercase tracking-[0.14em]"
@@ -647,7 +651,8 @@
                           event.stopPropagation();
                           void closeSessionAndNavigate(session.id);
                         }}
-                        aria-label={`Close ${session.name}`}
+                        data-tab-close
+                        aria-label={t("Close {name}", { name: session.name })}
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -675,7 +680,7 @@
                       class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                       onclick={() => void closeSessionAndNavigate(session.id)}
                     >
-                      Close
+                      {t("Close")}
                     </ContextMenu.Item>
                     <ContextMenu.Item
                       class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
@@ -683,7 +688,7 @@
                         !session.connectionId}
                       onclick={() => void app.duplicateSession(session.id)}
                     >
-                      Duplicate Tab
+                      {t("Duplicate Tab")}
                     </ContextMenu.Item>
                     <ContextMenu.Item
                       class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
@@ -693,7 +698,7 @@
                           sessionIdsBefore(sessionIndex),
                         )}
                     >
-                      Close Tabs to the Left
+                      {t("Close Tabs to the Left")}
                     </ContextMenu.Item>
                     <ContextMenu.Item
                       class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
@@ -703,7 +708,7 @@
                           sessionIdsAfter(sessionIndex),
                         )}
                     >
-                      Close Tabs to the Right
+                      {t("Close Tabs to the Right")}
                     </ContextMenu.Item>
                     <ContextMenu.Separator class="bg-white/10" />
                     <ContextMenu.Item
@@ -711,7 +716,7 @@
                       onclick={() =>
                         void closeSessionIdsAndNavigate(allSessionIds())}
                     >
-                      Close All Tabs
+                      {t("Close All Tabs")}
                     </ContextMenu.Item>
                   </ContextMenu.Content>
                 </ContextMenu.Root>
@@ -768,14 +773,12 @@
                     <span class="bg-stencil px-1 leading-4 text-seal">HELD</span>
                   </div>
                   <h2 class="mt-4 text-xl font-semibold text-stencil">
-                    Terminal disconnected
+                    {t("Terminal disconnected")}
                   </h2>
                   <p
                     class="mx-auto mt-2 max-w-md text-sm leading-6 text-stencil-mute"
                   >
-                    {app.activeSession.name} is no longer connected. The tab stays
-                    open so you can see it failed and decide whether to retry or close
-                    it.
+                    {t("{name} is no longer connected. The tab stays open so you can see it failed and decide whether to retry or close it.", { name: app.activeSession.name })}
                   </p>
                   <div class="mt-6 flex flex-wrap justify-center gap-3">
                     {#if app.activeSession.connectionId}
@@ -783,7 +786,7 @@
                         onclick={retryActiveConnection}
                         class="gap-2 rounded-[2px] bg-seal px-5 text-stencil hover:bg-[#b4432f]"
                       >
-                        Retry session
+                        {t("Retry session")}
                       </Button>
                     {/if}
                     <Button
@@ -794,7 +797,7 @@
                         )}
                       class="rounded-[2px] border-white/10 bg-transparent px-5 text-stencil hover:border-white/20 hover:bg-white/5"
                     >
-                      Close tab
+                      {t("Close tab")}
                     </Button>
                   </div>
                 </div>
@@ -892,7 +895,7 @@
 
         <footer
           class="flex h-6 shrink-0 items-center gap-5 border-t border-rib bg-rail px-3 text-[11px] text-stencil-mute"
-          aria-label="Session status"
+          aria-label={t("Session status")}
         >
           {#if app.activeSession && activeStencil}
             <span
@@ -908,7 +911,7 @@
               >
             </span>
             {#if app.activeSession.type === "local"}
-              <span>local shell</span>
+              <span>{t("local shell")}</span>
             {:else}
               <span class="truncate"
                 >{app.activeSession.username}@{app.activeSession.host}:{app
@@ -920,11 +923,11 @@
               >{STATUS_LABELS[app.activeSession.status]}</span
             >
           {:else}
-            <span>No session selected</span>
+            <span>{t("No session selected")}</span>
           {/if}
           <span class="ml-auto shrink-0 tabular-nums"
-            >{app.activeSessions.length} open{heldSessionCount > 0
-              ? ` · ${heldSessionCount} held`
+            >{t("{count} open", { count: app.activeSessions.length })}{heldSessionCount > 0
+              ? ` · ${t("{count} held", { count: heldSessionCount })}`
               : ""}</span
           >
         </footer>

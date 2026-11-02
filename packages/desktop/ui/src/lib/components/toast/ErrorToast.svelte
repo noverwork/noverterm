@@ -1,5 +1,6 @@
 <script lang="ts">
   import { AlertCircle, AlertTriangle, Info, X } from "@lucide/svelte";
+  import { t } from "$lib/i18n/index.svelte.js";
 
   type ErrorToastType = "error" | "warning" | "info";
 
@@ -77,7 +78,7 @@
     <button
       type="button"
       class="-mr-1 -mt-1 grid size-7 shrink-0 cursor-pointer place-items-center rounded-[2px] text-current opacity-70 transition hover:bg-white/10 hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil"
-      aria-label="Dismiss notification"
+      aria-label={t("Dismiss notification")}
       onclick={onDismiss}
       data-testid="error-toast-dismiss"
     >

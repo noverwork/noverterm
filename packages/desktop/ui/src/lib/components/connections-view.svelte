@@ -11,6 +11,7 @@
     Trash2,
   } from "@lucide/svelte";
 
+  import { t } from "$lib/i18n/index.svelte.js";
   import DeleteConfirmDialog from "$lib/components/delete-confirm-dialog.svelte";
   import SshConfigImportDialog from "$lib/components/ssh-config-import-dialog.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -225,7 +226,7 @@
       newGroupName = "";
       isCreatingGroup = false;
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Failed to create group";
+      error = cause instanceof Error ? cause.message : t("Failed to create group");
     } finally {
       isSavingGroup = false;
     }
@@ -239,7 +240,7 @@
     try {
       await onMoveToGroup(connection, groupId);
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Failed to move host";
+      error = cause instanceof Error ? cause.message : t("Failed to move host");
     }
   }
 
@@ -261,7 +262,7 @@
       await onDeleteGroup(group);
       pendingDeleteHostGroup = null;
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Failed to delete group";
+      error = cause instanceof Error ? cause.message : t("Failed to delete group");
     } finally {
       deletingHostGroupId = null;
     }
@@ -270,11 +271,11 @@
   function getAuthLabel(connection: ConnectionConfig): string {
     switch (connection.auth?.kind) {
       case "public_key_and_password":
-        return "Key + Password";
+        return t("Key + Password");
       case "public_key":
-        return "SSH Key";
+        return t("SSH Key");
       default:
-        return "Password";
+        return t("Password");
     }
   }
 
@@ -297,7 +298,7 @@
       pendingDeleteConnection = null;
     } catch (cause) {
       error =
-        cause instanceof Error ? cause.message : "Failed to delete connection";
+        cause instanceof Error ? cause.message : t("Failed to delete connection");
     } finally {
       deletingConnectionId = null;
     }
@@ -313,10 +314,10 @@
     >
       <div>
         <h1 class="text-2xl font-semibold tracking-tight text-stencil">
-          SSH Connections
+          {t("SSH Connections")}
         </h1>
         <p class="mt-2 text-sm text-stencil-mute">
-          Curated hosts, credentials, and terminal targets.
+          {t("Curated hosts, credentials, and terminal targets.")}
         </p>
       </div>
 
@@ -328,8 +329,8 @@
           <Input
             type="search"
             bind:value={searchQuery}
-            placeholder="Search hosts"
-            aria-label="Search connections"
+            placeholder={t("Search hosts")}
+            aria-label={t("Search connections")}
             class="h-8 w-48 rounded-[2px] border border-white/10 bg-rail pl-8 text-sm text-stencil placeholder:text-stencil-faint focus-visible:border-stencil"
           />
         </div>
@@ -341,7 +342,7 @@
           class="gap-2 rounded-[2px] border-white/10 bg-transparent text-stencil hover:border-white/20 hover:bg-white/5"
         >
           <FileInput class="size-3.5" />
-          Import
+          {t("Import")}
         </Button>
 
         <Button
@@ -351,7 +352,7 @@
           class="gap-2 rounded-[2px] bg-stencil text-port hover:bg-white"
         >
           <Plus class="size-3.5" />
-          Add connection
+          {t("Add connection")}
         </Button>
       </div>
     </div>
@@ -375,7 +376,7 @@
           class="flex h-full min-h-[16rem] items-center justify-center rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground"
         >
           <div class="flex flex-col items-center gap-3">
-            No saved connections yet
+            {t("No saved connections yet")}
             <Button
               onclick={() => (isImporting = true)}
               variant="outline"
@@ -383,7 +384,7 @@
               class="gap-2 rounded-[2px] border-white/10 bg-transparent text-stencil hover:border-white/20 hover:bg-white/5"
             >
               <FileInput class="size-3.5" />
-              Import from ~/.ssh/config
+              {t("Import from {path}", { path: "~/.ssh/config" })}
             </Button>
           </div>
         </div>
@@ -392,14 +393,14 @@
           <div
             class="rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground"
           >
-            No connections match your search.
+            {t("No connections match your search.")}
           </div>
         {/if}
 
         {#each visibleSections as section (section.key)}
           <section
             role="group"
-            aria-label={section.group?.name ?? "Ungrouped"}
+            aria-label={section.group?.name ?? t("Ungrouped")}
             class={dragOverKey === section.key && draggingConnectionId !== null
               ? "group/section -mx-2 mb-2 rounded-[2px] bg-white/[0.04] px-2 pb-1 ring-1 ring-stencil"
               : "group/section -mx-2 mb-2 rounded-[2px] px-2 pb-1"}
@@ -426,7 +427,7 @@
                     : UNGROUPED_LINE.fill}
                 ></span>
                 <span class="section-title truncate text-stencil-dim">
-                  {section.group?.name ?? "Ungrouped"}
+                  {section.group?.name ?? t("Ungrouped")}
                 </span>
                 {#if section.group}
                   <span
@@ -444,7 +445,7 @@
                 <button
                   type="button"
                   class="ml-auto flex cursor-pointer items-center gap-1 rounded-[2px] px-1.5 py-1 text-stencil-mute opacity-0 transition hover:bg-seal/20 hover:text-red-300 focus-visible:opacity-100 group-hover/section:opacity-100"
-                  aria-label={`Delete group ${section.group.name}`}
+                  aria-label={t("Delete group {name}", { name: section.group.name })}
                   onclick={() => section.group && requestDeleteGroup(section.group)}
                   disabled={deletingHostGroupId === section.group.id}
                 >
@@ -459,8 +460,8 @@
                   class="my-3 rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-4 text-center text-xs text-stencil-mute"
                 >
                   {draggingConnectionId !== null
-                    ? "Drop here to move host"
-                    : "No hosts in this group — drag one here"}
+                    ? t("Drop here to move host")
+                    : t("No hosts in this group — drag one here")}
                 </div>
               {:else}
                 <div class="grid gap-3 py-4 md:grid-cols-2 xl:grid-cols-3">
@@ -474,7 +475,7 @@
                           role="button"
                           tabindex="0"
                           draggable="true"
-                          aria-label={`Connect to ${connection.name}`}
+                          aria-label={t("Connect to {name}", { name: connection.name })}
                           ondragstart={(event) => handleDragStart(event, connection)}
                           ondragend={handleDragEnd}
                           onclick={() => onSelect(connection)}
@@ -516,7 +517,7 @@
                                 variant="ghost"
                                 size="icon-sm"
                                 class="rounded-[2px] text-stencil-mute hover:bg-white/8 hover:text-stencil"
-                                aria-label={`Edit ${connection.name}`}
+                                aria-label={t("Edit {name}", { name: connection.name })}
                                 onclick={(event) => {
                                   event.stopPropagation();
                                   onEdit(connection);
@@ -528,7 +529,7 @@
                                 variant="ghost"
                                 size="icon-sm"
                                 class="rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
-                                aria-label={`Delete ${connection.name}`}
+                                aria-label={t("Delete {name}", { name: connection.name })}
                                 disabled={deletingConnectionId === connection.id}
                                 onclick={(event) => {
                                   event.stopPropagation();
@@ -553,21 +554,21 @@
                           class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                           onclick={() => onSelect(connection)}
                         >
-                          Connect
+                          {t("Connect")}
                         </ContextMenu.Item>
                         <ContextMenu.Item
                           class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
                           onclick={() => onEdit(connection)}
                         >
                           <Pencil class="size-3.5" />
-                          Edit
+                          {t("Edit")}
                         </ContextMenu.Item>
                         <ContextMenu.Sub>
                           <ContextMenu.SubTrigger
                             class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil data-[state=open]:bg-white/8 data-[state=open]:text-stencil"
                           >
                             <FolderInput class="size-3.5" />
-                            Move to group
+                            {t("Move to group")}
                           </ContextMenu.SubTrigger>
                           <ContextMenu.SubContent
                             class="min-w-40 rounded-[2px] border-white/10 bg-rail text-stencil"
@@ -581,7 +582,7 @@
                               {:else}
                                 <span class="size-3.5"></span>
                               {/if}
-                              Ungrouped
+                              {t("Ungrouped")}
                             </ContextMenu.Item>
                             {#each sortedHostGroups as group (group.id)}
                               <ContextMenu.Item
@@ -605,7 +606,7 @@
                           onclick={() => requestDelete(connection)}
                         >
                           <Trash2 class="size-3.5" />
-                          Delete
+                          {t("Delete")}
                         </ContextMenu.Item>
                       </ContextMenu.Content>
                     </ContextMenu.Root>
@@ -627,8 +628,8 @@
             >
               <input
                 bind:value={newGroupName}
-                placeholder="Group name"
-                aria-label="Group name"
+                placeholder={t("Group name")}
+                aria-label={t("Group name")}
                 class="h-8 w-36 rounded-[2px] border border-white/10 bg-rail px-2 text-sm text-stencil placeholder:text-stencil-faint focus:border-stencil focus:outline-none"
                 disabled={isSavingGroup}
               />
@@ -636,7 +637,7 @@
                 type="submit"
                 size="sm"
                 class="rounded-[2px] bg-stencil text-port hover:bg-white"
-                disabled={isSavingGroup}>Add</Button
+                disabled={isSavingGroup}>{t("Add")}</Button
               >
               <Button
                 type="button"
@@ -647,7 +648,7 @@
                   isCreatingGroup = false;
                   newGroupName = "";
                 }}
-                disabled={isSavingGroup}>Cancel</Button
+                disabled={isSavingGroup}>{t("Cancel")}</Button
               >
             </form>
           {:else}
@@ -657,7 +658,7 @@
               onclick={() => (isCreatingGroup = true)}
             >
               <Plus class="size-3.5" />
-              New group
+              {t("New group")}
             </button>
           {/if}
         {/if}
@@ -674,10 +675,10 @@
 
 <DeleteConfirmDialog
   open={pendingDeleteConnection !== null}
-  title="Delete saved connection?"
-  description="This removes the saved host profile and disconnects any sessions that were opened from it. This action cannot be undone."
+  title={t("Delete saved connection?")}
+  description={t("This removes the saved host profile and disconnects any sessions that were opened from it. This action cannot be undone.")}
   itemName={pendingDeleteConnection?.name}
-  confirmLabel="Delete connection"
+  confirmLabel={t("Delete connection")}
   isDeleting={deletingConnectionId !== null}
   onConfirm={confirmDelete}
   onCancel={() => (pendingDeleteConnection = null)}
@@ -685,10 +686,10 @@
 
 <DeleteConfirmDialog
   open={pendingDeleteHostGroup !== null}
-  title="Delete host group?"
-  description="Hosts in this group will stay saved and move back to Ungrouped. This action cannot be undone."
+  title={t("Delete host group?")}
+  description={t("Hosts in this group will stay saved and move back to Ungrouped. This action cannot be undone.")}
   itemName={pendingDeleteHostGroup?.name}
-  confirmLabel="Delete group"
+  confirmLabel={t("Delete group")}
   isDeleting={deletingHostGroupId !== null}
   onConfirm={confirmDeleteGroup}
   onCancel={() => (pendingDeleteHostGroup = null)}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n/index.svelte.js";
   import { ChevronDown, ChevronUp, Search, X } from "@lucide/svelte";
   import { onMount, tick } from "svelte";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -225,20 +226,20 @@
     <div
       class="absolute right-2 top-2 z-30 flex h-8 items-center gap-1 rounded-[2px] border border-white/10 bg-rail px-2 py-1 text-stencil"
       role="search"
-      aria-label="Terminal search"
+      aria-label={t("Terminal search")}
     >
       <Search class="size-3.5 text-stencil-mute" aria-hidden="true" />
       <Input
         bind:ref={searchInput}
         bind:value={searchTerm}
-        aria-label="Search terminal buffer"
-        placeholder="Search"
+        aria-label={t("Search terminal buffer")}
+        placeholder={t("Search")}
         class="h-6 w-44 rounded-[2px] border-white/10 bg-port px-2 py-0 text-xs text-stencil placeholder:text-stencil-faint focus-visible:ring-1 focus-visible:ring-stencil"
         onkeydown={handleSearchKeydown}
       />
       {#if searchMatched === false && searchTerm.length > 0}
         <span class="px-1 text-[0.68rem] text-[#e6c27a]" aria-live="polite">
-          No match
+          {t("No match")}
         </span>
       {/if}
       <Button
@@ -246,8 +247,8 @@
         size="icon-xs"
         class="size-6 cursor-pointer text-stencil-dim hover:bg-white/10 hover:text-stencil"
         disabled={searchTerm.length === 0}
-        title="Previous result"
-        aria-label="Previous search result"
+        title={t("Previous result")}
+        aria-label={t("Previous search result")}
         onclick={findPrevious}
       >
         <ChevronUp class="size-3" />
@@ -257,8 +258,8 @@
         size="icon-xs"
         class="size-6 cursor-pointer text-stencil-dim hover:bg-white/10 hover:text-stencil"
         disabled={searchTerm.length === 0}
-        title="Next result"
-        aria-label="Next search result"
+        title={t("Next result")}
+        aria-label={t("Next search result")}
         onclick={findNext}
       >
         <ChevronDown class="size-3" />
@@ -267,8 +268,8 @@
         variant="ghost"
         size="icon-xs"
         class="size-6 cursor-pointer text-stencil-mute hover:bg-white/10 hover:text-stencil"
-        title="Close search"
-        aria-label="Close terminal search"
+        title={t("Close search")}
+        aria-label={t("Close terminal search")}
         onclick={closeSearch}
       >
         <X class="size-3" />

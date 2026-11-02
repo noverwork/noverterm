@@ -8,6 +8,7 @@
     Settings,
   } from "@lucide/svelte";
   import { Button } from "$lib/components/ui/button/index.js";
+  import { t } from "$lib/i18n/index.svelte.js";
 
   let {
     hasSelection = false,
@@ -34,7 +35,7 @@
     size="icon-xs"
     disabled={!hasSelection}
     onclick={onCopy}
-    title="Copy"
+    title={t("Copy")}
     class="cursor-pointer transition-colors duration-150"
   >
     <Clipboard class="size-3" />
@@ -44,7 +45,7 @@
     variant="ghost"
     size="icon-xs"
     onclick={onPaste}
-    title="Paste"
+    title={t("Paste")}
     class="cursor-pointer transition-colors duration-150"
   >
     <ClipboardPaste class="size-3" />
@@ -54,7 +55,7 @@
     variant="ghost"
     size="icon-xs"
     onclick={onClear}
-    title="Clear"
+    title={t("Clear")}
     class="cursor-pointer transition-colors duration-150"
   >
     <Trash2 class="size-3" />
@@ -64,7 +65,7 @@
     variant="ghost"
     size="icon-xs"
     onclick={onFullscreen}
-    title="Toggle Fullscreen"
+    title={t("Toggle Fullscreen")}
     class="cursor-pointer transition-colors duration-150 {isFullscreen ? 'bg-accent text-accent-foreground' : ''}"
   >
     {#if isFullscreen}
@@ -80,7 +81,7 @@
     variant="ghost"
     size="icon-xs"
     onclick={onSettings}
-    title="Settings"
+    title={t("Settings")}
     class="cursor-pointer transition-colors duration-150"
   >
     <Settings class="size-3" />
