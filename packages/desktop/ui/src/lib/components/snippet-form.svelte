@@ -44,11 +44,6 @@
 
   const isEditing = $derived(snippet !== null);
   const pageTitle = $derived(isEditing ? t("Edit Snippet") : t("New Snippet"));
-  const pageDescription = $derived(
-    isEditing
-      ? t("Update the host, title, or command for this snippet.")
-      : t("Create a reusable command template for a host."),
-  );
   const submitLabel = $derived.by(() => {
     if (isSaving) {
       return isEditing ? t("Updating…") : t("Saving…");
@@ -111,7 +106,6 @@
 
 <FormShell
   title={pageTitle}
-  description={pageDescription}
   formId="snippet-form"
   {submitLabel}
   {error}
@@ -122,7 +116,6 @@
   <FormSection
     icon={Server}
     title={t("Host & title")}
-    hint={t("Choose the target host and give this snippet a name.")}
   >
     <div class="space-y-2">
       <label for="snippet-host" class="text-sm font-medium text-stencil">{t("Host")}</label>
@@ -161,7 +154,6 @@
   <FormSection
     icon={FileText}
     title={t("Command")}
-    hint={t("The command or script that will run on the selected host.")}
   >
     <div class="space-y-2">
       <label for="snippet-body" class="text-sm font-medium text-stencil">{t("Command")}</label>
@@ -181,7 +173,6 @@
   <FormSection
     icon={Pin}
     title={t("Shortcut panel")}
-    hint={t("Launch this snippet from the sidebar. Each click opens a new tab and runs the command.")}
   >
     <label
       class="flex cursor-pointer items-start gap-3 rounded-[2px] border border-white/10 bg-rib px-3 py-3 transition-colors duration-150 hover:border-white/20"

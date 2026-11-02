@@ -42,7 +42,6 @@ import type { SaveConnectionInput } from "$lib/app-data-types.js";
         <AlertCircle class="size-7" />
       </div>
       <h1 class="mt-5 text-xl font-semibold">{t("Connection not found")}</h1>
-      <p class="mt-2 max-w-md text-sm leading-6 text-stencil-mute">{t("This saved connection may have been deleted.")}</p>
       <Button class="mt-6 rounded-[2px] bg-stencil text-port hover:bg-white" onclick={() => goto("/connections")}>
         {t("Back to connections")}
       </Button>

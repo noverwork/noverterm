@@ -8,13 +8,13 @@ const zhTW: Record<string, string> = {
   "SSH Key": "SSH 金鑰",
   "Password": "密碼",
   "SSH Connections": "SSH 連線",
-  "Curated hosts, credentials, and terminal targets.": "整理好的主機、憑證與終端機目標。",
   "Search hosts": "搜尋主機",
   "Search connections": "搜尋連線",
   "Import": "匯入",
   "Add connection": "新增連線",
   "No saved connections yet": "尚無已存連線",
   "Import from {path}": "從 {path} 匯入",
+  "Key files are copied into Noverterm.": "金鑰檔案會複製到 Noverterm。",
   "No connections match your search.": "沒有符合搜尋的連線。",
   "Ungrouped": "未分組",
   "Delete group {name}": "刪除群組 {name}",
@@ -45,10 +45,7 @@ const zhTW: Record<string, string> = {
   "New connection": "新增連線",
   "Save changes": "儲存變更",
   "Save": "儲存",
-  "Save host details and encrypted credentials for terminal and forwarding workflows.":
-    "儲存主機資訊與加密憑證，供終端機與連接埠轉發使用。",
   "Endpoint": "連線端點",
-  "Name the host and define where the SSH session connects.": "為主機命名，並設定 SSH 工作階段要連線的位置。",
   "Name": "名稱",
   "Hostname": "主機名稱",
   "Port": "連接埠",
@@ -56,14 +53,10 @@ const zhTW: Record<string, string> = {
   "Jump host": "跳板機",
   "None": "無",
   "Authentication": "驗證",
-  "Credentials are encrypted at rest. Use a password, an SSH key, or both.":
-    "憑證會加密儲存。可使用密碼、SSH 金鑰，或兩者並用。",
   "Saved password": "已儲存的密碼",
   "Hide password": "隱藏密碼",
   "Show password": "顯示密碼",
   "SSH key": "SSH 金鑰",
-  "Select a saved key, paste a replacement, or disable key auth.": "選擇已存金鑰、貼上替換金鑰，或停用金鑰驗證。",
-  "Select a saved key or paste a new SSH private key.": "選擇已存金鑰，或貼上新的 SSH 私鑰。",
   "Use SSH key": "使用 SSH 金鑰",
   "SSH key source": "SSH 金鑰來源",
   "Saved key": "已存金鑰",
@@ -83,7 +76,6 @@ const zhTW: Record<string, string> = {
   "Password or private key is required": "必須填寫密碼或私鑰",
 
   // ssh-config-import-dialog
-  "Key files are copied into Noverterm. Hosts already saved are skipped.": "金鑰檔案會複製到 Noverterm。已儲存的主機會略過。",
   "Reading config…": "正在讀取設定…",
   "No hosts found in {path}.": "在 {path} 中找不到主機。",
   " via {alias}": " 經由 {alias}",
@@ -93,7 +85,6 @@ const zhTW: Record<string, string> = {
   // ssh-keys-view / ssh-key-form
   "Failed to delete key": "無法刪除金鑰",
   "SSH Keys": "SSH 金鑰",
-  "Encrypted private keys ready for saved host profiles.": "加密的私鑰，可供已存主機設定使用。",
   "Search keys": "搜尋金鑰",
   "Search SSH keys": "搜尋 SSH 金鑰",
   "Add key": "新增金鑰",
@@ -105,8 +96,6 @@ const zhTW: Record<string, string> = {
   "Delete key": "刪除金鑰",
   "Edit SSH key": "編輯 SSH 金鑰",
   "New SSH key": "新增 SSH 金鑰",
-  "The saved private key is loaded automatically so you can inspect or replace it.": "已存私鑰會自動載入，供你檢視或替換。",
-  "Save an SSH private key for connection profiles.": "儲存 SSH 私鑰，供連線設定使用。",
   "Loading key…": "正在載入金鑰…",
   "Update key": "更新金鑰",
   "Save key": "儲存金鑰",
@@ -116,11 +105,9 @@ const zhTW: Record<string, string> = {
   "Failed to save key": "無法儲存金鑰",
   "Failed to load key secret": "無法載入金鑰機密",
   "Key identity": "金鑰身分",
-  "Name the key and unlock it if it is passphrase-protected.": "為金鑰命名；若有密碼短語保護，請一併填寫以解鎖。",
   "Current fingerprint": "目前指紋",
   "Passphrase": "密碼短語",
   "Loading saved passphrase…": "正在載入已存的密碼短語…",
-  "Paste the full PEM block, including the BEGIN and END lines.": "貼上完整的 PEM 區塊，包含 BEGIN 與 END 行。",
   "Loading saved private key…": "正在載入已存的私鑰…",
   "This field shows the saved raw private key after vault decryption. Editing it will rotate the stored key on update.":
     "此欄位顯示經保險庫解密後的原始私鑰。編輯後更新時，會輪換已儲存的金鑰。",
@@ -128,7 +115,6 @@ const zhTW: Record<string, string> = {
   // known-hosts-view
   "Failed to load Known Hosts": "無法載入已知主機",
   "Failed to remove Known Host": "無法移除已知主機",
-  "Hosts you trusted after confirming their SSH fingerprint.": "你在確認 SSH 指紋後所信任的主機。",
   "No Known Hosts yet. Confirm a host fingerprint during SSH connection to add it here.":
     "尚無已知主機。在 SSH 連線時確認主機指紋，即可新增到這裡。",
   "Fingerprint": "指紋",
@@ -151,7 +137,6 @@ const zhTW: Record<string, string> = {
   "This removes the saved forwarding preset. Existing runtime forwards are not stopped automatically.":
     "這會移除已存的轉發預設組。執行中的轉發不會自動停止。",
   "Port Forwards": "連接埠轉發",
-  "Save reusable SSH tunnels, then start them with one click.": "儲存可重複使用的 SSH 通道，一鍵即可啟動。",
   "Search forwards": "搜尋轉發",
   "Search port forwards": "搜尋連接埠轉發",
   "New Forward": "新增轉發",
@@ -178,8 +163,6 @@ const zhTW: Record<string, string> = {
   "{label}: Target port": "{label}：目標連接埠",
   "{label}: {address} is already used above": "{label}：{address} 已在上方使用",
   "Failed to save port forward": "無法儲存連接埠轉發",
-  "Save a reusable SSH tunnel from a local bind port to a target reachable from the selected host.":
-    "儲存可重複使用的 SSH 通道：從本機綁定連接埠轉發至所選主機可連到的目標。",
   "Saved connection": "已存連線",
   "Target host is resolved from this SSH server, not your local machine.": "目標主機由此 SSH 伺服器解析，而非你的本機。",
   "No saved connections yet.": "尚無已存連線。",
@@ -188,8 +171,6 @@ const zhTW: Record<string, string> = {
   "Connection": "連線",
   "— Select a saved connection —": "— 選擇已存連線 —",
   "Forward route": "轉發路徑",
-  "Bind locally, then connect to the target from the SSH host. All ports in this forward start and stop together.":
-    "在本機綁定，再由 SSH 主機連線到目標。此轉發中的所有連接埠會一起啟動與停止。",
   "Port {number}": "連接埠 {number}",
   "Remove port {number}": "移除連接埠 {number}",
   "Bind host": "綁定主機",
@@ -200,13 +181,10 @@ const zhTW: Record<string, string> = {
 
   // routes
   "SSH key not found": "找不到 SSH 金鑰",
-  "This saved SSH key may have been deleted.": "此已存 SSH 金鑰可能已被刪除。",
   "Back to SSH keys": "返回 SSH 金鑰",
   "Connection not found": "找不到連線",
-  "This saved connection may have been deleted.": "此已存連線可能已被刪除。",
   "Back to connections": "返回連線",
   "Port forward not found": "找不到連接埠轉發",
-  "This saved port forward may have been deleted.": "此已存連接埠轉發可能已被刪除。",
   "Back to port forwards": "返回連接埠轉發",
 
   // services / stores

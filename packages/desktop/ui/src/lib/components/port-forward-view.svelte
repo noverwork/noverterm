@@ -264,9 +264,6 @@
         <h1 class="text-2xl font-semibold tracking-tight">
           {t("Port Forwards")}
         </h1>
-        <p class="mt-2 text-sm text-stencil-mute">
-          {t("Save reusable SSH tunnels, then start them with one click.")}
-        </p>
       </div>
 
       <div class="flex items-center gap-2 self-start">

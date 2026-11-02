@@ -316,9 +316,6 @@
         <h1 class="text-2xl font-semibold tracking-tight text-stencil">
           {t("SSH Connections")}
         </h1>
-        <p class="mt-2 text-sm text-stencil-mute">
-          {t("Curated hosts, credentials, and terminal targets.")}
-        </p>
       </div>
 
       <div class="flex items-center gap-2 self-start">

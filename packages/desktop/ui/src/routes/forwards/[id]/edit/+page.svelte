@@ -41,9 +41,6 @@
         <AlertCircle class="size-7" />
       </div>
       <h1 class="mt-5 text-xl font-semibold">{t("Port forward not found")}</h1>
-      <p class="mt-2 max-w-md text-sm leading-6 text-stencil-mute">
-        {t("This saved port forward may have been deleted.")}
-      </p>
       <Button
         class="mt-6 rounded-[2px] bg-stencil text-port hover:bg-white"
         onclick={() => goto("/forwards")}

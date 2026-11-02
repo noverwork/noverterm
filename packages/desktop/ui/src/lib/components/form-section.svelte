@@ -10,7 +10,7 @@
   }: {
     icon: LucideIcon;
     title: string;
-    hint: string;
+    hint?: string;
     children: Snippet;
   } = $props();
 </script>
@@ -26,7 +26,9 @@
     </div>
     <div>
       <h2 class="text-sm font-medium text-stencil">{title}</h2>
-      <p class="mt-1 text-xs text-stencil-mute">{hint}</p>
+      {#if hint}
+        <p class="mt-1 text-xs text-stencil-mute">{hint}</p>
+      {/if}
     </div>
   </div>
 

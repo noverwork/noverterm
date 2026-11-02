@@ -183,7 +183,6 @@
 
 <FormShell
   title={formTitle}
-  description={t("Save a reusable SSH tunnel from a local bind port to a target reachable from the selected host.")}
   formId="port-forward-form"
   {submitLabel}
   {error}
@@ -261,7 +260,6 @@
   <FormSection
     icon={Network}
     title={t("Forward route")}
-    hint={t("Bind locally, then connect to the target from the SSH host. All ports in this forward start and stop together.")}
   >
     {#each rows as row, index (index)}
       <div class="rounded-[2px] border border-white/10 bg-rail p-3">

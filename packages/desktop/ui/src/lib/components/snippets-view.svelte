@@ -127,7 +127,6 @@
     <div class="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <h1 class="text-2xl font-semibold tracking-tight">{t("Command Snippets")}</h1>
-        <p class="mt-2 text-sm text-stencil-mute">{t("Reusable command templates organized by host.")}</p>
       </div>
 
       <div class="flex items-center gap-2 self-start">

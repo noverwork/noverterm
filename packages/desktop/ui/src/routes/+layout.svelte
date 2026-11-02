@@ -775,11 +775,6 @@
                   <h2 class="mt-4 text-xl font-semibold text-stencil">
                     {t("Terminal disconnected")}
                   </h2>
-                  <p
-                    class="mx-auto mt-2 max-w-md text-sm leading-6 text-stencil-mute"
-                  >
-                    {t("{name} is no longer connected. The tab stays open so you can see it failed and decide whether to retry or close it.", { name: app.activeSession.name })}
-                  </p>
                   <div class="mt-6 flex flex-wrap justify-center gap-3">
                     {#if app.activeSession.connectionId}
                       <Button

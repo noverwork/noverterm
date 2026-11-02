@@ -50,10 +50,7 @@
       <div class="grid size-10 place-items-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim">
         <FolderOpen class="size-5" />
       </div>
-      <div>
-        <h1 class="text-xl font-semibold text-stencil">{t("SFTP File Browser")}</h1>
-        <p class="text-xs text-stencil-mute">{t("Pick a machine on each side, then drag files across")}</p>
-      </div>
+      <h1 class="text-xl font-semibold text-stencil">{t("SFTP File Browser")}</h1>
     </div>
   </div>
 

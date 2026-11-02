@@ -80,7 +80,7 @@
           {t("Import from {path}", { path: "~/.ssh/config" })}
         </h2>
         <p class="mt-2 text-sm leading-6 text-stencil-mute">
-          {t("Key files are copied into Noverterm. Hosts already saved are skipped.")}
+          {t("Key files are copied into Noverterm.")}
         </p>
       </div>
 

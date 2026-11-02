@@ -45,11 +45,6 @@
 
   const isEditing = $derived(keyRecord !== null);
   const formTitle = $derived(isEditing ? t("Edit SSH key") : t("New SSH key"));
-  const formDescription = $derived(
-    isEditing
-      ? t("The saved private key is loaded automatically so you can inspect or replace it.")
-      : t("Save an SSH private key for connection profiles."),
-  );
   const submitLabel = $derived.by(() => {
     if (isLoadingSecret) {
       return t("Loading key…");
@@ -130,7 +125,6 @@
 
 <FormShell
   title={formTitle}
-  description={formDescription}
   formId="ssh-key-form"
   {submitLabel}
   {error}
@@ -142,7 +136,6 @@
   <FormSection
     icon={KeyRound}
     title={t("Key identity")}
-    hint={t("Name the key and unlock it if it is passphrase-protected.")}
   >
     {#if keyRecord}
       <div class="rounded-[2px] border border-white/10 bg-rail px-3 py-2.5">
@@ -188,7 +181,6 @@
   <FormSection
     icon={KeyRound}
     title={t("Private key")}
-    hint={t("Paste the full PEM block, including the BEGIN and END lines.")}
   >
     <div class="space-y-2">
       <label for="ssh-key-private" class="text-sm font-medium text-stencil">{t("Private key")}</label>
@@ -197,15 +189,9 @@
         bind:value={privateKey}
         placeholder={isLoadingSecret ? t("Loading saved private key…") : "-----BEGIN OPENSSH PRIVATE KEY-----"}
         rows="10"
-        aria-describedby={isEditing ? "ssh-key-private-hint" : undefined}
         class={textareaClass()}
         disabled={isSaving || isLoadingSecret}
       ></textarea>
-      {#if isEditing}
-        <p id="ssh-key-private-hint" class="text-xs leading-5 text-stencil-mute">
-          {t("This field shows the saved raw private key after vault decryption. Editing it will rotate the stored key on update.")}
-        </p>
-      {/if}
     </div>
   </FormSection>
 </FormShell>

@@ -7,7 +7,6 @@
 
   let {
     title,
-    description,
     formId,
     submitLabel,
     error = null,
@@ -18,7 +17,6 @@
     children,
   }: {
     title: string;
-    description: string;
     formId: string;
     submitLabel: string;
     error?: string | null;
@@ -38,7 +36,6 @@
   >
     <div class="border-b border-white/10 pb-4">
       <h1 class="text-2xl font-semibold tracking-tight">{title}</h1>
-      <p class="mt-2 text-sm text-stencil-mute">{description}</p>
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto pr-1">

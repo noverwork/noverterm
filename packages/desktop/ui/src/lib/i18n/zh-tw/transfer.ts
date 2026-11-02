@@ -1,6 +1,5 @@
 const zhTW: Record<string, string> = {
   "SFTP File Browser": "SFTP 檔案瀏覽器",
-  "Pick a machine on each side, then drag files across": "在兩側各選一台機器，然後拖放檔案",
   "Already open on the other side": "已在另一側開啟",
   "Left": "左側",
   "Right": "右側",
@@ -32,7 +31,6 @@ const zhTW: Record<string, string> = {
   "Folder name cannot be '.' or '..'": "資料夾名稱不可為「.」或「..」",
   "Folder name contains invalid characters": "資料夾名稱含有無效字元",
   "Create folder": "新增資料夾",
-  "Enter a name for the new folder.": "請輸入新資料夾的名稱。",
   "Folder name": "資料夾名稱",
   "Create": "建立",
   "Delete this item?": "刪除此項目？",

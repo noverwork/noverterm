@@ -51,9 +51,6 @@
     <p class="text-sm font-semibold text-stencil">
       {name ? t("Connecting to {name}", { name }) : t("Connecting…")}
     </p>
-    <p class="mt-2 text-xs text-stencil-mute">
-      {protocol === "sftp" ? t("Negotiating SFTP session…") : t("Negotiating terminal session…")}
-    </p>
     {#if onCancel}
       <Button
         variant="outline"
@@ -85,19 +82,9 @@
               <AlertCircle class="size-5" />
             </div>
             <div class="min-w-0 flex-1">
-              <div class="flex flex-wrap items-center gap-2">
-                <span
-                  class="rounded-[2px] border border-white/10 bg-rib px-1.5 text-[11px] uppercase tracking-[0.14em] text-stencil-dim"
-                >
-                  {t("SSH host identity")}
-                </span>
-              </div>
-              <h2 class="mt-3 text-xl font-semibold tracking-tight text-stencil">
+              <h2 class="text-xl font-semibold tracking-tight text-stencil">
                 {t("Verify SSH host identity")}
               </h2>
-              <p class="mt-2 text-sm leading-6 text-stencil-mute">
-                {protocol === "sftp" ? t("Confirm this fingerprint before opening an SFTP session.") : t("Confirm this fingerprint before opening a terminal session.")}
-              </p>
             </div>
           </div>
         </div>

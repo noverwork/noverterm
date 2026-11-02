@@ -90,7 +90,6 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-folder-dialog-title"
-      aria-describedby="create-folder-dialog-description"
     >
       <div class="border-b border-white/10 px-6 py-5">
         <div class="flex items-start gap-4">
@@ -101,9 +100,6 @@
             <h2 id="create-folder-dialog-title" class="text-xl font-semibold tracking-tight text-stencil">
               {t("Create folder")}
             </h2>
-            <p id="create-folder-dialog-description" class="mt-2 text-sm leading-6 text-stencil-mute">
-              {t("Enter a name for the new folder.")}
-            </p>
           </div>
         </div>
       </div>

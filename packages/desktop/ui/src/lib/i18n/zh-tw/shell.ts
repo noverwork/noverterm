@@ -61,12 +61,7 @@ const zhTW: Record<string, string> = {
   // Connection status overlay
   "Connecting to {name}": "正在連線至 {name}",
   "Connecting…": "連線中…",
-  "Negotiating SFTP session…": "正在協商 SFTP 工作階段…",
-  "Negotiating terminal session…": "正在協商終端機工作階段…",
   "Verify SSH host identity": "驗證 SSH 主機身分",
-  "SSH host identity": "SSH 主機身分",
-  "Confirm this fingerprint before opening an SFTP session.": "開啟 SFTP 工作階段前，請先確認此指紋。",
-  "Confirm this fingerprint before opening a terminal session.": "開啟終端機工作階段前，請先確認此指紋。",
   Host: "主機",
   Algorithm: "演算法",
   Fingerprint: "指紋",
@@ -99,8 +94,6 @@ const zhTW: Record<string, string> = {
   "Close Tabs to the Right": "關閉右側分頁",
   "Close All Tabs": "關閉所有分頁",
   "Terminal disconnected": "終端機已中斷連線",
-  "{name} is no longer connected. The tab stays open so you can see it failed and decide whether to retry or close it.":
-    "{name} 已不再連線。分頁會保持開啟，方便查看失敗狀況，再決定要重試或關閉。",
   "Close tab": "關閉分頁",
   "Session status": "工作階段狀態",
   "local shell": "本機 shell",
@@ -126,7 +119,6 @@ const zhTW: Record<string, string> = {
 
   // Snippets
   "Command Snippets": "指令片段",
-  "Reusable command templates organized by host.": "依主機整理的可重複使用指令範本。",
   "Search snippets": "搜尋指令片段",
   "Add snippet": "新增指令片段",
   "No snippets saved yet": "尚未儲存任何指令片段",
@@ -153,27 +145,20 @@ const zhTW: Record<string, string> = {
   "Failed to save snippet": "儲存指令片段失敗",
   "Loading snippet…": "正在載入指令片段…",
   "Snippet not found": "找不到指令片段",
-  "This snippet may have been deleted.": "此指令片段可能已被刪除。",
   "Back to snippets": "返回指令片段",
 
   // Snippet form
   "Edit Snippet": "編輯指令片段",
   "New Snippet": "新增指令片段",
-  "Update the host, title, or command for this snippet.": "更新此指令片段的主機、標題或指令。",
-  "Create a reusable command template for a host.": "為主機建立可重複使用的指令範本。",
   "Updating…": "更新中…",
   "Saving…": "儲存中…",
   "Update snippet": "更新指令片段",
   "Save snippet": "儲存指令片段",
   "Title is required": "必須填寫標題",
   "Host & title": "主機與標題",
-  "Choose the target host and give this snippet a name.": "選擇目標主機，並為此指令片段命名。",
   Title: "標題",
   Command: "指令",
-  "The command or script that will run on the selected host.": "將在所選主機上執行的指令或腳本。",
   "Shortcut panel": "捷徑面板",
-  "Launch this snippet from the sidebar. Each click opens a new tab and runs the command.":
-    "從側邊欄啟動此指令片段。每次點擊都會開啟新分頁並執行指令。",
   "Show on shortcut panel": "顯示在捷徑面板",
   "Drag shortcuts in the sidebar to change their order.": "在側邊欄拖曳捷徑即可調整順序。",
   Icon: "圖示",

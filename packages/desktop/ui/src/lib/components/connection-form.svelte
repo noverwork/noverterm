@@ -203,7 +203,6 @@
 
 <FormShell
   title={formTitle}
-  description={t("Save host details and encrypted credentials for terminal and forwarding workflows.")}
   formId="connection-form"
   {submitLabel}
   {error}
@@ -214,7 +213,6 @@
   <FormSection
     icon={Server}
     title={t("Endpoint")}
-    hint={t("Name the host and define where the SSH session connects.")}
   >
     <div class="space-y-2">
       <label for="conn-name" class="text-sm font-medium text-stencil">{t("Name")}</label>
@@ -331,7 +329,6 @@
   <FormSection
     icon={KeyRound}
     title={t("Authentication")}
-    hint={t("Credentials are encrypted at rest. Use a password, an SSH key, or both.")}
   >
     <div class="space-y-2">
       <label for="conn-password" class="text-sm font-medium text-stencil">{t("Password")}</label>
@@ -372,16 +369,7 @@
 
     <div class="border-t border-white/10 pt-3">
       <div class="flex items-center justify-between gap-4">
-        <div>
-          <p class="text-sm font-medium text-stencil">{t("SSH key")}</p>
-          <p class="mt-1 text-xs text-stencil-mute">
-            {#if connection?.sshKeyId}
-              {t("Select a saved key, paste a replacement, or disable key auth.")}
-            {:else}
-              {t("Select a saved key or paste a new SSH private key.")}
-            {/if}
-          </p>
-        </div>
+        <p class="text-sm font-medium text-stencil">{t("SSH key")}</p>
         <button
           type="button"
           role="switch"
