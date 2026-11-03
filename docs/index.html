@@ -530,17 +530,17 @@
       .agent-facts li + li {
         margin-top: 8px;
       }
-      .agent-code {
-        margin: 32px 0 0;
-        padding: 18px 20px;
-        background: var(--port);
-        color: var(--stencil);
-        border-radius: var(--r);
-        font: 500 14px/1.6 var(--code);
-        overflow-x: auto;
+      .agent-shot {
+        grid-column: 1 / 13;
+        margin: 24px 0 0;
       }
-      .agent-code code {
-        font: inherit;
+      .agent-shot img {
+        width: 100%;
+        height: auto;
+      }
+      .agent-shot figcaption {
+        margin-top: 16px;
+        font-size: 1.0625rem;
       }
       .approve {
         grid-column: 8 / 13;
@@ -1406,9 +1406,6 @@
             <li>Hosts must pass their fingerprint check, and jump hosts work as they do in the terminal.</li>
             <li>Allow once, always allow a host, or deny. A request nobody answers is denied after two minutes.</li>
           </ul>
-          <pre class="agent-code"><code>claude mcp add --transport http noverterm \
-  http://127.0.0.1:47321/mcp \
-  --header "Authorization: Bearer &lt;token&gt;"</code></pre>
         </div>
 
         <div class="approve" data-ui role="group" aria-labelledby="ap-h">
@@ -1427,6 +1424,17 @@
           </div>
           <pre class="approve-out" id="ap-out" aria-live="polite">Waiting for you. The agent gets nothing until you choose.</pre>
         </div>
+
+        <figure class="agent-shot">
+          <img
+            src="assets/shots/mcp.webp"
+            width="1600"
+            height="492"
+            alt="Noverterm MCP page: server enabled on port 47322, URL and hidden token with copy buttons, a ready-made claude mcp add command for Claude Code, Cursor, VS Code or Claude Desktop, and the two tools list_hosts and run_command"
+            loading="lazy"
+          />
+          <figcaption>One switch, then paste the command for your client. The token stays hidden until you reveal it.</figcaption>
+        </figure>
       </section>
 
       <!-- Showcase: one window, six jobs -->
