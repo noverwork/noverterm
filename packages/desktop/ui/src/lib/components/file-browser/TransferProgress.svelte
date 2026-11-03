@@ -6,10 +6,11 @@
 
   interface Props {
     transfers: Map<string, TransferProgressType>;
+    names?: Map<string, string>;
     onCancel: (transferId: string) => void;
   }
 
-  let { transfers, onCancel }: Props = $props();
+  let { transfers, names = new Map(), onCancel }: Props = $props();
 
   const transferList = $derived([...transfers.values()]);
   const transferCount = $derived(transferList.length);
@@ -68,6 +69,10 @@
     }
     return id.slice(0, 8);
   }
+
+  function label(id: string): string {
+    return names.get(id) ?? shortId(id);
+  }
 </script>
 
 {#if transferList.length > 0}
@@ -114,7 +119,7 @@
           <div class="min-w-0">
             <div class="flex items-center justify-between gap-2">
               <p class="truncate text-sm font-medium text-stencil" title={transfer.transfer_id}>
-                {transfer.direction === "Upload" ? t("Uploading {id}", { id: shortId(transfer.transfer_id) }) : transfer.direction === "Copy" ? t("Copying {id}", { id: shortId(transfer.transfer_id) }) : t("Downloading {id}", { id: shortId(transfer.transfer_id) })}
+                {transfer.direction === "Upload" ? t("Uploading {id}", { id: label(transfer.transfer_id) }) : transfer.direction === "Copy" ? t("Copying {id}", { id: label(transfer.transfer_id) }) : t("Downloading {id}", { id: label(transfer.transfer_id) })}
               </p>
               <span class="shrink-0 font-mono text-xs tabular-nums text-stencil-dim">
                 {progress.toFixed(0)}%
@@ -151,7 +156,7 @@
             type="button"
             class="grid size-7 shrink-0 cursor-pointer place-items-center rounded-[2px] border border-white/10 bg-transparent text-stencil-dim transition-colors duration-150 hover:border-seal/60 hover:bg-seal/20 hover:text-red-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil"
             onclick={() => onCancel(transfer.transfer_id)}
-            aria-label={t("Cancel transfer {id}", { id: shortId(transfer.transfer_id) })}
+            aria-label={t("Cancel transfer {id}", { id: label(transfer.transfer_id) })}
             data-testid="transfer-cancel"
           >
             <X class="size-3.5" />

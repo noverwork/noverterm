@@ -73,6 +73,7 @@
 
   <TransferProgress
     transfers={sftpStore.activeTransfers}
+    names={sftpStore.transferNames}
     onCancel={(id) => sftpStore.cancelTransfer(id)}
   />
 </div>

@@ -51,12 +51,14 @@ describe("sftp-view progress bar", () => {
       speed_bps: 10_000_000,
       direction: "Upload",
     };
+    sftpStore.transferNames.set("t-1", "release.tar.gz");
     eventListeners.get("sftp://progress")!({ payload: progress });
     await tick();
 
     const bar = container.querySelector('[data-testid="transfer-status-bar"]');
     expect(bar, "status bar should render after progress event").not.toBeNull();
     expect(bar!.textContent).toContain("1 active");
+    expect(bar!.textContent).toContain("Uploading release.tar.gz");
   });
 
   it.each(["ssh", "direct"])("keeps %s machine identity across view remounts", async (source) => {

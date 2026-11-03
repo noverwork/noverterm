@@ -492,6 +492,8 @@ export class SftpStore {
   lastError = $state<string | null>(null);
   errorQueue = $state<ErrorToast[]>([]);
   activeTransfers = $state<SvelteMap<string, TransferProgress>>(new SvelteMap());
+  /** File name per transfer id, for the transfer status bar. */
+  transferNames = new SvelteMap<string, string>();
   transferConflict = $state<TransferConflict | null>(null);
   attemptedActiveSshSessionId = $state<string | null>(null);
 
@@ -623,6 +625,7 @@ export class SftpStore {
     this.lastError = null;
     this.errorQueue = [];
     this.activeTransfers = new SvelteMap();
+    this.transferNames.clear();
     this.transferConflict = null;
     this.pendingTransferConflict = null;
     this.settleConflict();
@@ -672,6 +675,7 @@ export class SftpStore {
   private finishTransfer(transferId: string): void {
     this.progressLogState.delete(transferId);
     this.activeTransfers.delete(transferId);
+    this.transferNames.delete(transferId);
   }
 
   private teardownEventListeners(): void {
@@ -797,6 +801,7 @@ export class SftpStore {
           targetPath,
         });
       }
+      this.transferNames.set(transferId, fileName);
       this.showError(message, "info");
       return transferId;
     } catch (error: unknown) {
