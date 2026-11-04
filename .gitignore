@@ -42,3 +42,4 @@ __pycache__/
 # Impeccable scratch: decision sketches and review screenshots (may show hosts/IPs)
 .impeccable/mocks/
 .impeccable/review/
+.taste-skill/
