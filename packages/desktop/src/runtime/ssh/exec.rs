@@ -1,16 +1,18 @@
-//! Runs one non-interactive command on a host and returns its output, for
-//! callers such as the MCP server that need a clean exit code rather than a
+//! Runs one non-interactive command, or one SFTP transfer, on a host for
+//! callers such as the MCP server that need a clean result rather than a
 //! terminal screen.
 
 use std::time::Duration;
 
+use russh::client::Handle;
 use russh::{ChannelMsg, Disconnect};
 use tokio::time::timeout;
 use uuid::Uuid;
 
+use crate::runtime::sftp::{open_sftp_session, TransferCancellation};
 use crate::trust::{SshTrustStore, TrustCheck};
 
-use super::authentication::{authenticate_session, client_config};
+use super::authentication::{authenticate_session, client_config, ClientHandler};
 use super::jump::{open_transport, OpenTransportError, SshHopInput};
 use super::AuthMethod;
 
@@ -41,40 +43,7 @@ pub async fn exec_command(
     command: &str,
     run_timeout: Duration,
 ) -> Result<ExecOutput, String> {
-    let exec_id = Uuid::new_v4().to_string();
-    let config = client_config(None);
-    let transport = timeout(
-        CONNECT_TIMEOUT,
-        open_transport(
-            config,
-            &target.host,
-            target.port,
-            target.jumps,
-            trust_store,
-            &exec_id,
-        ),
-    )
-    .await
-    .map_err(|_| format!("Timed out connecting to {}", target.host))?;
-
-    let mut session = match transport {
-        Ok(session) => session,
-        Err(OpenTransportError::Connect { error, trust_check }) => {
-            return Err(match trust_check.lock().await.clone() {
-                Some(TrustCheck::TrustRequired(prompt)) => format!(
-                    "The host key of {}:{} is not trusted yet. Connect to it once in noverterm to verify and trust it.",
-                    prompt.host, prompt.port
-                ),
-                Some(TrustCheck::TrustMismatch(mismatch)) => format!(
-                    "The host key of {}:{} changed since it was trusted. Refusing to connect; check it in noverterm.",
-                    mismatch.host, mismatch.port
-                ),
-                _ => format!("Failed to connect: {error}"),
-            });
-        }
-        Err(OpenTransportError::Other(error)) => return Err(error),
-    };
-    authenticate_session(&mut session, &target.username, target.auth, &exec_id).await?;
+    let session = connect(trust_store, target).await?;
 
     let mut channel = session
         .channel_open_session()
@@ -114,6 +83,85 @@ pub async fn exec_command(
     output.stdout = String::from_utf8_lossy(&stdout).into_owned();
     output.stderr = String::from_utf8_lossy(&stderr).into_owned();
     Ok(output)
+}
+
+async fn connect(
+    trust_store: &SshTrustStore,
+    target: ExecTarget,
+) -> Result<Handle<ClientHandler>, String> {
+    let exec_id = Uuid::new_v4().to_string();
+    let config = client_config(None);
+    let transport = timeout(
+        CONNECT_TIMEOUT,
+        open_transport(
+            config,
+            &target.host,
+            target.port,
+            target.jumps,
+            trust_store,
+            &exec_id,
+        ),
+    )
+    .await
+    .map_err(|_| format!("Timed out connecting to {}", target.host))?;
+
+    let mut session = match transport {
+        Ok(session) => session,
+        Err(OpenTransportError::Connect { error, trust_check }) => {
+            return Err(match trust_check.lock().await.clone() {
+                Some(TrustCheck::TrustRequired(prompt)) => format!(
+                    "The host key of {}:{} is not trusted yet. Connect to it once in noverterm to verify and trust it.",
+                    prompt.host, prompt.port
+                ),
+                Some(TrustCheck::TrustMismatch(mismatch)) => format!(
+                    "The host key of {}:{} changed since it was trusted. Refusing to connect; check it in noverterm.",
+                    mismatch.host, mismatch.port
+                ),
+                _ => format!("Failed to connect: {error}"),
+            });
+        }
+        Err(OpenTransportError::Other(error)) => return Err(error),
+    };
+    authenticate_session(&mut session, &target.username, target.auth, &exec_id).await?;
+    Ok(session)
+}
+
+/// Copies one file or directory between this machine and the host over SFTP.
+/// Returns the bytes moved.
+pub async fn transfer(
+    trust_store: &SshTrustStore,
+    target: ExecTarget,
+    upload: bool,
+    local_path: &str,
+    remote_path: &str,
+    run_timeout: Duration,
+) -> Result<u64, String> {
+    let mut session = connect(trust_store, target).await?;
+    let copy = async {
+        let sftp = open_sftp_session(&mut session)
+            .await
+            .map_err(|error| error.to_string())?;
+        let id = Uuid::new_v4().to_string();
+        let cancel = TransferCancellation::new();
+        let moved = if upload {
+            sftp.upload(local_path, remote_path, id, cancel, None).await
+        } else {
+            sftp.download(remote_path, local_path, id, cancel, None)
+                .await
+        };
+        let _ = sftp.close().await;
+        moved.map_err(|error| error.to_string())
+    };
+    let result = timeout(run_timeout, copy).await;
+    let _ = session
+        .disconnect(Disconnect::ByApplication, "Transfer finished", "")
+        .await;
+    result.map_err(|_| {
+        format!(
+            "The transfer did not finish within {} seconds and was stopped",
+            run_timeout.as_secs()
+        )
+    })?
 }
 
 fn append(buffer: &mut Vec<u8>, data: &[u8], truncated: &mut bool) {

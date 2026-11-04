@@ -719,14 +719,14 @@ export type McpDecision = "allow" |
  * Allow this and later commands on the same host until the app restarts.
  */
 "allow_host" | "deny"
-export type McpSettings = { enabled: boolean; port: number }
+export type McpSettings = { port: number }
 export type McpStatus = { settings: McpSettings; running: boolean; url: string; 
 /**
- * The bearer token clients must send; present once the server was enabled.
+ * The bearer token clients must send; present once the server started.
  */
 token: string | null; 
 /**
- * Why the server is not running although it is enabled.
+ * Why the server is not running.
  */
 error: string | null }
 export type PortForwardMappingInput = { bind_host: string; bind_port: number; target_host: string; target_port: number }

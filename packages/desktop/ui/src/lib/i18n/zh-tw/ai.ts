@@ -23,7 +23,6 @@ const zhTW: Record<string, string> = {
   Insert: "插入",
 
   // MCP
-  Enabled: "啟用",
   Terminal: "終端機",
   Hide: "隱藏",
   Show: "顯示",
@@ -31,6 +30,9 @@ const zhTW: Record<string, string> = {
   Tools: "工具",
   "Lists saved hosts, without credentials.": "列出已存的主機，不含憑證。",
   "Runs a command on a host after you allow it here.": "在這裡允許後，於主機上執行指令。",
+  "Copies a local file to a host after you allow it here.": "在這裡允許後，將本機檔案複製到主機。",
+  "Copies a file from a host after you allow it here.": "在這裡允許後，從主機複製檔案到本機。",
+  Done: "完成",
   Apply: "套用",
   "Recent MCP commands": "最近的 MCP 指令",
   "exit {code}": "結束碼 {code}",

@@ -1,5 +1,5 @@
 //! An MCP server on 127.0.0.1 that lets AI clients (Claude Code and others)
-//! list saved hosts and run commands on them. Credentials, jump hosts and
+//! list saved hosts, run commands on them, and copy files to and from them. Credentials, jump hosts and
 //! host trust stay here; every command waits for the user's approval in the
 //! app before it runs.
 
@@ -22,7 +22,9 @@ use tokio::sync::{oneshot, Mutex};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::runtime::ssh::{auth_method, exec_command, ExecOutput, ExecTarget, SshHopInput};
+use crate::runtime::ssh::{
+    auth_method, exec_command, transfer, ExecOutput, ExecTarget, SshHopInput,
+};
 use crate::store::{internal_error, run_db, DbPool};
 use crate::trust::SshTrustStore;
 
@@ -33,6 +35,8 @@ const KEYRING_ACCOUNT: &str = "mcp-token";
 const APPROVAL_TIMEOUT: Duration = Duration::from_secs(120);
 const DEFAULT_RUN_TIMEOUT_SECS: u64 = 60;
 const MAX_RUN_TIMEOUT_SECS: u64 = 600;
+const DEFAULT_TRANSFER_TIMEOUT_SECS: u64 = 600;
+const MAX_TRANSFER_TIMEOUT_SECS: u64 = 3600;
 const MAX_JUMP_HOPS: usize = 5;
 const PROTOCOL_VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
@@ -51,16 +55,12 @@ struct RunningServer {
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct McpSettings {
-    pub enabled: bool,
     pub port: u16,
 }
 
 impl Default for McpSettings {
     fn default() -> Self {
-        Self {
-            enabled: false,
-            port: DEFAULT_PORT,
-        }
+        Self { port: DEFAULT_PORT }
     }
 }
 
@@ -69,9 +69,9 @@ pub struct McpStatus {
     pub settings: McpSettings,
     pub running: bool,
     pub url: String,
-    /// The bearer token clients must send; present once the server was enabled.
+    /// The bearer token clients must send; present once the server started.
     pub token: Option<String>,
-    /// Why the server is not running although it is enabled.
+    /// Why the server is not running.
     pub error: Option<String>,
 }
 
@@ -149,16 +149,18 @@ pub async fn mcp_respond(
     Ok(())
 }
 
-/// Starts the server at launch when the user left it enabled.
-pub async fn start_if_enabled<R: Runtime>(app: AppHandle<R>) {
-    match load_settings(&app).await {
-        Ok(settings) if settings.enabled => {
-            if let Err(error) = apply(&app, settings).await {
-                warn!(error, "MCP server did not start");
-            }
+/// Starts the server at launch. It listens on loopback only and every
+/// request needs the bearer token, so it always runs.
+pub async fn start<R: Runtime>(app: AppHandle<R>) {
+    let settings = match load_settings(&app).await {
+        Ok(settings) => settings,
+        Err(error) => {
+            warn!(error, "Could not read MCP settings");
+            McpSettings::default()
         }
-        Ok(_) => {}
-        Err(error) => warn!(error, "Could not read MCP settings"),
+    };
+    if let Err(error) = apply(&app, settings).await {
+        warn!(error, "MCP server did not start");
     }
 }
 
@@ -193,16 +195,13 @@ async fn load_settings<R: Runtime>(app: &AppHandle<R>) -> Result<McpSettings, St
         .unwrap_or_default())
 }
 
-/// Stops any running server, then starts one on `settings.port` if enabled.
+/// Stops any running server, then starts one on `settings.port`.
 async fn apply<R: Runtime>(app: &AppHandle<R>, settings: McpSettings) -> Result<(), String> {
     let state = app.state::<McpState>();
     let mut server = state.server.lock().await;
     if let Some(running) = server.take() {
         let _ = running.shutdown.send(());
         info!(port = running.port, "MCP server stopped");
-    }
-    if !settings.enabled {
-        return Ok(());
     }
 
     let token = match keyring_entry()?.get_password() {
@@ -319,8 +318,8 @@ async fn handle<R: Runtime>(
                     "protocolVersion": version,
                     "capabilities": { "tools": { "listChanged": false } },
                     "serverInfo": { "name": "noverterm", "version": env!("CARGO_PKG_VERSION") },
-                    "instructions": "Run shell commands on the user's saved SSH hosts. \
-                        Call list_hosts first. Every command needs the user's approval in noverterm, \
+                    "instructions": "Run shell commands on the user's saved SSH hosts and copy files to and from them. \
+                        Call list_hosts first. Every command and transfer needs the user's approval in noverterm, \
                         so explain why you run it and prefer read-only commands.",
                 }),
             )
@@ -385,7 +384,30 @@ fn tools() -> Value {
             },
             "annotations": { "destructiveHint": true, "openWorldHint": true },
         },
+        transfer_tool("upload_file", "Copy a local file or directory to a saved host over SFTP. Overwrites the remote path."),
+        transfer_tool("download_file", "Copy a file or directory from a saved host to this machine over SFTP. Overwrites the local path."),
     ])
+}
+
+fn transfer_tool(name: &str, description: &str) -> Value {
+    json!({
+        "name": name,
+        "description": format!("{description} The user approves each transfer in noverterm first."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "host": { "type": "string", "description": "Host name from list_hosts." },
+                "local_path": { "type": "string", "description": "Absolute path on this machine." },
+                "remote_path": { "type": "string", "description": "Path on the host; relative paths start in the user's home." },
+                "timeout_secs": {
+                    "type": "integer",
+                    "description": "Stop the transfer after this many seconds (default 600, max 3600).",
+                },
+            },
+            "required": ["host", "local_path", "remote_path"],
+        },
+        "annotations": { "destructiveHint": true, "openWorldHint": true },
+    })
 }
 
 async fn call_tool<R: Runtime>(app: &AppHandle<R>, params: &Value) -> Result<String, String> {
@@ -403,6 +425,28 @@ async fn call_tool<R: Runtime>(app: &AppHandle<R>, params: &Value) -> Result<Str
                 .unwrap_or(DEFAULT_RUN_TIMEOUT_SECS)
                 .clamp(1, MAX_RUN_TIMEOUT_SECS);
             run_command(app, host, command, Duration::from_secs(run_timeout)).await
+        }
+        name @ ("upload_file" | "download_file") => {
+            let host = arguments["host"].as_str().unwrap_or_default().trim();
+            let local = arguments["local_path"].as_str().unwrap_or_default().trim();
+            let remote = arguments["remote_path"].as_str().unwrap_or_default().trim();
+            if host.is_empty() || remote.is_empty() || !std::path::Path::new(local).is_absolute() {
+                return Err("host, remote_path and an absolute local_path are required".to_string());
+            }
+            let run_timeout = arguments["timeout_secs"]
+                .as_u64()
+                .unwrap_or(DEFAULT_TRANSFER_TIMEOUT_SECS)
+                .clamp(1, MAX_TRANSFER_TIMEOUT_SECS);
+            let upload = name == "upload_file";
+            transfer_file(
+                app,
+                host,
+                upload,
+                local,
+                remote,
+                Duration::from_secs(run_timeout),
+            )
+            .await
         }
         name => Err(format!("Unknown tool: {name}")),
     }
@@ -434,6 +478,54 @@ async fn run_command<R: Runtime>(
     command: &str,
     run_timeout: Duration,
 ) -> Result<String, String> {
+    let (host_name, target) = approved_target(app, host_ref, command).await?;
+    let trust_store = app.state::<SshTrustStore>().inner().clone();
+    let result = exec_command(&trust_store, target, command, run_timeout).await;
+    match &result {
+        Ok(output) => emit_activity(app, &host_name, command, "finished", output.exit_status),
+        Err(_) => emit_activity(app, &host_name, command, "failed", None),
+    }
+    result.map(|output| format_output(&output))
+}
+
+async fn transfer_file<R: Runtime>(
+    app: &AppHandle<R>,
+    host_ref: &str,
+    upload: bool,
+    local_path: &str,
+    remote_path: &str,
+    run_timeout: Duration,
+) -> Result<String, String> {
+    // Shown in the approval dialog and activity log in place of a command.
+    let summary = if upload {
+        format!("upload {local_path} -> {remote_path}")
+    } else {
+        format!("download {remote_path} -> {local_path}")
+    };
+    let (host_name, target) = approved_target(app, host_ref, &summary).await?;
+    let trust_store = app.state::<SshTrustStore>().inner().clone();
+    let result = transfer(
+        &trust_store,
+        target,
+        upload,
+        local_path,
+        remote_path,
+        run_timeout,
+    )
+    .await;
+    match &result {
+        Ok(_) => emit_activity(app, &host_name, &summary, "finished", None),
+        Err(_) => emit_activity(app, &host_name, &summary, "failed", None),
+    }
+    result.map(|bytes| format!("Copied {bytes} bytes ({summary})"))
+}
+
+/// Resolves a saved host into a connect target once the user approves `action` on it.
+async fn approved_target<R: Runtime>(
+    app: &AppHandle<R>,
+    host_ref: &str,
+    action: &str,
+) -> Result<(String, ExecTarget), String> {
     let (hosts, keys) = load_hosts(app).await?;
     let host = find_host(&hosts, host_ref)?;
     let by_id: HashMap<&str, &SshHost> =
@@ -457,22 +549,10 @@ async fn run_command<R: Runtime>(
     let auth = auth_method(password, private_key, passphrase)
         .map_err(|_| format!("{} has no saved password or SSH key", host.name))?;
 
-    let activity = |status: &str, exit_status: Option<u32>| {
-        let _ = app.emit(
-            "mcp_activity",
-            McpActivity {
-                host_name: host.name.clone(),
-                command: command.to_string(),
-                status: status.to_string(),
-                exit_status,
-            },
-        );
-    };
-    if !approve(app, host, command).await {
-        activity("denied", None);
-        return Err("The user denied this command in noverterm.".to_string());
+    if !approve(app, host, action).await {
+        emit_activity(app, &host.name, action, "denied", None);
+        return Err("The user denied this in noverterm.".to_string());
     }
-
     let target = ExecTarget {
         host: host.host.clone(),
         port: port(host)?,
@@ -480,17 +560,25 @@ async fn run_command<R: Runtime>(
         auth,
         jumps,
     };
-    let trust_store = app.state::<SshTrustStore>().inner().clone();
-    match exec_command(&trust_store, target, command, run_timeout).await {
-        Ok(output) => {
-            activity("finished", output.exit_status);
-            Ok(format_output(&output))
-        }
-        Err(error) => {
-            activity("failed", None);
-            Err(error)
-        }
-    }
+    Ok((host.name.clone(), target))
+}
+
+fn emit_activity<R: Runtime>(
+    app: &AppHandle<R>,
+    host_name: &str,
+    command: &str,
+    status: &str,
+    exit_status: Option<u32>,
+) {
+    let _ = app.emit(
+        "mcp_activity",
+        McpActivity {
+            host_name: host_name.to_string(),
+            command: command.to_string(),
+            status: status.to_string(),
+            exit_status,
+        },
+    );
 }
 
 /// Asks the user in the app; `true` once they allow it.
@@ -765,7 +853,7 @@ mod tests {
         .await;
         assert_eq!(init["result"]["protocolVersion"], "2025-03-26");
         let tools = rpc(&server, "tools/list", json!({})).await;
-        assert_eq!(tools["result"]["tools"].as_array().unwrap().len(), 2);
+        assert_eq!(tools["result"]["tools"].as_array().unwrap().len(), 4);
 
         insert_host(&server, "web", "web.test", 22, "pw");
         let listed = rpc(&server, "tools/call", json!({ "name": "list_hosts" })).await;

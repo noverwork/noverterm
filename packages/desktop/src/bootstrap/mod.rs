@@ -173,7 +173,7 @@ pub fn run() {
             app.manage(transfer_state);
 
             app.manage(crate::mcp::McpState::default());
-            tauri::async_runtime::spawn(crate::mcp::start_if_enabled(app.handle().clone()));
+            tauri::async_runtime::spawn(crate::mcp::start(app.handle().clone()));
 
             #[cfg(debug_assertions)]
             {

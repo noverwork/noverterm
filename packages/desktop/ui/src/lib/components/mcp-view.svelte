@@ -40,10 +40,10 @@
     error = next.error;
   }
 
-  async function configure(enabled: boolean) {
+  async function configure() {
     saving = true;
     error = null;
-    const result = await commands.mcpConfigure({ enabled, port });
+    const result = await commands.mcpConfigure({ port });
     if (result.status === "ok") setStatus(result.data);
     else error = result.error;
     saving = false;
@@ -101,15 +101,6 @@
   <section class="flex min-h-0 flex-1 flex-col overflow-hidden p-5 text-stencil sm:p-6">
     <div class="flex items-center gap-4 border-b border-white/10 pb-5">
       <h1 class="flex-1 text-2xl font-semibold tracking-tight">MCP</h1>
-      <label for="mcp-enabled" class="text-sm text-stencil-mute">{t("Enabled")}</label>
-      <input
-        id="mcp-enabled"
-        type="checkbox"
-        class="size-4 accent-stencil"
-        checked={status?.settings.enabled ?? false}
-        disabled={saving || status === null}
-        onchange={(event) => void configure(event.currentTarget.checked)}
-      />
     </div>
 
     <div class="mt-6 min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
@@ -125,12 +116,12 @@
             bind:value={port}
             disabled={saving}
           />
-          {#if status?.settings.enabled && port !== status.settings.port}
+          {#if status && port !== status.settings.port}
             <Button
               variant="outline"
               size="sm"
               class="rounded-[2px] border-white/10 bg-transparent text-stencil hover:border-white/20 hover:bg-white/5"
-              onclick={() => void configure(true)}
+              onclick={() => void configure()}
               disabled={saving}
             >
               {t("Apply")}
@@ -205,6 +196,10 @@
             <dd class="text-stencil-dim">{t("Lists saved hosts, without credentials.")}</dd>
             <dt class="font-mono text-xs text-stencil">run_command</dt>
             <dd class="text-stencil-dim">{t("Runs a command on a host after you allow it here.")}</dd>
+            <dt class="font-mono text-xs text-stencil">upload_file</dt>
+            <dd class="text-stencil-dim">{t("Copies a local file to a host after you allow it here.")}</dd>
+            <dt class="font-mono text-xs text-stencil">download_file</dt>
+            <dd class="text-stencil-dim">{t("Copies a file from a host after you allow it here.")}</dd>
           </dl>
         </div>
       {/if}
@@ -216,14 +211,16 @@
             {#each activity as entry, index (index)}
               <li class="flex items-center gap-2 text-xs">
                 <span
-                  class={entry.status === "finished" && entry.exit_status === 0
+                  class={entry.status === "finished" && (entry.exit_status ?? 0) === 0
                     ? "text-emerald-400"
                     : entry.status === "denied"
                       ? "text-stencil-mute"
                       : "text-red-300"}
                 >
                   {entry.status === "finished"
-                    ? t("exit {code}", { code: entry.exit_status ?? "?" })
+                    ? entry.exit_status === null
+                      ? t("Done")
+                      : t("exit {code}", { code: entry.exit_status })
                     : entry.status === "denied"
                       ? t("Denied")
                       : t("Failed")}
