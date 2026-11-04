@@ -193,13 +193,13 @@
           <h2 class="section-title">{t("Tools")}</h2>
           <dl class="mt-3 grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-sm">
             <dt class="font-mono text-xs text-stencil">list_hosts</dt>
-            <dd class="text-stencil-dim">{t("Lists saved hosts, without credentials.")}</dd>
+            <dd class="text-stencil-dim">{t("Lists saved hosts.")}</dd>
             <dt class="font-mono text-xs text-stencil">run_command</dt>
-            <dd class="text-stencil-dim">{t("Runs a command on a host after you allow it here.")}</dd>
+            <dd class="text-stencil-dim">{t("Runs a command on a host.")}</dd>
             <dt class="font-mono text-xs text-stencil">upload_file</dt>
-            <dd class="text-stencil-dim">{t("Copies a local file to a host after you allow it here.")}</dd>
+            <dd class="text-stencil-dim">{t("Uploads a file to a host.")}</dd>
             <dt class="font-mono text-xs text-stencil">download_file</dt>
-            <dd class="text-stencil-dim">{t("Copies a file from a host after you allow it here.")}</dd>
+            <dd class="text-stencil-dim">{t("Downloads a file from a host.")}</dd>
           </dl>
         </div>
       {/if}
