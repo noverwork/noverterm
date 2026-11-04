@@ -136,6 +136,18 @@ pub async fn mcp_configure(app: AppHandle, settings: McpSettings) -> Result<McpS
     status(&app, error).await
 }
 
+/// Replaces the token and restarts the server; clients set up with the old one stop working.
+#[tauri::command]
+#[specta::specta]
+pub async fn mcp_regenerate_token(app: AppHandle) -> Result<McpStatus, String> {
+    match keyring_entry()?.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => {}
+        Err(error) => return Err(format!("Could not remove the MCP token: {error}")),
+    }
+    let error = apply(&app, load_settings(&app).await?).await.err();
+    status(&app, error).await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn mcp_respond(

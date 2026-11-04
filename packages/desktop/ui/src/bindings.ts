@@ -85,6 +85,17 @@ async mcpConfigure(settings: McpSettings) : Promise<Result<McpStatus, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Replaces the token and restarts the server; clients set up with the old one stop working.
+ */
+async mcpRegenerateToken() : Promise<Result<McpStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("mcp_regenerate_token") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async mcpRespond(requestId: string, decision: McpDecision) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("mcp_respond", { requestId, decision }) };

@@ -34,6 +34,8 @@ const zhTW: Record<string, string> = {
   "Downloads a file from a host.": "從主機下載檔案。",
   Done: "完成",
   Apply: "套用",
+  Regenerate: "重新產生",
+  "Clients using the current token will stop working. Regenerate it?": "使用目前 token 的用戶端將無法連線。要重新產生嗎？",
   "Recent MCP commands": "最近的 MCP 指令",
   "exit {code}": "結束碼 {code}",
   Denied: "已拒絕",

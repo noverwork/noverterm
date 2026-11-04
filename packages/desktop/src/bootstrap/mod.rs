@@ -29,6 +29,7 @@ fn command_builder() -> Builder<tauri::Wry> {
             crate::ai::ai_has_api_key,
             crate::mcp::mcp_status,
             crate::mcp::mcp_configure,
+            crate::mcp::mcp_regenerate_token,
             crate::mcp::mcp_respond,
             crate::store::ssh_config::ssh_config_scan,
             crate::store::ssh_config::ssh_config_import,

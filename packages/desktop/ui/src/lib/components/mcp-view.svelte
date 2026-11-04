@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Check, Copy, Eye, EyeOff } from "@lucide/svelte";
+  import { Check, Copy, Eye, EyeOff, RefreshCw } from "@lucide/svelte";
 
   import { commands, type McpStatus } from "../../bindings.js";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -44,6 +44,18 @@
     saving = true;
     error = null;
     const result = await commands.mcpConfigure({ port });
+    if (result.status === "ok") setStatus(result.data);
+    else error = result.error;
+    saving = false;
+  }
+
+  async function regenerateToken() {
+    if (!window.confirm(t("Clients using the current token will stop working. Regenerate it?"))) {
+      return;
+    }
+    saving = true;
+    error = null;
+    const result = await commands.mcpRegenerateToken();
     if (result.status === "ok") setStatus(result.data);
     else error = result.error;
     saving = false;
@@ -151,6 +163,16 @@
               {#if reveal}<EyeOff class="size-3" />{:else}<Eye class="size-3" />{/if}
             </Button>
             {@render copyButton("token", running.token!)}
+            <Button
+              variant="ghost"
+              size="sm"
+              class="h-6 gap-1.5 rounded-[2px] px-2 text-xs text-stencil-mute hover:bg-white/10 hover:text-stencil"
+              onclick={() => void regenerateToken()}
+              disabled={saving}
+            >
+              <RefreshCw class="size-3" />
+              {t("Regenerate")}
+            </Button>
           </div>
         {/if}
       </div>
