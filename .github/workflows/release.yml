@@ -36,6 +36,14 @@ jobs:
               target/release/bundle/msi/*.msi.sig
               target/release/bundle/nsis/*.exe
               target/release/bundle/nsis/*.exe.sig
+          - os: ubuntu-22.04
+            rust_target: x86_64-unknown-linux-gnu
+            artifact_name: noverterm-linux-release
+            artifact_paths: |
+              target/release/bundle/appimage/*.AppImage
+              target/release/bundle/appimage/*.AppImage.sig
+              target/release/bundle/deb/*.deb
+              target/release/bundle/rpm/*.rpm
 
     steps:
       - uses: actions/checkout@v4
@@ -66,6 +74,21 @@ jobs:
           
           console.log(`Set version to ${version}`);
           JS
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libdbus-1-dev \
+            pkg-config
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -139,8 +162,10 @@ jobs:
           const macSignature = `${macArchive}.sig`;
           const windowsInstaller = findFile(files, (file) => file.endsWith('-setup.exe'), 'Windows NSIS updater installer');
           const windowsSignature = `${windowsInstaller}.sig`;
+          const linuxAppImage = findFile(files, (file) => file.endsWith('.AppImage'), 'Linux AppImage');
+          const linuxSignature = `${linuxAppImage}.sig`;
 
-          for (const signature of [macSignature, windowsSignature]) {
+          for (const signature of [macSignature, windowsSignature, linuxSignature]) {
             if (!fs.existsSync(signature)) {
               throw new Error(`missing signature ${signature}`);
             }
@@ -158,6 +183,10 @@ jobs:
               'windows-x86_64': {
                 signature: fs.readFileSync(windowsSignature, 'utf8').trim(),
                 url: `${baseUrl}/${path.basename(windowsInstaller)}`,
+              },
+              'linux-x86_64': {
+                signature: fs.readFileSync(linuxSignature, 'utf8').trim(),
+                url: `${baseUrl}/${path.basename(linuxAppImage)}`,
               },
             },
           };

@@ -50,7 +50,7 @@ portable-pty = "0.8"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 reqwest = { version = "0.13", features = ["json"] }
-keyring = { version = "3", features = ["apple-native", "windows-native"] }
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 axum = { version = "0.8", default-features = false, features = ["tokio", "http1", "json"] }
 
 [dev-dependencies]
