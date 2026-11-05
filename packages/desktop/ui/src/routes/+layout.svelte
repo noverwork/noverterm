@@ -641,12 +641,7 @@
                           class="pointer-events-none relative z-10 shrink-0 bg-stencil px-1 text-[11px] leading-4 tracking-[0.14em] text-seal"
                           >HELD</span
                         >
-                      {:else if session.status === "connected"}
-                        <span
-                          class="pointer-events-none relative z-10 size-2 shrink-0 rounded-full bg-current"
-                          aria-hidden="true"
-                        ></span>
-                      {:else}
+                      {:else if session.status !== "connected"}
                         <span
                           class="pointer-events-none relative z-10 size-2 shrink-0 rounded-full border-2 border-current"
                           aria-hidden="true"
