@@ -159,7 +159,7 @@
     startMcpEvents();
     window.addEventListener("contextmenu", handleGlobalContextMenu);
     await app.init();
-    void checkForAppUpdate();
+    checkForAppUpdate().catch((error) => console.warn("Failed to check for app updates", error));
     updateSessionTabScrollIndicators();
   });
 

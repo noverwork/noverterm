@@ -20,6 +20,7 @@
   let appVersion = $state("");
   let checking = $state(false);
   let updateStatus = $state<"idle" | "checking" | "up-to-date" | "error">("idle");
+  let updateError = $state("");
   let backingUp = $state(false);
   let backupNotice = $state<string | null>(null);
   let backupError = $state<string | null>(null);
@@ -52,7 +53,8 @@
       await checkForAppUpdate();
       updateStatus = "up-to-date";
       setTimeout(() => (updateStatus = "idle"), 3000);
-    } catch {
+    } catch (error) {
+      updateError = String(error);
       updateStatus = "error";
       setTimeout(() => (updateStatus = "idle"), 3000);
     } finally {
@@ -156,7 +158,7 @@
           </div>
 
           {#if updateStatus === "error"}
-            <p class="mt-2 text-xs text-red-300">{t("Failed to check for updates")}</p>
+            <p class="mt-2 text-xs text-red-300">{t("Failed to check for updates")}: {updateError}</p>
           {/if}
         </div>
 
