@@ -73,6 +73,14 @@ Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fa
 
 Get the latest version from [Releases](https://github.com/noverwork/noverterm/releases). Noverterm checks for updates on its own after install.
 
+On macOS, install from the terminal (builds are not notarized, so this avoids the Gatekeeper prompt):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/noverwork/noverterm/main/install.sh | sh
+```
+
+If you install the `.dmg` instead, macOS blocks the first launch. Open **System Settings → Privacy & Security** and click **Open Anyway**, or run `xattr -dr com.apple.quarantine /Applications/noverterm.app`.
+
 ## Quick Start
 
 1. Open Noverterm and click **New connection**.
