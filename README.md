@@ -14,7 +14,7 @@
 
 > _Screenshots coming soon._
 
-Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fast window. It uses about 50MB of memory, compared to 500MB+ for Electron-based SSH clients. All data stays in a local SQLite database. No account, no cloud sync.
+Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fast window. A built-in MCP server lets AI agents such as Claude Code and Cursor run commands on your hosts, each one approved by you. It uses about 50MB of memory, compared to 500MB+ for Electron-based SSH clients. All data stays in a local SQLite database. No account, no cloud sync.
 
 ## Highlights
 
@@ -22,6 +22,7 @@ Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fa
 - **Tabs for everything** — many SSH sessions, plus a local terminal, side by side
 - **TUI-ready** — Kitty keyboard protocol, IME input, and paste handling for vim, tmux, and htop
 - **Dual-pane SFTP** — local or any saved host on each side, drag and drop between them
+- **MCP server for AI agents** — Claude Code, Cursor, VS Code, and Claude Desktop can run commands on your hosts, with your approval
 - **Local-first** — connections, keys, and snippets never leave your machine
 
 ## Features
@@ -58,6 +59,15 @@ Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fa
 - Organize connections into folders
 - Reach private servers through jump hosts (like `ssh -J`), chained up to five hops; terminal, SFTP, and port forwarding all tunnel through them
 - Import and manage SSH keys
+
+### MCP server for AI agents
+
+- Turn on the built-in MCP server, then paste the ready-made command into Claude Code, Cursor, VS Code, or Claude Desktop
+- Tools: `list_hosts` lists your saved hosts, `run_command` runs a shell command on one of them, `upload_file` and `download_file` copy files and folders over SFTP
+- Every command and transfer needs your approval: allow once, always allow a host until the app restarts, or deny; unanswered requests are denied after two minutes
+- Listens on 127.0.0.1 only, behind a token kept in the system keychain
+- Passwords and keys stay in Noverterm; the agent sees host names, never credentials
+- Hosts must pass their fingerprint check, and jump hosts work as they do in the terminal
 
 ### App
 
