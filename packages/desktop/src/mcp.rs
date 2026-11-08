@@ -1,7 +1,8 @@
 //! An MCP server on 127.0.0.1 that lets AI clients (Claude Code and others)
-//! list saved hosts, run commands on them, and copy files to and from them. Credentials, jump hosts and
-//! host trust stay here; every command waits for the user's approval in the
-//! app before it runs.
+//! work on saved hosts: run commands (also in the background), read and write
+//! files, run snippets, open port forwards, and read open terminal tabs.
+//! Credentials, jump hosts and host trust stay here; everything that touches
+//! a host or a terminal waits for the user's approval in the app first.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex as StdMutex};
@@ -17,14 +18,22 @@ use diesel::prelude::*;
 use orm::models::{SshHost, SshKey};
 use orm::schema::{settings, ssh_hosts, ssh_keys};
 use serde_json::{json, Value};
-use tauri::{AppHandle, Emitter, Manager, Runtime};
-use tokio::sync::{oneshot, Mutex};
+use shared::SnippetRecord;
+use tauri::{AppHandle, Emitter, Listener, Manager, Runtime};
+use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::task::JoinSet;
+use tokio::time::timeout;
 use tracing::{info, warn};
 use uuid::Uuid;
 
+use crate::runtime::port_forward::{PortForwardAuth, PortForwardCreateInput, PortForwardManager};
+use crate::runtime::sftp::{FileType, SftpError};
 use crate::runtime::ssh::{
-    auth_method, exec_command, transfer, ExecOutput, ExecTarget, SshHopInput,
+    auth_method, exec_command, open_sftp, spawn_command, transfer, AuthMethod, BackgroundCommand,
+    ExecOutput, ExecTarget, RemoteSftp, SshHopInput,
 };
+use crate::runtime::terminal_output::TerminalOutput;
+use crate::store::snippets::load_snippets;
 use crate::store::{internal_error, run_db, DbPool};
 use crate::trust::SshTrustStore;
 
@@ -39,13 +48,35 @@ const DEFAULT_TRANSFER_TIMEOUT_SECS: u64 = 600;
 const MAX_TRANSFER_TIMEOUT_SECS: u64 = 3600;
 const MAX_JUMP_HOPS: usize = 5;
 const PROTOCOL_VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
+const SFTP_TIMEOUT: Duration = Duration::from_secs(60);
+const READ_FILE_LIMIT: usize = 256 * 1024;
+const WRITE_FILE_LIMIT: usize = 1024 * 1024;
+const MAX_MULTI_HOSTS: usize = 20;
+const MAX_BACKGROUND: usize = 10;
+const DEFAULT_READ_WAIT_SECS: u64 = 5;
+const MAX_READ_WAIT_SECS: u64 = 60;
+const DEFAULT_TERMINAL_LINES: u64 = 200;
+const MAX_TERMINAL_LINES: u64 = 2000;
+const FORWARD_START_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Default)]
 pub struct McpState {
     server: Mutex<Option<RunningServer>>,
     pending: StdMutex<HashMap<String, oneshot::Sender<McpDecision>>>,
-    /// Hosts the user allowed for every command until the app restarts.
+    /// Hosts (or terminals) the user allowed for everything until the app restarts.
     allowed_hosts: StdMutex<HashSet<String>>,
+    /// Commands started with `start_command`, by id.
+    background: StdMutex<HashMap<String, Arc<Background>>>,
+    /// Port forwards started over MCP; only these can be stopped over MCP.
+    forwards: StdMutex<HashSet<String>>,
+}
+
+struct Background {
+    host_id: String,
+    host_name: String,
+    target: String,
+    command: String,
+    process: BackgroundCommand,
 }
 
 struct RunningServer {
@@ -96,7 +127,7 @@ pub struct McpApprovalRequest {
 pub struct McpActivity {
     pub host_name: String,
     pub command: String,
-    /// `denied`, `failed`, or `finished`.
+    /// `started`, `denied`, `failed`, or `finished`.
     pub status: String,
     pub exit_status: Option<u32>,
 }
@@ -330,9 +361,10 @@ async fn handle<R: Runtime>(
                     "protocolVersion": version,
                     "capabilities": { "tools": { "listChanged": false } },
                     "serverInfo": { "name": "noverterm", "version": env!("CARGO_PKG_VERSION") },
-                    "instructions": "Run shell commands on the user's saved SSH hosts and copy files to and from them. \
-                        Call list_hosts first. Every command and transfer needs the user's approval in noverterm, \
-                        so explain why you run it and prefer read-only commands.",
+                    "instructions": "Work on the user's saved SSH hosts: run commands, read and write files, \
+                        run saved snippets, open port forwards, and read open terminal tabs. \
+                        Call list_hosts first. Everything that touches a host or terminal needs the user's approval \
+                        in noverterm, so explain why you do it and prefer read-only actions.",
                 }),
             )
         }
@@ -371,96 +403,259 @@ fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
 }
 
 fn tools() -> Value {
+    let host = json!({ "type": "string", "description": "Host name from list_hosts." });
+    let remote_path = json!({ "type": "string", "description": "Path on the host; relative paths start in the user's home." });
+    let run_timeout = json!({ "type": "integer", "description": "Stop the command after this many seconds (default 60, max 600)." });
+    let transfer_properties = json!({
+        "host": host,
+        "local_path": { "type": "string", "description": "Absolute path on this machine." },
+        "remote_path": remote_path,
+        "timeout_secs": { "type": "integer", "description": "Stop the transfer after this many seconds (default 600, max 3600)." },
+    });
+    let command_id = json!({ "type": "string", "description": "Id that start_command returned." });
     json!([
-        {
-            "name": "list_hosts",
-            "description": "List the SSH hosts saved in noverterm: name, user@host:port, and any jump hosts it connects through.",
-            "inputSchema": { "type": "object", "properties": {} },
-            "annotations": { "readOnlyHint": true },
-        },
-        {
-            "name": "run_command",
-            "description": "Run a non-interactive shell command on a saved host and return its exit status, stdout and stderr. \
-                The user approves each command in noverterm first. No TTY: avoid commands that prompt for input.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "host": { "type": "string", "description": "Host name from list_hosts." },
-                    "command": { "type": "string", "description": "Shell command to run." },
-                    "timeout_secs": {
-                        "type": "integer",
-                        "description": "Stop the command after this many seconds (default 60, max 600).",
-                    },
-                },
-                "required": ["host", "command"],
-            },
-            "annotations": { "destructiveHint": true, "openWorldHint": true },
-        },
-        transfer_tool("upload_file", "Copy a local file or directory to a saved host over SFTP. Overwrites the remote path."),
-        transfer_tool("download_file", "Copy a file or directory from a saved host to this machine over SFTP. Overwrites the local path."),
+        tool("list_hosts", "List the SSH hosts saved in noverterm: name, user@host:port, and any jump hosts it connects through.",
+            json!({}), &[], true),
+        tool("run_command", "Run a non-interactive shell command on a saved host and return its exit status, stdout and stderr. \
+                No TTY: avoid commands that prompt for input; use start_command for those and for long-running ones.",
+            json!({ "host": host, "command": { "type": "string", "description": "Shell command to run." }, "timeout_secs": run_timeout }),
+            &["host", "command"], false),
+        tool("run_command_multi", "Run the same non-interactive shell command on several saved hosts at once. \
+                The user approves it on each host; results come back per host.",
+            json!({
+                "hosts": { "type": "array", "items": { "type": "string" }, "description": "Host names from list_hosts (max 20)." },
+                "command": { "type": "string", "description": "Shell command to run." },
+                "timeout_secs": run_timeout,
+            }),
+            &["hosts", "command"], false),
+        tool("upload_file", "Copy a local file or directory to a saved host over SFTP. Overwrites the remote path.",
+            transfer_properties.clone(), &["host", "local_path", "remote_path"], false),
+        tool("download_file", "Copy a file or directory from a saved host to this machine over SFTP. Overwrites the local path.",
+            transfer_properties, &["host", "local_path", "remote_path"], false),
+        tool("list_dir", "List a directory on a saved host over SFTP: type, size and name of each entry.",
+            json!({ "host": host, "path": { "type": "string", "description": "Directory on the host (default: the user's home)." } }),
+            &["host"], true),
+        tool("read_file", "Read a text file on a saved host over SFTP (first 256 KiB). Use download_file for binary or larger files.",
+            json!({ "host": host, "path": remote_path }), &["host", "path"], true),
+        tool("write_file", "Create or overwrite a text file on a saved host over SFTP with the given content (max 1 MiB).",
+            json!({ "host": host, "path": remote_path, "content": { "type": "string", "description": "The whole new file content." } }),
+            &["host", "path", "content"], false),
+        tool("list_snippets", "List the command snippets the user saved in noverterm, with the host each belongs to.",
+            json!({}), &[], true),
+        tool("run_snippet", "Run a saved snippet as a non-interactive command, on its own host unless host is given.",
+            json!({
+                "snippet": { "type": "string", "description": "Snippet title from list_snippets." },
+                "host": { "type": "string", "description": "Host to run it on; needed for local terminal snippets." },
+                "timeout_secs": run_timeout,
+            }),
+            &["snippet"], false),
+        tool("list_port_forwards", "List the port forwards running in noverterm, including ones the user started.",
+            json!({}), &[], true),
+        tool("start_port_forward", "Forward a port on 127.0.0.1 of this machine to target_host:target_port as seen from a saved host, \
+                e.g. to reach a database that only listens on the host. Returns the local port and the forward id.",
+            json!({
+                "host": host,
+                "target_port": { "type": "integer", "description": "Port to reach from the host." },
+                "target_host": { "type": "string", "description": "Address to reach from the host (default 127.0.0.1)." },
+                "local_port": { "type": "integer", "description": "Local port to listen on (default: any free port)." },
+            }),
+            &["host", "target_port"], false),
+        tool("stop_port_forward", "Stop a port forward that start_port_forward opened.",
+            json!({ "id": { "type": "string", "description": "Forward id from start_port_forward." } }), &["id"], false),
+        tool("start_command", "Start a long-running or interactive command on a saved host and return its id at once. \
+                Follow with read_command for output, write_command for input, and stop_command when done.",
+            json!({
+                "host": host,
+                "command": { "type": "string", "description": "Shell command to run." },
+                "tty": { "type": "boolean", "description": "Give the command a terminal, for programs that need one such as sudo prompts (default false)." },
+            }),
+            &["host", "command"], false),
+        tool("read_command", "Read the output a started command printed since the last read, and whether it finished.",
+            json!({
+                "id": command_id,
+                "wait_secs": { "type": "integer", "description": "Wait up to this many seconds for new output (default 5, max 60)." },
+            }),
+            &["id"], true),
+        tool("write_command", "Send input to a started command's stdin. Include a trailing newline to submit a line.",
+            json!({
+                "id": command_id,
+                "input": { "type": "string", "description": "Text to send." },
+                "close_stdin": { "type": "boolean", "description": "Close stdin after sending (default false)." },
+            }),
+            &["id"], false),
+        tool("stop_command", "Stop a started command and forget it.", json!({ "id": command_id }), &["id"], false),
+        tool("list_terminals", "List the terminal tabs open in noverterm: id and what each is connected to.",
+            json!({}), &[], true),
+        tool("read_terminal", "Read the recent output of an open terminal tab as plain text, to see what the user sees.",
+            json!({
+                "terminal": { "type": "string", "description": "Terminal id from list_terminals." },
+                "lines": { "type": "integer", "description": "How many of the last lines to return (default 200, max 2000)." },
+            }),
+            &["terminal"], true),
     ])
 }
 
-fn transfer_tool(name: &str, description: &str) -> Value {
+fn tool(
+    name: &str,
+    description: &str,
+    properties: Value,
+    required: &[&str],
+    read_only: bool,
+) -> Value {
+    let (description, annotations) = if read_only {
+        (description.to_string(), json!({ "readOnlyHint": true }))
+    } else {
+        (
+            format!("{description} The user approves it in noverterm first."),
+            json!({ "destructiveHint": true, "openWorldHint": true }),
+        )
+    };
     json!({
         "name": name,
-        "description": format!("{description} The user approves each transfer in noverterm first."),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "host": { "type": "string", "description": "Host name from list_hosts." },
-                "local_path": { "type": "string", "description": "Absolute path on this machine." },
-                "remote_path": { "type": "string", "description": "Path on the host; relative paths start in the user's home." },
-                "timeout_secs": {
-                    "type": "integer",
-                    "description": "Stop the transfer after this many seconds (default 600, max 3600).",
-                },
-            },
-            "required": ["host", "local_path", "remote_path"],
-        },
-        "annotations": { "destructiveHint": true, "openWorldHint": true },
+        "description": description,
+        "inputSchema": { "type": "object", "properties": properties, "required": required },
+        "annotations": annotations,
     })
 }
 
 async fn call_tool<R: Runtime>(app: &AppHandle<R>, params: &Value) -> Result<String, String> {
-    let arguments = &params["arguments"];
+    let args = &params["arguments"];
+    let run_timeout = || {
+        seconds(
+            args,
+            "timeout_secs",
+            DEFAULT_RUN_TIMEOUT_SECS,
+            MAX_RUN_TIMEOUT_SECS,
+        )
+    };
     match params["name"].as_str().unwrap_or_default() {
         "list_hosts" => list_hosts(app).await,
         "run_command" => {
-            let host = arguments["host"].as_str().unwrap_or_default().trim();
-            let command = arguments["command"].as_str().unwrap_or_default().trim();
-            if host.is_empty() || command.is_empty() {
-                return Err("Both host and command are required".to_string());
+            let (host, command) = (required(args, "host")?, required(args, "command")?);
+            run_command(app, host, command, run_timeout()).await
+        }
+        "run_command_multi" => {
+            let hosts: Vec<String> = args["hosts"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|host| host.as_str().map(|host| host.trim().to_string()))
+                .filter(|host| !host.is_empty())
+                .collect();
+            if hosts.is_empty() || hosts.len() > MAX_MULTI_HOSTS {
+                return Err(format!("hosts must list 1 to {MAX_MULTI_HOSTS} host names"));
             }
-            let run_timeout = arguments["timeout_secs"]
-                .as_u64()
-                .unwrap_or(DEFAULT_RUN_TIMEOUT_SECS)
-                .clamp(1, MAX_RUN_TIMEOUT_SECS);
-            run_command(app, host, command, Duration::from_secs(run_timeout)).await
+            run_command_multi(app, hosts, required(args, "command")?, run_timeout()).await
         }
         name @ ("upload_file" | "download_file") => {
-            let host = arguments["host"].as_str().unwrap_or_default().trim();
-            let local = arguments["local_path"].as_str().unwrap_or_default().trim();
-            let remote = arguments["remote_path"].as_str().unwrap_or_default().trim();
-            if host.is_empty() || remote.is_empty() || !std::path::Path::new(local).is_absolute() {
-                return Err("host, remote_path and an absolute local_path are required".to_string());
+            let (host, local, remote) = (
+                required(args, "host")?,
+                required(args, "local_path")?,
+                required(args, "remote_path")?,
+            );
+            if !std::path::Path::new(local).is_absolute() {
+                return Err("local_path must be absolute".to_string());
             }
-            let run_timeout = arguments["timeout_secs"]
-                .as_u64()
-                .unwrap_or(DEFAULT_TRANSFER_TIMEOUT_SECS)
-                .clamp(1, MAX_TRANSFER_TIMEOUT_SECS);
-            let upload = name == "upload_file";
+            let transfer_timeout = seconds(
+                args,
+                "timeout_secs",
+                DEFAULT_TRANSFER_TIMEOUT_SECS,
+                MAX_TRANSFER_TIMEOUT_SECS,
+            );
             transfer_file(
                 app,
                 host,
-                upload,
+                name == "upload_file",
                 local,
                 remote,
-                Duration::from_secs(run_timeout),
+                transfer_timeout,
             )
             .await
         }
+        "list_dir" => {
+            let path = optional(args, "path").unwrap_or(".");
+            list_dir(app, required(args, "host")?, path).await
+        }
+        "read_file" => read_file(app, required(args, "host")?, required(args, "path")?).await,
+        "write_file" => {
+            let content = args["content"].as_str().ok_or("content is required")?;
+            write_file(
+                app,
+                required(args, "host")?,
+                required(args, "path")?,
+                content,
+            )
+            .await
+        }
+        "list_snippets" => list_snippets(app).await,
+        "run_snippet" => {
+            let snippet = required(args, "snippet")?;
+            run_snippet(app, snippet, optional(args, "host"), run_timeout()).await
+        }
+        "list_port_forwards" => list_port_forwards(app).await,
+        "start_port_forward" => {
+            let target_port = port_arg(args, "target_port")?.ok_or("target_port is required")?;
+            let target_host = optional(args, "target_host").unwrap_or("127.0.0.1");
+            let local_port = port_arg(args, "local_port")?.unwrap_or(0);
+            let host = required(args, "host")?;
+            start_port_forward(app, host, local_port, target_host, target_port).await
+        }
+        "stop_port_forward" => stop_port_forward(app, required(args, "id")?).await,
+        "start_command" => {
+            let (host, command) = (required(args, "host")?, required(args, "command")?);
+            start_command(app, host, command, args["tty"].as_bool().unwrap_or(false)).await
+        }
+        "read_command" => {
+            let wait = number(
+                args,
+                "wait_secs",
+                DEFAULT_READ_WAIT_SECS,
+                MAX_READ_WAIT_SECS,
+            );
+            read_command(app, required(args, "id")?, Duration::from_secs(wait)).await
+        }
+        "write_command" => {
+            let input = args["input"].as_str().unwrap_or_default();
+            let close_stdin = args["close_stdin"].as_bool().unwrap_or(false);
+            write_command(app, required(args, "id")?, input, close_stdin).await
+        }
+        "stop_command" => stop_command(app, required(args, "id")?),
+        "list_terminals" => list_terminals(app),
+        "read_terminal" => {
+            let lines = number(args, "lines", DEFAULT_TERMINAL_LINES, MAX_TERMINAL_LINES);
+            read_terminal(app, required(args, "terminal")?, lines as usize).await
+        }
         name => Err(format!("Unknown tool: {name}")),
+    }
+}
+
+fn optional<'a>(args: &'a Value, name: &str) -> Option<&'a str> {
+    args[name]
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn required<'a>(args: &'a Value, name: &str) -> Result<&'a str, String> {
+    optional(args, name).ok_or_else(|| format!("{name} is required"))
+}
+
+fn number(args: &Value, name: &str, default: u64, max: u64) -> u64 {
+    args[name].as_u64().unwrap_or(default).min(max)
+}
+
+fn seconds(args: &Value, name: &str, default: u64, max: u64) -> Duration {
+    Duration::from_secs(number(args, name, default, max).max(1))
+}
+
+fn port_arg(args: &Value, name: &str) -> Result<Option<u16>, String> {
+    match &args[name] {
+        Value::Null => Ok(None),
+        value => value
+            .as_u64()
+            .and_then(|value| u16::try_from(value).ok())
+            .map(Some)
+            .ok_or_else(|| format!("{name} must be a port number")),
     }
 }
 
@@ -476,7 +671,7 @@ async fn list_hosts<R: Runtime>(app: &AppHandle<R>) -> Result<String, String> {
                 .unwrap_or_default();
             json!({
                 "name": host.name,
-                "target": format!("{}@{}:{}", host.username, host.host, host.port),
+                "target": host_target(host),
                 "via": via,
             })
         })
@@ -490,7 +685,8 @@ async fn run_command<R: Runtime>(
     command: &str,
     run_timeout: Duration,
 ) -> Result<String, String> {
-    let (host_name, target) = approved_target(app, host_ref, command).await?;
+    let (host, target) = approved_target(app, host_ref, command).await?;
+    let host_name = host.name;
     let trust_store = app.state::<SshTrustStore>().inner().clone();
     let result = exec_command(&trust_store, target, command, run_timeout).await;
     match &result {
@@ -514,7 +710,8 @@ async fn transfer_file<R: Runtime>(
     } else {
         format!("download {remote_path} -> {local_path}")
     };
-    let (host_name, target) = approved_target(app, host_ref, &summary).await?;
+    let (host, target) = approved_target(app, host_ref, &summary).await?;
+    let host_name = host.name;
     let trust_store = app.state::<SshTrustStore>().inner().clone();
     let result = transfer(
         &trust_store,
@@ -537,7 +734,7 @@ async fn approved_target<R: Runtime>(
     app: &AppHandle<R>,
     host_ref: &str,
     action: &str,
-) -> Result<(String, ExecTarget), String> {
+) -> Result<(SshHost, ExecTarget), String> {
     let (hosts, keys) = load_hosts(app).await?;
     let host = find_host(&hosts, host_ref)?;
     let by_id: HashMap<&str, &SshHost> =
@@ -561,9 +758,9 @@ async fn approved_target<R: Runtime>(
     let auth = auth_method(password, private_key, passphrase)
         .map_err(|_| format!("{} has no saved password or SSH key", host.name))?;
 
-    if !approve(app, host, action).await {
+    if !approve(app, &host.id, &host.name, &host_target(host), action).await {
         emit_activity(app, &host.name, action, "denied", None);
-        return Err("The user denied this in noverterm.".to_string());
+        return Err(DENIED.to_string());
     }
     let target = ExecTarget {
         host: host.host.clone(),
@@ -572,7 +769,13 @@ async fn approved_target<R: Runtime>(
         auth,
         jumps,
     };
-    Ok((host.name.clone(), target))
+    Ok((host.clone(), target))
+}
+
+const DENIED: &str = "The user denied this in noverterm.";
+
+fn host_target(host: &SshHost) -> String {
+    format!("{}@{}:{}", host.username, host.host, host.port)
 }
 
 fn emit_activity<R: Runtime>(
@@ -593,10 +796,17 @@ fn emit_activity<R: Runtime>(
     );
 }
 
-/// Asks the user in the app; `true` once they allow it.
-async fn approve<R: Runtime>(app: &AppHandle<R>, host: &SshHost, command: &str) -> bool {
+/// Asks the user in the app; `true` once they allow it. `key` is what
+/// "always allow" remembers: a host id, or a terminal.
+async fn approve<R: Runtime>(
+    app: &AppHandle<R>,
+    key: &str,
+    host_name: &str,
+    target: &str,
+    command: &str,
+) -> bool {
     let state = app.state::<McpState>();
-    if state.allowed_hosts.lock().unwrap().contains(&host.id) {
+    if state.allowed_hosts.lock().unwrap().contains(key) {
         return true;
     }
     let id = Uuid::new_v4().to_string();
@@ -604,8 +814,8 @@ async fn approve<R: Runtime>(app: &AppHandle<R>, host: &SshHost, command: &str) 
     state.pending.lock().unwrap().insert(id.clone(), sender);
     let request = McpApprovalRequest {
         id: id.clone(),
-        host_name: host.name.clone(),
-        target: format!("{}@{}:{}", host.username, host.host, host.port),
+        host_name: host_name.to_string(),
+        target: target.to_string(),
         command: command.to_string(),
     };
     if app.emit("mcp_approval_request", request).is_err() {
@@ -621,7 +831,7 @@ async fn approve<R: Runtime>(app: &AppHandle<R>, host: &SshHost, command: &str) 
     match decision {
         Ok(Ok(McpDecision::Allow)) => true,
         Ok(Ok(McpDecision::AllowHost)) => {
-            state.allowed_hosts.lock().unwrap().insert(host.id.clone());
+            state.allowed_hosts.lock().unwrap().insert(key.to_string());
             true
         }
         _ => false,
@@ -642,6 +852,537 @@ fn format_output(output: &ExecOutput) -> String {
     if output.truncated {
         text.push_str("(output truncated)\n");
     }
+    text
+}
+
+async fn run_command_multi<R: Runtime>(
+    app: &AppHandle<R>,
+    hosts: Vec<String>,
+    command: &str,
+    run_timeout: Duration,
+) -> Result<String, String> {
+    let mut runs = JoinSet::new();
+    for (index, host) in hosts.into_iter().enumerate() {
+        let (app, command) = (app.clone(), command.to_string());
+        runs.spawn(async move {
+            let result = run_command(&app, &host, &command, run_timeout).await;
+            (index, host, result)
+        });
+    }
+    let mut results = runs.join_all().await;
+    results.sort_by_key(|(index, ..)| *index);
+    Ok(results
+        .into_iter()
+        .map(|(_, host, result)| match result {
+            Ok(text) => format!("=== {host} ===\n{text}"),
+            Err(error) => format!("=== {host} ===\nerror: {error}\n"),
+        })
+        .collect())
+}
+
+/// Opens SFTP on a host once the user approves `action`.
+async fn approved_sftp<R: Runtime>(
+    app: &AppHandle<R>,
+    host_ref: &str,
+    action: &str,
+) -> Result<(String, RemoteSftp), String> {
+    let (host, target) = approved_target(app, host_ref, action).await?;
+    let trust_store = app.state::<SshTrustStore>().inner().clone();
+    match open_sftp(&trust_store, target).await {
+        Ok(remote) => Ok((host.name, remote)),
+        Err(error) => {
+            emit_activity(app, &host.name, action, "failed", None);
+            Err(error)
+        }
+    }
+}
+
+/// Logs how an SFTP call bounded by `SFTP_TIMEOUT` went.
+fn sftp_outcome<R: Runtime, T>(
+    app: &AppHandle<R>,
+    host_name: &str,
+    action: &str,
+    result: Result<Result<T, SftpError>, tokio::time::error::Elapsed>,
+) -> Result<T, String> {
+    let result = match result {
+        Ok(result) => result.map_err(|error| error.to_string()),
+        Err(_) => Err(format!("Stopped after {} seconds", SFTP_TIMEOUT.as_secs())),
+    };
+    let status = if result.is_ok() { "finished" } else { "failed" };
+    emit_activity(app, host_name, action, status, None);
+    result
+}
+
+async fn list_dir<R: Runtime>(
+    app: &AppHandle<R>,
+    host_ref: &str,
+    path: &str,
+) -> Result<String, String> {
+    let action = format!("list {path}");
+    let (host_name, remote) = approved_sftp(app, host_ref, &action).await?;
+    let result = timeout(SFTP_TIMEOUT, remote.sftp.list_dir(path)).await;
+    remote.close().await;
+    let entries = sftp_outcome(app, &host_name, &action, result)?;
+    Ok(entries
+        .iter()
+        .map(|entry| {
+            let kind = match entry.file_type {
+                FileType::Dir => 'd',
+                FileType::Symlink => 'l',
+                _ => '-',
+            };
+            format!("{kind} {:>12} {}\n", entry.size, entry.name)
+        })
+        .collect())
+}
+
+async fn read_file<R: Runtime>(
+    app: &AppHandle<R>,
+    host_ref: &str,
+    path: &str,
+) -> Result<String, String> {
+    let action = format!("read {path}");
+    let (host_name, remote) = approved_sftp(app, host_ref, &action).await?;
+    let result = timeout(SFTP_TIMEOUT, remote.sftp.read_file(path, READ_FILE_LIMIT)).await;
+    remote.close().await;
+    let (data, truncated) = sftp_outcome(app, &host_name, &action, result)?;
+    if data.contains(&0) {
+        return Err(format!("{path} is not a text file; use download_file"));
+    }
+    let mut text = String::from_utf8_lossy(&data).into_owned();
+    if truncated {
+        text.push_str("\n(truncated at 256 KiB; use download_file for the whole file)");
+    }
+    Ok(text)
+}
+
+async fn write_file<R: Runtime>(
+    app: &AppHandle<R>,
+    host_ref: &str,
+    path: &str,
+    content: &str,
+) -> Result<String, String> {
+    if content.len() > WRITE_FILE_LIMIT {
+        return Err("content is larger than 1 MiB; use upload_file".to_string());
+    }
+    // The user reviews the content itself, not only the path.
+    let preview: String = content.chars().take(2000).collect();
+    let more = if preview.len() < content.len() {
+        "\n…"
+    } else {
+        ""
+    };
+    let action = format!("write {path} ({} bytes)\n{preview}{more}", content.len());
+    let (host_name, remote) = approved_sftp(app, host_ref, &action).await?;
+    let result = timeout(
+        SFTP_TIMEOUT,
+        remote.sftp.write_file(path, content.as_bytes()),
+    )
+    .await;
+    remote.close().await;
+    sftp_outcome(app, &host_name, &action, result)?;
+    Ok(format!("Wrote {} bytes to {path}", content.len()))
+}
+
+async fn list_snippets<R: Runtime>(app: &AppHandle<R>) -> Result<String, String> {
+    let snippets = load_snippets(app.state::<DbPool>().inner().clone()).await?;
+    let listed: Vec<Value> = snippets
+        .iter()
+        .map(|snippet| {
+            json!({
+                "title": snippet.title,
+                "command": snippet.body,
+                // Local terminal snippets have no host.
+                "host": snippet.host_id.as_ref().map(|_| &snippet.host_name),
+            })
+        })
+        .collect();
+    serde_json::to_string_pretty(&listed).map_err(|error| error.to_string())
+}
+
+async fn run_snippet<R: Runtime>(
+    app: &AppHandle<R>,
+    snippet_ref: &str,
+    host_ref: Option<&str>,
+    run_timeout: Duration,
+) -> Result<String, String> {
+    let snippets = load_snippets(app.state::<DbPool>().inner().clone()).await?;
+    let snippet = find_snippet(&snippets, snippet_ref)?;
+    let host = host_ref
+        .or(snippet.host_id.as_deref())
+        .ok_or_else(|| format!("{} is a local terminal snippet; pass a host", snippet.title))?;
+    run_command(app, host, &snippet.body, run_timeout).await
+}
+
+fn find_snippet<'a>(
+    snippets: &'a [SnippetRecord],
+    snippet_ref: &str,
+) -> Result<&'a SnippetRecord, String> {
+    if let Some(snippet) = snippets.iter().find(|snippet| snippet.id == snippet_ref) {
+        return Ok(snippet);
+    }
+    let matches: Vec<&SnippetRecord> = snippets
+        .iter()
+        .filter(|snippet| snippet.title.eq_ignore_ascii_case(snippet_ref))
+        .collect();
+    match matches.as_slice() {
+        [snippet] => Ok(snippet),
+        [] => Err(format!(
+            "No snippet titled {snippet_ref}. Call list_snippets to see them."
+        )),
+        _ => Err(format!(
+            "More than one snippet is titled {snippet_ref}; rename one in noverterm."
+        )),
+    }
+}
+
+async fn list_port_forwards<R: Runtime>(app: &AppHandle<R>) -> Result<String, String> {
+    let forwards = app.state::<PortForwardManager>().list().await;
+    serde_json::to_string_pretty(&forwards).map_err(|error| error.to_string())
+}
+
+async fn start_port_forward<R: Runtime>(
+    app: &AppHandle<R>,
+    host_ref: &str,
+    local_port: u16,
+    target_host: &str,
+    target_port: u16,
+) -> Result<String, String> {
+    let local = if local_port == 0 {
+        "any port".to_string()
+    } else {
+        local_port.to_string()
+    };
+    let action = format!("forward 127.0.0.1:{local} -> {target_host}:{target_port}");
+    let (host, target) = approved_target(app, host_ref, &action).await?;
+    let auth = match target.auth {
+        AuthMethod::Password(password) => PortForwardAuth::Password(password),
+        AuthMethod::PublicKey {
+            private_key,
+            passphrase,
+        } => PortForwardAuth::PublicKey {
+            private_key,
+            passphrase,
+        },
+        AuthMethod::PublicKeyAndPassword {
+            private_key,
+            passphrase,
+            password,
+        } => PortForwardAuth::PublicKeyAndPassword {
+            private_key,
+            passphrase,
+            password,
+        },
+    };
+
+    // The forward connects in the background; its status events say how it went.
+    let (events, mut statuses) = mpsc::unbounded_channel::<Value>();
+    let listener = app.listen("port_forward_status", move |event| {
+        if let Ok(status) = serde_json::from_str(event.payload()) {
+            let _ = events.send(status);
+        }
+    });
+    let trust_store = app.state::<SshTrustStore>().inner().clone();
+    let started = app
+        .state::<PortForwardManager>()
+        .start(
+            app.clone(),
+            PortForwardCreateInput {
+                name: format!("MCP: {}", host.name),
+                host: target.host,
+                port: target.port,
+                username: target.username,
+                auth,
+                jumps: target.jumps,
+                bind_host: "127.0.0.1".to_string(),
+                bind_port: local_port,
+                target_host: target_host.to_string(),
+                target_port,
+            },
+            trust_store,
+        )
+        .await;
+    let settled = match &started {
+        Ok(started) => {
+            timeout(FORWARD_START_TIMEOUT, async {
+                while let Some(status) = statuses.recv().await {
+                    if status["id"] == started.id.as_str() && status["state"] != "connecting" {
+                        return Some(status);
+                    }
+                }
+                None
+            })
+            .await
+        }
+        Err(_) => Ok(None),
+    };
+    app.unlisten(listener);
+    let started =
+        started.inspect_err(|_| emit_activity(app, &host.name, &action, "failed", None))?;
+
+    match settled {
+        Ok(Some(status)) if status["state"] == "listening" => {
+            app.state::<McpState>()
+                .forwards
+                .lock()
+                .unwrap()
+                .insert(started.id.clone());
+            emit_activity(app, &host.name, &action, "finished", None);
+            Ok(format!(
+                "Forwarding 127.0.0.1:{} to {target_host}:{target_port} through {}. Forward id: {}",
+                status["bind_port"], host.name, started.id
+            ))
+        }
+        Ok(Some(status)) => {
+            emit_activity(app, &host.name, &action, "failed", None);
+            Err(status["error"]
+                .as_str()
+                .unwrap_or("The port forward failed")
+                .to_string())
+        }
+        _ => {
+            app.state::<McpState>()
+                .forwards
+                .lock()
+                .unwrap()
+                .insert(started.id.clone());
+            Ok(format!(
+                "The port forward is still connecting; check list_port_forwards. Forward id: {}",
+                started.id
+            ))
+        }
+    }
+}
+
+async fn stop_port_forward<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<String, String> {
+    if !app.state::<McpState>().forwards.lock().unwrap().remove(id) {
+        return Err(
+            "Only port forwards started with start_port_forward can be stopped here".to_string(),
+        );
+    }
+    let status = app
+        .state::<PortForwardManager>()
+        .stop(app.clone(), id)
+        .await?;
+    Ok(format!(
+        "Stopped forwarding 127.0.0.1:{} to {}:{}",
+        status.bind_port, status.target_host, status.target_port
+    ))
+}
+
+async fn start_command<R: Runtime>(
+    app: &AppHandle<R>,
+    host_ref: &str,
+    command: &str,
+    tty: bool,
+) -> Result<String, String> {
+    let state = app.state::<McpState>();
+    if state.background.lock().unwrap().len() >= MAX_BACKGROUND {
+        return Err(format!(
+            "{MAX_BACKGROUND} commands are already running; stop one with stop_command"
+        ));
+    }
+    let action = format!("start in background: {command}");
+    let (host, target) = approved_target(app, host_ref, &action).await?;
+    let trust_store = app.state::<SshTrustStore>().inner().clone();
+    let process = spawn_command(&trust_store, target, command, tty)
+        .await
+        .inspect_err(|_| emit_activity(app, &host.name, &action, "failed", None))?;
+    let id = Uuid::new_v4().to_string();
+    state.background.lock().unwrap().insert(
+        id.clone(),
+        Arc::new(Background {
+            target: host_target(&host),
+            host_id: host.id,
+            host_name: host.name.clone(),
+            command: command.to_string(),
+            process,
+        }),
+    );
+    emit_activity(app, &host.name, &action, "started", None);
+    Ok(format!("Started. Command id: {id}"))
+}
+
+fn background<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Arc<Background>, String> {
+    app.state::<McpState>()
+        .background
+        .lock()
+        .unwrap()
+        .get(id)
+        .cloned()
+        .ok_or_else(|| format!("No running command with id {id}"))
+}
+
+async fn read_command<R: Runtime>(
+    app: &AppHandle<R>,
+    id: &str,
+    wait: Duration,
+) -> Result<String, String> {
+    let entry = background(app, id)?;
+    let read = entry.process.read(wait).await;
+    let mut text = if read.finished {
+        app.state::<McpState>()
+            .background
+            .lock()
+            .unwrap()
+            .remove(id);
+        emit_activity(
+            app,
+            &entry.host_name,
+            &entry.command,
+            "finished",
+            read.exit_status,
+        );
+        match read.exit_status {
+            Some(status) => format!("finished, exit status: {status}\n"),
+            None => "finished\n".to_string(),
+        }
+    } else {
+        "running\n".to_string()
+    };
+    if read.dropped {
+        text.push_str("(older output was dropped; read more often)\n");
+    }
+    if !read.output.is_empty() {
+        text.push_str(&format!("--- output ---\n{}\n", read.output.trim_end()));
+    }
+    Ok(text)
+}
+
+async fn write_command<R: Runtime>(
+    app: &AppHandle<R>,
+    id: &str,
+    input: &str,
+    close_stdin: bool,
+) -> Result<String, String> {
+    let entry = background(app, id)?;
+    let close = if close_stdin {
+        "\n(then close stdin)"
+    } else {
+        ""
+    };
+    let action = format!("input to {}:\n{input}{close}", entry.command);
+    if !approve(
+        app,
+        &entry.host_id,
+        &entry.host_name,
+        &entry.target,
+        &action,
+    )
+    .await
+    {
+        emit_activity(app, &entry.host_name, &action, "denied", None);
+        return Err(DENIED.to_string());
+    }
+    if !input.is_empty() {
+        entry.process.write(Some(input.as_bytes().to_vec()))?;
+    }
+    if close_stdin {
+        entry.process.write(None)?;
+    }
+    Ok("Sent".to_string())
+}
+
+fn stop_command<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<String, String> {
+    // Dropping the last handle stops the command.
+    let entry = app
+        .state::<McpState>()
+        .background
+        .lock()
+        .unwrap()
+        .remove(id);
+    entry
+        .map(|_| "Stopped".to_string())
+        .ok_or_else(|| format!("No running command with id {id}"))
+}
+
+fn list_terminals<R: Runtime>(app: &AppHandle<R>) -> Result<String, String> {
+    let listed: Vec<Value> = app
+        .state::<TerminalOutput>()
+        .terminals()
+        .into_iter()
+        .map(|(id, label)| json!({ "id": id, "target": label }))
+        .collect();
+    serde_json::to_string_pretty(&listed).map_err(|error| error.to_string())
+}
+
+async fn read_terminal<R: Runtime>(
+    app: &AppHandle<R>,
+    id: &str,
+    lines: usize,
+) -> Result<String, String> {
+    let missing = || "No open terminal with that id. Call list_terminals to see them.".to_string();
+    let (label, _) = app
+        .state::<TerminalOutput>()
+        .history(id)
+        .ok_or_else(missing)?;
+    let action = "read the terminal's recent output";
+    if !approve(app, &format!("terminal:{id}"), &label, &label, action).await {
+        emit_activity(app, &label, action, "denied", None);
+        return Err(DENIED.to_string());
+    }
+    // Read after approval so the user sees what is on screen now.
+    let (_, bytes) = app
+        .state::<TerminalOutput>()
+        .history(id)
+        .ok_or_else(missing)?;
+    emit_activity(app, &label, action, "finished", None);
+    let text = terminal_text(&bytes);
+    let all: Vec<&str> = text.lines().collect();
+    Ok(all[all.len().saturating_sub(lines)..].join("\n"))
+}
+
+/// Plain text of raw terminal output: escape sequences dropped, and carriage
+/// returns and backspaces applied within a line.
+// ponytail: no cursor-movement emulation, so full-screen apps (vim, top) come out garbled; feed a vt100 parser if that matters.
+fn terminal_text(bytes: &[u8]) -> String {
+    let raw = String::from_utf8_lossy(bytes);
+    let mut chars = raw.chars().peekable();
+    let (mut text, mut line) = (String::new(), String::new());
+    while let Some(char) = chars.next() {
+        match char {
+            '\x1b' => match chars.next() {
+                // CSI: parameters, then one final byte in @..~.
+                Some('[') => {
+                    for char in chars.by_ref() {
+                        if ('@'..='~').contains(&char) {
+                            break;
+                        }
+                    }
+                }
+                // OSC and other strings: up to BEL or ESC \.
+                Some(']' | 'P' | 'X' | '^' | '_') => {
+                    while let Some(char) = chars.next() {
+                        if char == '\x07' {
+                            break;
+                        }
+                        if char == '\x1b' {
+                            chars.next();
+                            break;
+                        }
+                    }
+                }
+                // Character set selection takes one more byte.
+                Some('(' | ')' | '*' | '+' | '#' | '%') => {
+                    chars.next();
+                }
+                _ => {}
+            },
+            '\n' => {
+                text.push_str(line.trim_end());
+                text.push('\n');
+                line.clear();
+            }
+            '\r' if chars.peek() != Some(&'\n') => line.clear(),
+            '\x08' => {
+                line.pop();
+            }
+            '\t' => line.push('\t'),
+            char if char.is_control() => {}
+            char => line.push(char),
+        }
+    }
+    text.push_str(line.trim_end());
     text
 }
 
@@ -782,6 +1523,8 @@ mod tests {
         app.manage(SshTrustStore::new(pool.clone()));
         app.manage(pool);
         app.manage(McpState::default());
+        app.manage(TerminalOutput::default());
+        app.manage(PortForwardManager::new());
         let server = start_server(app.handle(), 0, "secret".to_string())
             .await
             .unwrap();
@@ -865,7 +1608,7 @@ mod tests {
         .await;
         assert_eq!(init["result"]["protocolVersion"], "2025-03-26");
         let tools = rpc(&server, "tools/list", json!({})).await;
-        assert_eq!(tools["result"]["tools"].as_array().unwrap().len(), 4);
+        assert_eq!(tools["result"]["tools"].as_array().unwrap().len(), 19);
 
         insert_host(&server, "web", "web.test", 22, "pw");
         let listed = rpc(&server, "tools/call", json!({ "name": "list_hosts" })).await;
@@ -939,6 +1682,13 @@ mod tests {
             text.contains("exit status: 3") && text.contains("out") && text.contains("err"),
             "{text}"
         );
+    }
+
+    #[test]
+    fn terminal_text_drops_escapes_and_applies_overwrites() {
+        let raw = b"\x1b]0;title\x07\x1b[1;32mok\x1b[0m done  \r\n\
+            50%\r100%\nab\x08c\n\x1b(Bplain";
+        assert_eq!(terminal_text(raw), "ok done\n100%\nac\nplain");
     }
 
     #[test]

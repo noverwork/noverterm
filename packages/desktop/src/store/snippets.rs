@@ -10,7 +10,10 @@ use super::{internal_error, run_db, DbPool};
 #[tauri::command]
 #[specta::specta]
 pub async fn snippet_list(pool: tauri::State<'_, DbPool>) -> Result<Vec<SnippetRecord>, String> {
-    let pool = pool.inner().clone();
+    load_snippets(pool.inner().clone()).await
+}
+
+pub(crate) async fn load_snippets(pool: DbPool) -> Result<Vec<SnippetRecord>, String> {
     run_db(pool, |connection| {
         host_snippets::table
             .left_join(ssh_hosts::table)

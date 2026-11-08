@@ -1,15 +1,18 @@
-//! Runs one non-interactive command, or one SFTP transfer, on a host for
-//! callers such as the MCP server that need a clean result rather than a
-//! terminal screen.
+//! Runs non-interactive commands and SFTP operations on a host for callers
+//! such as the MCP server that need a clean result rather than a terminal
+//! screen.
 
+use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
 use russh::client::Handle;
 use russh::{ChannelMsg, Disconnect};
+use tokio::sync::{mpsc, Notify};
+use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use uuid::Uuid;
 
-use crate::runtime::sftp::{open_sftp_session, TransferCancellation};
+use crate::runtime::sftp::{open_sftp_session, SftpSession, TransferCancellation};
 use crate::trust::{SshTrustStore, TrustCheck};
 
 use super::authentication::{authenticate_session, client_config, ClientHandler};
@@ -18,6 +21,8 @@ use super::AuthMethod;
 
 /// Each stream keeps at most this much; the rest is dropped and flagged.
 const OUTPUT_LIMIT: usize = 64 * 1024;
+/// Unread output a background command keeps; older bytes are dropped.
+const BACKGROUND_OUTPUT_LIMIT: usize = 1024 * 1024;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct ExecTarget {
@@ -126,6 +131,38 @@ async fn connect(
     Ok(session)
 }
 
+/// An SFTP session on its own SSH connection.
+pub struct RemoteSftp {
+    session: Handle<ClientHandler>,
+    pub sftp: SftpSession,
+}
+
+pub async fn open_sftp(
+    trust_store: &SshTrustStore,
+    target: ExecTarget,
+) -> Result<RemoteSftp, String> {
+    let mut session = connect(trust_store, target).await?;
+    match open_sftp_session(&mut session).await {
+        Ok(sftp) => Ok(RemoteSftp { session, sftp }),
+        Err(error) => {
+            let _ = session
+                .disconnect(Disconnect::ByApplication, "SFTP failed", "")
+                .await;
+            Err(error.to_string())
+        }
+    }
+}
+
+impl RemoteSftp {
+    pub async fn close(self) {
+        let _ = self.sftp.close().await;
+        let _ = self
+            .session
+            .disconnect(Disconnect::ByApplication, "SFTP finished", "")
+            .await;
+    }
+}
+
 /// Copies one file or directory between this machine and the host over SFTP.
 /// Returns the bytes moved.
 pub async fn transfer(
@@ -136,32 +173,164 @@ pub async fn transfer(
     remote_path: &str,
     run_timeout: Duration,
 ) -> Result<u64, String> {
-    let mut session = connect(trust_store, target).await?;
+    let remote = open_sftp(trust_store, target).await?;
+    let id = Uuid::new_v4().to_string();
+    let cancel = TransferCancellation::new();
     let copy = async {
-        let sftp = open_sftp_session(&mut session)
-            .await
-            .map_err(|error| error.to_string())?;
-        let id = Uuid::new_v4().to_string();
-        let cancel = TransferCancellation::new();
-        let moved = if upload {
-            sftp.upload(local_path, remote_path, id, cancel, None).await
-        } else {
-            sftp.download(remote_path, local_path, id, cancel, None)
+        if upload {
+            remote
+                .sftp
+                .upload(local_path, remote_path, id, cancel, None)
                 .await
-        };
-        let _ = sftp.close().await;
-        moved.map_err(|error| error.to_string())
+        } else {
+            remote
+                .sftp
+                .download(remote_path, local_path, id, cancel, None)
+                .await
+        }
     };
     let result = timeout(run_timeout, copy).await;
-    let _ = session
-        .disconnect(Disconnect::ByApplication, "Transfer finished", "")
-        .await;
-    result.map_err(|_| {
-        format!(
-            "The transfer did not finish within {} seconds and was stopped",
-            run_timeout.as_secs()
-        )
-    })?
+    remote.close().await;
+    result
+        .map_err(|_| {
+            format!(
+                "The transfer did not finish within {} seconds and was stopped",
+                run_timeout.as_secs()
+            )
+        })?
+        .map_err(|error| error.to_string())
+}
+
+/// A command left running on its own connection. Output piles up until read;
+/// dropping it stops the command.
+pub struct BackgroundCommand {
+    input: mpsc::UnboundedSender<Option<Vec<u8>>>,
+    state: Arc<StdMutex<BackgroundState>>,
+    changed: Arc<Notify>,
+    task: JoinHandle<()>,
+}
+
+#[derive(Debug, Default)]
+pub struct BackgroundOutput {
+    pub output: String,
+    /// Older unread output was dropped to stay within the limit.
+    pub dropped: bool,
+    pub finished: bool,
+    pub exit_status: Option<u32>,
+}
+
+#[derive(Default)]
+struct BackgroundState {
+    output: Vec<u8>,
+    dropped: bool,
+    finished: bool,
+    exit_status: Option<u32>,
+}
+
+pub async fn spawn_command(
+    trust_store: &SshTrustStore,
+    target: ExecTarget,
+    command: &str,
+    tty: bool,
+) -> Result<BackgroundCommand, String> {
+    let session = connect(trust_store, target).await?;
+    let channel = session
+        .channel_open_session()
+        .await
+        .map_err(|error| format!("Failed to open a channel: {error}"))?;
+    if tty {
+        channel
+            .request_pty(true, "xterm-256color", 120, 40, 0, 0, &[])
+            .await
+            .map_err(|error| format!("Failed to request a TTY: {error}"))?;
+    }
+    channel
+        .exec(true, command)
+        .await
+        .map_err(|error| format!("Failed to start the command: {error}"))?;
+
+    let (input, mut input_rx) = mpsc::unbounded_channel::<Option<Vec<u8>>>();
+    let state = Arc::new(StdMutex::new(BackgroundState::default()));
+    let changed = Arc::new(Notify::new());
+    let (task_state, task_changed) = (state.clone(), changed.clone());
+    let task = tokio::spawn(async move {
+        let (mut read, write) = channel.split();
+        loop {
+            tokio::select! {
+                message = read.wait() => match message {
+                    Some(ChannelMsg::Data { data } | ChannelMsg::ExtendedData { data, .. }) => {
+                        let mut state = task_state.lock().unwrap();
+                        state.output.extend_from_slice(&data);
+                        let excess = state.output.len().saturating_sub(BACKGROUND_OUTPUT_LIMIT);
+                        if excess > 0 {
+                            state.output.drain(..excess);
+                            state.dropped = true;
+                        }
+                    }
+                    Some(ChannelMsg::ExitStatus { exit_status }) => {
+                        task_state.lock().unwrap().exit_status = Some(exit_status);
+                    }
+                    Some(ChannelMsg::Close) | None => break,
+                    Some(_) => continue,
+                },
+                Some(data) = input_rx.recv() => {
+                    let sent = match data {
+                        Some(data) => write.data(&data[..]).await,
+                        None => write.eof().await,
+                    };
+                    if sent.is_err() {
+                        break;
+                    }
+                    continue;
+                }
+            }
+            task_changed.notify_one();
+        }
+        task_state.lock().unwrap().finished = true;
+        task_changed.notify_one();
+        let _ = session
+            .disconnect(Disconnect::ByApplication, "Command finished", "")
+            .await;
+    });
+    Ok(BackgroundCommand {
+        input,
+        state,
+        changed,
+        task,
+    })
+}
+
+impl BackgroundCommand {
+    /// Sends `data` to the command's stdin; `None` closes stdin.
+    pub fn write(&self, data: Option<Vec<u8>>) -> Result<(), String> {
+        self.input
+            .send(data)
+            .map_err(|_| "The command already finished".to_string())
+    }
+
+    /// Takes the unread output, first waiting up to `wait` for some to arrive.
+    pub async fn read(&self, wait: Duration) -> BackgroundOutput {
+        let idle = {
+            let state = self.state.lock().unwrap();
+            state.output.is_empty() && !state.finished
+        };
+        if idle {
+            let _ = timeout(wait, self.changed.notified()).await;
+        }
+        let mut state = self.state.lock().unwrap();
+        BackgroundOutput {
+            output: String::from_utf8_lossy(&std::mem::take(&mut state.output)).into_owned(),
+            dropped: std::mem::take(&mut state.dropped),
+            finished: state.finished,
+            exit_status: state.exit_status,
+        }
+    }
+}
+
+impl Drop for BackgroundCommand {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
 }
 
 fn append(buffer: &mut Vec<u8>, data: &[u8], truncated: &mut bool) {

@@ -61,7 +61,7 @@ impl LocalSessionManager {
         cmd: CommandBuilder,
     ) -> Result<String, String> {
         let session_id = Uuid::new_v4().to_string();
-        let output = output.open(session_id.clone())?;
+        let output = output.open(session_id.clone(), "Local Terminal".to_string())?;
         info!(session_id, "Starting local terminal session");
 
         let pair = native_pty_system()

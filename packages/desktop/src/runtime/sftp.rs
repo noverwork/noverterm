@@ -24,7 +24,9 @@ use mock::{
 use tree::{copy_dir, download_dir, is_local_dir, upload_dir};
 use types::classify_sftp_error;
 
-pub use filesystem::{list_sftp_dir, mkdir_sftp, remove_sftp, rename_sftp, stat_sftp};
+pub use filesystem::{
+    list_sftp_dir, mkdir_sftp, read_sftp_file, remove_sftp, rename_sftp, stat_sftp, write_sftp_file,
+};
 pub(crate) use transfer::sftp_client_config;
 pub use transfer::{copy_sftp, download_sftp, upload_sftp};
 pub use types::{
@@ -160,6 +162,36 @@ impl SftpSession {
                 .map_err(|error| classify_sftp_error("realpath", ".", error)),
             #[cfg(test)]
             SftpSessionInner::Mock { .. } => Ok("/mock/home".to_string()),
+        }
+    }
+
+    pub async fn read_file(&self, path: &str, limit: usize) -> Result<(Vec<u8>, bool), SftpError> {
+        match &self.inner {
+            SftpSessionInner::Active(session) => read_sftp_file(session, path, limit).await,
+            #[cfg(test)]
+            SftpSessionInner::Mock { remote_files, .. } => {
+                let files = remote_files
+                    .lock()
+                    .map_err(|error| SftpError::OperationFailed(error.to_string()))?;
+                let data = files
+                    .get(path)
+                    .ok_or_else(|| SftpError::NotFound(path.to_string()))?;
+                Ok((data[..data.len().min(limit)].to_vec(), data.len() > limit))
+            }
+        }
+    }
+
+    pub async fn write_file(&self, path: &str, data: &[u8]) -> Result<(), SftpError> {
+        match &self.inner {
+            SftpSessionInner::Active(session) => write_sftp_file(session, path, data).await,
+            #[cfg(test)]
+            SftpSessionInner::Mock { remote_files, .. } => {
+                remote_files
+                    .lock()
+                    .map_err(|error| SftpError::OperationFailed(error.to_string()))?
+                    .insert(path.to_string(), data.to_vec());
+                Ok(())
+            }
         }
     }
 

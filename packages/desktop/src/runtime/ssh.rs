@@ -29,7 +29,10 @@ use forwarding::{emit_port_forward_event, stopped_port_forward_status};
 use shell::{read_loop, run_shell_write_loop, SSH_WRITE_QUEUE_CAPACITY};
 
 pub(crate) use authentication::ClientHandler;
-pub use exec::{exec_command, transfer, ExecOutput, ExecTarget};
+pub use exec::{
+    exec_command, open_sftp, spawn_command, transfer, BackgroundCommand, ExecOutput, ExecTarget,
+    RemoteSftp,
+};
 pub use jump::SshHopInput;
 pub(crate) use jump::{auth_method, open_transport, OpenTransportError};
 
@@ -135,7 +138,9 @@ impl SshSessionManager {
             .map_err(|e| format!("Failed to start shell: {}", e))?;
         info!(session_id, "Interactive shell started");
 
-        let output = app.state::<TerminalOutput>().open(session_id.clone())?;
+        let output = app
+            .state::<TerminalOutput>()
+            .open(session_id.clone(), format!("{user}@{host}:{port}"))?;
         let (channel_read, channel_write) = channel.split();
         let (write_tx, write_rx) = mpsc::channel(SSH_WRITE_QUEUE_CAPACITY);
         // Hold the map until insertion so an immediately exiting shell cannot

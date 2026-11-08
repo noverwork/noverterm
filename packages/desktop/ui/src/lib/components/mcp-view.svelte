@@ -15,6 +15,28 @@
     { id: "claude-desktop", label: "Claude Desktop", file: "claude_desktop_config.json" },
   ];
 
+  const TOOLS: [name: string, description: string][] = [
+    ["list_hosts", "Lists saved hosts."],
+    ["run_command", "Runs a command on a host."],
+    ["run_command_multi", "Runs a command on several hosts at once."],
+    ["upload_file", "Uploads a file to a host."],
+    ["download_file", "Downloads a file from a host."],
+    ["list_dir", "Lists a directory on a host."],
+    ["read_file", "Reads a text file on a host."],
+    ["write_file", "Writes a text file on a host."],
+    ["list_snippets", "Lists saved snippets."],
+    ["run_snippet", "Runs a saved snippet on a host."],
+    ["list_port_forwards", "Lists running port forwards."],
+    ["start_port_forward", "Opens a port forward through a host."],
+    ["stop_port_forward", "Stops a port forward the AI opened."],
+    ["start_command", "Starts a long-running or interactive command."],
+    ["read_command", "Reads a started command's new output."],
+    ["write_command", "Sends input to a started command."],
+    ["stop_command", "Stops a started command."],
+    ["list_terminals", "Lists open terminal tabs."],
+    ["read_terminal", "Reads a terminal tab's recent output."],
+  ];
+
   const MASK = "••••••••";
 
   let status = $state<McpStatus | null>(null);
@@ -213,15 +235,11 @@
 
         <div>
           <h2 class="section-title">{t("Tools")}</h2>
-          <dl class="mt-3 grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-sm">
-            <dt class="font-mono text-xs text-stencil">list_hosts</dt>
-            <dd class="text-stencil-dim">{t("Lists saved hosts.")}</dd>
-            <dt class="font-mono text-xs text-stencil">run_command</dt>
-            <dd class="text-stencil-dim">{t("Runs a command on a host.")}</dd>
-            <dt class="font-mono text-xs text-stencil">upload_file</dt>
-            <dd class="text-stencil-dim">{t("Uploads a file to a host.")}</dd>
-            <dt class="font-mono text-xs text-stencil">download_file</dt>
-            <dd class="text-stencil-dim">{t("Downloads a file from a host.")}</dd>
+          <dl class="mt-3 grid grid-cols-[10rem_1fr] gap-x-3 gap-y-2 text-sm">
+            {#each TOOLS as [name, description] (name)}
+              <dt class="font-mono text-xs text-stencil">{name}</dt>
+              <dd class="text-stencil-dim">{t(description)}</dd>
+            {/each}
           </dl>
         </div>
       {/if}
@@ -233,7 +251,7 @@
             {#each activity as entry, index (index)}
               <li class="flex items-center gap-2 text-xs">
                 <span
-                  class={entry.status === "finished" && (entry.exit_status ?? 0) === 0
+                  class={(entry.status === "finished" && (entry.exit_status ?? 0) === 0) || entry.status === "started"
                     ? "text-emerald-400"
                     : entry.status === "denied"
                       ? "text-stencil-mute"
@@ -243,9 +261,11 @@
                     ? entry.exit_status === null
                       ? t("Done")
                       : t("exit {code}", { code: entry.exit_status })
-                    : entry.status === "denied"
-                      ? t("Denied")
-                      : t("Failed")}
+                    : entry.status === "started"
+                      ? t("Started")
+                      : entry.status === "denied"
+                        ? t("Denied")
+                        : t("Failed")}
                 </span>
                 <span class="shrink-0 text-stencil-mute">{entry.host_name}</span>
                 <span class="truncate font-mono text-stencil">{entry.command}</span>

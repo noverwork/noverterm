@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, Weak};
 
 use tauri::ipc::{Channel, InvokeResponseBody, IpcResponse};
@@ -6,6 +6,8 @@ use tokio::sync::{watch, Semaphore};
 
 pub const OUTPUT_CHUNK_BYTES: usize = 64 * 1024;
 const OUTPUT_WINDOW_BYTES: usize = 256 * 1024;
+/// Recent output each terminal keeps so MCP clients can read the screen.
+const HISTORY_BYTES: usize = 64 * 1024;
 
 /// Raw channel payload. Specta cannot describe JavaScript's ArrayBuffer, so consumers
 /// must narrow the exported unknown before decoding the binary frame.
@@ -36,10 +38,13 @@ struct Transport {
 
 pub struct OutputSession {
     id: String,
+    /// What the terminal is connected to, e.g. `root@db:22`.
+    label: String,
     transport: Weak<Mutex<Transport>>,
     capacity: Semaphore,
     state: Mutex<OutputState>,
     stopped: watch::Sender<bool>,
+    history: Mutex<VecDeque<u8>>,
 }
 
 #[derive(Default)]
@@ -70,7 +75,7 @@ impl TerminalOutput {
         Ok(())
     }
 
-    pub fn open(&self, id: String) -> Result<Arc<OutputSession>, String> {
+    pub fn open(&self, id: String, label: String) -> Result<Arc<OutputSession>, String> {
         let mut transport = self.inner.lock().map_err(|e| e.to_string())?;
         if transport.channel.is_none() {
             return Err("Subscribe to terminal output before connecting".to_string());
@@ -78,10 +83,12 @@ impl TerminalOutput {
         let (stopped, _) = watch::channel(false);
         let output = Arc::new(OutputSession {
             id: id.clone(),
+            label,
             transport: Arc::downgrade(&self.inner),
             capacity: Semaphore::new(OUTPUT_WINDOW_BYTES),
             state: Mutex::new(OutputState::default()),
             stopped,
+            history: Mutex::new(VecDeque::new()),
         });
         transport
             .sessions
@@ -103,6 +110,27 @@ impl TerminalOutput {
         state.in_flight -= bytes;
         output.capacity.add_permits(bytes);
         Ok(())
+    }
+
+    /// Open terminals as `(id, label)`.
+    pub fn terminals(&self) -> Vec<(String, String)> {
+        let Ok(transport) = self.inner.lock() else {
+            return Vec::new();
+        };
+        transport
+            .sessions
+            .values()
+            .filter_map(Weak::upgrade)
+            .filter(|output| output.state.lock().is_ok_and(|state| !state.closed))
+            .map(|output| (output.id.clone(), output.label.clone()))
+            .collect()
+    }
+
+    /// The label and recent raw output of an open terminal.
+    pub fn history(&self, id: &str) -> Option<(String, Vec<u8>)> {
+        let output = self.inner.lock().ok()?.sessions.get(id)?.upgrade()?;
+        let history = output.history.lock().ok()?;
+        Some((output.label.clone(), history.iter().copied().collect()))
     }
 }
 
@@ -142,6 +170,11 @@ impl OutputSession {
     }
 
     pub async fn send(&self, data: &[u8]) -> Result<(), String> {
+        if let Ok(mut history) = self.history.lock() {
+            history.extend(data);
+            let excess = history.len().saturating_sub(HISTORY_BYTES);
+            history.drain(..excess);
+        }
         for chunk in data.chunks(OUTPUT_CHUNK_BYTES) {
             // A suspended WebView may take arbitrarily long to acknowledge.
             // Subscription teardown closes the semaphore and cancels waiters.
@@ -238,7 +271,7 @@ mod tests {
             }))
             .expect("subscribe");
         let output = transport
-            .open(uuid::Uuid::new_v4().to_string())
+            .open(uuid::Uuid::new_v4().to_string(), String::new())
             .expect("open");
         (transport, output, frames)
     }
@@ -309,11 +342,13 @@ mod tests {
         transport.subscribe(replacement).expect("replace");
         transport.unsubscribe(old_id).expect("stale unsubscribe");
         let output = transport
-            .open(uuid::Uuid::new_v4().to_string())
+            .open(uuid::Uuid::new_v4().to_string(), String::new())
             .expect("replacement survives");
         assert!(output.send(b"x").await.is_err());
         output.stopped().await;
-        assert!(transport.open(uuid::Uuid::new_v4().to_string()).is_err());
+        assert!(transport
+            .open(uuid::Uuid::new_v4().to_string(), String::new())
+            .is_err());
         assert!(output.send(b"y").await.is_err());
     }
 }

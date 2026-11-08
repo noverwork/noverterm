@@ -721,7 +721,7 @@ export type KeyUpdateInput = { name: string; kind: string; fingerprint: string |
 export type KnownHostsResponse = { hosts: TrustedSshHost[] }
 export type McpActivity = { host_name: string; command: string; 
 /**
- * `denied`, `failed`, or `finished`.
+ * `started`, `denied`, `failed`, or `finished`.
  */
 status: string; exit_status: number | null }
 export type McpApprovalRequest = { id: string; host_name: string; target: string; command: string }

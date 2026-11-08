@@ -22,7 +22,7 @@ Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fa
 - **Tabs for everything** — many SSH sessions, plus a local terminal, side by side
 - **TUI-ready** — Kitty keyboard protocol, IME input, and paste handling for vim, tmux, and htop
 - **Dual-pane SFTP** — local or any saved host on each side, drag and drop between them
-- **MCP server for AI agents** — Claude Code, Cursor, VS Code, and Claude Desktop can run commands on your hosts, with your approval
+- **MCP server for AI agents** — Claude Code, Cursor, VS Code, and Claude Desktop can run commands, edit files, open tunnels, and read terminal tabs on your hosts, with your approval
 - **Local-first** — connections, keys, and snippets never leave your machine
 
 ## Features
@@ -63,8 +63,14 @@ Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fa
 ### MCP server for AI agents
 
 - Turn on the built-in MCP server, then paste the ready-made command into Claude Code, Cursor, VS Code, or Claude Desktop
-- Tools: `list_hosts` lists your saved hosts, `run_command` runs a shell command on one of them, `upload_file` and `download_file` copy files and folders over SFTP
-- Every command and transfer needs your approval: allow once, always allow a host until the app restarts, or deny; unanswered requests are denied after two minutes
+- Tools:
+  - Commands: `list_hosts`, `run_command`, and `run_command_multi` to run one command on several hosts at once
+  - Long-running and interactive commands: `start_command`, then `read_command`, `write_command` (stdin), and `stop_command`
+  - Files: `list_dir`, `read_file`, and `write_file` for text files; `upload_file` and `download_file` copy files and folders over SFTP
+  - Snippets: `list_snippets` and `run_snippet`
+  - Port forwarding: `list_port_forwards`, `start_port_forward` (listens on 127.0.0.1), and `stop_port_forward` for tunnels the agent opened
+  - Terminal tabs: `list_terminals` and `read_terminal` return a tab's recent output as plain text
+- Everything that touches a host or a terminal tab needs your approval, including input sent to a running command: allow once, always allow a host until the app restarts, or deny; unanswered requests are denied after two minutes
 - Listens on 127.0.0.1 only, behind a token kept in the system keychain
 - Passwords and keys stay in Noverterm; the agent sees host names, never credentials
 - Hosts must pass their fingerprint check, and jump hosts work as they do in the terminal

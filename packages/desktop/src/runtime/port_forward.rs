@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Runtime};
 use tokio::io::copy_bidirectional;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
@@ -79,16 +79,31 @@ struct PortForwardEntry {
     ssh_task: JoinHandle<()>,
 }
 
-#[derive(Clone)]
-struct ForwardConnectionContext {
+struct ForwardConnectionContext<R: Runtime> {
     handle: Arc<Mutex<Handle<ClientHandler>>>,
     target_host: String,
     target_port: u16,
-    app: AppHandle,
+    app: AppHandle<R>,
     status: PortForwardStatus,
     forwards: Arc<Mutex<HashMap<String, PortForwardEntry>>>,
     input: Arc<PortForwardCreateInput>,
     trust_store: SshTrustStore,
+}
+
+// Manual impl: a derive would demand `R: Clone`.
+impl<R: Runtime> Clone for ForwardConnectionContext<R> {
+    fn clone(&self) -> Self {
+        Self {
+            handle: self.handle.clone(),
+            target_host: self.target_host.clone(),
+            target_port: self.target_port,
+            app: self.app.clone(),
+            status: self.status.clone(),
+            forwards: self.forwards.clone(),
+            input: self.input.clone(),
+            trust_store: self.trust_store.clone(),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -101,9 +116,9 @@ impl PortForwardManager {
         Self::default()
     }
 
-    pub async fn start(
+    pub async fn start<R: Runtime>(
         &self,
-        app: AppHandle,
+        app: AppHandle<R>,
         input: PortForwardCreateInput,
         trust_store: SshTrustStore,
     ) -> Result<PortForwardStatus, String> {
@@ -150,9 +165,9 @@ impl PortForwardManager {
         Ok(status)
     }
 
-    pub async fn stop(
+    pub async fn stop<R: Runtime>(
         &self,
-        app: AppHandle,
+        app: AppHandle<R>,
         forward_id: &str,
     ) -> Result<PortForwardStatus, String> {
         let entry = self
@@ -195,8 +210,8 @@ async fn update_stored_status(
     false
 }
 
-async fn emit_and_store_status(
-    app: &AppHandle,
+async fn emit_and_store_status<R: Runtime>(
+    app: &AppHandle<R>,
     forwards: &Arc<Mutex<HashMap<String, PortForwardEntry>>>,
     status: &PortForwardStatus,
 ) {
@@ -205,8 +220,8 @@ async fn emit_and_store_status(
     }
 }
 
-async fn run_port_forward(
-    app: AppHandle,
+async fn run_port_forward<R: Runtime>(
+    app: AppHandle<R>,
     input: PortForwardCreateInput,
     trust_store: SshTrustStore,
     mut status: PortForwardStatus,
@@ -302,7 +317,10 @@ async fn run_port_forward(
     forwards.lock().await.remove(&forward_id);
 }
 
-async fn run_listener_loop(listener: TcpListener, base_context: ForwardConnectionContext) {
+async fn run_listener_loop<R: Runtime>(
+    listener: TcpListener,
+    base_context: ForwardConnectionContext<R>,
+) {
     loop {
         match listener.accept().await {
             Ok((local_stream, originator_addr)) => {
@@ -344,10 +362,10 @@ async fn run_listener_loop(listener: TcpListener, base_context: ForwardConnectio
     }
 }
 
-async fn handle_forward_connection(
+async fn handle_forward_connection<R: Runtime>(
     mut local_stream: tokio::net::TcpStream,
     originator_addr: SocketAddr,
-    mut context: ForwardConnectionContext,
+    mut context: ForwardConnectionContext<R>,
 ) -> Result<(), String> {
     let target = format!("{}:{}", context.target_host, context.target_port);
     let originator = originator_addr.to_string();
@@ -429,8 +447,8 @@ async fn connect_session(
     Ok(session)
 }
 
-async fn reconnect_session(
-    context: &ForwardConnectionContext,
+async fn reconnect_session<R: Runtime>(
+    context: &ForwardConnectionContext<R>,
 ) -> Result<Handle<ClientHandler>, String> {
     let mut status = context.status.clone();
     info!(forward_id = %status.id, "SSH session closed, reconnecting");
@@ -616,7 +634,7 @@ async fn map_connect_error(
     }
 }
 
-fn emit_status_event(app: &AppHandle, status: &PortForwardStatus) {
+fn emit_status_event<R: Runtime>(app: &AppHandle<R>, status: &PortForwardStatus) {
     if let Err(e) = app.emit("port_forward_status", status.clone()) {
         warn!(
             forward_id = %status.id,

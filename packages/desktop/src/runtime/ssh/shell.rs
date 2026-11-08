@@ -205,7 +205,7 @@ mod tests {
             }))
             .expect("subscribe");
         let output = transport
-            .open(uuid::Uuid::new_v4().to_string())
+            .open(uuid::Uuid::new_v4().to_string(), String::new())
             .expect("open");
         let mut batch = OutputBatch::new();
         {

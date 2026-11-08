@@ -70,6 +70,48 @@ pub async fn mkdir_sftp(session: &RusshSftpSession, path: &str) -> Result<(), Sf
     }
 }
 
+/// Reads at most `limit` bytes; the flag is set when the file holds more.
+pub async fn read_sftp_file(
+    session: &RusshSftpSession,
+    path: &str,
+    limit: usize,
+) -> Result<(Vec<u8>, bool), SftpError> {
+    use tokio::io::AsyncReadExt;
+    let resolved_path = resolve_remote_path(session, path).await?;
+    let file = session
+        .open(resolved_path.as_str())
+        .await
+        .map_err(|error| classify_sftp_error("open", &resolved_path, error))?;
+    let mut data = Vec::new();
+    file.take(limit as u64 + 1)
+        .read_to_end(&mut data)
+        .await
+        .map_err(|error| classify_sftp_error("read", &resolved_path, error))?;
+    let truncated = data.len() > limit;
+    data.truncate(limit);
+    Ok((data, truncated))
+}
+
+/// Creates or replaces the file with `data`.
+pub async fn write_sftp_file(
+    session: &RusshSftpSession,
+    path: &str,
+    data: &[u8],
+) -> Result<(), SftpError> {
+    use tokio::io::AsyncWriteExt;
+    let resolved_path = resolve_remote_path(session, path).await?;
+    let mut file = session
+        .create(resolved_path.as_str())
+        .await
+        .map_err(|error| classify_sftp_error("create", &resolved_path, error))?;
+    file.write_all(data)
+        .await
+        .map_err(|error| classify_sftp_error("write", &resolved_path, error))?;
+    file.shutdown()
+        .await
+        .map_err(|error| classify_sftp_error("write", &resolved_path, error))
+}
+
 fn file_entry_from_metadata(name: String, metadata: &Metadata) -> FileEntry {
     FileEntry {
         name,
