@@ -46,6 +46,7 @@
   let client = $state<Client>("claude-code");
   let reveal = $state(false);
   let copied = $state<string | null>(null);
+  let confirmingRegenerate = $state(false);
 
   const running = $derived(status?.running && status.url && status.token ? status : null);
   const currentClient = $derived(CLIENTS.find((entry) => entry.id === client)!);
@@ -72,9 +73,7 @@
   }
 
   async function regenerateToken() {
-    if (!window.confirm(t("Clients using the current token will stop working. Regenerate it?"))) {
-      return;
-    }
+    confirmingRegenerate = false;
     saving = true;
     error = null;
     const result = await commands.mcpRegenerateToken();
@@ -185,16 +184,39 @@
               {#if reveal}<EyeOff class="size-3" />{:else}<Eye class="size-3" />{/if}
             </Button>
             {@render copyButton("token", running.token!)}
-            <Button
-              variant="ghost"
-              size="sm"
-              class="h-6 gap-1.5 rounded-[2px] px-2 text-xs text-stencil-mute hover:bg-white/10 hover:text-stencil"
-              onclick={() => void regenerateToken()}
-              disabled={saving}
-            >
-              <RefreshCw class="size-3" />
-              {t("Regenerate")}
-            </Button>
+            {#if confirmingRegenerate}
+              <span class="text-xs text-stencil-mute">
+                {t("Clients using the current token will stop working. Regenerate it?")}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-6 rounded-[2px] px-2 text-xs text-stencil-mute hover:bg-white/10 hover:text-stencil"
+                onclick={() => (confirmingRegenerate = false)}
+              >
+                {t("Cancel")}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-6 rounded-[2px] px-2 text-xs text-red-300 hover:bg-white/10"
+                onclick={() => void regenerateToken()}
+                disabled={saving}
+              >
+                {t("Regenerate")}
+              </Button>
+            {:else}
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-6 gap-1.5 rounded-[2px] px-2 text-xs text-stencil-mute hover:bg-white/10 hover:text-stencil"
+                onclick={() => (confirmingRegenerate = true)}
+                disabled={saving}
+              >
+                <RefreshCw class="size-3" />
+                {t("Regenerate")}
+              </Button>
+            {/if}
           </div>
         {/if}
       </div>

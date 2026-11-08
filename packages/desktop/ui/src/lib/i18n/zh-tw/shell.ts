@@ -18,6 +18,9 @@ const zhTW: Record<string, string> = {
   "Back up to Downloads": "備份到「下載」資料夾",
   "Saved to Downloads/{fileName}": "已儲存至 Downloads/{fileName}",
   "Noverterm {version} is available. Install it now?": "Noverterm {version} 已可使用，要立即安裝嗎？",
+  Later: "稍後",
+  Install: "安裝",
+  "Installing…": "安裝中…",
 
   // Sidebar
   "Go to Connections": "前往連線",

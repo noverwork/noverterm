@@ -7,7 +7,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { t } from "$lib/i18n/index.svelte.js";
   import { getLocale, LOCALES, setLocale, type Locale } from "$lib/i18n/index.svelte.js";
-  import { checkForAppUpdate } from "$lib/updater/auto-update.js";
+  import { checkForAppUpdate } from "$lib/updater/auto-update.svelte.js";
 
   let {
     open,
@@ -50,9 +50,13 @@
     checking = true;
     updateStatus = "checking";
     try {
-      await checkForAppUpdate();
-      updateStatus = "up-to-date";
-      setTimeout(() => (updateStatus = "idle"), 3000);
+      // A found update opens the update dialog; only say "up to date" when there is none.
+      if (await checkForAppUpdate()) {
+        updateStatus = "idle";
+      } else {
+        updateStatus = "up-to-date";
+        setTimeout(() => (updateStatus = "idle"), 3000);
+      }
     } catch (error) {
       updateError = String(error);
       updateStatus = "error";

@@ -30,9 +30,10 @@
   } from "$lib/stores/app-shell.svelte.js";
   import TerminalView from "$lib/terminal/terminal.svelte";
   import McpApprovalDialog from "$lib/components/mcp-approval-dialog.svelte";
+  import UpdateDialog from "$lib/components/update-dialog.svelte";
   import { startMcpEvents } from "$lib/mcp/mcp-events.svelte.js";
   import { getTabShortcut } from "$lib/terminal/keyboard-shortcuts.js";
-  import { checkForAppUpdate } from "$lib/updater/auto-update.js";
+  import { checkForAppUpdate } from "$lib/updater/auto-update.svelte.js";
   import type { SnippetRecord } from "$lib/api/types.js";
   import { t } from "$lib/i18n/index.svelte.js";
   import { sessionStencil } from "$lib/session-stencil.js";
@@ -935,6 +936,7 @@
 
       <SettingsModal open={app.showSettings} onClose={app.closeSettings} />
       <McpApprovalDialog />
+      <UpdateDialog />
     </div>
   {/if}
 </QueryClientProvider>
