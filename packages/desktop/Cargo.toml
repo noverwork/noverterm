@@ -38,7 +38,9 @@ diesel = { version = "2.3", features = ["sqlite", "chrono", "r2d2", "returning_c
 diesel_migrations = { version = "2.3", features = ["sqlite"] }
 # Bundled so Windows/Linux builds do not depend on a system sqlite, and so
 # RETURNING (3.35) and VACUUM INTO (3.27) are always available.
-libsqlite3-sys = { version = "0.36", features = ["bundled"] }
+# 0.38+ bundles SQLite >= 3.51.2: 3.51.0/3.51.1 deadlock in the unix VFS when
+# one pool connection closes while another opens (save spins forever).
+libsqlite3-sys = { version = "0.38", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
