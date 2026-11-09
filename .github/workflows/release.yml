@@ -106,16 +106,23 @@ jobs:
         working-directory: packages/desktop/ui
         run: npm ci
 
-      # The Tauri bundler downloads AppRun without retrying, and GitHub
-      # sometimes answers with a 504. A cached copy is used as is.
+      # The Tauri bundler downloads its AppImage tools from github.com release
+      # URLs, which keep answering with a 504. The API download path works, so
+      # fetch them into the bundler cache first; cached copies are used as is.
+      # The linuxdeploy name carries the hash pinned by the Tauri CLI; if a CLI
+      # update changes it, the bundler just downloads its own copy.
       - name: Prefetch AppImage tools
         if: runner.os == 'Linux'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p ~/.cache/tauri
-          curl -fsSL --retry 5 --retry-all-errors \
-            -o ~/.cache/tauri/AppRun-x86_64 \
-            https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-x86_64
-          chmod +x ~/.cache/tauri/AppRun-x86_64
+          cache=~/.cache/tauri
+          mkdir -p "$cache"
+          gh release download apprun-old -R tauri-apps/binary-releases \
+            -p AppRun-x86_64 -D "$cache"
+          gh release download linuxdeploy-07333c6 -R tauri-apps/binary-releases \
+            -p linuxdeploy-x86_64.AppImage -O "$cache/linuxdeploy-07333c6-x86_64.AppImage"
+          chmod +x "$cache"/*
 
       - name: Build Tauri app
         working-directory: packages/desktop
