@@ -301,7 +301,11 @@ function connectResponseSessionUpdates(
   return { status: "error", error };
 }
 
-export function createSessionStore() {
+// A connected session gets a new id; `onSessionIdChange` lets callers rename it
+// in the same tick so the tab never renders at the end of the list.
+export function createSessionStore(
+  onSessionIdChange?: (fromId: string, toId: string) => void,
+) {
   async function init() {
     if (outputChannel && portForwardEventUnlisten) return;
     if (initPromise) return initPromise;
@@ -366,6 +370,7 @@ export function createSessionStore() {
       trustPrompt: undefined,
       trustMismatch: undefined,
     });
+    onSessionIdChange?.(pendingSessionId, sessionId);
     state.activeSessionId = sessionId;
     return sessionId;
   }

@@ -56,7 +56,9 @@ function errorMessage(error: unknown): string {
 }
 
 export function createAppShellStore(queryClient: QueryClient) {
-  const sessionStore = createSessionStore();
+  const sessionStore = createSessionStore((fromId, toId) => {
+    sessionOrder = sessionOrder.map((id) => (id === fromId ? toId : id));
+  });
   const portForwardStore = createPortForwardStore();
 
   let showSettings = $state(false);
@@ -537,19 +539,11 @@ export function createAppShellStore(queryClient: QueryClient) {
     return await connectSavedConnection(connection);
   }
 
-  // Reconnecting gives the session a new id; keep the tab where it was.
   async function retrySavedSessionInPlace(
     sessionId: string,
     connection: ConnectionConfig,
   ) {
-    const order = activeSessions.map((session) => session.id);
-    const newId = await sessionStore.retrySavedConnection(
-      sessionId,
-      connection,
-      80,
-      24,
-    );
-    sessionOrder = order.map((id) => (id === sessionId ? newId : id));
+    await sessionStore.retrySavedConnection(sessionId, connection, 80, 24);
   }
 
   async function retryActiveConnection(): Promise<boolean> {
