@@ -10,6 +10,14 @@
 
   const update = $derived(updater.available);
   const notes = $derived(update?.body?.trim());
+  const progress = $derived(updater.progress);
+  const percent = $derived(
+    progress?.total ? Math.min(100, Math.round((progress.downloaded / progress.total) * 100)) : null,
+  );
+
+  function megabytes(bytes: number): string {
+    return (bytes / 1024 / 1024).toFixed(1);
+  }
 
   function later() {
     if (!installing) {
@@ -55,10 +63,40 @@
         </h2>
       </div>
 
-      {#if notes || error}
+      {#if notes || error || progress}
         <div class="space-y-3 px-6 py-5">
           {#if notes}
             <p class="max-h-48 overflow-auto whitespace-pre-wrap text-sm text-stencil-dim">{notes}</p>
+          {/if}
+          {#if progress}
+            <div class="space-y-1.5">
+              <div
+                class="h-1.5 overflow-hidden rounded-[2px] bg-white/10"
+                role="progressbar"
+                aria-label={t("Downloading update")}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={percent ?? undefined}
+              >
+                <div
+                  class="h-full bg-emerald-500 transition-[width] duration-150 motion-reduce:transition-none {percent ===
+                  null
+                    ? 'w-full motion-safe:animate-pulse'
+                    : ''}"
+                  style:width={percent === null ? undefined : `${percent}%`}
+                ></div>
+              </div>
+              <p class="flex justify-between text-xs tabular-nums text-stencil-mute">
+                <span>
+                  {progress.finished ? t("Installing…") : t("Downloading update")}
+                </span>
+                <span>
+                  {progress.total
+                    ? `${megabytes(progress.downloaded)} / ${megabytes(progress.total)} MB · ${percent}%`
+                    : `${megabytes(progress.downloaded)} MB`}
+                </span>
+              </p>
+            </div>
           {/if}
           {#if error}
             <p class="text-xs text-red-300" role="alert">{error}</p>
@@ -81,7 +119,11 @@
           disabled={installing}
         >
           {#if installing}<Loader2 class="size-4 animate-spin" />{/if}
-          {installing ? t("Installing…") : t("Install")}
+          {installing
+            ? progress && !progress.finished
+              ? t("Downloading…")
+              : t("Installing…")
+            : t("Install")}
         </Button>
       </div>
     </div>

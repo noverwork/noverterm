@@ -21,6 +21,8 @@ const zhTW: Record<string, string> = {
   Later: "稍後",
   Install: "安裝",
   "Installing…": "安裝中…",
+  "Downloading…": "下載中…",
+  "Downloading update": "正在下載更新",
 
   // Sidebar
   "Go to Connections": "前往連線",
