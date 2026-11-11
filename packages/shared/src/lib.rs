@@ -25,6 +25,40 @@ pub struct SshHostRecord {
     pub group_id: Option<String>,
     pub jump_host_id: Option<String>,
     pub auth: Option<SshHostAuthMaterial>,
+    pub ai_access: AiAccess,
+}
+
+/// What MCP clients (AI agents) may do on a host without asking the user.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export, export_to = "ai-access.ts")]
+pub enum AiAccess {
+    /// Show the approval dialog for every call.
+    Ask,
+    /// Run without asking.
+    Allow,
+    /// Refuse without asking.
+    Deny,
+}
+
+impl AiAccess {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Ask => "ask",
+            Self::Allow => "allow",
+            Self::Deny => "deny",
+        }
+    }
+
+    /// The database column only holds the three values (CHECK constraint);
+    /// anything else asks, the safe default.
+    pub fn parse(value: &str) -> Self {
+        match value {
+            "allow" => Self::Allow,
+            "deny" => Self::Deny,
+            _ => Self::Ask,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]

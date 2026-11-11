@@ -155,6 +155,7 @@ export function mapHostsToConnections(
     auth: host.auth,
     jumpHostId: host.jump_host_id,
     jumps: resolveJumps(host, hostsById),
+    aiAccess: host.ai_access,
   }));
 }
 

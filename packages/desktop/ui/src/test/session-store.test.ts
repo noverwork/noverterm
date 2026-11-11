@@ -206,6 +206,7 @@ describe("saved connection without credentials", () => {
         auth: null,
         jumpHostId: "bastion",
         jumps: [],
+        aiAccess: "ask",
       }),
     ).rejects.toThrow("RP5 has no saved password or SSH key");
 

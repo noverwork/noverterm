@@ -1,5 +1,5 @@
 import type { SshHostAuthMaterial } from "$lib/api/types.js";
-import type { SshHopInput } from "../bindings.js";
+import type { AiAccess, SshHopInput } from "../bindings.js";
 
 export interface TerminalConfig {
   fontSize: number;
@@ -22,6 +22,8 @@ export interface ConnectionConfig {
   jumpHostId: string | null;
   /** Resolved jump chain, outermost bastion first. */
   jumps: SshHopInput[];
+  /** What MCP clients may do on this host without asking. */
+  aiAccess: AiAccess;
 }
 
 export interface SaveConnectionInput {

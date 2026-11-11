@@ -1,7 +1,6 @@
 <script lang="ts">
   import {
     ArrowRight,
-    Bot,
     CircleAlert,
     Loader2,
     Network,
@@ -97,40 +96,6 @@
     connection: ConnectionConfig | null,
   ): (PortForward | null)[] {
     return runtimeForwardsFor(savedForward, connection, forwards);
-  }
-
-  /// Runtime forwards no saved preset claims. The UI only starts presets, so
-  /// these come from the MCP `start_port_forward` tool.
-  let mcpForwards = $derived.by(() => {
-    const claimed = new Set(
-      savedForwards.flatMap((savedForward) =>
-        runtimesFor(savedForward, connectionForForward(savedForward)).map(
-          (forward) => forward?.id,
-        ),
-      ),
-    );
-    return forwards.filter(
-      (forward) => forward.state !== "stopped" && !claimed.has(forward.id),
-    );
-  });
-
-  async function handleStopMcp(forward: PortForward) {
-    error = null;
-    deletingRuntimeForwardIds = [...deletingRuntimeForwardIds, forward.id];
-
-    try {
-      if (forward.state === "connecting" || forward.state === "listening") {
-        await onStop(forward.id);
-      }
-      await onDeleteRuntime(forward.id);
-    } catch (cause) {
-      error =
-        cause instanceof Error ? cause.message : t("Failed to stop port forward");
-    } finally {
-      deletingRuntimeForwardIds = deletingRuntimeForwardIds.filter(
-        (id) => id !== forward.id,
-      );
-    }
   }
 
   function isBusy(id: string): boolean {
@@ -337,69 +302,6 @@
     {/if}
 
     <div class="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
-      {#if mcpForwards.length > 0}
-        <section class="mb-6">
-          <h2
-            class="mb-3 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-stencil-mute"
-          >
-            <Bot class="size-3.5" />
-            {t("Started by MCP agents")}
-          </h2>
-          <ul
-            class="divide-y divide-white/6 rounded-[2px] border border-white/10 bg-rail text-xs"
-          >
-            {#each mcpForwards as forward (forward.id)}
-              {@const badge = stateBadge(forward.state)}
-              {@const active =
-                forward.state === "connecting" || forward.state === "listening"}
-              <li class="px-3 py-2">
-                <div class="flex items-center gap-2">
-                  <span class="inline-block size-1.5 shrink-0 rounded-full {badge.tone}"
-                  ></span>
-                  <span class="w-20 shrink-0 {badge.text}">{badge.label}</span>
-                  <span class="truncate font-mono text-stencil"
-                    >{forward.bind_host}:{forward.bind_port}</span
-                  >
-                  <ArrowRight
-                    class="size-3 shrink-0 text-stencil-faint"
-                    aria-label={t("forwards to")}
-                  />
-                  <span class="truncate font-mono text-stencil-dim"
-                    >{forward.target_host}:{forward.target_port}</span
-                  >
-                  <span class="truncate font-mono text-stencil-mute"
-                    >{forward.username}@{forward.host}:{forward.port}</span
-                  >
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    class="ml-auto shrink-0 rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
-                    aria-label={active ? t("Stop") : t("Dismiss")}
-                    title={active ? t("Stop") : t("Dismiss")}
-                    disabled={deletingRuntimeForwardIds.includes(forward.id)}
-                    onclick={() => void handleStopMcp(forward)}
-                  >
-                    {#if deletingRuntimeForwardIds.includes(forward.id)}
-                      <Loader2 class="size-3.5 animate-spin" />
-                    {:else if active}
-                      <Square class="size-3.5" />
-                    {:else}
-                      <Trash2 class="size-3.5" />
-                    {/if}
-                  </Button>
-                </div>
-                {#if forward.error}
-                  <p class="mt-1 flex items-start gap-1.5 pl-3.5 text-red-300" role="alert">
-                    <CircleAlert class="mt-px size-3 shrink-0" />
-                    <span class="break-words">{forward.error}</span>
-                  </p>
-                {/if}
-              </li>
-            {/each}
-          </ul>
-        </section>
-      {/if}
-
       {#if sortedSavedForwards.length === 0}
         <div
           class="flex h-full min-h-[16rem] items-center justify-center rounded-[2px] border border-dashed border-white/10 bg-transparent px-4 py-8 text-center text-sm text-muted-foreground"

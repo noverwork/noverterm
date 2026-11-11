@@ -21,6 +21,8 @@ pub struct SshHost {
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     pub jump_host_id: Option<String>,
+    /// `ask`, `allow`, or `deny`: what MCP clients may do here without asking.
+    pub ai_access: String,
 }
 
 #[derive(Debug, Clone, Insertable)]

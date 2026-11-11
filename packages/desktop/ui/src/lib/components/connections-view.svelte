@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    Bot,
     Check,
     ChevronRight,
     FileInput,
@@ -18,6 +19,7 @@
   import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import type { HostGroupRecord } from "$lib/api/types.js";
+  import type { AiAccess } from "../../bindings.js";
   import type { ConnectionConfig } from "$lib/app-data-types.js";
   import {
     groupPrefix,
@@ -39,6 +41,7 @@
       conn: ConnectionConfig,
       groupId: string | null,
     ) => Promise<void>;
+    onSetAiAccess: (conn: ConnectionConfig, access: AiAccess) => Promise<void>;
   }
 
   let {
@@ -52,6 +55,7 @@
     onCreateGroup,
     onDeleteGroup,
     onMoveToGroup,
+    onSetAiAccess,
   }: Props = $props();
 
   const UNGROUPED_KEY = "ungrouped";
@@ -241,6 +245,24 @@
       await onMoveToGroup(connection, groupId);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : t("Failed to move host");
+    }
+  }
+
+  const AI_ACCESS_OPTIONS: { value: AiAccess; label: string }[] = [
+    { value: "ask", label: "Ask every time" },
+    { value: "allow", label: "Always allow" },
+    { value: "deny", label: "Block" },
+  ];
+
+  async function handleSetAiAccess(connection: ConnectionConfig, access: AiAccess) {
+    if (connection.aiAccess === access) {
+      return;
+    }
+    error = null;
+    try {
+      await onSetAiAccess(connection, access);
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : t("Failed to change AI access");
     }
   }
 
@@ -496,9 +518,24 @@
                             </div>
 
                             <div class="min-w-0 flex-1">
-                              <p class="truncate text-sm font-medium text-stencil">
-                                {connection.name}
-                              </p>
+                              <div class="flex min-w-0 items-center gap-2">
+                                <p class="truncate text-sm font-medium text-stencil">
+                                  {connection.name}
+                                </p>
+                                {#if connection.aiAccess === "allow"}
+                                  <span
+                                    class="shrink-0 rounded-[2px] bg-[#c9952e] px-1.5 text-[11px] font-semibold uppercase leading-4 tracking-[0.14em] text-port"
+                                    title={t("AI agents run commands here without asking")}
+                                    >AI·{t("Allow")}</span
+                                  >
+                                {:else if connection.aiAccess === "deny"}
+                                  <span
+                                    class="shrink-0 rounded-[2px] border border-white/20 px-1.5 text-[11px] font-semibold uppercase leading-4 tracking-[0.14em] text-stencil-mute"
+                                    title={t("AI agents are blocked from this host")}
+                                    >AI·{t("Blocked")}</span
+                                  >
+                                {/if}
+                              </div>
                               <p class="mt-2 truncate font-mono text-xs text-stencil-mute">
                                 {connection.username}@{connection.host}:{connection.port}
                               </p>
@@ -592,6 +629,31 @@
                                   <span class="size-3.5"></span>
                                 {/if}
                                 {group.name}
+                              </ContextMenu.Item>
+                            {/each}
+                          </ContextMenu.SubContent>
+                        </ContextMenu.Sub>
+                        <ContextMenu.Sub>
+                          <ContextMenu.SubTrigger
+                            class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil data-[state=open]:bg-white/8 data-[state=open]:text-stencil"
+                          >
+                            <Bot class="size-3.5" />
+                            {t("AI access")}
+                          </ContextMenu.SubTrigger>
+                          <ContextMenu.SubContent
+                            class="min-w-40 rounded-[2px] border-white/10 bg-rail text-stencil"
+                          >
+                            {#each AI_ACCESS_OPTIONS as option (option.value)}
+                              <ContextMenu.Item
+                                class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil"
+                                onclick={() => void handleSetAiAccess(connection, option.value)}
+                              >
+                                {#if connection.aiAccess === option.value}
+                                  <Check class="size-3.5 text-stencil" />
+                                {:else}
+                                  <span class="size-3.5"></span>
+                                {/if}
+                                {t(option.label)}
                               </ContextMenu.Item>
                             {/each}
                           </ContextMenu.SubContent>

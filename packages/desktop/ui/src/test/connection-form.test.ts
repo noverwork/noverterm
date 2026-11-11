@@ -17,6 +17,7 @@ function connection(id: string, jumpHostId: string | null = null): ConnectionCon
     auth: { kind: "password", password: "pw" },
     jumpHostId,
     jumps: [],
+    aiAccess: "ask",
   };
 }
 

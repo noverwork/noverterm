@@ -14,6 +14,7 @@ function host(id: string, jumpHostId: string | null): SshHostRecord {
     group_id: null,
     jump_host_id: jumpHostId,
     auth: { kind: "password", password: `${id}-secret` },
+    ai_access: "ask",
   };
 }
 

@@ -76,6 +76,7 @@ describe("connections API", () => {
       auth: null,
       jumpHostId: null,
       jumps: [],
+      aiAccess: "ask",
     });
 
     expect(mockInvoke).toHaveBeenCalledWith("host_delete", {

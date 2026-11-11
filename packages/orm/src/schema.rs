@@ -66,6 +66,7 @@ diesel::table! {
         created_at -> Timestamp,
         updated_at -> Timestamp,
         jump_host_id -> Nullable<Text>,
+        ai_access -> Text,
     }
 }
 

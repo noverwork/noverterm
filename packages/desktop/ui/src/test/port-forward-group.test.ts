@@ -17,6 +17,7 @@ const connection: ConnectionConfig = {
   auth: null,
   jumpHostId: null,
   jumps: [],
+  aiAccess: "ask",
 };
 
 const preset: PortForwardRecord = {

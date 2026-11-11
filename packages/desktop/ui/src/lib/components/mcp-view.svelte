@@ -1,15 +1,14 @@
 <script lang="ts">
-  import { ArrowRight, Check, Copy, Eye, EyeOff, RefreshCw, Square, X } from "@lucide/svelte";
+  import { Check, Copy, Eye, EyeOff, RefreshCw } from "@lucide/svelte";
 
-  import { commands, type McpStatus } from "../../bindings.js";
+  import { commands, type McpSettings, type McpStatus } from "../../bindings.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { t } from "$lib/i18n/index.svelte.js";
   import {
     activity,
-    live,
-    revokeGrant,
-    stopCommand,
-    stopForward,
+    activityLabel,
+    activityTone,
+    aiAccess,
   } from "$lib/mcp/mcp-events.svelte.js";
 
   type Client = "claude-code" | "cursor" | "vscode" | "claude-desktop";
@@ -69,12 +68,15 @@
     error = next.error;
   }
 
-  async function configure() {
+  async function configure(change: Partial<McpSettings>) {
+    if (!status) return;
     saving = true;
     error = null;
-    const result = await commands.mcpConfigure({ port });
-    if (result.status === "ok") setStatus(result.data);
-    else error = result.error;
+    const result = await commands.mcpConfigure({ ...status.settings, ...change });
+    if (result.status === "ok") {
+      setStatus(result.data);
+      aiAccess.localTerminal = result.data.settings.allow_local_terminal ?? false;
+    } else error = result.error;
     saving = false;
   }
 
@@ -118,21 +120,6 @@
     copied = key;
     setTimeout(() => (copied = null), 2000);
   }
-
-  let liveError = $state<string | null>(null);
-
-  async function act(action: () => Promise<void>) {
-    liveError = null;
-    try {
-      await action();
-    } catch (cause) {
-      liveError = cause instanceof Error ? cause.message : String(cause);
-    }
-  }
-
-  function startedAt(value: string): string {
-    return new Date(value).toLocaleTimeString();
-  }
 </script>
 
 {#snippet copyButton(key: string, text: string)}
@@ -158,7 +145,7 @@
     </div>
 
     <div class="mt-6 min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
-      <div class="grid grid-cols-[6rem_1fr] items-center gap-x-3 gap-y-3 text-sm">
+      <div class="grid grid-cols-[8rem_1fr] items-center gap-x-3 gap-y-3 text-sm">
         <label for="mcp-port" class="text-stencil-mute">{t("Port")}</label>
         <div class="flex items-center gap-2">
           <input
@@ -175,12 +162,38 @@
               variant="outline"
               size="sm"
               class="rounded-[2px] border-white/10 bg-transparent text-stencil hover:border-white/20 hover:bg-white/5"
-              onclick={() => void configure()}
+              onclick={() => void configure({ port })}
               disabled={saving}
             >
               {t("Apply")}
             </Button>
           {/if}
+        </div>
+
+        <span class="text-stencil-mute">{t("Local terminal")}</span>
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={status?.settings.allow_local_terminal ?? false}
+            aria-label={t("Let AI read local terminals without asking")}
+            onclick={() => void configure({ allow_local_terminal: !status?.settings.allow_local_terminal })}
+            disabled={saving || !status}
+            class={status?.settings.allow_local_terminal
+              ? "relative h-6 w-11 shrink-0 cursor-pointer rounded-full bg-[#c9952e] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              : "relative h-6 w-11 shrink-0 cursor-pointer rounded-full border border-white/10 bg-rail transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-50"}
+          >
+            <span
+              class={status?.settings.allow_local_terminal
+                ? "absolute left-0.5 top-0.5 size-5 translate-x-5 rounded-full bg-port transition-transform"
+                : "absolute left-0.5 top-0.5 size-5 rounded-full bg-stencil-mute transition-transform"}
+            ></span>
+          </button>
+          <span class="text-xs text-stencil-mute">
+            {status?.settings.allow_local_terminal
+              ? t("AI reads local terminals without asking")
+              : t("Ask before AI reads a local terminal")}
+          </span>
         </div>
 
         {#if running}
@@ -287,102 +300,13 @@
         </div>
       {/if}
 
-      {#if live.commands.length > 0 || live.forwards.length > 0 || live.grants.length > 0}
-        <div>
-          <h2 class="section-title">{t("Active now")}</h2>
-          {#if liveError}
-            <p class="mt-2 text-xs text-red-300" role="alert">{liveError}</p>
-          {/if}
-          <ul class="mt-3 divide-y divide-white/6 rounded-[2px] border border-white/10 bg-rail text-xs">
-            {#each live.commands as command (command.id)}
-              <li class="flex items-center gap-2 px-3 py-2">
-                <span class="w-24 shrink-0 {command.finished ? 'text-stencil-mute' : 'text-emerald-400'}">
-                  {command.finished ? t("Finished") : t("Running")}
-                </span>
-                <span class="shrink-0 text-stencil-mute">{command.host_name}</span>
-                <span class="truncate font-mono text-stencil" title={command.command}>{command.command}</span>
-                <span class="ml-auto shrink-0 text-stencil-faint">{startedAt(command.started_at)}</span>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  class="shrink-0 rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
-                  aria-label={t("Stop")}
-                  title={t("Stop")}
-                  onclick={() => void act(() => stopCommand(command.id))}
-                >
-                  <Square class="size-3.5" />
-                </Button>
-              </li>
-            {/each}
-            {#each live.forwards as forward (forward.id)}
-              <li class="flex items-center gap-2 px-3 py-2">
-                <span class="w-24 shrink-0 {forward.state === 'listening' ? 'text-emerald-400' : 'text-amber-300'}">
-                  {t("Port forward")}
-                </span>
-                <span class="shrink-0 text-stencil-mute">{forward.name.replace(/^MCP: /, "")}</span>
-                <span class="font-mono text-stencil">{forward.bind_host}:{forward.bind_port}</span>
-                <ArrowRight class="size-3 shrink-0 text-stencil-faint" aria-label={t("forwards to")} />
-                <span class="truncate font-mono text-stencil-dim">{forward.target_host}:{forward.target_port}</span>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  class="ml-auto shrink-0 rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
-                  aria-label={t("Stop")}
-                  title={t("Stop")}
-                  onclick={() => void act(() => stopForward(forward.id))}
-                >
-                  <Square class="size-3.5" />
-                </Button>
-              </li>
-            {/each}
-            {#each live.grants as grant (grant.key)}
-              <li class="flex items-center gap-2 px-3 py-2">
-                <span class="w-24 shrink-0 text-amber-300">{t("Always allowed")}</span>
-                <span class="shrink-0 text-stencil">{grant.name}</span>
-                {#if grant.target !== grant.name}
-                  <span class="truncate font-mono text-stencil-mute">{grant.target}</span>
-                {/if}
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  class="ml-auto shrink-0 rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
-                  aria-label={t("Revoke")}
-                  title={t("Revoke")}
-                  onclick={() => void act(() => revokeGrant(grant.key))}
-                >
-                  <X class="size-3.5" />
-                </Button>
-              </li>
-            {/each}
-          </ul>
-        </div>
-      {/if}
-
       {#if activity.length > 0}
         <div>
           <h2 class="section-title">{t("Recent MCP commands")}</h2>
           <ul class="mt-3 space-y-1">
             {#each activity as entry, index (index)}
               <li class="flex items-center gap-2 text-xs">
-                <span
-                  class={(entry.status === "finished" && (entry.exit_status ?? 0) === 0) || entry.status === "started"
-                    ? "text-emerald-400"
-                    : entry.status === "denied" || entry.status === "stopped"
-                      ? "text-stencil-mute"
-                      : "text-red-300"}
-                >
-                  {entry.status === "finished"
-                    ? entry.exit_status === null
-                      ? t("Done")
-                      : t("exit {code}", { code: entry.exit_status })
-                    : entry.status === "started"
-                      ? t("Started")
-                      : entry.status === "denied"
-                        ? t("Denied")
-                        : entry.status === "stopped"
-                          ? t("Stopped")
-                          : t("Failed")}
-                </span>
+                <span class={activityTone(entry)}>{activityLabel(entry)}</span>
                 <span class="shrink-0 text-stencil-mute">{entry.host_name}</span>
                 <span class="truncate font-mono text-stencil">{entry.command}</span>
               </li>

@@ -45,6 +45,14 @@ async hostDelete(id: string, sshKeyId: string | null) : Promise<Result<null, str
     else return { status: "error", error: String(e) };
 }
 },
+async hostSetAiAccess(id: string, access: AiAccess) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("host_set_ai_access", { id, access }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async aiAsk(input: AiAskInput) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_ask", { input }) };
@@ -115,14 +123,6 @@ async mcpSessions() : Promise<Result<McpSessions, string>> {
 async mcpStopCommand(id: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("mcp_stop_command", { id }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: String(e) };
-}
-},
-async mcpRevokeGrant(key: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("mcp_revoke_grant", { key }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -670,6 +670,22 @@ async knownHostsRemove(host: string, port: number) : Promise<Result<KnownHostsRe
 /** user-defined types **/
 
 /**
+ * What MCP clients (AI agents) may do on a host without asking the user.
+ */
+export type AiAccess = 
+/**
+ * Show the approval dialog for every call.
+ */
+"ask" | 
+/**
+ * Run without asking.
+ */
+"allow" | 
+/**
+ * Refuse without asking.
+ */
+"deny"
+/**
  * The wire format a model is reached through.
  */
 export type AiApiFormat = 
@@ -764,18 +780,26 @@ export type McpDecision = "allow" |
  */
 "allow_host" | "deny"
 /**
- * A host or terminal the user allowed for everything ("allow host").
+ * A tool call an MCP client is waiting on right now.
  */
-export type McpGrant = { 
+export type McpRunningTool = { id: string; tool: string; host: string | null; 
 /**
- * Pass to `mcp_revoke_grant`.
+ * The command, path, or other argument that says what it does.
  */
-key: string; name: string; target: string }
+detail: string | null; 
+/**
+ * RFC 3339.
+ */
+started_at: string }
 /**
  * What MCP clients currently hold open in the app.
  */
-export type McpSessions = { commands: McpBackgroundCommand[]; forwards: PortForwardStatus[]; grants: McpGrant[] }
-export type McpSettings = { port: number }
+export type McpSessions = { running: McpRunningTool[]; commands: McpBackgroundCommand[]; forwards: PortForwardStatus[] }
+export type McpSettings = { port: number; 
+/**
+ * Let MCP clients read local terminal tabs without asking.
+ */
+allow_local_terminal?: boolean }
 export type McpStatus = { settings: McpSettings; running: boolean; url: string; 
 /**
  * The bearer token clients must send; present once the server started.
@@ -814,7 +838,7 @@ export type SshConnectResponse = { status: "connected"; session_id: string } | {
  */
 export type SshHopInput = { host: string; port: number; username: string; password: string | null; private_key: string | null; passphrase: string | null }
 export type SshHostAuthMaterial = { kind: "password"; password: string } | { kind: "public_key"; private_key: string; passphrase: string | null } | { kind: "public_key_and_password"; private_key: string; passphrase: string | null; password: string }
-export type SshHostRecord = { id: string; name: string; host: string; port: number; username: string; ssh_key_id: string | null; group_id: string | null; jump_host_id: string | null; auth: SshHostAuthMaterial | null }
+export type SshHostRecord = { id: string; name: string; host: string; port: number; username: string; ssh_key_id: string | null; group_id: string | null; jump_host_id: string | null; auth: SshHostAuthMaterial | null; ai_access: AiAccess }
 export type SshKeyRecord = { id: string; name: string; kind: string; fingerprint: string | null }
 export type SshKeySecret = { private_key: string; passphrase: string | null }
 export type SshLocalPortForwardInput = { session_id: string; bind_host: string; bind_port: number; target_host: string; target_port: number }

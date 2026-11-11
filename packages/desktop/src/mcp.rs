@@ -18,7 +18,7 @@ use diesel::prelude::*;
 use orm::models::{SshHost, SshKey};
 use orm::schema::{settings, ssh_hosts, ssh_keys};
 use serde_json::{json, Value};
-use shared::SnippetRecord;
+use shared::{AiAccess, SnippetRecord};
 use tauri::{AppHandle, Emitter, Listener, Manager, Runtime};
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio::task::JoinSet;
@@ -26,6 +26,7 @@ use tokio::time::timeout;
 use tracing::{info, warn};
 use uuid::Uuid;
 
+use crate::runtime::local::LOCAL_TERMINAL_LABEL;
 use crate::runtime::port_forward::{
     PortForwardAuth, PortForwardCreateInput, PortForwardManager, PortForwardStatus,
 };
@@ -35,6 +36,7 @@ use crate::runtime::ssh::{
     ExecOutput, ExecTarget, RemoteSftp, SshHopInput,
 };
 use crate::runtime::terminal_output::TerminalOutput;
+use crate::store::hosts::set_ai_access;
 use crate::store::snippets::load_snippets;
 use crate::store::{internal_error, run_db, DbPool};
 use crate::trust::SshTrustStore;
@@ -65,13 +67,12 @@ const FORWARD_START_TIMEOUT: Duration = Duration::from_secs(30);
 pub struct McpState {
     server: Mutex<Option<RunningServer>>,
     pending: StdMutex<HashMap<String, oneshot::Sender<McpDecision>>>,
-    /// Hosts (or terminals) the user allowed for everything until the app
-    /// restarts or they revoke it, by approval key.
-    allowed_hosts: StdMutex<HashMap<String, McpGrant>>,
     /// Commands started with `start_command`, by id.
     background: StdMutex<HashMap<String, Arc<Background>>>,
     /// Port forwards started over MCP; only these can be stopped over MCP.
     forwards: StdMutex<HashSet<String>>,
+    /// Tool calls in flight (waiting for approval or running), by id.
+    running: StdMutex<HashMap<String, McpRunningTool>>,
 }
 
 struct Background {
@@ -91,11 +92,17 @@ struct RunningServer {
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct McpSettings {
     pub port: u16,
+    /// Let MCP clients read local terminal tabs without asking.
+    #[serde(default)]
+    pub allow_local_terminal: bool,
 }
 
 impl Default for McpSettings {
     fn default() -> Self {
-        Self { port: DEFAULT_PORT }
+        Self {
+            port: DEFAULT_PORT,
+            allow_local_terminal: false,
+        }
     }
 }
 
@@ -136,15 +143,6 @@ pub struct McpActivity {
     pub exit_status: Option<u32>,
 }
 
-/// A host or terminal the user allowed for everything ("allow host").
-#[derive(Debug, Clone, serde::Serialize, specta::Type)]
-pub struct McpGrant {
-    /// Pass to `mcp_revoke_grant`.
-    pub key: String,
-    pub name: String,
-    pub target: String,
-}
-
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct McpBackgroundCommand {
     pub id: String,
@@ -156,12 +154,24 @@ pub struct McpBackgroundCommand {
     pub finished: bool,
 }
 
+/// A tool call an MCP client is waiting on right now.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct McpRunningTool {
+    pub id: String,
+    pub tool: String,
+    pub host: Option<String>,
+    /// The command, path, or other argument that says what it does.
+    pub detail: Option<String>,
+    /// RFC 3339.
+    pub started_at: String,
+}
+
 /// What MCP clients currently hold open in the app.
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct McpSessions {
+    pub running: Vec<McpRunningTool>,
     pub commands: Vec<McpBackgroundCommand>,
     pub forwards: Vec<PortForwardStatus>,
-    pub grants: Vec<McpGrant>,
 }
 
 #[tauri::command]
@@ -173,6 +183,22 @@ pub async fn mcp_status(app: AppHandle) -> Result<McpStatus, String> {
 #[tauri::command]
 #[specta::specta]
 pub async fn mcp_configure(app: AppHandle, settings: McpSettings) -> Result<McpStatus, String> {
+    let previous = load_settings(&app).await?;
+    save_settings(&app, settings).await?;
+    // A toggle alone must not drop the clients connected to the running server.
+    let running = app.state::<McpState>().server.lock().await.is_some();
+    let error = if running && previous.port == settings.port {
+        None
+    } else {
+        apply(&app, settings).await.err()
+    };
+    status(&app, error).await
+}
+
+async fn save_settings<R: Runtime>(
+    app: &AppHandle<R>,
+    settings: McpSettings,
+) -> Result<(), String> {
     let pool = app.state::<DbPool>().inner().clone();
     let value = serde_json::to_string(&settings).map_err(|error| error.to_string())?;
     run_db(pool, move |db| {
@@ -194,9 +220,7 @@ pub async fn mcp_configure(app: AppHandle, settings: McpSettings) -> Result<McpS
             .map(|_| ())
             .map_err(internal_error)
     })
-    .await?;
-    let error = apply(&app, settings).await.err();
-    status(&app, error).await
+    .await
 }
 
 /// Replaces the token and restarts the server; clients set up with the old one stop working.
@@ -242,15 +266,10 @@ pub async fn mcp_sessions(app: AppHandle) -> Result<McpSessions, String> {
         })
         .collect();
     commands.sort_by(|left, right| left.started_at.cmp(&right.started_at));
-    let mut grants: Vec<McpGrant> = state
-        .allowed_hosts
-        .lock()
-        .unwrap()
-        .values()
-        .cloned()
-        .collect();
-    grants.sort_by(|left, right| left.name.cmp(&right.name));
     let ids = state.forwards.lock().unwrap().clone();
+    let mut running: Vec<McpRunningTool> =
+        state.running.lock().unwrap().values().cloned().collect();
+    running.sort_by(|left, right| left.started_at.cmp(&right.started_at));
     let forwards = app
         .state::<PortForwardManager>()
         .list()
@@ -259,9 +278,9 @@ pub async fn mcp_sessions(app: AppHandle) -> Result<McpSessions, String> {
         .filter(|forward| ids.contains(&forward.id))
         .collect();
     Ok(McpSessions {
+        running,
         commands,
         forwards,
-        grants,
     })
 }
 
@@ -269,18 +288,6 @@ pub async fn mcp_sessions(app: AppHandle) -> Result<McpSessions, String> {
 #[specta::specta]
 pub fn mcp_stop_command(app: AppHandle, id: String) -> Result<(), String> {
     stop_command(&app, &id).map(|_| ())
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn mcp_revoke_grant(app: AppHandle, key: String) -> Result<(), String> {
-    app.state::<McpState>()
-        .allowed_hosts
-        .lock()
-        .unwrap()
-        .remove(&key);
-    notify_changed(&app);
-    Ok(())
 }
 
 /// Tells the UI that `McpSessions` changed.
@@ -614,7 +621,60 @@ fn tool(
     })
 }
 
+/// Lists the call in `McpState.running` while it runs, so the status line
+/// shows the agent at work even for one-shot tools.
 async fn call_tool<R: Runtime>(app: &AppHandle<R>, params: &Value) -> Result<String, String> {
+    struct InFlight<'a, R: Runtime>(&'a AppHandle<R>, String);
+    // Also runs when the client hangs up and the call is dropped mid-way.
+    impl<R: Runtime> Drop for InFlight<'_, R> {
+        fn drop(&mut self) {
+            self.0
+                .state::<McpState>()
+                .running
+                .lock()
+                .unwrap()
+                .remove(&self.1);
+            notify_changed(self.0);
+        }
+    }
+
+    let args = &params["arguments"];
+    let host = optional(args, "host").map(str::to_string).or_else(|| {
+        let hosts: Vec<&str> = args["hosts"]
+            .as_array()?
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
+        (!hosts.is_empty()).then(|| hosts.join(", "))
+    });
+    let detail = [
+        "command",
+        "path",
+        "remote_path",
+        "snippet",
+        "terminal",
+        "id",
+    ]
+    .into_iter()
+    .find_map(|name| optional(args, name))
+    .map(str::to_string);
+    let id = Uuid::new_v4().to_string();
+    app.state::<McpState>().running.lock().unwrap().insert(
+        id.clone(),
+        McpRunningTool {
+            id: id.clone(),
+            tool: params["name"].as_str().unwrap_or_default().to_string(),
+            host,
+            detail,
+            started_at: chrono::Utc::now().to_rfc3339(),
+        },
+    );
+    notify_changed(app);
+    let _in_flight = InFlight(app, id);
+    dispatch_tool(app, params).await
+}
+
+async fn dispatch_tool<R: Runtime>(app: &AppHandle<R>, params: &Value) -> Result<String, String> {
     let args = &params["arguments"];
     let run_timeout = || {
         seconds(
@@ -769,6 +829,7 @@ async fn list_hosts<R: Runtime>(app: &AppHandle<R>) -> Result<String, String> {
                 "name": host.name,
                 "target": host_target(host),
                 "via": via,
+                "ai_access": host.ai_access,
             })
         })
         .collect();
@@ -854,10 +915,15 @@ async fn approved_target<R: Runtime>(
     let auth = auth_method(password, private_key, passphrase)
         .map_err(|_| format!("{} has no saved password or SSH key", host.name))?;
 
-    if !approve(app, &host.id, &host.name, &host_target(host), action).await {
-        emit_activity(app, &host.name, action, "denied", None);
-        return Err(DENIED.to_string());
-    }
+    approve(
+        app,
+        AiAccess::parse(&host.ai_access),
+        Remember::Host(host.id.clone()),
+        &host.name,
+        &host_target(host),
+        action,
+    )
+    .await?;
     let target = ExecTarget {
         host: host.host.clone(),
         port: port(host)?,
@@ -892,19 +958,34 @@ fn emit_activity<R: Runtime>(
     );
 }
 
-/// Asks the user in the app; `true` once they allow it. `key` is what
-/// "always allow" remembers: a host id, or a terminal.
+/// What "Always allow" in the approval dialog turns on.
+enum Remember {
+    Host(String),
+    LocalTerminal,
+    /// A terminal on an unsaved (or ambiguous) host: allow this call only.
+    Nothing,
+}
+
+/// Lets the call through per `access`, asking the user when it is `Ask`.
 async fn approve<R: Runtime>(
     app: &AppHandle<R>,
-    key: &str,
+    access: AiAccess,
+    remember: Remember,
     host_name: &str,
     target: &str,
     command: &str,
-) -> bool {
-    let state = app.state::<McpState>();
-    if state.allowed_hosts.lock().unwrap().contains_key(key) {
-        return true;
+) -> Result<(), String> {
+    match access {
+        AiAccess::Allow => return Ok(()),
+        AiAccess::Deny => {
+            emit_activity(app, host_name, command, "denied", None);
+            return Err(format!(
+                "The user blocked AI access to {host_name} in noverterm."
+            ));
+        }
+        AiAccess::Ask => {}
     }
+    let state = app.state::<McpState>();
     let id = Uuid::new_v4().to_string();
     let (sender, receiver) = oneshot::channel();
     state.pending.lock().unwrap().insert(id.clone(), sender);
@@ -914,32 +995,107 @@ async fn approve<R: Runtime>(
         target: target.to_string(),
         command: command.to_string(),
     };
-    if app.emit("mcp_approval_request", request).is_err() {
-        state.pending.lock().unwrap().remove(&id);
-        return false;
+    let sent = app.emit("mcp_approval_request", request).is_ok();
+    if sent {
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
+        }
     }
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
-    }
-
-    let decision = tokio::time::timeout(APPROVAL_TIMEOUT, receiver).await;
+    let decision = if sent {
+        tokio::time::timeout(APPROVAL_TIMEOUT, receiver).await.ok()
+    } else {
+        None
+    };
     state.pending.lock().unwrap().remove(&id);
     match decision {
-        Ok(Ok(McpDecision::Allow)) => true,
-        Ok(Ok(McpDecision::AllowHost)) => {
-            state.allowed_hosts.lock().unwrap().insert(
-                key.to_string(),
-                McpGrant {
-                    key: key.to_string(),
-                    name: host_name.to_string(),
-                    target: target.to_string(),
+        Some(Ok(McpDecision::Allow)) => Ok(()),
+        Some(Ok(McpDecision::AllowHost)) => {
+            // The call still runs if saving fails; the user did allow it.
+            let saved = match remember {
+                Remember::Host(host_id) => {
+                    let pool = app.state::<DbPool>().inner().clone();
+                    set_ai_access(pool, host_id, AiAccess::Allow).await
+                }
+                Remember::LocalTerminal => match load_settings(app).await {
+                    Ok(settings) => {
+                        save_settings(
+                            app,
+                            McpSettings {
+                                allow_local_terminal: true,
+                                ..settings
+                            },
+                        )
+                        .await
+                    }
+                    Err(error) => Err(error),
                 },
-            );
-            notify_changed(app);
-            true
+                Remember::Nothing => Ok(()),
+            };
+            match saved {
+                Ok(()) => {
+                    let _ = app.emit("ai_access_changed", ());
+                }
+                Err(error) => warn!(error, "Could not save AI access"),
+            }
+            Ok(())
         }
-        _ => false,
+        _ => {
+            emit_activity(app, host_name, command, "denied", None);
+            Err(DENIED.to_string())
+        }
     }
+}
+
+/// A host's current AI access; a host deleted since asks.
+async fn host_access<R: Runtime>(app: &AppHandle<R>, host_id: &str) -> AiAccess {
+    let pool = app.state::<DbPool>().inner().clone();
+    let host_id = host_id.to_string();
+    run_db(pool, move |db| {
+        ssh_hosts::table
+            .filter(ssh_hosts::id.eq(host_id))
+            .select(ssh_hosts::ai_access)
+            .first::<String>(db)
+            .map_err(internal_error)
+    })
+    .await
+    .map_or(AiAccess::Ask, |access| AiAccess::parse(&access))
+}
+
+/// A terminal tab follows the saved host it is connected to, matched by its
+/// `user@host:port` label; a local tab follows the MCP setting. Saved hosts
+/// sharing one target take the strictest access.
+// ponytail: matches by label, so a direct (unsaved) connection always asks; pass the host id through ssh_connect_direct if that matters.
+async fn terminal_access<R: Runtime>(
+    app: &AppHandle<R>,
+    label: &str,
+) -> Result<(AiAccess, Remember), String> {
+    if label == LOCAL_TERMINAL_LABEL {
+        let access = if load_settings(app).await?.allow_local_terminal {
+            AiAccess::Allow
+        } else {
+            AiAccess::Ask
+        };
+        return Ok((access, Remember::LocalTerminal));
+    }
+    let (hosts, _) = load_hosts(app).await?;
+    let matching: Vec<&SshHost> = hosts
+        .iter()
+        .filter(|host| host_target(host) == label)
+        .collect();
+    let access = matching
+        .iter()
+        .map(|host| AiAccess::parse(&host.ai_access))
+        .max_by_key(|access| match access {
+            AiAccess::Allow => 0,
+            AiAccess::Ask => 1,
+            AiAccess::Deny => 2,
+        })
+        .unwrap_or(AiAccess::Ask);
+    let remember = match matching.as_slice() {
+        [host] => Remember::Host(host.id.clone()),
+        _ => Remember::Nothing,
+    };
+    Ok((access, remember))
 }
 
 fn format_output(output: &ExecOutput) -> String {
@@ -1372,18 +1528,15 @@ async fn write_command<R: Runtime>(
         ""
     };
     let action = format!("input to {}:\n{input}{close}", entry.command);
-    if !approve(
+    approve(
         app,
-        &entry.host_id,
+        host_access(app, &entry.host_id).await,
+        Remember::Host(entry.host_id.clone()),
         &entry.host_name,
         &entry.target,
         &action,
     )
-    .await
-    {
-        emit_activity(app, &entry.host_name, &action, "denied", None);
-        return Err(DENIED.to_string());
-    }
+    .await?;
     if !input.is_empty() {
         entry.process.write(Some(input.as_bytes().to_vec()))?;
     }
@@ -1428,17 +1581,14 @@ async fn read_terminal<R: Runtime>(
         .history(id)
         .ok_or_else(missing)?;
     let action = "read the terminal's recent output";
-    if !approve(app, &format!("terminal:{id}"), &label, &label, action).await {
-        emit_activity(app, &label, action, "denied", None);
-        return Err(DENIED.to_string());
-    }
+    let (access, remember) = terminal_access(app, &label).await?;
+    approve(app, access, remember, &label, &label, action).await?;
     // Read after approval so the user sees what is on screen now.
     let (_, bytes) = app
         .state::<TerminalOutput>()
         .history(id)
         .ok_or_else(missing)?;
     emit_activity(app, &label, action, "finished", None);
-    let _ = app.emit("mcp_terminal_read", id);
     let text = terminal_text(&bytes);
     let all: Vec<&str> = text.lines().collect();
     Ok(all[all.len().saturating_sub(lines)..].join("\n"))
@@ -1588,6 +1738,7 @@ mod tests {
             created_at: now,
             updated_at: now,
             jump_host_id: jump.map(str::to_string),
+            ai_access: "ask".to_string(),
         }
     }
 
@@ -1727,6 +1878,60 @@ mod tests {
         let text = listed["result"]["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("root@web.test:22"), "{text}");
         assert!(!text.contains("pw"), "credentials never leave: {text}");
+    }
+
+    #[tokio::test]
+    async fn host_ai_access_blocks_asks_and_remembers_always_allow() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let server = test_server().await;
+        // Nothing listens on port 1, so an allowed call fails only after approval.
+        insert_host(&server, "web", "127.0.0.1", 1, "pw");
+        let asked = Arc::new(AtomicUsize::new(0));
+        let (handle, counter) = (server.app.handle().clone(), asked.clone());
+        server.app.listen("mcp_approval_request", move |event| {
+            counter.fetch_add(1, Ordering::SeqCst);
+            let request: Value = serde_json::from_str(event.payload()).unwrap();
+            let sender = handle
+                .state::<McpState>()
+                .pending
+                .lock()
+                .unwrap()
+                .remove(request["id"].as_str().unwrap());
+            let _ = sender.unwrap().send(McpDecision::AllowHost);
+        });
+        let pool = || server.app.state::<DbPool>().inner().clone();
+        let call =
+            json!({ "name": "run_command", "arguments": { "host": "web", "command": "true" } });
+        let text = |reply: &Value| {
+            reply["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+
+        set_ai_access(pool(), "web".to_string(), AiAccess::Deny)
+            .await
+            .unwrap();
+        let blocked = rpc(&server, "tools/call", call.clone()).await;
+        assert!(text(&blocked).contains("blocked"), "{}", text(&blocked));
+        assert_eq!(asked.load(Ordering::SeqCst), 0);
+
+        set_ai_access(pool(), "web".to_string(), AiAccess::Ask)
+            .await
+            .unwrap();
+        rpc(&server, "tools/call", call.clone()).await;
+        assert_eq!(asked.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            host_access(server.app.handle(), "web").await,
+            AiAccess::Allow
+        );
+
+        rpc(&server, "tools/call", call).await;
+        assert_eq!(
+            asked.load(Ordering::SeqCst),
+            1,
+            "allowed hosts are not asked again"
+        );
     }
 
     /// Needs an sshd; see the env vars below. Run with `--ignored`.

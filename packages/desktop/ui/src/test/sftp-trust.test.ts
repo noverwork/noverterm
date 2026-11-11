@@ -34,6 +34,7 @@ const connection: ConnectionConfig = {
   auth: { kind: "password", password: "never-display-this-secret" },
   jumpHostId: null,
   jumps: [],
+  aiAccess: "ask",
 };
 const prompt: HostTrustPrompt = {
   host: connection.host,

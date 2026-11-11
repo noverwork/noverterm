@@ -10,7 +10,6 @@
   import { QueryClient, QueryClientProvider } from "@tanstack/svelte-query";
   import {
     AlertCircle,
-    Bot,
     FileText,
     FolderOpen,
     KeyRound,
@@ -31,8 +30,10 @@
   } from "$lib/stores/app-shell.svelte.js";
   import TerminalView from "$lib/terminal/terminal.svelte";
   import McpApprovalDialog from "$lib/components/mcp-approval-dialog.svelte";
+  import McpStatus from "$lib/components/mcp-status.svelte";
   import UpdateDialog from "$lib/components/update-dialog.svelte";
-  import { live, readTerminals, startMcpEvents } from "$lib/mcp/mcp-events.svelte.js";
+  import { listen } from "@tauri-apps/api/event";
+  import { aiAccess, startMcpEvents } from "$lib/mcp/mcp-events.svelte.js";
   import { getTabShortcut } from "$lib/terminal/keyboard-shortcuts.js";
   import { checkForAppUpdate } from "$lib/updater/auto-update.svelte.js";
   import type { SnippetRecord } from "$lib/api/types.js";
@@ -157,8 +158,14 @@
       : sidebarPages[activeSidebarSection],
   );
 
+  let unlistenAiAccess: (() => void) | null = null;
+
   onMount(async () => {
     startMcpEvents();
+    // Approving "Always allow" in the MCP dialog changes a host's AI access.
+    void listen("ai_access_changed", () => void app.refreshMetadata()).then(
+      (unlisten) => (unlistenAiAccess = unlisten),
+    );
     window.addEventListener("contextmenu", handleGlobalContextMenu);
     await app.init();
     checkForAppUpdate().catch((error) => console.warn("Failed to check for app updates", error));
@@ -167,6 +174,7 @@
 
   onDestroy(() => {
     window.removeEventListener("contextmenu", handleGlobalContextMenu);
+    unlistenAiAccess?.();
     stopSessionTabAutoScroll();
     app.cleanup();
   });
@@ -536,8 +544,6 @@
         connectionCount={app.connections.length}
         keyCount={app.keys.length}
         forwardCount={app.savedPortForwards.length}
-        mcpActive={live.commands.filter((command) => !command.finished).length +
-          live.forwards.length}
         activeSection={activeSidebarSection}
       />
 
@@ -639,13 +645,14 @@
                         <span class="truncate"
                           >{stencil.prefix}·{session.name}</span
                         >
-                        {#if readTerminals.has(session.id)}
-                          <Bot
-                            class="size-3 shrink-0 opacity-70"
-                            aria-label={t("Read by an MCP agent")}
-                          />
-                        {/if}
                       </span>
+                      {#if session.type === "local" ? aiAccess.localTerminal : app.connections.find((connection) => connection.id === session.connectionId)?.aiAccess === "allow"}
+                        <span
+                          class="pointer-events-none relative z-10 shrink-0 rounded-[2px] bg-[#c9952e] px-1 text-[11px] font-semibold leading-4 tracking-[0.14em] text-port ring-1 ring-port/40"
+                          title={t("AI agents run commands here without asking")}
+                          >AI</span
+                        >
+                      {/if}
                       {#if isHeld(session.status)}
                         <span
                           class="pointer-events-none relative z-10 shrink-0 bg-stencil px-1 text-[11px] leading-4 tracking-[0.14em] text-seal"
@@ -935,7 +942,10 @@
           {:else}
             <span>{t("No session selected")}</span>
           {/if}
-          <span class="ml-auto shrink-0 tabular-nums"
+          <div class="ml-auto flex h-full min-w-0 items-center">
+            <McpStatus onOpenSettings={() => goto("/mcp")} onOpenHosts={() => goto("/connections")} />
+          </div>
+          <span class="shrink-0 tabular-nums"
             >{t("{count} open", { count: app.activeSessions.length })}{heldSessionCount > 0
               ? ` · ${t("{count} held", { count: heldSessionCount })}`
               : ""}</span

@@ -10,6 +10,8 @@ use super::terminal_output::{OutputSession, TerminalOutput, OUTPUT_CHUNK_BYTES};
 
 const LOCAL_WRITE_QUEUE_CAPACITY: usize = 16;
 const LOCAL_WRITE_MAX_BYTES: usize = 1024 * 1024;
+/// The terminal output label of every local tab.
+pub const LOCAL_TERMINAL_LABEL: &str = "Local Terminal";
 
 pub struct LocalSession {
     #[allow(dead_code)]
@@ -61,7 +63,7 @@ impl LocalSessionManager {
         cmd: CommandBuilder,
     ) -> Result<String, String> {
         let session_id = Uuid::new_v4().to_string();
-        let output = output.open(session_id.clone(), "Local Terminal".to_string())?;
+        let output = output.open(session_id.clone(), LOCAL_TERMINAL_LABEL.to_string())?;
         info!(session_id, "Starting local terminal session");
 
         let pair = native_pty_system()

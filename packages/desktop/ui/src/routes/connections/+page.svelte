@@ -34,4 +34,5 @@ import type { ConnectionConfig } from "$lib/app-data-types.js";
   onCreateGroup={app.createHostGroup}
   onDeleteGroup={app.deleteHostGroup}
   onMoveToGroup={app.moveConnectionToGroup}
+  onSetAiAccess={app.setHostAiAccess}
 />

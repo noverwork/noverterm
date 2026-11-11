@@ -41,7 +41,7 @@ import {
 } from "$lib/queries/index.js";
 import { reorderSnippetPins, updateSnippet } from "$lib/api/snippets-api.js";
 import { snippetListQueryOptions } from "$lib/queries/snippet-queries.js";
-import type { HostTrustConfirmation } from "../../bindings.js";
+import { commands, type AiAccess, type HostTrustConfirmation } from "../../bindings.js";
 import { createPortForwardStore } from "$lib/stores/port-forward.svelte.js";
 import { t } from "$lib/i18n/index.svelte.js";
 import {
@@ -390,6 +390,12 @@ export function createAppShellStore(queryClient: QueryClient) {
         ? { preservedPassword: connection.auth.password }
         : {}),
     });
+  }
+
+  async function setHostAiAccess(connection: ConnectionConfig, access: AiAccess) {
+    const result = await commands.hostSetAiAccess(connection.id, access);
+    if (result.status === "error") throw new Error(result.error);
+    await refreshMetadata();
   }
 
   async function saveKey(name: string, privateKey: string, passphrase: string) {
@@ -761,6 +767,7 @@ export function createAppShellStore(queryClient: QueryClient) {
     createHostGroup,
     deleteHostGroup,
     moveConnectionToGroup,
+    setHostAiAccess,
     saveKey,
     updateKey,
     deleteKey,

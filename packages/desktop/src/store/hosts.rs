@@ -2,7 +2,7 @@ use chrono::Utc;
 use diesel::prelude::*;
 use orm::models::{NewSshHost, SshHost, SshKey, UpdateSshHost};
 use orm::schema::{ssh_hosts, ssh_keys};
-use shared::{SshHostAuthMaterial, SshHostRecord};
+use shared::{AiAccess, SshHostAuthMaterial, SshHostRecord};
 use uuid::Uuid;
 
 use super::{internal_error, run_db, DbPool};
@@ -156,6 +156,34 @@ pub async fn host_delete(
     .await
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn host_set_ai_access(
+    id: String,
+    access: AiAccess,
+    pool: tauri::State<'_, DbPool>,
+) -> Result<(), String> {
+    set_ai_access(pool.inner().clone(), id, access).await
+}
+
+pub(crate) async fn set_ai_access(
+    pool: DbPool,
+    id: String,
+    access: AiAccess,
+) -> Result<(), String> {
+    run_db(pool, move |connection| {
+        let updated = diesel::update(ssh_hosts::table.filter(ssh_hosts::id.eq(id)))
+            .set(ssh_hosts::ai_access.eq(access.as_str()))
+            .execute(connection)
+            .map_err(internal_error)?;
+        if updated == 0 {
+            return Err("host not found".to_string());
+        }
+        Ok(())
+    })
+    .await
+}
+
 fn to_record(keys: &[SshKey], host: SshHost) -> SshHostRecord {
     let key = host
         .ssh_key_id
@@ -186,6 +214,7 @@ fn to_record(keys: &[SshKey], host: SshHost) -> SshHostRecord {
         group_id: host.group_id,
         jump_host_id: host.jump_host_id,
         auth,
+        ai_access: AiAccess::parse(&host.ai_access),
     }
 }
 
