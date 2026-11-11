@@ -10,6 +10,7 @@
   import { QueryClient, QueryClientProvider } from "@tanstack/svelte-query";
   import {
     AlertCircle,
+    Bot,
     FileText,
     FolderOpen,
     KeyRound,
@@ -647,11 +648,10 @@
                         >
                       </span>
                       {#if session.type === "local" ? aiAccess.localTerminal : app.connections.find((connection) => connection.id === session.connectionId)?.aiAccess === "allow"}
-                        <span
-                          class="pointer-events-none relative z-10 shrink-0 rounded-[2px] bg-[#c9952e] px-1 text-[11px] font-semibold leading-4 tracking-[0.14em] text-port ring-1 ring-port/40"
-                          title={t("AI agents run commands here without asking")}
-                          >AI</span
-                        >
+                        <Bot
+                          class="pointer-events-none relative z-10 size-3.5 shrink-0"
+                          aria-label={t("AI agents run commands here without asking")}
+                        />
                       {/if}
                       {#if isHeld(session.status)}
                         <span

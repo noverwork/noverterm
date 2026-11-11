@@ -31,6 +31,7 @@ export async function saveConnection(
       passphrase: trimOptional(connection.passphrase),
       key_name: trimOptional(connection.keyName),
       existing_key_id: trimOptional(connection.existingKeyId),
+      ai_access: connection.aiAccess ?? null,
     },
   });
 }

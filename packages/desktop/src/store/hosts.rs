@@ -26,6 +26,9 @@ pub struct SaveConnectionInput {
     pub passphrase: Option<String>,
     pub key_name: Option<String>,
     pub existing_key_id: Option<String>,
+    /// `None` keeps an existing host's AI access; a new host then asks.
+    #[serde(default)]
+    pub ai_access: Option<AiAccess>,
 }
 
 #[tauri::command]
@@ -93,6 +96,9 @@ pub async fn host_save(
                     password: Some(password),
                     group_id: Some(group_id),
                     jump_host_id: Some(jump_host_id),
+                    ai_access: connection
+                        .ai_access
+                        .map(|access| access.as_str().to_string()),
                     updated_at: now,
                 })
                 .get_result::<SshHost>(db)
@@ -112,6 +118,11 @@ pub async fn host_save(
                     created_at: now,
                     updated_at: now,
                     jump_host_id,
+                    ai_access: connection
+                        .ai_access
+                        .unwrap_or(AiAccess::Ask)
+                        .as_str()
+                        .to_string(),
                 })
                 .get_result::<SshHost>(db)
                 .map_err(internal_error)?,

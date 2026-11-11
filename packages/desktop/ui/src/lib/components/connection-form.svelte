@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronDown, Eye, EyeOff, KeyRound, Server } from "@lucide/svelte";
+  import { Bot, ChevronDown, Eye, EyeOff, KeyRound, Server } from "@lucide/svelte";
   import { superForm } from "sveltekit-superforms";
   import { zod4 } from "sveltekit-superforms/adapters";
 
@@ -9,6 +9,7 @@
   SaveConnectionInput,
 } from "$lib/app-data-types.js";
   import type { SshKeyRecord } from "$lib/api/types.js";
+  import type { AiAccess } from "../../bindings.js";
   import { t } from "$lib/i18n/index.svelte.js";
   import FormSection from "$lib/components/form-section.svelte";
   import FormShell from "$lib/components/form-shell.svelte";
@@ -54,6 +55,25 @@
 
   let keyName = $state("");
   let jumpHostId = $state("");
+  let aiAccess = $state<AiAccess>("ask");
+
+  const AI_ACCESS_OPTIONS: { value: AiAccess; label: string; hint: string }[] = [
+    {
+      value: "allow",
+      label: "Always allow",
+      hint: "AI agents run commands on this host without asking.",
+    },
+    {
+      value: "ask",
+      label: "Ask every time",
+      hint: "Every AI request on this host waits for your approval.",
+    },
+    {
+      value: "deny",
+      label: "Deny",
+      hint: "AI agents cannot use this host.",
+    },
+  ];
   let initializedConnectionId = $state<string | null>(null);
   let showPassword = $state(false);
 
@@ -76,6 +96,7 @@
     initializedConnectionId = connectionId;
     keyName = "";
     jumpHostId = connection?.jumpHostId ?? "";
+    aiAccess = connection?.aiAccess ?? "ask";
     showPassword = false;
     $formData = {
       name: connection?.name ?? "",
@@ -197,6 +218,7 @@
         : {}),
       ...(keyName.trim() ? { keyName: keyName.trim() } : {}),
       existingKeyId: effectiveKeyId,
+      aiAccess,
     });
   }
 </script>
@@ -511,6 +533,31 @@
           {/if}
         </div>
       {/if}
+    </div>
+  </FormSection>
+
+  <FormSection
+    icon={Bot}
+    title={t("MCP access")}
+    hint={t(AI_ACCESS_OPTIONS.find((option) => option.value === aiAccess)!.hint)}
+  >
+    <div
+      class="flex gap-1 rounded-[2px] border border-white/10 bg-rail p-1"
+      role="radiogroup"
+      aria-label={t("MCP access")}
+    >
+      {#each AI_ACCESS_OPTIONS as option (option.value)}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={aiAccess === option.value}
+          class={segmentClass(aiAccess === option.value)}
+          disabled={isSaving}
+          onclick={() => (aiAccess = option.value)}
+        >
+          {t(option.label)}
+        </button>
+      {/each}
     </div>
   </FormSection>
 </FormShell>

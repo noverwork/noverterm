@@ -218,13 +218,13 @@
         <button
           type="button"
           class="rounded-[2px] px-1.5 py-0.5 text-stencil-mute hover:bg-white/5 hover:text-stencil focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stencil"
-          title={t("Right-click a host in Connections to change its AI access")}
+          title={t("Set a host's MCP access in its edit page")}
           onclick={() => {
             open = false;
             onOpenHosts();
           }}
         >
-          {t("Host AI access")}
+          {t("Host MCP access")}
         </button>
         <button
           type="button"

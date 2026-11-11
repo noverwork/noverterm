@@ -39,6 +39,7 @@ pub struct NewSshHost {
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     pub jump_host_id: Option<String>,
+    pub ai_access: String,
 }
 
 #[derive(Debug, Clone, AsChangeset)]
@@ -52,5 +53,7 @@ pub struct UpdateSshHost {
     pub password: Option<Option<String>>,
     pub group_id: Option<Option<String>>,
     pub jump_host_id: Option<Option<String>>,
+    /// `None` keeps the host's current AI access.
+    pub ai_access: Option<String>,
     pub updated_at: NaiveDateTime,
 }

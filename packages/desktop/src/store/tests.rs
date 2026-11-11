@@ -58,6 +58,7 @@ fn connection_input(name: &str) -> SaveConnectionInput {
         passphrase: None,
         key_name: None,
         existing_key_id: None,
+        ai_access: None,
     }
 }
 
@@ -94,6 +95,7 @@ fn migrations_apply_and_foreign_keys_cascade() {
             created_at: now,
             updated_at: now,
             jump_host_id: None,
+            ai_access: "ask".to_string(),
         })
         .execute(&mut connection)
         .expect("insert host");
@@ -209,6 +211,33 @@ async fn editing_a_connection_reuses_its_key_instead_of_adding_another() {
 
     let keys = super::keys::key_list(app.state()).await.expect("list keys");
     assert_eq!(keys.len(), 1, "editing must not leave a second key behind");
+}
+
+#[tokio::test]
+async fn saving_without_ai_access_keeps_the_hosts_policy() {
+    let (app, _directory) = test_app();
+    let saved = super::hosts::host_save(
+        SaveConnectionInput {
+            ai_access: Some(shared::AiAccess::Deny),
+            ..connection_input("prod")
+        },
+        app.state(),
+    )
+    .await
+    .expect("save connection");
+    assert_eq!(saved.ai_access, shared::AiAccess::Deny);
+
+    // Moving a host to another group saves it without an AI access.
+    let moved = super::hosts::host_save(
+        SaveConnectionInput {
+            id: Some(saved.id.clone()),
+            ..connection_input("prod")
+        },
+        app.state(),
+    )
+    .await
+    .expect("update connection");
+    assert_eq!(moved.ai_access, shared::AiAccess::Deny);
 }
 
 #[tokio::test]

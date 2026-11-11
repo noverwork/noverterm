@@ -1,6 +1,7 @@
 <script lang="ts">
   import {
     Bot,
+    BotOff,
     Check,
     ChevronRight,
     FileInput,
@@ -249,9 +250,9 @@
   }
 
   const AI_ACCESS_OPTIONS: { value: AiAccess; label: string }[] = [
-    { value: "ask", label: "Ask every time" },
     { value: "allow", label: "Always allow" },
-    { value: "deny", label: "Block" },
+    { value: "ask", label: "Ask every time" },
+    { value: "deny", label: "Deny" },
   ];
 
   async function handleSetAiAccess(connection: ConnectionConfig, access: AiAccess) {
@@ -518,22 +519,24 @@
                             </div>
 
                             <div class="min-w-0 flex-1">
-                              <div class="flex min-w-0 items-center gap-2">
+                              <div class="flex min-w-0 items-center gap-1.5">
                                 <p class="truncate text-sm font-medium text-stencil">
                                   {connection.name}
                                 </p>
                                 {#if connection.aiAccess === "allow"}
-                                  <span
-                                    class="shrink-0 rounded-[2px] bg-[#c9952e] px-1.5 text-[11px] font-semibold uppercase leading-4 tracking-[0.14em] text-port"
-                                    title={t("AI agents run commands here without asking")}
-                                    >AI·{t("Allow")}</span
+                                  <Bot
+                                    class="size-3.5 shrink-0 text-[#e6c27a]"
+                                    aria-label={t("AI agents run commands on this host without asking.")}
                                   >
+                                    <title>{t("AI agents run commands on this host without asking.")}</title>
+                                  </Bot>
                                 {:else if connection.aiAccess === "deny"}
-                                  <span
-                                    class="shrink-0 rounded-[2px] border border-white/20 px-1.5 text-[11px] font-semibold uppercase leading-4 tracking-[0.14em] text-stencil-mute"
-                                    title={t("AI agents are blocked from this host")}
-                                    >AI·{t("Blocked")}</span
+                                  <BotOff
+                                    class="size-3.5 shrink-0 text-stencil-faint"
+                                    aria-label={t("AI agents cannot use this host.")}
                                   >
+                                    <title>{t("AI agents cannot use this host.")}</title>
+                                  </BotOff>
                                 {/if}
                               </div>
                               <p class="mt-2 truncate font-mono text-xs text-stencil-mute">
@@ -638,7 +641,7 @@
                             class="cursor-pointer rounded-[2px] focus:bg-white/8 focus:text-stencil data-[state=open]:bg-white/8 data-[state=open]:text-stencil"
                           >
                             <Bot class="size-3.5" />
-                            {t("AI access")}
+                            {t("MCP access")}
                           </ContextMenu.SubTrigger>
                           <ContextMenu.SubContent
                             class="min-w-40 rounded-[2px] border-white/10 bg-rail text-stencil"

@@ -27,6 +27,7 @@ describe("connections API", () => {
       passphrase: " secret ",
       keyName: "prod key",
       existingKeyId: "k1",
+      aiAccess: "deny",
     });
 
     expect(mockInvoke).toHaveBeenCalledWith("host_save", {
@@ -43,6 +44,7 @@ describe("connections API", () => {
         passphrase: "secret",
         key_name: "prod key",
         existing_key_id: "k1",
+        ai_access: "deny",
       },
     });
   });

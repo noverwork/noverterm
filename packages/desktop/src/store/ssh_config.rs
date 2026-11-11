@@ -13,6 +13,7 @@ use chrono::Utc;
 use diesel::prelude::*;
 use orm::models::{NewSshHost, NewSshKey, SshHost, SshKey};
 use orm::schema::{ssh_hosts, ssh_keys};
+use shared::AiAccess;
 use uuid::Uuid;
 
 use super::{internal_error, run_db, DbPool};
@@ -136,6 +137,7 @@ pub(super) fn import(
                 created_at: now,
                 updated_at: now,
                 jump_host_id: None,
+                ai_access: AiAccess::Ask.as_str().to_string(),
             })
             .execute(db)
             .map_err(internal_error)?;

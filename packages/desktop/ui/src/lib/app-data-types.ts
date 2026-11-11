@@ -40,4 +40,6 @@ export interface SaveConnectionInput {
   passphrase?: string;
   keyName?: string;
   existingKeyId?: string | null;
+  /** Omit to keep the host's current AI access. */
+  aiAccess?: AiAccess;
 }

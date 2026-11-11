@@ -1828,6 +1828,7 @@ mod tests {
                 created_at: now,
                 updated_at: now,
                 jump_host_id: None,
+                ai_access: "ask".to_string(),
             })
             .execute(&mut pool.get().unwrap())
             .unwrap();

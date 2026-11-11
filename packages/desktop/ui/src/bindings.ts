@@ -819,7 +819,11 @@ jumps?: SshHopInput[]; bind_host: string; bind_port: number; target_host: string
 export type PortForwardState = "connecting" | "listening" | "stopped" | "error"
 export type PortForwardStatus = { id: string; name: string; host: string; port: number; username: string; bind_host: string; bind_port: number; target_host: string; target_port: number; state: PortForwardState; error: string | null }
 export type PortForwardWriteRequest = { name: string; host_id: string; mappings: PortForwardMappingInput[] }
-export type SaveConnectionInput = { id: string | null; name: string; host: string; port: number; username: string; group_id?: string | null; jump_host_id?: string | null; password: string | null; private_key: string | null; passphrase: string | null; key_name: string | null; existing_key_id: string | null }
+export type SaveConnectionInput = { id: string | null; name: string; host: string; port: number; username: string; group_id?: string | null; jump_host_id?: string | null; password: string | null; private_key: string | null; passphrase: string | null; key_name: string | null; existing_key_id: string | null; 
+/**
+ * `None` keeps an existing host's AI access; a new host then asks.
+ */
+ai_access?: AiAccess | null }
 export type Setting = { key: string; value: string }
 export type SnippetRecord = { id: string; host_id: string | null; host_name: string; title: string; body: string; pin_icon: string | null; pin_order: number | null }
 export type SnippetWriteRequest = { host_id: string | null; title: string; body: string; pin_icon: string | null }
