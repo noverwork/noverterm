@@ -150,6 +150,8 @@ const zhTW: Record<string, string> = {
   "forwards to": "轉發至",
   "Stop": "停止",
   "Forward": "轉發",
+  "Dismiss": "移除",
+  "Started by MCP agents": "由 MCP agent 啟動",
   "Delete forward": "刪除轉發",
   "Edit port forward": "編輯連接埠轉發",
   "New port forward": "新增連接埠轉發",

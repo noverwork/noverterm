@@ -39,6 +39,7 @@
     keyCount = 0,
     forwardCount = 0,
     snippetCount = 0,
+    mcpActive = 0,
     activeSection = "terminal",
   }: {
     onLocalTerminal?: () => void;
@@ -61,6 +62,8 @@
     keyCount?: number;
     forwardCount?: number;
     snippetCount?: number;
+    /** Background commands and port forwards MCP clients hold open. */
+    mcpActive?: number;
     activeSection?: SidebarSection;
   } = $props();
 
@@ -120,7 +123,15 @@
 {/snippet}
 
 {#snippet mcpIcon()}
-  <Plug class="size-3.5" />
+  <span class="relative">
+    <Plug class="size-3.5" />
+    {#if mcpActive > 0}
+      <span
+        class="absolute -right-2 -top-1.5 min-w-3.5 rounded-full bg-emerald-400 px-0.5 text-center text-[9px] font-semibold leading-3.5 text-port"
+        aria-hidden="true">{mcpActive}</span
+      >
+    {/if}
+  </span>
 {/snippet}
 
 {#snippet forwardIcon()}
@@ -167,7 +178,7 @@
           {@render navItem(onManageKnownHosts, "known-hosts", t("Known Hosts"), serverIcon)}
         {/if}
         {#if onMcp}
-          {@render navItem(onMcp, "mcp", "MCP", mcpIcon)}
+          {@render navItem(onMcp, "mcp", "MCP", mcpIcon, mcpActive || undefined)}
         {/if}
       </div>
     </div>

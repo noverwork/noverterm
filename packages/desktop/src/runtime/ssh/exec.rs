@@ -308,6 +308,10 @@ impl BackgroundCommand {
             .map_err(|_| "The command already finished".to_string())
     }
 
+    pub fn finished(&self) -> bool {
+        self.state.lock().unwrap().finished
+    }
+
     /// Takes the unread output, first waiting up to `wait` for some to arrive.
     pub async fn read(&self, wait: Duration) -> BackgroundOutput {
         let idle = {

@@ -61,6 +61,13 @@ const zhTW: Record<string, string> = {
   Deny: "拒絕",
   "Always allow on this host": "此主機一律允許",
   Allow: "允許",
+  "Active now": "目前進行中",
+  Running: "執行中",
+  Finished: "已結束",
+  "Port forward": "連接埠轉發",
+  "Always allowed": "一律允許",
+  Revoke: "撤銷",
+  "Read by an MCP agent": "已被 MCP agent 讀取",
 };
 
 export default zhTW;

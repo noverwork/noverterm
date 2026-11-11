@@ -1,10 +1,16 @@
 <script lang="ts">
-  import { Check, Copy, Eye, EyeOff, RefreshCw } from "@lucide/svelte";
+  import { ArrowRight, Check, Copy, Eye, EyeOff, RefreshCw, Square, X } from "@lucide/svelte";
 
   import { commands, type McpStatus } from "../../bindings.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { t } from "$lib/i18n/index.svelte.js";
-  import { activity } from "$lib/mcp/mcp-events.svelte.js";
+  import {
+    activity,
+    live,
+    revokeGrant,
+    stopCommand,
+    stopForward,
+  } from "$lib/mcp/mcp-events.svelte.js";
 
   type Client = "claude-code" | "cursor" | "vscode" | "claude-desktop";
 
@@ -111,6 +117,21 @@
     await navigator.clipboard.writeText(text);
     copied = key;
     setTimeout(() => (copied = null), 2000);
+  }
+
+  let liveError = $state<string | null>(null);
+
+  async function act(action: () => Promise<void>) {
+    liveError = null;
+    try {
+      await action();
+    } catch (cause) {
+      liveError = cause instanceof Error ? cause.message : String(cause);
+    }
+  }
+
+  function startedAt(value: string): string {
+    return new Date(value).toLocaleTimeString();
   }
 </script>
 
@@ -266,6 +287,77 @@
         </div>
       {/if}
 
+      {#if live.commands.length > 0 || live.forwards.length > 0 || live.grants.length > 0}
+        <div>
+          <h2 class="section-title">{t("Active now")}</h2>
+          {#if liveError}
+            <p class="mt-2 text-xs text-red-300" role="alert">{liveError}</p>
+          {/if}
+          <ul class="mt-3 divide-y divide-white/6 rounded-[2px] border border-white/10 bg-rail text-xs">
+            {#each live.commands as command (command.id)}
+              <li class="flex items-center gap-2 px-3 py-2">
+                <span class="w-24 shrink-0 {command.finished ? 'text-stencil-mute' : 'text-emerald-400'}">
+                  {command.finished ? t("Finished") : t("Running")}
+                </span>
+                <span class="shrink-0 text-stencil-mute">{command.host_name}</span>
+                <span class="truncate font-mono text-stencil" title={command.command}>{command.command}</span>
+                <span class="ml-auto shrink-0 text-stencil-faint">{startedAt(command.started_at)}</span>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  class="shrink-0 rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
+                  aria-label={t("Stop")}
+                  title={t("Stop")}
+                  onclick={() => void act(() => stopCommand(command.id))}
+                >
+                  <Square class="size-3.5" />
+                </Button>
+              </li>
+            {/each}
+            {#each live.forwards as forward (forward.id)}
+              <li class="flex items-center gap-2 px-3 py-2">
+                <span class="w-24 shrink-0 {forward.state === 'listening' ? 'text-emerald-400' : 'text-amber-300'}">
+                  {t("Port forward")}
+                </span>
+                <span class="shrink-0 text-stencil-mute">{forward.name.replace(/^MCP: /, "")}</span>
+                <span class="font-mono text-stencil">{forward.bind_host}:{forward.bind_port}</span>
+                <ArrowRight class="size-3 shrink-0 text-stencil-faint" aria-label={t("forwards to")} />
+                <span class="truncate font-mono text-stencil-dim">{forward.target_host}:{forward.target_port}</span>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  class="ml-auto shrink-0 rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
+                  aria-label={t("Stop")}
+                  title={t("Stop")}
+                  onclick={() => void act(() => stopForward(forward.id))}
+                >
+                  <Square class="size-3.5" />
+                </Button>
+              </li>
+            {/each}
+            {#each live.grants as grant (grant.key)}
+              <li class="flex items-center gap-2 px-3 py-2">
+                <span class="w-24 shrink-0 text-amber-300">{t("Always allowed")}</span>
+                <span class="shrink-0 text-stencil">{grant.name}</span>
+                {#if grant.target !== grant.name}
+                  <span class="truncate font-mono text-stencil-mute">{grant.target}</span>
+                {/if}
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  class="ml-auto shrink-0 rounded-[2px] text-stencil-mute hover:bg-seal/20 hover:text-red-300"
+                  aria-label={t("Revoke")}
+                  title={t("Revoke")}
+                  onclick={() => void act(() => revokeGrant(grant.key))}
+                >
+                  <X class="size-3.5" />
+                </Button>
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
+
       {#if activity.length > 0}
         <div>
           <h2 class="section-title">{t("Recent MCP commands")}</h2>
@@ -275,7 +367,7 @@
                 <span
                   class={(entry.status === "finished" && (entry.exit_status ?? 0) === 0) || entry.status === "started"
                     ? "text-emerald-400"
-                    : entry.status === "denied"
+                    : entry.status === "denied" || entry.status === "stopped"
                       ? "text-stencil-mute"
                       : "text-red-300"}
                 >
@@ -287,7 +379,9 @@
                       ? t("Started")
                       : entry.status === "denied"
                         ? t("Denied")
-                        : t("Failed")}
+                        : entry.status === "stopped"
+                          ? t("Stopped")
+                          : t("Failed")}
                 </span>
                 <span class="shrink-0 text-stencil-mute">{entry.host_name}</span>
                 <span class="truncate font-mono text-stencil">{entry.command}</span>

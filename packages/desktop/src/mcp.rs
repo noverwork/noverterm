@@ -26,7 +26,9 @@ use tokio::time::timeout;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::runtime::port_forward::{PortForwardAuth, PortForwardCreateInput, PortForwardManager};
+use crate::runtime::port_forward::{
+    PortForwardAuth, PortForwardCreateInput, PortForwardManager, PortForwardStatus,
+};
 use crate::runtime::sftp::{FileType, SftpError};
 use crate::runtime::ssh::{
     auth_method, exec_command, open_sftp, spawn_command, transfer, AuthMethod, BackgroundCommand,
@@ -63,8 +65,9 @@ const FORWARD_START_TIMEOUT: Duration = Duration::from_secs(30);
 pub struct McpState {
     server: Mutex<Option<RunningServer>>,
     pending: StdMutex<HashMap<String, oneshot::Sender<McpDecision>>>,
-    /// Hosts (or terminals) the user allowed for everything until the app restarts.
-    allowed_hosts: StdMutex<HashSet<String>>,
+    /// Hosts (or terminals) the user allowed for everything until the app
+    /// restarts or they revoke it, by approval key.
+    allowed_hosts: StdMutex<HashMap<String, McpGrant>>,
     /// Commands started with `start_command`, by id.
     background: StdMutex<HashMap<String, Arc<Background>>>,
     /// Port forwards started over MCP; only these can be stopped over MCP.
@@ -76,6 +79,7 @@ struct Background {
     host_name: String,
     target: String,
     command: String,
+    started_at: String,
     process: BackgroundCommand,
 }
 
@@ -127,9 +131,37 @@ pub struct McpApprovalRequest {
 pub struct McpActivity {
     pub host_name: String,
     pub command: String,
-    /// `started`, `denied`, `failed`, or `finished`.
+    /// `started`, `denied`, `failed`, `finished`, or `stopped`.
     pub status: String,
     pub exit_status: Option<u32>,
+}
+
+/// A host or terminal the user allowed for everything ("allow host").
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct McpGrant {
+    /// Pass to `mcp_revoke_grant`.
+    pub key: String,
+    pub name: String,
+    pub target: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct McpBackgroundCommand {
+    pub id: String,
+    pub host_name: String,
+    pub command: String,
+    /// RFC 3339.
+    pub started_at: String,
+    /// Finished, but the agent has not read the end yet.
+    pub finished: bool,
+}
+
+/// What MCP clients currently hold open in the app.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct McpSessions {
+    pub commands: Vec<McpBackgroundCommand>,
+    pub forwards: Vec<PortForwardStatus>,
+    pub grants: Vec<McpGrant>,
 }
 
 #[tauri::command]
@@ -190,6 +222,70 @@ pub async fn mcp_respond(
         let _ = sender.send(decision);
     }
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn mcp_sessions(app: AppHandle) -> Result<McpSessions, String> {
+    let state = app.state::<McpState>();
+    let mut commands: Vec<McpBackgroundCommand> = state
+        .background
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|(id, entry)| McpBackgroundCommand {
+            id: id.clone(),
+            host_name: entry.host_name.clone(),
+            command: entry.command.clone(),
+            started_at: entry.started_at.clone(),
+            finished: entry.process.finished(),
+        })
+        .collect();
+    commands.sort_by(|left, right| left.started_at.cmp(&right.started_at));
+    let mut grants: Vec<McpGrant> = state
+        .allowed_hosts
+        .lock()
+        .unwrap()
+        .values()
+        .cloned()
+        .collect();
+    grants.sort_by(|left, right| left.name.cmp(&right.name));
+    let ids = state.forwards.lock().unwrap().clone();
+    let forwards = app
+        .state::<PortForwardManager>()
+        .list()
+        .await
+        .into_iter()
+        .filter(|forward| ids.contains(&forward.id))
+        .collect();
+    Ok(McpSessions {
+        commands,
+        forwards,
+        grants,
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn mcp_stop_command(app: AppHandle, id: String) -> Result<(), String> {
+    stop_command(&app, &id).map(|_| ())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn mcp_revoke_grant(app: AppHandle, key: String) -> Result<(), String> {
+    app.state::<McpState>()
+        .allowed_hosts
+        .lock()
+        .unwrap()
+        .remove(&key);
+    notify_changed(&app);
+    Ok(())
+}
+
+/// Tells the UI that `McpSessions` changed.
+fn notify_changed<R: Runtime>(app: &AppHandle<R>) {
+    let _ = app.emit("mcp_changed", ());
 }
 
 /// Starts the server at launch. It listens on loopback only and every
@@ -806,7 +902,7 @@ async fn approve<R: Runtime>(
     command: &str,
 ) -> bool {
     let state = app.state::<McpState>();
-    if state.allowed_hosts.lock().unwrap().contains(key) {
+    if state.allowed_hosts.lock().unwrap().contains_key(key) {
         return true;
     }
     let id = Uuid::new_v4().to_string();
@@ -831,7 +927,15 @@ async fn approve<R: Runtime>(
     match decision {
         Ok(Ok(McpDecision::Allow)) => true,
         Ok(Ok(McpDecision::AllowHost)) => {
-            state.allowed_hosts.lock().unwrap().insert(key.to_string());
+            state.allowed_hosts.lock().unwrap().insert(
+                key.to_string(),
+                McpGrant {
+                    key: key.to_string(),
+                    name: host_name.to_string(),
+                    target: target.to_string(),
+                },
+            );
+            notify_changed(app);
             true
         }
         _ => false,
@@ -1127,6 +1231,7 @@ async fn start_port_forward<R: Runtime>(
                 .lock()
                 .unwrap()
                 .insert(started.id.clone());
+            notify_changed(app);
             emit_activity(app, &host.name, &action, "finished", None);
             Ok(format!(
                 "Forwarding 127.0.0.1:{} to {target_host}:{target_port} through {}. Forward id: {}",
@@ -1146,6 +1251,7 @@ async fn start_port_forward<R: Runtime>(
                 .lock()
                 .unwrap()
                 .insert(started.id.clone());
+            notify_changed(app);
             Ok(format!(
                 "The port forward is still connecting; check list_port_forwards. Forward id: {}",
                 started.id
@@ -1164,6 +1270,7 @@ async fn stop_port_forward<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<S
         .state::<PortForwardManager>()
         .stop(app.clone(), id)
         .await?;
+    notify_changed(app);
     Ok(format!(
         "Stopped forwarding 127.0.0.1:{} to {}:{}",
         status.bind_port, status.target_host, status.target_port
@@ -1197,8 +1304,10 @@ async fn start_command<R: Runtime>(
             host_name: host.name.clone(),
             command: command.to_string(),
             process,
+            started_at: chrono::Utc::now().to_rfc3339(),
         }),
     );
+    notify_changed(app);
     emit_activity(app, &host.name, &action, "started", None);
     Ok(format!("Started. Command id: {id}"))
 }
@@ -1226,6 +1335,7 @@ async fn read_command<R: Runtime>(
             .lock()
             .unwrap()
             .remove(id);
+        notify_changed(app);
         emit_activity(
             app,
             &entry.host_name,
@@ -1291,9 +1401,10 @@ fn stop_command<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<String, Stri
         .lock()
         .unwrap()
         .remove(id);
-    entry
-        .map(|_| "Stopped".to_string())
-        .ok_or_else(|| format!("No running command with id {id}"))
+    let entry = entry.ok_or_else(|| format!("No running command with id {id}"))?;
+    notify_changed(app);
+    emit_activity(app, &entry.host_name, &entry.command, "stopped", None);
+    Ok("Stopped".to_string())
 }
 
 fn list_terminals<R: Runtime>(app: &AppHandle<R>) -> Result<String, String> {
@@ -1327,6 +1438,7 @@ async fn read_terminal<R: Runtime>(
         .history(id)
         .ok_or_else(missing)?;
     emit_activity(app, &label, action, "finished", None);
+    let _ = app.emit("mcp_terminal_read", id);
     let text = terminal_text(&bytes);
     let all: Vec<&str> = text.lines().collect();
     Ok(all[all.len().saturating_sub(lines)..].join("\n"))

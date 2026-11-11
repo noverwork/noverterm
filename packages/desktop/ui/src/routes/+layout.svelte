@@ -10,6 +10,7 @@
   import { QueryClient, QueryClientProvider } from "@tanstack/svelte-query";
   import {
     AlertCircle,
+    Bot,
     FileText,
     FolderOpen,
     KeyRound,
@@ -31,7 +32,7 @@
   import TerminalView from "$lib/terminal/terminal.svelte";
   import McpApprovalDialog from "$lib/components/mcp-approval-dialog.svelte";
   import UpdateDialog from "$lib/components/update-dialog.svelte";
-  import { startMcpEvents } from "$lib/mcp/mcp-events.svelte.js";
+  import { live, readTerminals, startMcpEvents } from "$lib/mcp/mcp-events.svelte.js";
   import { getTabShortcut } from "$lib/terminal/keyboard-shortcuts.js";
   import { checkForAppUpdate } from "$lib/updater/auto-update.svelte.js";
   import type { SnippetRecord } from "$lib/api/types.js";
@@ -535,6 +536,8 @@
         connectionCount={app.connections.length}
         keyCount={app.keys.length}
         forwardCount={app.savedPortForwards.length}
+        mcpActive={live.commands.filter((command) => !command.finished).length +
+          live.forwards.length}
         activeSection={activeSidebarSection}
       />
 
@@ -636,6 +639,12 @@
                         <span class="truncate"
                           >{stencil.prefix}·{session.name}</span
                         >
+                        {#if readTerminals.has(session.id)}
+                          <Bot
+                            class="size-3 shrink-0 opacity-70"
+                            aria-label={t("Read by an MCP agent")}
+                          />
+                        {/if}
                       </span>
                       {#if isHeld(session.status)}
                         <span

@@ -104,6 +104,30 @@ async mcpRespond(requestId: string, decision: McpDecision) : Promise<Result<null
     else return { status: "error", error: String(e) };
 }
 },
+async mcpSessions() : Promise<Result<McpSessions, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("mcp_sessions") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async mcpStopCommand(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("mcp_stop_command", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async mcpRevokeGrant(key: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("mcp_revoke_grant", { key }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async sshConfigScan() : Promise<Result<SshConfigHost[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ssh_config_scan") };
@@ -721,15 +745,36 @@ export type KeyUpdateInput = { name: string; kind: string; fingerprint: string |
 export type KnownHostsResponse = { hosts: TrustedSshHost[] }
 export type McpActivity = { host_name: string; command: string; 
 /**
- * `started`, `denied`, `failed`, or `finished`.
+ * `started`, `denied`, `failed`, `finished`, or `stopped`.
  */
 status: string; exit_status: number | null }
 export type McpApprovalRequest = { id: string; host_name: string; target: string; command: string }
+export type McpBackgroundCommand = { id: string; host_name: string; command: string; 
+/**
+ * RFC 3339.
+ */
+started_at: string; 
+/**
+ * Finished, but the agent has not read the end yet.
+ */
+finished: boolean }
 export type McpDecision = "allow" | 
 /**
  * Allow this and later commands on the same host until the app restarts.
  */
 "allow_host" | "deny"
+/**
+ * A host or terminal the user allowed for everything ("allow host").
+ */
+export type McpGrant = { 
+/**
+ * Pass to `mcp_revoke_grant`.
+ */
+key: string; name: string; target: string }
+/**
+ * What MCP clients currently hold open in the app.
+ */
+export type McpSessions = { commands: McpBackgroundCommand[]; forwards: PortForwardStatus[]; grants: McpGrant[] }
 export type McpSettings = { port: number }
 export type McpStatus = { settings: McpSettings; running: boolean; url: string; 
 /**
