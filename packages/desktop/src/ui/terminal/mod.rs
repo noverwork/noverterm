@@ -32,8 +32,8 @@ use crate::ui::theme;
 /// The terminal font ships with the app so CJK text lines up on every platform.
 pub const FONT_FAMILY: &str = "Sarasa Term TC SemiBold";
 const BLINK_INTERVAL: Duration = Duration::from_millis(600);
-/// Space between the window edge and the first column.
-const PADDING: Pixels = px(4.);
+/// Space between the terminal area's edges and the grid, on every side.
+const PADDING: Pixels = px(14.);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionKind {
@@ -533,7 +533,7 @@ impl TerminalView {
     /// The grid cell under a window position, and which half of it.
     fn cell_at(&self, position: Point<Pixels>) -> (GridPoint, Side) {
         let x = f32::from(position.x - self.bounds.origin.x - PADDING).max(0.);
-        let y = f32::from(position.y - self.bounds.origin.y).max(0.);
+        let y = f32::from(position.y - self.bounds.origin.y - PADDING).max(0.);
         let (cell_width, cell_height) = (f32::from(self.cell.width), f32::from(self.cell.height));
         let column = ((x / cell_width) as usize).min(self.grid.cols.saturating_sub(1));
         let row = ((y / cell_height) as usize).min(self.grid.rows.saturating_sub(1));

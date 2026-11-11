@@ -123,7 +123,7 @@ impl TerminalView {
         Bounds::new(
             point(
                 self.bounds.origin.x + PADDING + self.cell.width * cursor.column.0 as f32,
-                self.bounds.origin.y + self.cell.height * row as f32,
+                self.bounds.origin.y + PADDING + self.cell.height * row as f32,
             ),
             self.cell,
         )
@@ -150,7 +150,7 @@ impl TerminalView {
         self.bounds = bounds;
 
         let cols = (f32::from(bounds.size.width - PADDING * 2.) / f32::from(cell_width)) as usize;
-        let rows = (f32::from(bounds.size.height) / f32::from(line_height)) as usize;
+        let rows = (f32::from(bounds.size.height - PADDING * 2.) / f32::from(line_height)) as usize;
         let fitted = GridSize {
             cols: cols.max(2),
             rows: rows.max(1),
@@ -178,7 +178,7 @@ impl TerminalView {
         };
         let cursor_color = hsla(resolve(Color::Named(NamedColor::Cursor), colors));
         let default_background = resolve(Color::Named(NamedColor::Background), colors);
-        let origin = point(bounds.origin.x + PADDING, bounds.origin.y);
+        let origin = point(bounds.origin.x + PADDING, bounds.origin.y + PADDING);
         let cell_origin = |row: i32, column: usize| {
             point(
                 origin.x + cell_width * column as f32,
