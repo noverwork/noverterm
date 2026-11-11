@@ -6,7 +6,7 @@
 
 web
 
-Desktop app for macOS (Apple Silicon) and Windows, rendered in the Tauri 2 webview. The design language is the app's own, not native AppKit/WinUI. Linux support is in progress.
+Desktop app for macOS (Apple Silicon), Windows, and Linux, drawn with GPUI. The design language is the app's own, not native AppKit/WinUI.
 
 ## Users
 
@@ -18,7 +18,7 @@ Noverterm is an SSH terminal client with multi-session tabs, SFTP file transfer,
 
 ## Positioning
 
-Native and lightweight: built on Tauri 2 and Rust instead of Electron, around 50MB of memory versus 500MB+ for Electron-based SSH clients. Speed and low overhead are the core claim; the UI should never undermine it.
+Native and lightweight: built on GPUI and Rust, with no Electron and no webview. Speed and low overhead are the core claim; the UI should never undermine it.
 
 ## Operating Context
 
@@ -30,7 +30,7 @@ Native and lightweight: built on Tauri 2 and Rust instead of Electron, around 50
 ## Capabilities and Constraints
 
 - Features shipped: SSH (password and key auth, host fingerprint verification, known hosts manager), multi-session tabs with duplicate and local terminal, port forwarding, SFTP, snippets, SSH key manager, connection groups, auto-update from GitHub Releases.
-- Stack: Svelte 5, Vite, TailwindCSS in the UI; Rust, Russh, Tokio, Diesel/SQLite behind Tauri commands.
+- Stack: GPUI with GPUI Kit components and alacritty_terminal in the UI; Rust, Russh, Tokio, Diesel/SQLite behind it.
 - UI copy is English only.
 - Open source under the MIT License; pull requests are welcome.
 
@@ -42,7 +42,7 @@ Native and lightweight: built on Tauri 2 and Rust instead of Electron, around 50
 
 ## Evidence on Hand
 
-- Memory claim (~50MB vs 500MB+) stated in the README; no published benchmark yet.
+- No memory or speed benchmark has been published yet.
 - No screenshots, testimonials, or user counts exist. Do not invent them.
 
 ## Product Principles

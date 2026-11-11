@@ -10,10 +10,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::app::AppHandle;
 use russh::client::Handle;
 use russh::Disconnect;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager};
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
@@ -338,7 +338,7 @@ pub enum AuthMethod {
     },
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum SshConnectResponse {
     Connected { session_id: String },
@@ -346,7 +346,7 @@ pub enum SshConnectResponse {
     TrustMismatch { mismatch: HostTrustMismatch },
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize)]
 pub struct HostSystemInfo {
     pub hostname: Option<String>,
     pub os: Option<String>,
@@ -360,7 +360,7 @@ pub struct HostSystemInfo {
     pub network_tx_bytes_per_second: Option<f64>,
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum SshProbeHostInfoResponse {
     Success { info: HostSystemInfo },
@@ -368,7 +368,7 @@ pub enum SshProbeHostInfoResponse {
     TrustMismatch { mismatch: HostTrustMismatch },
 }
 
-#[derive(Debug, Clone, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct SshLocalPortForwardInput {
     pub session_id: String,
     pub bind_host: String,
@@ -377,7 +377,7 @@ pub struct SshLocalPortForwardInput {
     pub target_port: u16,
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SshPortForwardState {
     Listening,
@@ -385,7 +385,7 @@ pub enum SshPortForwardState {
     Error,
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SshPortForwardStatus {
     pub forward_id: String,
     pub session_id: String,

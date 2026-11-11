@@ -1,20 +1,16 @@
 use serde::{Deserialize, Serialize};
-use specta::Type;
-use ts_rs::TS;
 
 // ============================================================================
 // Core Domain Types
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
-#[ts(export, export_to = "setting.ts")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Setting {
     pub key: String,
     pub value: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
-#[ts(export, export_to = "ssh-host-record.ts")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SshHostRecord {
     pub id: String,
     pub name: String,
@@ -29,9 +25,8 @@ pub struct SshHostRecord {
 }
 
 /// What MCP clients (AI agents) may do on a host without asking the user.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-#[ts(export, export_to = "ai-access.ts")]
 pub enum AiAccess {
     /// Show the approval dialog for every call.
     Ask,
@@ -61,16 +56,14 @@ impl AiAccess {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
-#[ts(export, export_to = "host-group-record.ts")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HostGroupRecord {
     pub id: String,
     pub name: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-#[ts(export, export_to = "ssh-host-auth-material.ts")]
 pub enum SshHostAuthMaterial {
     Password {
         password: String,
@@ -86,8 +79,7 @@ pub enum SshHostAuthMaterial {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
-#[ts(export, export_to = "ssh-key-record.ts")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SshKeyRecord {
     pub id: String,
     pub name: String,
@@ -95,8 +87,7 @@ pub struct SshKeyRecord {
     pub fingerprint: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
-#[ts(export, export_to = "ssh-key-secret.ts")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SshKeySecret {
     pub private_key: String,
     pub passphrase: Option<String>,
@@ -106,8 +97,7 @@ pub struct SshKeySecret {
 // Snippet Types
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
-#[ts(export, export_to = "snippet-record.ts")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnippetRecord {
     pub id: String,
     pub host_id: Option<String>,
@@ -118,8 +108,7 @@ pub struct SnippetRecord {
     pub pin_order: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
-#[ts(export, export_to = "snippet-write-request.ts")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnippetWriteRequest {
     pub host_id: Option<String>,
     pub title: String,
@@ -131,8 +120,7 @@ pub struct SnippetWriteRequest {
 // Port Forward Preset Types
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
-#[ts(export, export_to = "port-forward-mapping-input.ts")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortForwardMappingInput {
     pub bind_host: String,
     pub bind_port: i32,
@@ -140,8 +128,7 @@ pub struct PortForwardMappingInput {
     pub target_port: i32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
-#[ts(export, export_to = "port-forward-record.ts")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortForwardRecord {
     pub id: String,
     pub name: String,
@@ -150,8 +137,7 @@ pub struct PortForwardRecord {
     pub mappings: Vec<PortForwardMappingInput>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, TS)]
-#[ts(export, export_to = "port-forward-write-request.ts")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortForwardWriteRequest {
     pub name: String,
     pub host_id: String,

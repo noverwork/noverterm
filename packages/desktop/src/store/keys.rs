@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use super::{internal_error, run_db, DbPool};
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct KeyInput {
     pub name: String,
     pub kind: String,
@@ -17,9 +17,7 @@ pub struct KeyInput {
     pub passphrase: Option<String>,
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn key_list(pool: tauri::State<'_, DbPool>) -> Result<Vec<SshKeyRecord>, String> {
+pub async fn key_list(pool: crate::app::State<'_, DbPool>) -> Result<Vec<SshKeyRecord>, String> {
     let pool = pool.inner().clone();
     run_db(pool, |connection| {
         ssh_keys::table
@@ -31,11 +29,9 @@ pub async fn key_list(pool: tauri::State<'_, DbPool>) -> Result<Vec<SshKeyRecord
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn key_create(
     key: KeyInput,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<SshKeyRecord, String> {
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {
@@ -60,7 +56,7 @@ pub async fn key_create(
 
 /// `private_key` is optional so a rename keeps the stored key; supplying one
 /// rotates it, and the passphrase then follows the new key rather than the old.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct KeyUpdateInput {
     pub name: String,
     pub kind: String,
@@ -69,12 +65,10 @@ pub struct KeyUpdateInput {
     pub passphrase: Option<String>,
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn key_update(
     id: String,
     key: KeyUpdateInput,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<SshKeyRecord, String> {
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {
@@ -106,9 +100,7 @@ pub async fn key_update(
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn key_delete(id: String, pool: tauri::State<'_, DbPool>) -> Result<(), String> {
+pub async fn key_delete(id: String, pool: crate::app::State<'_, DbPool>) -> Result<(), String> {
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {
         diesel::delete(ssh_keys::table.filter(ssh_keys::id.eq(id)))
@@ -119,11 +111,9 @@ pub async fn key_delete(id: String, pool: tauri::State<'_, DbPool>) -> Result<()
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn key_secret(
     id: String,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<SshKeySecret, String> {
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {

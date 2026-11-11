@@ -10,7 +10,7 @@ use super::{internal_error, run_db, DbPool};
 /// Most bastions a saved host may tunnel through.
 const MAX_JUMP_HOPS: usize = 5;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SaveConnectionInput {
     pub id: Option<String>,
     pub name: String,
@@ -31,9 +31,7 @@ pub struct SaveConnectionInput {
     pub ai_access: Option<AiAccess>,
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn host_list(pool: tauri::State<'_, DbPool>) -> Result<Vec<SshHostRecord>, String> {
+pub async fn host_list(pool: crate::app::State<'_, DbPool>) -> Result<Vec<SshHostRecord>, String> {
     let pool = pool.inner().clone();
     run_db(pool, |connection| {
         let hosts = ssh_hosts::table
@@ -52,11 +50,9 @@ pub async fn host_list(pool: tauri::State<'_, DbPool>) -> Result<Vec<SshHostReco
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn host_save(
     connection: SaveConnectionInput,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<SshHostRecord, String> {
     let pool = pool.inner().clone();
     run_db(pool, move |db| {
@@ -134,12 +130,10 @@ pub async fn host_save(
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn host_delete(
     id: String,
     ssh_key_id: Option<String>,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<(), String> {
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {
@@ -167,12 +161,10 @@ pub async fn host_delete(
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn host_set_ai_access(
     id: String,
     access: AiAccess,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<(), String> {
     set_ai_access(pool.inner().clone(), id, access).await
 }

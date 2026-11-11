@@ -11,10 +11,8 @@ use uuid::Uuid;
 
 use super::{internal_error, run_db, DbPool};
 
-#[tauri::command]
-#[specta::specta]
 pub async fn port_forward_preset_list(
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<Vec<PortForwardRecord>, String> {
     let pool = pool.inner().clone();
     run_db(pool, |connection| {
@@ -59,11 +57,9 @@ pub async fn port_forward_preset_list(
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn port_forward_preset_create(
     forward: PortForwardWriteRequest,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<PortForwardRecord, String> {
     let forward = validate(forward)?;
     let pool = pool.inner().clone();
@@ -90,12 +86,10 @@ pub async fn port_forward_preset_create(
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn port_forward_preset_update(
     id: String,
     forward: PortForwardWriteRequest,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<PortForwardRecord, String> {
     let forward = validate(forward)?;
     let pool = pool.inner().clone();
@@ -133,11 +127,9 @@ pub async fn port_forward_preset_update(
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn port_forward_preset_delete(
     id: String,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<(), String> {
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {

@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex as StdMutex};
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileEntry {
     pub name: String,
     pub size: u64,
@@ -12,7 +12,7 @@ pub struct FileEntry {
     pub file_type: FileType,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileType {
     File,
     Dir,
@@ -20,7 +20,7 @@ pub enum FileType {
     Other,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransferProgress {
     pub transfer_id: String,
     pub bytes_transferred: u64,
@@ -29,7 +29,7 @@ pub struct TransferProgress {
     pub direction: TransferDirection,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TransferDirection {
     Upload,
     Download,
@@ -37,14 +37,14 @@ pub enum TransferDirection {
     Copy,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransferComplete {
     pub transfer_id: String,
     pub total_bytes: u64,
     pub direction: TransferDirection,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransferError {
     pub transfer_id: String,
     pub error: String,

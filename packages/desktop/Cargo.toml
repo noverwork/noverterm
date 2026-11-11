@@ -1,35 +1,43 @@
 [package]
 name = "desktop"
 version = "0.0.0"
-description = "A Tauri App"
+description = "SSH terminal client"
 authors = ["you"]
 edition = "2021"
 license = "MIT"
-default-run = "desktop"
+default-run = "noverterm"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "desktop_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
-name = "export-types"
-path = "src/export_types.rs"
+name = "noverterm"
+path = "src/main.rs"
 
-[build-dependencies]
-tauri-build = { version = "2", features = [] }
+# Bundles: `cargo packager --release` (cargo install cargo-packager).
+[package.metadata.packager]
+product-name = "noverterm"
+identifier = "com.noverwork.noverterm"
+before-packaging-command = "cargo build --release -p desktop"
+out-dir = "../../target/release/bundle"
+icons = [
+    "icons/32x32.png",
+    "icons/128x128.png",
+    "icons/128x128@2x.png",
+    "icons/icon.icns",
+    "icons/icon.ico",
+]
+
+[package.metadata.packager.macos]
+# Ad-hoc signed, not notarized; install.sh clears the quarantine flag.
+signing-identity = "-"
 
 [dependencies]
-tauri = { version = "2.11", features = [] }
-tauri-plugin-opener = "2"
-tauri-plugin-store = "2"
-tauri-specta = { version = "=2.0.0-rc.20", features = ["derive", "typescript"] }
-specta = { version = "=2.0.0-rc.20", features = ["derive"] }
-specta-typescript = "=0.0.7"
+gpui-kit = "0.9.1"
+alacritty_terminal = "0.26"
+dirs = "6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 shared = { path = "../shared" }
@@ -49,13 +57,19 @@ russh-sftp = "2.3"
 uuid = { version = "1", features = ["v4"] }
 tokio = { version = "1", features = ["full"] }
 portable-pty = "0.8"
-tauri-plugin-updater = "2"
-tauri-plugin-process = "2"
 reqwest = { version = "0.13", features = ["json"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 axum = { version = "0.8", default-features = false, features = ["tokio", "http1", "json"] }
 
 [dev-dependencies]
-tauri = { version = "2.11", features = ["test"] }
+# Offscreen rendering for the screenshot test. Enabled on the GPUI crates
+# directly: gpui-kit's own `test-support` drags in gpui-fast, whose pins clash
+# with russh's.
+gpui-pre = { version = "=0.3.12", features = ["test-support"] }
+gpui-pre-platform = { version = "=0.3.12", features = ["test-support"] }
 rsa = "0.10.0-rc.12"
 tempfile = "3"
+
+[[test]]
+name = "screenshots"
+harness = false

@@ -17,7 +17,7 @@ use super::AuthMethod;
 const HOP_CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// One bastion on the way to the target, in connect order (outermost first).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SshHopInput {
     pub host: String,
     pub port: u16,

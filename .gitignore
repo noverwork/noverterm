@@ -9,13 +9,6 @@ Thumbs.db
 *.swp
 *.swo
 
-# Node / Frontend
-node_modules/
-dist/
-.svelte-kit/
-build/
-package/
-
 # Rust
 **/target/
 **/gen/
@@ -30,13 +23,7 @@ package/
 !.env.example
 .envrc
 
-# Timestamps
-vite.config.js.timestamp-*
-vite.config.ts.timestamp-*
-
 .sisyphus
-# ts-rs writes a duplicate of packages/desktop/ui/src/bindings here on cargo test
-packages/shared/bindings/
 __pycache__/
 
 # Impeccable scratch: decision sketches and review screenshots (may show hosts/IPs)

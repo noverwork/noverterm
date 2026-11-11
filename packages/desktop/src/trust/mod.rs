@@ -1,9 +1,9 @@
+use crate::app::State;
 use chrono::Utc;
 use diesel::prelude::*;
 use orm::models::{NewTrustedHost, TrustedHost};
 use orm::schema::trusted_hosts;
 use serde::{Deserialize, Serialize};
-use tauri::State;
 
 use crate::store::{internal_error, run_db, DbPool};
 
@@ -14,7 +14,7 @@ pub struct SshTrustStore {
     pool: DbPool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HostTrustPrompt {
     pub host: String,
     pub port: u16,
@@ -22,7 +22,7 @@ pub struct HostTrustPrompt {
     pub fingerprint: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HostTrustMismatch {
     pub host: String,
     pub port: u16,
@@ -32,7 +32,7 @@ pub struct HostTrustMismatch {
     pub presented_fingerprint: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HostTrustConfirmation {
     pub host: String,
     pub port: u16,
@@ -47,7 +47,7 @@ pub(crate) enum TrustCheck {
     TrustMismatch(HostTrustMismatch),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TrustedSshHost {
     pub host: String,
     pub port: u16,
@@ -55,7 +55,7 @@ pub struct TrustedSshHost {
     pub fingerprint: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct KnownHostsResponse {
     pub hosts: Vec<TrustedSshHost>,
 }
@@ -171,8 +171,6 @@ impl SshTrustStore {
     }
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn known_hosts_get(
     trust_store: State<'_, SshTrustStore>,
 ) -> Result<KnownHostsResponse, String> {
@@ -181,8 +179,6 @@ pub async fn known_hosts_get(
     })
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn known_hosts_remove(
     host: String,
     port: u16,

@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::app::AppHandle;
 use russh::client::Msg;
 use russh::{ChannelMsg, ChannelReadHalf, ChannelWriteHalf};
-use tauri::AppHandle;
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tracing::warn;
 
@@ -187,19 +187,16 @@ mod tests {
 
     #[tokio::test]
     async fn idle_output_is_immediate_and_burst_flush_preserves_final_bytes() {
+        use crate::runtime::terminal_output::Channel;
         use crate::runtime::terminal_output::{TerminalOutput, OUTPUT_CHUNK_BYTES};
         use std::future::Future;
         use std::task::Poll;
-        use tauri::ipc::{Channel, InvokeResponseBody};
 
         let frames = Arc::new(std::sync::Mutex::new(Vec::new()));
         let received = frames.clone();
         let transport = TerminalOutput::default();
         transport
-            .subscribe(Channel::new(move |body| {
-                let InvokeResponseBody::Raw(bytes) = body else {
-                    panic!("expected raw bytes")
-                };
+            .subscribe(Channel::new(move |bytes| {
                 received.lock().expect("frames").push(bytes);
                 Ok(())
             }))
