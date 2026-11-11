@@ -300,6 +300,25 @@ mod shots {
             stage.store(|store, cx| store.write_session(&id, command.to_string(), cx));
         }
         stage.settle(Duration::from_millis(1000));
+        // Tab must reach the shell rather than move focus: `cat -vt` shows it as ^I.
+        if let Some(id) = stage.store(|store, _| store.active_session.clone()) {
+            stage.store(|store, cx| store.write_session(&id, "cat -vt\n".to_string(), cx));
+            stage.settle(Duration::from_millis(300));
+            stage
+                .cx
+                .update_window(stage.window, |_, window, cx| {
+                    window.dispatch_keystroke(
+                        gpui_kit::Keystroke::parse("tab").expect("keystroke"),
+                        cx,
+                    );
+                    window.dispatch_keystroke(
+                        gpui_kit::Keystroke::parse("enter").expect("keystroke"),
+                        cx,
+                    );
+                })
+                .ok();
+        }
+        stage.settle(Duration::from_millis(1000));
         stage.shoot("terminal");
 
         if let Some(id) = stage.store(|store, _| store.active_session.clone()) {

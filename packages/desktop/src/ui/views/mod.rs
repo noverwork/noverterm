@@ -99,8 +99,11 @@ impl Overlays {
                 settings_open = show;
             }),
         ];
-        // Tests and offline setups can skip the request to GitHub.
-        if std::env::var_os("NOVERTERM_SKIP_UPDATE_CHECK").is_none() {
+        // Tests and offline setups can skip the request to GitHub. Version
+        // 0.0.0 is a local build (releases get theirs from the tag), and every
+        // release would look newer to it.
+        let local_build = env!("CARGO_PKG_VERSION") == "0.0.0";
+        if !local_build && std::env::var_os("NOVERTERM_SKIP_UPDATE_CHECK").is_none() {
             updater::check(window, cx).detach();
         }
         Self {

@@ -49,6 +49,7 @@ pub fn init(app: AppHandle, cx: &mut App) {
     let store = cx.new(|cx| store::Store::new(app, cx));
     cx.set_global(store::Globals { store });
     shell::bind_keys(cx);
+    terminal::bind_keys(cx);
 }
 
 pub fn open_main_window(options: WindowOptions, cx: &mut App) -> Result<AnyWindowHandle> {

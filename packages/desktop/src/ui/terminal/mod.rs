@@ -35,6 +35,17 @@ const BLINK_INTERVAL: Duration = Duration::from_millis(600);
 /// Space between the terminal area's edges and the grid, on every side.
 const PADDING: Pixels = px(14.);
 
+// The window binds Tab to focus traversal; inside a terminal it belongs to the
+// shell, so the more specific "Terminal" context claims it back.
+actions!(terminal, [SendTab, SendBackTab]);
+
+pub fn bind_keys(cx: &mut App) {
+    cx.bind_keys([
+        KeyBinding::new("tab", SendTab, Some("Terminal")),
+        KeyBinding::new("shift-tab", SendBackTab, Some("Terminal")),
+    ]);
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionKind {
     Ssh,
@@ -472,6 +483,17 @@ impl TerminalView {
         if let Some(bytes) = keys::encode(&key, keys::KeyEvent::Release, *self.term.mode(), true) {
             self.send(bytes);
             cx.stop_propagation();
+        }
+    }
+
+    fn send_tab(&mut self, shift: bool, cx: &mut Context<Self>) {
+        let key = keys::Key {
+            key: "tab",
+            shift,
+            ..keys::Key::default()
+        };
+        if let Some(bytes) = keys::encode(&key, keys::KeyEvent::Press, *self.term.mode(), true) {
+            self.typed(bytes, cx);
         }
     }
 
@@ -954,6 +976,9 @@ impl Render for TerminalView {
             .size_full()
             .bg(theme::TERMINAL_INK)
             .track_focus(&self.focus)
+            .key_context("Terminal")
+            .on_action(cx.listener(|this, _: &SendTab, _, cx| this.send_tab(false, cx)))
+            .on_action(cx.listener(|this, _: &SendBackTab, _, cx| this.send_tab(true, cx)))
             .on_key_down(cx.listener(Self::on_key_down))
             .on_key_up(cx.listener(Self::on_key_up))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
