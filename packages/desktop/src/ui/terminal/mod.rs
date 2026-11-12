@@ -172,6 +172,7 @@ pub struct TerminalView {
     app: AppHandle,
     term: Term<EventProxy>,
     parser: Processor,
+    other_keys: keys::OtherKeys,
     events: mpsc::Receiver<TermEvent>,
     input: UnboundedSender<Vec<u8>>,
     focus: FocusHandle,
@@ -281,6 +282,7 @@ impl TerminalView {
             app,
             term,
             parser: Processor::new(),
+            other_keys: keys::OtherKeys::default(),
             events,
             input,
             focus: cx.focus_handle(),
@@ -325,7 +327,10 @@ impl TerminalView {
     pub fn feed(&mut self, bytes: &[u8], cx: &mut Context<Self>) {
         for chunk in self.scanner.scan(bytes) {
             match chunk {
-                images::Chunk::Text(text) => self.parser.advance(&mut self.term, &text),
+                images::Chunk::Text(text) => {
+                    self.other_keys.scan(&text);
+                    self.parser.advance(&mut self.term, &text);
+                }
                 images::Chunk::Sixel(sequence) => {
                     if let Some(image) = images::decode_sixel(&sequence) {
                         let size = (image.width() as f32, image.height() as f32);
@@ -653,7 +658,13 @@ impl TerminalView {
             keys::KeyEvent::Press
         };
         let alt_is_meta = !cfg!(target_os = "macos") || self.config.option_as_meta;
-        if let Some(bytes) = keys::encode(&key, kind, *self.term.mode(), alt_is_meta) {
+        if let Some(bytes) = keys::encode(
+            &key,
+            kind,
+            *self.term.mode(),
+            alt_is_meta,
+            self.other_keys.level(),
+        ) {
             self.typed(bytes, cx);
             cx.stop_propagation();
         }
@@ -673,7 +684,8 @@ impl TerminalView {
             ctrl: modifiers.control,
             platform: modifiers.platform,
         };
-        if let Some(bytes) = keys::encode(&key, keys::KeyEvent::Release, *self.term.mode(), true) {
+        if let Some(bytes) = keys::encode(&key, keys::KeyEvent::Release, *self.term.mode(), true, 0)
+        {
             self.send(bytes);
             cx.stop_propagation();
         }
@@ -743,7 +755,13 @@ impl TerminalView {
             shift,
             ..keys::Key::default()
         };
-        if let Some(bytes) = keys::encode(&key, keys::KeyEvent::Press, *self.term.mode(), true) {
+        if let Some(bytes) = keys::encode(
+            &key,
+            keys::KeyEvent::Press,
+            *self.term.mode(),
+            true,
+            self.other_keys.level(),
+        ) {
             self.typed(bytes, cx);
         }
     }
@@ -1544,7 +1562,12 @@ mod view_tests {
         assert_eq!(terminal.keys("alt-backspace"), "\x1b\x7f");
         assert_eq!(terminal.keys("alt-left"), "\x1b[1;3D");
 
+        // modifyOtherKeys, as Claude Code and tmux ask for it.
+        terminal.feed("\x1b[>4;2m");
+        assert_eq!(terminal.keys("shift-enter"), "\x1b[27;2;13~");
+        // The kitty protocol wins once both are on.
         terminal.feed("\x1b[>5u");
+        assert_eq!(terminal.keys("shift-enter"), "\x1b[13;2u");
         assert_eq!(terminal.keys("alt-enter"), "\x1b[13;3u");
         assert_eq!(terminal.keys("escape"), "\x1b[27u");
         assert_eq!(terminal.keys("shift-enter"), "\x1b[13;2u");

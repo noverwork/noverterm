@@ -1,7 +1,9 @@
 //! Turns key presses into the bytes a terminal program expects: xterm's legacy
-//! encoding, or the Kitty keyboard protocol once the program asked for it.
+//! encoding, or, once the program asked for it, the Kitty keyboard protocol or
+//! xterm's modifyOtherKeys.
 
 use alacritty_terminal::term::TermMode;
+use alacritty_terminal::vte::{Params, Parser, Perform};
 
 /// One key event, independent of the UI toolkit.
 #[derive(Debug, Clone, Copy, Default)]
@@ -28,14 +30,103 @@ pub enum KeyEvent {
 /// input method should deliver instead (or means nothing to a terminal).
 ///
 /// `alt_is_meta` is false on macOS, where Option composes characters.
-pub fn encode(key: &Key, event: KeyEvent, mode: TermMode, alt_is_meta: bool) -> Option<Vec<u8>> {
+/// `other_keys` is the modifyOtherKeys level the program set (0 = off).
+pub fn encode(
+    key: &Key,
+    event: KeyEvent,
+    mode: TermMode,
+    alt_is_meta: bool,
+    other_keys: u8,
+) -> Option<Vec<u8>> {
     if mode.intersects(TermMode::KITTY_KEYBOARD_PROTOCOL) {
         return kitty(key, event, mode, alt_is_meta);
     }
     if event == KeyEvent::Release {
         return None;
     }
-    legacy(key, mode, alt_is_meta).map(String::into_bytes)
+    modify_other_keys(key, other_keys, alt_is_meta)
+        .or_else(|| legacy(key, mode, alt_is_meta))
+        .map(String::into_bytes)
+}
+
+/// xterm's modifyOtherKeys: `CSI 27;mods;code~` for modified keys the legacy
+/// encoding cannot tell apart (Shift+Enter is just Enter). Level 1 keeps keys
+/// with a well-known legacy meaning (Tab, Backspace, Ctrl+letter); level 2
+/// encodes those too.
+fn modify_other_keys(key: &Key, level: u8, alt_is_meta: bool) -> Option<String> {
+    let mods = modifier_param(key);
+    if level == 0 || mods == 1 || key.platform {
+        return None;
+    }
+    let mut chars = key.key.chars();
+    let single = match (chars.next(), chars.next()) {
+        (Some(character), None) => Some(character),
+        _ => None,
+    };
+    // Option types characters on macOS; the input method delivers them.
+    let composes = key.alt && !alt_is_meta && !key.ctrl;
+    let code = match key.key {
+        "enter" => 13,
+        "escape" => 27,
+        _ if level < 2 => return None,
+        "tab" => 9,
+        "backspace" => 127,
+        "space" if !composes => 32,
+        _ => {
+            // Shift alone just types the shifted character.
+            let character = single?;
+            if composes || !(key.ctrl || key.alt) {
+                return None;
+            }
+            key.text
+                .filter(|_| key.shift)
+                .and_then(|text| text.chars().next())
+                .unwrap_or(character) as u32
+        }
+    };
+    Some(format!("\x1b[27;{mods};{code}~"))
+}
+
+/// Follows the modifyOtherKeys level a program sets with `CSI > 4 ; n m`;
+/// alacritty parses but ignores it, so the output is watched here too.
+#[derive(Default)]
+pub struct OtherKeys {
+    parser: Parser,
+    level: Level,
+}
+
+#[derive(Default)]
+struct Level(u8);
+
+impl Perform for Level {
+    fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], _: bool, action: char) {
+        if action != 'm' || intermediates != b">" {
+            return;
+        }
+        let mut params = params
+            .iter()
+            .map(|param| param.first().copied().unwrap_or(0));
+        if params.next().unwrap_or(0) == 4 {
+            self.0 = params.next().unwrap_or(0).min(2) as u8;
+        }
+    }
+
+    /// RIS resets the terminal, this mode included.
+    fn esc_dispatch(&mut self, intermediates: &[u8], _: bool, byte: u8) {
+        if intermediates.is_empty() && byte == b'c' {
+            self.0 = 0;
+        }
+    }
+}
+
+impl OtherKeys {
+    pub fn scan(&mut self, bytes: &[u8]) {
+        self.parser.advance(&mut self.level, bytes);
+    }
+
+    pub fn level(&self) -> u8 {
+        self.level.0
+    }
 }
 
 fn modifier_param(key: &Key) -> u8 {
@@ -339,7 +430,7 @@ mod tests {
     }
 
     fn sent(key: Key, mode: TermMode) -> Option<String> {
-        encode(&key, KeyEvent::Press, mode, true).map(|bytes| String::from_utf8(bytes).unwrap())
+        encode(&key, KeyEvent::Press, mode, true, 0).map(|bytes| String::from_utf8(bytes).unwrap())
     }
 
     #[test]
@@ -425,8 +516,8 @@ mod tests {
             alt: true,
             ..key("b")
         };
-        assert_eq!(encode(&option, KeyEvent::Press, none, false), None);
-        assert_eq!(encode(&key("a"), KeyEvent::Release, none, true), None);
+        assert_eq!(encode(&option, KeyEvent::Press, none, false, 0), None);
+        assert_eq!(encode(&key("a"), KeyEvent::Release, none, true, 0), None);
     }
 
     #[test]
@@ -471,10 +562,11 @@ mod tests {
             KeyEvent::Release,
             events,
             true,
+            0,
         );
         assert_eq!(release.as_deref(), Some(&b"\x1b[99;5:3u"[..]));
         assert_eq!(
-            encode(&key("a"), KeyEvent::Release, disambiguate, true),
+            encode(&key("a"), KeyEvent::Release, disambiguate, true, 0),
             None
         );
 
@@ -487,6 +579,47 @@ mod tests {
         };
         assert_eq!(sent(shifted, all).as_deref(), Some("\x1b[97;2;65u"));
         assert_eq!(sent(key("enter"), all).as_deref(), Some("\x1b[13u"));
+    }
+
+    #[test]
+    fn modify_other_keys_follows_the_program() {
+        let mut other = OtherKeys::default();
+        let send = |key: Key, level| {
+            encode(&key, KeyEvent::Press, TermMode::NONE, false, level)
+                .map(|bytes| String::from_utf8(bytes).unwrap())
+        };
+        let shift_enter = Key {
+            shift: true,
+            ..key("enter")
+        };
+        let ctrl_c = Key {
+            ctrl: true,
+            ..key("c")
+        };
+        let option_b = Key {
+            alt: true,
+            text: Some("∫"),
+            ..key("b")
+        };
+        assert_eq!(send(shift_enter, other.level()).as_deref(), Some("\r"));
+
+        // Split across reads, as a pty may deliver it.
+        other.scan(b"\x1b[>4;");
+        other.scan(b"1m");
+        assert_eq!(other.level(), 1);
+        assert_eq!(send(shift_enter, 1).as_deref(), Some("\x1b[27;2;13~"));
+        assert_eq!(send(ctrl_c, 1).as_deref(), Some("\x03"));
+
+        other.scan(b"\x1b[>4;2m");
+        assert_eq!(other.level(), 2);
+        assert_eq!(send(ctrl_c, 2).as_deref(), Some("\x1b[27;5;99~"));
+        assert_eq!(send(key("enter"), 2).as_deref(), Some("\r"));
+        assert_eq!(send(option_b, 2), None);
+
+        other.scan(b"\x1b[>4m");
+        assert_eq!(other.level(), 0);
+        other.scan(b"\x1b[>4;2m\x1bc");
+        assert_eq!(other.level(), 0);
     }
 
     #[test]
@@ -562,7 +695,7 @@ mod tests {
             mode
         };
         let send = |key: Key, event, mode| {
-            encode(&key, event, mode, false).map(|bytes| String::from_utf8(bytes).unwrap())
+            encode(&key, event, mode, false, 0).map(|bytes| String::from_utf8(bytes).unwrap())
         };
         // Alt+Enter is what agent CLIs read as "newline".
         let alt_enter = Key {
