@@ -838,9 +838,17 @@ impl TerminalView {
     }
 
     /// Whether mouse events go to the program instead of selecting text.
-    /// Shift (and Option on macOS) is the escape hatch back to selection.
+    /// Shift (and Option on macOS) is the escape hatch back to selection;
+    /// Cmd (Ctrl elsewhere) also clicks links, as in iTerm2 and Ghostty.
     fn reports_mouse(&self, modifiers: Modifiers) -> bool {
-        self.term.mode().intersects(TermMode::MOUSE_MODE) && !modifiers.shift && !modifiers.alt
+        self.term.mode().intersects(TermMode::MOUSE_MODE)
+            && !modifiers.shift
+            && !modifiers.alt
+            && !if cfg!(target_os = "macos") {
+                modifiers.platform
+            } else {
+                modifiers.control
+            }
     }
 
     fn report_mouse(
@@ -1668,6 +1676,29 @@ mod view_tests {
         // Image markers are not links.
         let link = terminal.read(|view| view.link_at(GridPoint::new(Line(0), Column(2))));
         assert!(link.is_none());
+    }
+
+    #[::core::prelude::v1::test]
+    fn cmd_reaches_links_in_programs_that_track_the_mouse() {
+        let mut terminal = Harness::new();
+        terminal.feed("\x1b[?1000hsee https://example.com now");
+        let (plain, secondary, link) = terminal.read(|view| {
+            (
+                view.reports_mouse(Modifiers::default()),
+                view.reports_mouse(Modifiers {
+                    platform: cfg!(target_os = "macos"),
+                    control: !cfg!(target_os = "macos"),
+                    ..Modifiers::default()
+                }),
+                view.link_at(GridPoint::new(Line(0), Column(8))),
+            )
+        });
+        assert!(plain);
+        assert!(!secondary);
+        assert_eq!(
+            link.map(|(url, _)| url).as_deref(),
+            Some("https://example.com")
+        );
     }
 
     #[::core::prelude::v1::test]
