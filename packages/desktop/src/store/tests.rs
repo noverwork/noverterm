@@ -372,6 +372,23 @@ async fn settings_upsert_by_key_instead_of_piling_up_rows() {
 }
 
 #[tokio::test]
+async fn ai_api_keys_are_saved_in_the_database() {
+    let (app, _directory) = test_app();
+    let provider = crate::ai::AiProvider::Anthropic;
+    let has_key = || crate::ai::ai_has_api_key(app.clone(), provider);
+
+    assert!(!has_key().await.unwrap());
+    crate::ai::ai_set_api_key(app.clone(), provider, Some(" sk-test ".to_string()))
+        .await
+        .unwrap();
+    assert!(has_key().await.unwrap());
+    crate::ai::ai_set_api_key(app.clone(), provider, None)
+        .await
+        .unwrap();
+    assert!(!has_key().await.unwrap());
+}
+
+#[tokio::test]
 async fn grouped_connections_and_snippets_reload_with_their_host() {
     let (app, _directory) = test_app();
 

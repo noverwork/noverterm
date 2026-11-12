@@ -43,7 +43,7 @@ use crate::trust::SshTrustStore;
 
 const SETTING_KEY: &str = "noverterm-mcp";
 const DEFAULT_PORT: u16 = 47321;
-const KEYRING_ACCOUNT: &str = "mcp-token";
+const TOKEN_SETTING: &str = "noverterm-mcp-token";
 /// An unanswered approval request is denied after this long; clients give up
 /// on the call at 60 seconds anyway.
 const APPROVAL_TIMEOUT: Duration = Duration::from_secs(60);
@@ -224,10 +224,7 @@ async fn save_settings(app: &AppHandle, settings: McpSettings) -> Result<(), Str
 
 /// Replaces the token and restarts the server; clients set up with the old one stop working.
 pub async fn mcp_regenerate_token(app: AppHandle) -> Result<McpStatus, String> {
-    match keyring_entry()?.delete_credential() {
-        Ok(()) | Err(keyring::Error::NoEntry) => {}
-        Err(error) => return Err(format!("Could not remove the MCP token: {error}")),
-    }
+    crate::store::settings::delete_setting(TOKEN_SETTING.to_string(), app.state()).await?;
     let error = apply(&app, load_settings(&app).await?).await.err();
     status(&app, error).await
 }
@@ -308,9 +305,15 @@ async fn status(app: &AppHandle, error: Option<String>) -> Result<McpStatus, Str
         settings,
         running,
         url: format!("http://127.0.0.1:{}/mcp", settings.port),
-        token: keyring_entry()?.get_password().ok(),
+        token: load_token(app).await?,
         error,
     })
+}
+
+async fn load_token(app: &AppHandle) -> Result<Option<String>, String> {
+    let setting =
+        crate::store::settings::get_setting(TOKEN_SETTING.to_string(), app.state()).await?;
+    Ok(setting.map(|setting| setting.value))
 }
 
 async fn load_settings(app: &AppHandle) -> Result<McpSettings, String> {
@@ -338,13 +341,15 @@ async fn apply(app: &AppHandle, settings: McpSettings) -> Result<(), String> {
         info!(port = running.port, "MCP server stopped");
     }
 
-    let token = match keyring_entry()?.get_password() {
-        Ok(token) => token,
-        Err(_) => {
+    let token = match load_token(app).await? {
+        Some(token) => token,
+        None => {
             let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-            keyring_entry()?
-                .set_password(&token)
-                .map_err(|error| format!("Could not save the MCP token: {error}"))?;
+            let setting = shared::Setting {
+                key: TOKEN_SETTING.to_string(),
+                value: token.clone(),
+            };
+            crate::store::settings::set_setting(setting, app.state()).await?;
             token
         }
     };
@@ -378,10 +383,6 @@ async fn start_server(app: &AppHandle, port: u16, token: String) -> Result<Runni
     });
     info!(port, "MCP server listening");
     Ok(RunningServer { port, shutdown })
-}
-
-fn keyring_entry() -> Result<keyring::Entry, String> {
-    keyring::Entry::new("noverterm", KEYRING_ACCOUNT).map_err(|error| error.to_string())
 }
 
 struct Context {

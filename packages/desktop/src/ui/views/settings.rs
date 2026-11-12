@@ -241,8 +241,9 @@ impl SettingsView {
 
     fn refresh_key_state(&self, cx: &mut Context<Self>) {
         let provider = self.provider(cx);
+        let app = self.store.read(cx).app();
         cx.spawn(async move |this, cx| {
-            let has_key = backend(crate::ai::ai_has_api_key(provider))
+            let has_key = backend(crate::ai::ai_has_api_key(app, provider))
                 .await
                 .unwrap_or(false);
             let _ = this.update(cx, |this, cx| {
@@ -278,6 +279,7 @@ impl SettingsView {
             api_format: common::selected(&self.api_format, cx).and_then(|code| parse(&code)),
         };
         let api_key = self.api_key.read(cx).value().to_string();
+        let app = self.store.read(cx).app();
         let Ok(value) = serde_json::to_string(&config) else {
             return;
         };
@@ -290,9 +292,9 @@ impl SettingsView {
         cx.spawn_in(window, async move |this, cx| {
             let saved = backend(async move {
                 if !api_key.trim().is_empty() {
-                    crate::ai::ai_set_api_key(provider, Some(api_key)).await?;
+                    crate::ai::ai_set_api_key(app.clone(), provider, Some(api_key)).await?;
                 }
-                crate::ai::ai_has_api_key(provider).await
+                crate::ai::ai_has_api_key(app, provider).await
             })
             .await;
             let _ = this.update_in(cx, |this, window, cx| {
@@ -314,8 +316,9 @@ impl SettingsView {
 
     fn remove_key(&mut self, cx: &mut Context<Self>) {
         let provider = self.provider(cx);
+        let app = self.store.read(cx).app();
         cx.spawn(async move |this, cx| {
-            let removed = backend(crate::ai::ai_set_api_key(provider, None)).await;
+            let removed = backend(crate::ai::ai_set_api_key(app, provider, None)).await;
             let _ = this.update(cx, |this, cx| match removed {
                 Ok(()) => this.refresh_key_state(cx),
                 Err(error) => {
@@ -438,7 +441,7 @@ impl Render for SettingsView {
             )
         });
         let key_placeholder = if self.has_key {
-            t("Saved in keychain")
+            t("Saved on this computer")
         } else {
             "".into()
         };

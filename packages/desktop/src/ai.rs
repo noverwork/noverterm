@@ -6,8 +6,9 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
-/// The OS keychain entry holding a provider's API key.
-const KEYRING_SERVICE: &str = "noverterm";
+use crate::app::AppHandle;
+use crate::store::settings::{delete_setting, get_setting, set_setting};
+
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_TOKENS: u32 = 1024;
 const ANTHROPIC_BASE_URL: &str = "https://api.anthropic.com/v1";
@@ -82,26 +83,29 @@ pub struct AiAskInput {
     pub language: String,
 }
 
-pub async fn ai_set_api_key(provider: AiProvider, api_key: Option<String>) -> Result<(), String> {
-    let entry = keyring_entry(provider)?;
+pub async fn ai_set_api_key(
+    app: AppHandle,
+    provider: AiProvider,
+    api_key: Option<String>,
+) -> Result<(), String> {
+    let key = secret_name(provider).to_string();
     match api_key
-        .map(|key| key.trim().to_string())
-        .filter(|key| !key.is_empty())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
     {
-        Some(key) => entry.set_password(&key).map_err(|error| error.to_string()),
-        None => match entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(error) => Err(error.to_string()),
-        },
+        Some(value) => set_setting(shared::Setting { key, value }, app.state())
+            .await
+            .map(|_| ()),
+        None => delete_setting(key, app.state()).await,
     }
 }
 
-pub async fn ai_has_api_key(provider: AiProvider) -> Result<bool, String> {
-    Ok(api_key(provider)?.is_some())
+pub async fn ai_has_api_key(app: AppHandle, provider: AiProvider) -> Result<bool, String> {
+    Ok(api_key(&app, provider).await?.is_some())
 }
 
-pub async fn ai_ask(input: AiAskInput) -> Result<String, String> {
-    let key = api_key(input.provider)?;
+pub async fn ai_ask(app: AppHandle, input: AiAskInput) -> Result<String, String> {
+    let key = api_key(&app, input.provider).await?;
     if input.provider != AiProvider::OpenaiCompatible && key.is_none() {
         return Err("Add an API key in Settings first".to_string());
     }
@@ -263,23 +267,18 @@ fn gemini_base_url(base_url: &str) -> String {
     }
 }
 
-fn keyring_entry(provider: AiProvider) -> Result<keyring::Entry, String> {
-    let account = match provider {
-        AiProvider::Anthropic => "ai-anthropic",
-        AiProvider::OpenaiCompatible => "ai-openai-compatible",
-        AiProvider::OpencodeGo => "ai-opencode-go",
-    };
-    keyring::Entry::new(KEYRING_SERVICE, account).map_err(|error| error.to_string())
+/// The settings key holding a provider's API key.
+fn secret_name(provider: AiProvider) -> &'static str {
+    match provider {
+        AiProvider::Anthropic => "noverterm-ai-key.anthropic",
+        AiProvider::OpenaiCompatible => "noverterm-ai-key.openai-compatible",
+        AiProvider::OpencodeGo => "noverterm-ai-key.opencode-go",
+    }
 }
 
-fn api_key(provider: AiProvider) -> Result<Option<String>, String> {
-    match keyring_entry(provider)?.get_password() {
-        Ok(key) => Ok(Some(key)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(error) => Err(format!(
-            "Could not read the API key from the keychain: {error}"
-        )),
-    }
+async fn api_key(app: &AppHandle, provider: AiProvider) -> Result<Option<String>, String> {
+    let setting = get_setting(secret_name(provider).to_string(), app.state()).await?;
+    Ok(setting.map(|setting| setting.value))
 }
 
 async fn read_json(response: reqwest::Result<reqwest::Response>) -> Result<Value, String> {

@@ -61,6 +61,21 @@ pub async fn set_setting(
     .await
 }
 
+/// Removes a setting; a missing key is not an error.
+pub async fn delete_setting(
+    key: String,
+    pool: crate::app::State<'_, DbPool>,
+) -> Result<(), String> {
+    let pool = pool.inner().clone();
+    run_db(pool, move |connection| {
+        diesel::delete(settings::table.filter(settings::key.eq(key)))
+            .execute(connection)
+            .map(|_| ())
+            .map_err(internal_error)
+    })
+    .await
+}
+
 fn to_setting(row: SettingRow) -> Setting {
     Setting {
         key: row.key,

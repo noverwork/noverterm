@@ -185,6 +185,7 @@ impl Assistant {
             return;
         }
         let config = ai_config(self.store.read(cx));
+        let app = self.store.read(cx).app();
         let (task, input, question) = match &target.selection {
             Some(selection) => (AiTask::Explain, selection.clone(), Some(question)),
             None => (AiTask::Command, question, None),
@@ -207,7 +208,7 @@ impl Assistant {
         self.error = None;
         self.reply = None;
         self.asking = Some(cx.spawn(async move |this, cx| {
-            let answer = backend(crate::ai::ai_ask(request)).await;
+            let answer = backend(crate::ai::ai_ask(app, request)).await;
             let _ = this.update(cx, |this, cx| {
                 this.asking = None;
                 match answer {
