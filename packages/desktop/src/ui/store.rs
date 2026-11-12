@@ -27,11 +27,12 @@ const MAX_JUMP_HOPS: usize = 5;
 const FRAME_HEADER: usize = 37;
 
 /// Backend events the UI listens for.
-const BACKEND_EVENTS: [&str; 9] = [
+const BACKEND_EVENTS: [&str; 10] = [
     "ssh_port_forward",
     "port_forward_status",
     "mcp_changed",
     "mcp_approval_request",
+    "mcp_approval_expired",
     "mcp_activity",
     "ai_access_changed",
     "sftp://progress",

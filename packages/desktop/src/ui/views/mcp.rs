@@ -1,6 +1,7 @@
 //! MCP: the settings page, the footer status line, the approval dialog, and
 //! the state all three share.
 
+use std::collections::HashSet;
 use std::time::Duration;
 
 use chrono::{DateTime, Local};
@@ -44,6 +45,8 @@ pub struct McpEvents {
     app: AppHandle,
     /// Approval requests waiting for the user, oldest first.
     pub approvals: Vec<McpApprovalRequest>,
+    /// Requests the backend stopped waiting for; they can only be closed.
+    expired: HashSet<String>,
     /// Recent MCP commands, newest first.
     pub activity: Vec<LoggedActivity>,
     /// What MCP clients are doing or hold open right now.
@@ -79,6 +82,7 @@ impl McpEvents {
         let mut events = Self {
             app: store.read(cx).app(),
             approvals: Vec::new(),
+            expired: HashSet::new(),
             activity: Vec::new(),
             live: McpSessions {
                 running: Vec::new(),
@@ -119,6 +123,12 @@ impl McpEvents {
                     open_approval_dialog(cx.entity(), window, cx);
                 }
                 cx.notify();
+            }
+            "mcp_approval_expired" => {
+                if let Ok(id) = serde_json::from_str::<String>(payload) {
+                    self.expired.insert(id);
+                    cx.notify();
+                }
             }
             "mcp_activity" => {
                 let Ok(entry) = serde_json::from_str::<McpActivity>(payload) else {
@@ -187,6 +197,10 @@ impl McpEvents {
     fn respond(&mut self, decision: McpDecision, cx: &mut Context<Self>) -> bool {
         if !self.approvals.is_empty() {
             let request = self.approvals.remove(0);
+            if self.expired.remove(&request.id) {
+                cx.notify();
+                return self.approvals.is_empty();
+            }
             let app = self.app.clone();
             cx.spawn(async move |_, _| {
                 let _ = backend(async move {
@@ -238,6 +252,7 @@ fn open_approval_dialog(events: Entity<McpEvents>, window: &mut Window, cx: &mut
             return dialog;
         };
         let waiting = state.approvals.len() - 1;
+        let expired = state.expired.contains(&request.id);
         let decide = |decision: McpDecision| {
             let events = events.clone();
             move |_: &ClickEvent, window: &mut Window, cx: &mut App| {
@@ -293,6 +308,14 @@ fn open_approval_dialog(events: Entity<McpEvents>, window: &mut Window, cx: &mut
                             .text_sm()
                             .child(request.command.clone()),
                     )
+                    .when(expired, |body| {
+                        body.child(
+                            div()
+                                .text_sm()
+                                .text_color(theme::RED_TEXT)
+                                .child(t("Timed out: the AI stopped waiting for an answer.")),
+                        )
+                    })
                     .when(waiting > 0, |body| {
                         body.child(div().text_xs().text_color(theme::STENCIL_MUTE).child(tf(
                             "{count} more waiting",
@@ -305,22 +328,34 @@ fn open_approval_dialog(events: Entity<McpEvents>, window: &mut Window, cx: &mut
                     .flex_wrap()
                     .justify_end()
                     .gap_3()
+                    .when(expired, |footer| {
+                        // Any answer just closes it; Deny says nothing new to the backend.
+                        footer.child(
+                            Button::new("mcp-close")
+                                .outline()
+                                .label(t("Close"))
+                                .on_click(decide(McpDecision::Deny)),
+                        )
+                    })
                     .child(
                         Button::new("mcp-deny")
                             .outline()
                             .label(t("Deny"))
+                            .disabled(expired)
                             .on_click(decide(McpDecision::Deny)),
                     )
                     .child(
                         Button::new("mcp-allow-host")
                             .outline()
                             .label(t("Always allow on this host"))
+                            .disabled(expired)
                             .on_click(decide(McpDecision::AllowHost)),
                     )
                     .child(
                         Button::new("mcp-allow")
                             .warning()
                             .label(t("Allow"))
+                            .disabled(expired)
                             .on_click(decide(McpDecision::Allow)),
                     ),
             )

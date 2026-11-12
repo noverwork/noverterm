@@ -439,6 +439,7 @@
  "Finished": "已結束",
  "MCP activity": "MCP 活動",
  "Waiting for approval": "等待你核准",
+ "Timed out: the AI stopped waiting for an answer.": "已逾時：AI 已不再等待回覆。",
  "Working now": "正在執行",
  "Background commands": "背景指令",
  "Port forwards": "連接埠轉發",

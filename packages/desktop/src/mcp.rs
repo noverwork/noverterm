@@ -44,8 +44,9 @@ use crate::trust::SshTrustStore;
 const SETTING_KEY: &str = "noverterm-mcp";
 const DEFAULT_PORT: u16 = 47321;
 const KEYRING_ACCOUNT: &str = "mcp-token";
-/// An unanswered approval request is denied after this long.
-const APPROVAL_TIMEOUT: Duration = Duration::from_secs(120);
+/// An unanswered approval request is denied after this long; clients give up
+/// on the call at 60 seconds anyway.
+const APPROVAL_TIMEOUT: Duration = Duration::from_secs(60);
 const DEFAULT_RUN_TIMEOUT_SECS: u64 = 60;
 const MAX_RUN_TIMEOUT_SECS: u64 = 600;
 const DEFAULT_TRANSFER_TIMEOUT_SECS: u64 = 600;
@@ -1020,7 +1021,12 @@ async fn approve(
     };
     let sent = app.emit("mcp_approval_request", request).is_ok();
     let decision = if sent {
-        tokio::time::timeout(APPROVAL_TIMEOUT, receiver).await.ok()
+        let answered = tokio::time::timeout(APPROVAL_TIMEOUT, receiver).await.ok();
+        if answered.is_none() {
+            // The dialog stays up, marked as timed out, until the user closes it.
+            let _ = app.emit("mcp_approval_expired", id.clone());
+        }
+        answered
     } else {
         None
     };
