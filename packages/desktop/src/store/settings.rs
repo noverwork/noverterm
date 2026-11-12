@@ -6,9 +6,7 @@ use shared::Setting;
 
 use super::{internal_error, run_db, DbPool};
 
-#[tauri::command]
-#[specta::specta]
-pub async fn get_all_settings(pool: tauri::State<'_, DbPool>) -> Result<Vec<Setting>, String> {
+pub async fn get_all_settings(pool: crate::app::State<'_, DbPool>) -> Result<Vec<Setting>, String> {
     let pool = pool.inner().clone();
     run_db(pool, |connection| {
         settings::table
@@ -20,11 +18,9 @@ pub async fn get_all_settings(pool: tauri::State<'_, DbPool>) -> Result<Vec<Sett
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn get_setting(
     key: String,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<Option<Setting>, String> {
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {
@@ -38,11 +34,9 @@ pub async fn get_setting(
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn set_setting(
     setting: Setting,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<Setting, String> {
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {

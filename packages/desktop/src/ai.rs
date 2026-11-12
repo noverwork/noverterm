@@ -14,7 +14,7 @@ const ANTHROPIC_BASE_URL: &str = "https://api.anthropic.com/v1";
 const OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
 const OPENCODE_GO_BASE_URL: &str = "https://opencode.ai/zen/go/v1";
 
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AiProvider {
     Anthropic,
@@ -25,7 +25,7 @@ pub enum AiProvider {
 }
 
 /// The wire format a model is reached through.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AiApiFormat {
     /// `/messages`
@@ -56,7 +56,7 @@ impl AiApiFormat {
     }
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AiTask {
     /// `input` is what the user wants done; reply is one shell command.
@@ -65,7 +65,7 @@ pub enum AiTask {
     Explain,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AiAskInput {
     pub provider: AiProvider,
     pub model: String,
@@ -82,8 +82,6 @@ pub struct AiAskInput {
     pub language: String,
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn ai_set_api_key(provider: AiProvider, api_key: Option<String>) -> Result<(), String> {
     let entry = keyring_entry(provider)?;
     match api_key
@@ -98,14 +96,10 @@ pub async fn ai_set_api_key(provider: AiProvider, api_key: Option<String>) -> Re
     }
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn ai_has_api_key(provider: AiProvider) -> Result<bool, String> {
     Ok(api_key(provider)?.is_some())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn ai_ask(input: AiAskInput) -> Result<String, String> {
     let key = api_key(input.provider)?;
     if input.provider != AiProvider::OpenaiCompatible && key.is_none() {

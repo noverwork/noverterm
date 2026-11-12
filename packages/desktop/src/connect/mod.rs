@@ -1,4 +1,4 @@
-use tauri::{AppHandle, State};
+use crate::app::{AppHandle, State};
 
 use crate::runtime::local::LocalSessionManager;
 use crate::runtime::port_forward::{
@@ -9,20 +9,16 @@ use crate::runtime::ssh::{
     auth_method, SshConnectRequest, SshConnectResponse, SshHopInput, SshLocalPortForwardInput,
     SshPortForwardStatus, SshProbeHostInfoResponse, SshSessionManager,
 };
-use crate::runtime::terminal_output::{TerminalFrame, TerminalOutput};
+use crate::runtime::terminal_output::{Channel, TerminalOutput};
 use crate::trust::{HostTrustConfirmation, SshTrustStore};
 
-#[tauri::command]
-#[specta::specta]
 pub fn terminal_output_subscribe(
-    on_output: tauri::ipc::Channel<TerminalFrame>,
+    on_output: Channel,
     output: State<'_, TerminalOutput>,
 ) -> Result<(), String> {
     output.subscribe(on_output)
 }
 
-#[tauri::command]
-#[specta::specta]
 pub fn terminal_output_ack(
     session_id: String,
     bytes: u32,
@@ -31,8 +27,6 @@ pub fn terminal_output_ack(
     output.ack(&session_id, bytes)
 }
 
-#[tauri::command]
-#[specta::specta]
 pub fn terminal_output_unsubscribe(
     channel_id: u32,
     output: State<'_, TerminalOutput>,
@@ -40,7 +34,7 @@ pub fn terminal_output_unsubscribe(
     output.unsubscribe(channel_id)
 }
 
-#[derive(Debug, serde::Deserialize, specta::Type)]
+#[derive(Debug, serde::Deserialize)]
 pub struct DirectSshConnectInput {
     pub host: String,
     pub port: u16,
@@ -53,8 +47,6 @@ pub struct DirectSshConnectInput {
     pub jumps: Vec<SshHopInput>,
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn ssh_connect_direct(
     app: AppHandle,
     input: DirectSshConnectInput,
@@ -80,8 +72,6 @@ pub async fn ssh_connect_direct(
         .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn ssh_confirm_host_trust(
     confirmation: HostTrustConfirmation,
     trust_store: State<'_, SshTrustStore>,
@@ -89,8 +79,6 @@ pub async fn ssh_confirm_host_trust(
     trust_store.confirm(confirmation).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn ssh_probe_host_info(
     input: DirectSshConnectInput,
     ssh_manager: State<'_, SshSessionManager>,
@@ -110,8 +98,6 @@ pub async fn ssh_probe_host_info(
         .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn ssh_write(
     session_id: String,
     data: String,
@@ -120,8 +106,6 @@ pub async fn ssh_write(
     ssh_manager.write(&session_id, data.into_bytes()).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn ssh_resize(
     session_id: String,
     cols: u32,
@@ -131,8 +115,6 @@ pub async fn ssh_resize(
     ssh_manager.resize(&session_id, cols, rows).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn ssh_disconnect(
     app: AppHandle,
     session_id: String,
@@ -141,8 +123,6 @@ pub async fn ssh_disconnect(
     ssh_manager.disconnect(app, &session_id).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn ssh_start_local_port_forward(
     app: AppHandle,
     input: SshLocalPortForwardInput,
@@ -151,8 +131,6 @@ pub async fn ssh_start_local_port_forward(
     ssh_manager.start_local_port_forward(app, input).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn ssh_stop_port_forward(
     app: AppHandle,
     session_id: String,
@@ -164,8 +142,6 @@ pub async fn ssh_stop_port_forward(
         .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn local_connect(
     output: State<'_, TerminalOutput>,
     cols: u32,
@@ -175,8 +151,6 @@ pub async fn local_connect(
     local_manager.connect(&output, cols, rows).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn local_write(
     session_id: String,
     data: String,
@@ -185,8 +159,6 @@ pub async fn local_write(
     local_manager.write(&session_id, data.into_bytes()).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn local_resize(
     session_id: String,
     cols: u32,
@@ -196,8 +168,6 @@ pub async fn local_resize(
     local_manager.resize(&session_id, cols, rows).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn local_disconnect(
     session_id: String,
     local_manager: State<'_, LocalSessionManager>,
@@ -205,7 +175,7 @@ pub async fn local_disconnect(
     local_manager.disconnect(&session_id).await
 }
 
-#[derive(Debug, serde::Deserialize, specta::Type)]
+#[derive(Debug, serde::Deserialize)]
 pub struct PortForwardStartInput {
     pub name: String,
     pub host: String,
@@ -223,8 +193,6 @@ pub struct PortForwardStartInput {
     pub target_port: u16,
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn port_forward_start(
     app: AppHandle,
     input: PortForwardStartInput,
@@ -253,8 +221,6 @@ pub async fn port_forward_start(
         .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn port_forward_stop(
     app: AppHandle,
     forward_id: String,
@@ -263,8 +229,6 @@ pub async fn port_forward_stop(
     pf_manager.stop(app, &forward_id).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn port_forward_list(
     pf_manager: State<'_, PortForwardManager>,
 ) -> Result<Vec<PortForwardStatus>, String> {

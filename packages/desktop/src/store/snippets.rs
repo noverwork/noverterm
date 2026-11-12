@@ -7,9 +7,9 @@ use uuid::Uuid;
 
 use super::{internal_error, run_db, DbPool};
 
-#[tauri::command]
-#[specta::specta]
-pub async fn snippet_list(pool: tauri::State<'_, DbPool>) -> Result<Vec<SnippetRecord>, String> {
+pub async fn snippet_list(
+    pool: crate::app::State<'_, DbPool>,
+) -> Result<Vec<SnippetRecord>, String> {
     load_snippets(pool.inner().clone()).await
 }
 
@@ -26,11 +26,9 @@ pub(crate) async fn load_snippets(pool: DbPool) -> Result<Vec<SnippetRecord>, St
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn snippet_get(
     id: String,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<SnippetRecord, String> {
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {
@@ -47,11 +45,9 @@ pub async fn snippet_get(
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn snippet_create(
     snippet: SnippetWriteRequest,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<SnippetRecord, String> {
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {
@@ -82,12 +78,10 @@ pub async fn snippet_create(
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn snippet_update(
     id: String,
     snippet: SnippetWriteRequest,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<SnippetRecord, String> {
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {
@@ -127,9 +121,7 @@ pub async fn snippet_update(
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn snippet_delete(id: String, pool: tauri::State<'_, DbPool>) -> Result<(), String> {
+pub async fn snippet_delete(id: String, pool: crate::app::State<'_, DbPool>) -> Result<(), String> {
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {
         diesel::delete(host_snippets::table.filter(host_snippets::id.eq(id)))
@@ -141,11 +133,9 @@ pub async fn snippet_delete(id: String, pool: tauri::State<'_, DbPool>) -> Resul
 }
 
 /// Stores the sidebar order of pinned snippets as given, first to last.
-#[tauri::command]
-#[specta::specta]
 pub async fn snippet_reorder_pins(
     ids: Vec<String>,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<(), String> {
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {

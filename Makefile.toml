@@ -22,10 +22,9 @@ echo "  cargo make fmt            - Format code"
 echo "  cargo make check          - Type check"
 echo "  cargo make ci             - Full CI pipeline"
 echo "  cargo make clean          - Clean build artifacts"
-echo "  cargo make dev            - Start the Tauri desktop app"
-echo "  cargo make tauri:dev      - Start Tauri desktop app"
-echo "  cargo make tauri:build    - Build Tauri desktop app"
-echo "  cargo make frontend:dev   - Start frontend dev server (Vite)"
+echo "  cargo make dev            - Run the desktop app"
+echo "  cargo make screenshots    - Render every page offscreen to target/screenshots"
+echo "  cargo make bundle         - Package the desktop app for this platform"
 echo "  cargo make ms:start       - Start MS service"
 echo "  cargo make ms:stop        - Stop MS service"
 echo "  cargo make ms:restart     - Restart MS service"
@@ -89,67 +88,31 @@ workspace = false
 command = "cargo"
 args = ["check"]
 
-[tasks."frontend:check"]
-description = "Type check frontend with svelte-check"
-workspace = false
-dependencies = ["frontend:install"]
-cwd = "packages/desktop/ui"
-script = '''
-#!/usr/bin/env bash
-set -euo pipefail
-npx svelte-kit sync
-npx svelte-check --tsconfig ./tsconfig.json --fail-on-warnings
-'''
-
 # --- CI Pipeline ---
 [tasks.ci]
 description = "Full CI pipeline: lint, format check, and test"
-run_task = { name = ["lint", "fmt-check", "test-all", "frontend:check"] }
+run_task = { name = ["lint", "fmt-check", "test-all"] }
 
 # --- Run ---
-[tasks."tauri:dev"]
-description = "Start Tauri desktop app in dev mode"
-workspace = false
-dependencies = ["frontend:install"]
-cwd = "packages/desktop"
-command = "npx"
-args = ["@tauri-apps/cli", "dev"]
-
-[tasks."tauri:build"]
-description = "Build Tauri desktop app for production"
-workspace = false
-dependencies = ["frontend:install"]
-cwd = "packages/desktop"
-command = "npx"
-args = ["@tauri-apps/cli", "build"]
-
-[tasks."frontend:install"]
-description = "Install frontend npm dependencies"
-workspace = false
-cwd = "packages/desktop/ui"
-script = '''
-#!/usr/bin/env bash
-set -euo pipefail
-if [ ! -d "node_modules" ] || [ ! -f "node_modules/.package-lock.json" ]; then
-  echo "Installing frontend dependencies..."
-  npm install
-else
-  echo "Frontend dependencies already installed."
-fi
-'''
-
-[tasks."frontend:dev"]
-description = "Start frontend Vite dev server"
-workspace = false
-dependencies = ["frontend:install"]
-cwd = "packages/desktop/ui"
-command = "npm"
-args = ["run", "dev"]
-
 [tasks.dev]
-description = "Start the Tauri desktop app in dev mode"
+description = "Run the desktop app"
 workspace = false
-run_task = { name = "tauri:dev" }
+command = "cargo"
+args = ["run", "-p", "desktop"]
+
+[tasks.screenshots]
+description = "Render every page offscreen to target/screenshots"
+workspace = false
+command = "cargo"
+args = ["test", "-p", "desktop", "--test", "screenshots"]
+
+[tasks.bundle]
+description = "Package the desktop app for this platform"
+workspace = false
+install_crate = "cargo-packager"
+cwd = "packages/desktop"
+command = "cargo"
+args = ["packager", "--release"]
 
 # --- Clean ---
 [tasks.clean]

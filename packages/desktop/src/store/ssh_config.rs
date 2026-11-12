@@ -23,7 +23,7 @@ const DEFAULT_IDENTITIES: [&str; 3] = ["id_ed25519", "id_ecdsa", "id_rsa"];
 /// Guards against an `Include` that includes itself.
 const MAX_INCLUDE_DEPTH: usize = 8;
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SshConfigHost {
     pub alias: String,
     pub host: String,
@@ -42,20 +42,18 @@ struct Block {
     options: Vec<(String, String)>,
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn ssh_config_scan(pool: tauri::State<'_, DbPool>) -> Result<Vec<SshConfigHost>, String> {
+pub async fn ssh_config_scan(
+    pool: crate::app::State<'_, DbPool>,
+) -> Result<Vec<SshConfigHost>, String> {
     let ssh_dir = ssh_dir()?;
     let pool = pool.inner().clone();
     run_db(pool, move |db| scan(db, &ssh_dir)).await
 }
 
 /// Imports the chosen aliases and returns how many connections were created.
-#[tauri::command]
-#[specta::specta]
 pub async fn ssh_config_import(
     aliases: Vec<String>,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<u32, String> {
     let ssh_dir = ssh_dir()?;
     let pool = pool.inner().clone();

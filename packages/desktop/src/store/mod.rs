@@ -12,7 +12,6 @@ use diesel::connection::SimpleConnection;
 use diesel::r2d2::{self, ConnectionManager, CustomizeConnection};
 use diesel::sqlite::SqliteConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use tauri::Manager;
 
 pub type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 
@@ -78,16 +77,8 @@ pub fn internal_error(error: diesel::result::Error) -> String {
 /// Writes a copy of the database to the user's download folder and returns the
 /// file name. `VACUUM INTO` is atomic and folds in the WAL, so unlike copying
 /// the file it is safe to run while the app is using the database.
-#[tauri::command]
-#[specta::specta]
-pub async fn db_backup(
-    app: tauri::AppHandle,
-    pool: tauri::State<'_, DbPool>,
-) -> Result<String, String> {
-    let download_dir = app
-        .path()
-        .download_dir()
-        .map_err(|error| format!("no download folder available: {error}"))?;
+pub async fn db_backup(pool: crate::app::State<'_, DbPool>) -> Result<String, String> {
+    let download_dir = dirs::download_dir().ok_or("no download folder available")?;
     let file_name = format!(
         "noverterm-backup-{}.db",
         chrono::Local::now().format("%Y-%m-%d-%H-%M-%S")

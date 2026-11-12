@@ -8,6 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
+use crate::app::AppHandle;
 use axum::body::Bytes;
 use axum::extract::State;
 use axum::http::{header, HeaderMap, StatusCode};
@@ -19,7 +20,6 @@ use orm::models::{SshHost, SshKey};
 use orm::schema::{settings, ssh_hosts, ssh_keys};
 use serde_json::{json, Value};
 use shared::{AiAccess, SnippetRecord};
-use tauri::{AppHandle, Emitter, Listener, Manager, Runtime};
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio::task::JoinSet;
 use tokio::time::timeout;
@@ -89,7 +89,7 @@ struct RunningServer {
     shutdown: oneshot::Sender<()>,
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct McpSettings {
     pub port: u16,
     /// Let MCP clients read local terminal tabs without asking.
@@ -106,7 +106,7 @@ impl Default for McpSettings {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct McpStatus {
     pub settings: McpSettings,
     pub running: bool,
@@ -117,7 +117,7 @@ pub struct McpStatus {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum McpDecision {
     Allow,
@@ -126,7 +126,7 @@ pub enum McpDecision {
     Deny,
 }
 
-#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct McpApprovalRequest {
     pub id: String,
     pub host_name: String,
@@ -134,7 +134,7 @@ pub struct McpApprovalRequest {
     pub command: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct McpActivity {
     pub host_name: String,
     pub command: String,
@@ -143,7 +143,7 @@ pub struct McpActivity {
     pub exit_status: Option<u32>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct McpBackgroundCommand {
     pub id: String,
     pub host_name: String,
@@ -155,7 +155,7 @@ pub struct McpBackgroundCommand {
 }
 
 /// A tool call an MCP client is waiting on right now.
-#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct McpRunningTool {
     pub id: String,
     pub tool: String,
@@ -167,21 +167,17 @@ pub struct McpRunningTool {
 }
 
 /// What MCP clients currently hold open in the app.
-#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct McpSessions {
     pub running: Vec<McpRunningTool>,
     pub commands: Vec<McpBackgroundCommand>,
     pub forwards: Vec<PortForwardStatus>,
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn mcp_status(app: AppHandle) -> Result<McpStatus, String> {
     status(&app, None).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn mcp_configure(app: AppHandle, settings: McpSettings) -> Result<McpStatus, String> {
     let previous = load_settings(&app).await?;
     save_settings(&app, settings).await?;
@@ -195,10 +191,7 @@ pub async fn mcp_configure(app: AppHandle, settings: McpSettings) -> Result<McpS
     status(&app, error).await
 }
 
-async fn save_settings<R: Runtime>(
-    app: &AppHandle<R>,
-    settings: McpSettings,
-) -> Result<(), String> {
+async fn save_settings(app: &AppHandle, settings: McpSettings) -> Result<(), String> {
     let pool = app.state::<DbPool>().inner().clone();
     let value = serde_json::to_string(&settings).map_err(|error| error.to_string())?;
     run_db(pool, move |db| {
@@ -224,8 +217,6 @@ async fn save_settings<R: Runtime>(
 }
 
 /// Replaces the token and restarts the server; clients set up with the old one stop working.
-#[tauri::command]
-#[specta::specta]
 pub async fn mcp_regenerate_token(app: AppHandle) -> Result<McpStatus, String> {
     match keyring_entry()?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => {}
@@ -235,10 +226,8 @@ pub async fn mcp_regenerate_token(app: AppHandle) -> Result<McpStatus, String> {
     status(&app, error).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn mcp_respond(
-    state: tauri::State<'_, McpState>,
+    state: crate::app::State<'_, McpState>,
     request_id: String,
     decision: McpDecision,
 ) -> Result<(), String> {
@@ -248,8 +237,6 @@ pub async fn mcp_respond(
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn mcp_sessions(app: AppHandle) -> Result<McpSessions, String> {
     let state = app.state::<McpState>();
     let mut commands: Vec<McpBackgroundCommand> = state
@@ -284,20 +271,18 @@ pub async fn mcp_sessions(app: AppHandle) -> Result<McpSessions, String> {
     })
 }
 
-#[tauri::command]
-#[specta::specta]
 pub fn mcp_stop_command(app: AppHandle, id: String) -> Result<(), String> {
     stop_command(&app, &id).map(|_| ())
 }
 
 /// Tells the UI that `McpSessions` changed.
-fn notify_changed<R: Runtime>(app: &AppHandle<R>) {
+fn notify_changed(app: &AppHandle) {
     let _ = app.emit("mcp_changed", ());
 }
 
 /// Starts the server at launch. It listens on loopback only and every
 /// request needs the bearer token, so it always runs.
-pub async fn start<R: Runtime>(app: AppHandle<R>) {
+pub async fn start(app: AppHandle) {
     let settings = match load_settings(&app).await {
         Ok(settings) => settings,
         Err(error) => {
@@ -310,10 +295,7 @@ pub async fn start<R: Runtime>(app: AppHandle<R>) {
     }
 }
 
-async fn status<R: Runtime>(
-    app: &AppHandle<R>,
-    error: Option<String>,
-) -> Result<McpStatus, String> {
+async fn status(app: &AppHandle, error: Option<String>) -> Result<McpStatus, String> {
     let settings = load_settings(app).await?;
     let running = app.state::<McpState>().server.lock().await.is_some();
     Ok(McpStatus {
@@ -325,7 +307,7 @@ async fn status<R: Runtime>(
     })
 }
 
-async fn load_settings<R: Runtime>(app: &AppHandle<R>) -> Result<McpSettings, String> {
+async fn load_settings(app: &AppHandle) -> Result<McpSettings, String> {
     let pool = app.state::<DbPool>().inner().clone();
     let value = run_db(pool, |db| {
         settings::table
@@ -342,7 +324,7 @@ async fn load_settings<R: Runtime>(app: &AppHandle<R>) -> Result<McpSettings, St
 }
 
 /// Stops any running server, then starts one on `settings.port`.
-async fn apply<R: Runtime>(app: &AppHandle<R>, settings: McpSettings) -> Result<(), String> {
+async fn apply(app: &AppHandle, settings: McpSettings) -> Result<(), String> {
     let state = app.state::<McpState>();
     let mut server = state.server.lock().await;
     if let Some(running) = server.take() {
@@ -364,11 +346,7 @@ async fn apply<R: Runtime>(app: &AppHandle<R>, settings: McpSettings) -> Result<
     Ok(())
 }
 
-async fn start_server<R: Runtime>(
-    app: &AppHandle<R>,
-    port: u16,
-    token: String,
-) -> Result<RunningServer, String> {
+async fn start_server(app: &AppHandle, port: u16, token: String) -> Result<RunningServer, String> {
     // Loopback only: nothing off this machine can reach it.
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port))
         .await
@@ -378,16 +356,13 @@ async fn start_server<R: Runtime>(
         .map_err(|error| error.to_string())?
         .port();
     let router = Router::new()
-        .route(
-            "/mcp",
-            post(handle::<R>).get(not_allowed).delete(not_allowed),
-        )
+        .route("/mcp", post(handle).get(not_allowed).delete(not_allowed))
         .with_state(Arc::new(Context {
             app: app.clone(),
             token,
         }));
     let (shutdown, stopped) = oneshot::channel::<()>();
-    tauri::async_runtime::spawn(async move {
+    crate::app::runtime().spawn(async move {
         let serve = axum::serve(listener, router).with_graceful_shutdown(async {
             let _ = stopped.await;
         });
@@ -403,8 +378,8 @@ fn keyring_entry() -> Result<keyring::Entry, String> {
     keyring::Entry::new("noverterm", KEYRING_ACCOUNT).map_err(|error| error.to_string())
 }
 
-struct Context<R: Runtime> {
-    app: AppHandle<R>,
+struct Context {
+    app: AppHandle,
     token: String,
 }
 
@@ -413,11 +388,7 @@ async fn not_allowed() -> StatusCode {
     StatusCode::METHOD_NOT_ALLOWED
 }
 
-async fn handle<R: Runtime>(
-    State(ctx): State<Arc<Context<R>>>,
-    headers: HeaderMap,
-    body: Bytes,
-) -> Response {
+async fn handle(State(ctx): State<Arc<Context>>, headers: HeaderMap, body: Bytes) -> Response {
     // A web page in the browser can reach loopback; refuse anything it sends.
     if let Some(origin) = headers
         .get(header::ORIGIN)
@@ -623,10 +594,10 @@ fn tool(
 
 /// Lists the call in `McpState.running` while it runs, so the status line
 /// shows the agent at work even for one-shot tools.
-async fn call_tool<R: Runtime>(app: &AppHandle<R>, params: &Value) -> Result<String, String> {
-    struct InFlight<'a, R: Runtime>(&'a AppHandle<R>, String);
+async fn call_tool(app: &AppHandle, params: &Value) -> Result<String, String> {
+    struct InFlight<'a>(&'a AppHandle, String);
     // Also runs when the client hangs up and the call is dropped mid-way.
-    impl<R: Runtime> Drop for InFlight<'_, R> {
+    impl Drop for InFlight<'_> {
         fn drop(&mut self) {
             self.0
                 .state::<McpState>()
@@ -674,7 +645,7 @@ async fn call_tool<R: Runtime>(app: &AppHandle<R>, params: &Value) -> Result<Str
     dispatch_tool(app, params).await
 }
 
-async fn dispatch_tool<R: Runtime>(app: &AppHandle<R>, params: &Value) -> Result<String, String> {
+async fn dispatch_tool(app: &AppHandle, params: &Value) -> Result<String, String> {
     let args = &params["arguments"];
     let run_timeout = || {
         seconds(
@@ -815,7 +786,7 @@ fn port_arg(args: &Value, name: &str) -> Result<Option<u16>, String> {
     }
 }
 
-async fn list_hosts<R: Runtime>(app: &AppHandle<R>) -> Result<String, String> {
+async fn list_hosts(app: &AppHandle) -> Result<String, String> {
     let (hosts, _) = load_hosts(app).await?;
     let by_id: HashMap<&str, &SshHost> =
         hosts.iter().map(|host| (host.id.as_str(), host)).collect();
@@ -836,8 +807,8 @@ async fn list_hosts<R: Runtime>(app: &AppHandle<R>) -> Result<String, String> {
     serde_json::to_string_pretty(&listed).map_err(|error| error.to_string())
 }
 
-async fn run_command<R: Runtime>(
-    app: &AppHandle<R>,
+async fn run_command(
+    app: &AppHandle,
     host_ref: &str,
     command: &str,
     run_timeout: Duration,
@@ -853,8 +824,8 @@ async fn run_command<R: Runtime>(
     result.map(|output| format_output(&output))
 }
 
-async fn transfer_file<R: Runtime>(
-    app: &AppHandle<R>,
+async fn transfer_file(
+    app: &AppHandle,
     host_ref: &str,
     upload: bool,
     local_path: &str,
@@ -887,8 +858,8 @@ async fn transfer_file<R: Runtime>(
 }
 
 /// Resolves a saved host into a connect target once the user approves `action` on it.
-async fn approved_target<R: Runtime>(
-    app: &AppHandle<R>,
+async fn approved_target(
+    app: &AppHandle,
     host_ref: &str,
     action: &str,
 ) -> Result<(SshHost, ExecTarget), String> {
@@ -940,8 +911,8 @@ fn host_target(host: &SshHost) -> String {
     format!("{}@{}:{}", host.username, host.host, host.port)
 }
 
-fn emit_activity<R: Runtime>(
-    app: &AppHandle<R>,
+fn emit_activity(
+    app: &AppHandle,
     host_name: &str,
     command: &str,
     status: &str,
@@ -967,8 +938,8 @@ enum Remember {
 }
 
 /// Lets the call through per `access`, asking the user when it is `Ask`.
-async fn approve<R: Runtime>(
-    app: &AppHandle<R>,
+async fn approve(
+    app: &AppHandle,
     access: AiAccess,
     remember: Remember,
     host_name: &str,
@@ -996,11 +967,6 @@ async fn approve<R: Runtime>(
         command: command.to_string(),
     };
     let sent = app.emit("mcp_approval_request", request).is_ok();
-    if sent {
-        if let Some(window) = app.get_webview_window("main") {
-            let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
-        }
-    }
     let decision = if sent {
         tokio::time::timeout(APPROVAL_TIMEOUT, receiver).await.ok()
     } else {
@@ -1047,7 +1013,7 @@ async fn approve<R: Runtime>(
 }
 
 /// A host's current AI access; a host deleted since asks.
-async fn host_access<R: Runtime>(app: &AppHandle<R>, host_id: &str) -> AiAccess {
+async fn host_access(app: &AppHandle, host_id: &str) -> AiAccess {
     let pool = app.state::<DbPool>().inner().clone();
     let host_id = host_id.to_string();
     run_db(pool, move |db| {
@@ -1065,10 +1031,7 @@ async fn host_access<R: Runtime>(app: &AppHandle<R>, host_id: &str) -> AiAccess 
 /// `user@host:port` label; a local tab follows the MCP setting. Saved hosts
 /// sharing one target take the strictest access.
 // ponytail: matches by label, so a direct (unsaved) connection always asks; pass the host id through ssh_connect_direct if that matters.
-async fn terminal_access<R: Runtime>(
-    app: &AppHandle<R>,
-    label: &str,
-) -> Result<(AiAccess, Remember), String> {
+async fn terminal_access(app: &AppHandle, label: &str) -> Result<(AiAccess, Remember), String> {
     if label == LOCAL_TERMINAL_LABEL {
         let access = if load_settings(app).await?.allow_local_terminal {
             AiAccess::Allow
@@ -1115,8 +1078,8 @@ fn format_output(output: &ExecOutput) -> String {
     text
 }
 
-async fn run_command_multi<R: Runtime>(
-    app: &AppHandle<R>,
+async fn run_command_multi(
+    app: &AppHandle,
     hosts: Vec<String>,
     command: &str,
     run_timeout: Duration,
@@ -1141,8 +1104,8 @@ async fn run_command_multi<R: Runtime>(
 }
 
 /// Opens SFTP on a host once the user approves `action`.
-async fn approved_sftp<R: Runtime>(
-    app: &AppHandle<R>,
+async fn approved_sftp(
+    app: &AppHandle,
     host_ref: &str,
     action: &str,
 ) -> Result<(String, RemoteSftp), String> {
@@ -1158,8 +1121,8 @@ async fn approved_sftp<R: Runtime>(
 }
 
 /// Logs how an SFTP call bounded by `SFTP_TIMEOUT` went.
-fn sftp_outcome<R: Runtime, T>(
-    app: &AppHandle<R>,
+fn sftp_outcome<T>(
+    app: &AppHandle,
     host_name: &str,
     action: &str,
     result: Result<Result<T, SftpError>, tokio::time::error::Elapsed>,
@@ -1173,11 +1136,7 @@ fn sftp_outcome<R: Runtime, T>(
     result
 }
 
-async fn list_dir<R: Runtime>(
-    app: &AppHandle<R>,
-    host_ref: &str,
-    path: &str,
-) -> Result<String, String> {
+async fn list_dir(app: &AppHandle, host_ref: &str, path: &str) -> Result<String, String> {
     let action = format!("list {path}");
     let (host_name, remote) = approved_sftp(app, host_ref, &action).await?;
     let result = timeout(SFTP_TIMEOUT, remote.sftp.list_dir(path)).await;
@@ -1196,11 +1155,7 @@ async fn list_dir<R: Runtime>(
         .collect())
 }
 
-async fn read_file<R: Runtime>(
-    app: &AppHandle<R>,
-    host_ref: &str,
-    path: &str,
-) -> Result<String, String> {
+async fn read_file(app: &AppHandle, host_ref: &str, path: &str) -> Result<String, String> {
     let action = format!("read {path}");
     let (host_name, remote) = approved_sftp(app, host_ref, &action).await?;
     let result = timeout(SFTP_TIMEOUT, remote.sftp.read_file(path, READ_FILE_LIMIT)).await;
@@ -1216,8 +1171,8 @@ async fn read_file<R: Runtime>(
     Ok(text)
 }
 
-async fn write_file<R: Runtime>(
-    app: &AppHandle<R>,
+async fn write_file(
+    app: &AppHandle,
     host_ref: &str,
     path: &str,
     content: &str,
@@ -1244,7 +1199,7 @@ async fn write_file<R: Runtime>(
     Ok(format!("Wrote {} bytes to {path}", content.len()))
 }
 
-async fn list_snippets<R: Runtime>(app: &AppHandle<R>) -> Result<String, String> {
+async fn list_snippets(app: &AppHandle) -> Result<String, String> {
     let snippets = load_snippets(app.state::<DbPool>().inner().clone()).await?;
     let listed: Vec<Value> = snippets
         .iter()
@@ -1260,8 +1215,8 @@ async fn list_snippets<R: Runtime>(app: &AppHandle<R>) -> Result<String, String>
     serde_json::to_string_pretty(&listed).map_err(|error| error.to_string())
 }
 
-async fn run_snippet<R: Runtime>(
-    app: &AppHandle<R>,
+async fn run_snippet(
+    app: &AppHandle,
     snippet_ref: &str,
     host_ref: Option<&str>,
     run_timeout: Duration,
@@ -1296,13 +1251,13 @@ fn find_snippet<'a>(
     }
 }
 
-async fn list_port_forwards<R: Runtime>(app: &AppHandle<R>) -> Result<String, String> {
+async fn list_port_forwards(app: &AppHandle) -> Result<String, String> {
     let forwards = app.state::<PortForwardManager>().list().await;
     serde_json::to_string_pretty(&forwards).map_err(|error| error.to_string())
 }
 
-async fn start_port_forward<R: Runtime>(
-    app: &AppHandle<R>,
+async fn start_port_forward(
+    app: &AppHandle,
     host_ref: &str,
     local_port: u16,
     target_host: &str,
@@ -1416,7 +1371,7 @@ async fn start_port_forward<R: Runtime>(
     }
 }
 
-async fn stop_port_forward<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<String, String> {
+async fn stop_port_forward(app: &AppHandle, id: &str) -> Result<String, String> {
     if !app.state::<McpState>().forwards.lock().unwrap().remove(id) {
         return Err(
             "Only port forwards started with start_port_forward can be stopped here".to_string(),
@@ -1433,8 +1388,8 @@ async fn stop_port_forward<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<S
     ))
 }
 
-async fn start_command<R: Runtime>(
-    app: &AppHandle<R>,
+async fn start_command(
+    app: &AppHandle,
     host_ref: &str,
     command: &str,
     tty: bool,
@@ -1468,7 +1423,7 @@ async fn start_command<R: Runtime>(
     Ok(format!("Started. Command id: {id}"))
 }
 
-fn background<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Arc<Background>, String> {
+fn background(app: &AppHandle, id: &str) -> Result<Arc<Background>, String> {
     app.state::<McpState>()
         .background
         .lock()
@@ -1478,11 +1433,7 @@ fn background<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Arc<Background
         .ok_or_else(|| format!("No running command with id {id}"))
 }
 
-async fn read_command<R: Runtime>(
-    app: &AppHandle<R>,
-    id: &str,
-    wait: Duration,
-) -> Result<String, String> {
+async fn read_command(app: &AppHandle, id: &str, wait: Duration) -> Result<String, String> {
     let entry = background(app, id)?;
     let read = entry.process.read(wait).await;
     let mut text = if read.finished {
@@ -1515,8 +1466,8 @@ async fn read_command<R: Runtime>(
     Ok(text)
 }
 
-async fn write_command<R: Runtime>(
-    app: &AppHandle<R>,
+async fn write_command(
+    app: &AppHandle,
     id: &str,
     input: &str,
     close_stdin: bool,
@@ -1546,7 +1497,7 @@ async fn write_command<R: Runtime>(
     Ok("Sent".to_string())
 }
 
-fn stop_command<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<String, String> {
+fn stop_command(app: &AppHandle, id: &str) -> Result<String, String> {
     // Dropping the last handle stops the command.
     let entry = app
         .state::<McpState>()
@@ -1560,7 +1511,7 @@ fn stop_command<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<String, Stri
     Ok("Stopped".to_string())
 }
 
-fn list_terminals<R: Runtime>(app: &AppHandle<R>) -> Result<String, String> {
+fn list_terminals(app: &AppHandle) -> Result<String, String> {
     let listed: Vec<Value> = app
         .state::<TerminalOutput>()
         .terminals()
@@ -1570,11 +1521,7 @@ fn list_terminals<R: Runtime>(app: &AppHandle<R>) -> Result<String, String> {
     serde_json::to_string_pretty(&listed).map_err(|error| error.to_string())
 }
 
-async fn read_terminal<R: Runtime>(
-    app: &AppHandle<R>,
-    id: &str,
-    lines: usize,
-) -> Result<String, String> {
+async fn read_terminal(app: &AppHandle, id: &str, lines: usize) -> Result<String, String> {
     let missing = || "No open terminal with that id. Call list_terminals to see them.".to_string();
     let (label, _) = app
         .state::<TerminalOutput>()
@@ -1648,7 +1595,7 @@ fn terminal_text(bytes: &[u8]) -> String {
     text
 }
 
-async fn load_hosts<R: Runtime>(app: &AppHandle<R>) -> Result<(Vec<SshHost>, Vec<SshKey>), String> {
+async fn load_hosts(app: &AppHandle) -> Result<(Vec<SshHost>, Vec<SshKey>), String> {
     let pool = app.state::<DbPool>().inner().clone();
     run_db(pool, |db| {
         let hosts = ssh_hosts::table
@@ -1773,7 +1720,7 @@ mod tests {
     }
 
     struct TestServer {
-        app: tauri::App<tauri::test::MockRuntime>,
+        app: AppHandle,
         url: String,
         _server: RunningServer,
         _directory: tempfile::TempDir,
@@ -1781,16 +1728,14 @@ mod tests {
 
     async fn test_server() -> TestServer {
         let directory = tempfile::tempdir().unwrap();
-        let app = tauri::test::mock_app();
+        let app = AppHandle::default();
         let pool = crate::store::test_pool(&directory);
         app.manage(SshTrustStore::new(pool.clone()));
         app.manage(pool);
         app.manage(McpState::default());
         app.manage(TerminalOutput::default());
         app.manage(PortForwardManager::new());
-        let server = start_server(app.handle(), 0, "secret".to_string())
-            .await
-            .unwrap();
+        let server = start_server(&app, 0, "secret".to_string()).await.unwrap();
         TestServer {
             url: format!("http://127.0.0.1:{}/mcp", server.port),
             app,
@@ -1888,7 +1833,7 @@ mod tests {
         // Nothing listens on port 1, so an allowed call fails only after approval.
         insert_host(&server, "web", "127.0.0.1", 1, "pw");
         let asked = Arc::new(AtomicUsize::new(0));
-        let (handle, counter) = (server.app.handle().clone(), asked.clone());
+        let (handle, counter) = (server.app.clone(), asked.clone());
         server.app.listen("mcp_approval_request", move |event| {
             counter.fetch_add(1, Ordering::SeqCst);
             let request: Value = serde_json::from_str(event.payload()).unwrap();
@@ -1922,10 +1867,7 @@ mod tests {
             .unwrap();
         rpc(&server, "tools/call", call.clone()).await;
         assert_eq!(asked.load(Ordering::SeqCst), 1);
-        assert_eq!(
-            host_access(server.app.handle(), "web").await,
-            AiAccess::Allow
-        );
+        assert_eq!(host_access(&server.app, "web").await, AiAccess::Allow);
 
         rpc(&server, "tools/call", call).await;
         assert_eq!(
@@ -1939,7 +1881,6 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn runs_an_approved_command_over_ssh() {
-        use tauri::Listener;
         let env = |name: &str| std::env::var(name).unwrap();
         let server = test_server().await;
         let port: i32 = env("MCP_E2E_PORT").parse().unwrap();
@@ -1947,7 +1888,7 @@ mod tests {
         let call = |command: &str| json!({ "name": "run_command", "arguments": { "host": "box", "command": command } });
 
         // Stand in for the user: deny `echo hi`, allow everything else.
-        let handle = server.app.handle().clone();
+        let handle = server.app.clone();
         server.app.listen("mcp_approval_request", move |event| {
             let request: Value = serde_json::from_str(event.payload()).unwrap();
             let decision = if request["command"] == "echo hi" {

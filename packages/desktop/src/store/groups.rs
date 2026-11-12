@@ -7,10 +7,8 @@ use uuid::Uuid;
 
 use super::{internal_error, run_db, DbPool};
 
-#[tauri::command]
-#[specta::specta]
 pub async fn host_group_list(
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<Vec<HostGroupRecord>, String> {
     let pool = pool.inner().clone();
     run_db(pool, |connection| {
@@ -23,11 +21,9 @@ pub async fn host_group_list(
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn host_group_create(
     name: String,
-    pool: tauri::State<'_, DbPool>,
+    pool: crate::app::State<'_, DbPool>,
 ) -> Result<HostGroupRecord, String> {
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {
@@ -57,9 +53,10 @@ pub async fn host_group_create(
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn host_group_delete(id: String, pool: tauri::State<'_, DbPool>) -> Result<(), String> {
+pub async fn host_group_delete(
+    id: String,
+    pool: crate::app::State<'_, DbPool>,
+) -> Result<(), String> {
     let pool = pool.inner().clone();
     run_db(pool, move |connection| {
         diesel::delete(host_groups::table.filter(host_groups::id.eq(id)))

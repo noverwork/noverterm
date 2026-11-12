@@ -2,7 +2,7 @@ pub mod state;
 
 use std::time::Duration;
 
-use tauri::{AppHandle, Emitter, State};
+use crate::app::{AppHandle, State};
 use tracing::warn;
 use uuid::Uuid;
 
@@ -15,8 +15,6 @@ use crate::trust::SshTrustStore;
 
 use self::state::TransferState;
 
-#[tauri::command]
-#[specta::specta]
 pub async fn sftp_open(
     session_id: String,
     ssh_manager: State<'_, SshSessionManager>,
@@ -24,8 +22,6 @@ pub async fn sftp_open(
     ssh_manager.open_sftp(&session_id).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn sftp_paste_image(
     session_id: String,
     data: Vec<u8>,
@@ -36,8 +32,6 @@ pub async fn sftp_paste_image(
     ssh_manager.paste_image(&session_id, data, &extension).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn sftp_close(
     session_id: String,
     ssh_manager: State<'_, SshSessionManager>,
@@ -45,8 +39,6 @@ pub async fn sftp_close(
     ssh_manager.close_sftp(&session_id).await
 }
 
-#[tauri::command]
-#[specta::specta]
 #[allow(clippy::too_many_arguments)]
 pub async fn sftp_connect_direct(
     app: AppHandle,
@@ -75,8 +67,6 @@ pub async fn sftp_connect_direct(
         .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn sftp_list_dir(
     session_id: String,
     path: String,
@@ -85,8 +75,6 @@ pub async fn sftp_list_dir(
     ssh_manager.sftp_list_dir(&session_id, &path).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn sftp_home_dir(
     session_id: String,
     ssh_manager: State<'_, SshSessionManager>,
@@ -94,8 +82,6 @@ pub async fn sftp_home_dir(
     ssh_manager.sftp_home_dir(&session_id).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn sftp_stat(
     session_id: String,
     path: String,
@@ -104,8 +90,6 @@ pub async fn sftp_stat(
     ssh_manager.sftp_stat(&session_id, &path).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn sftp_mkdir(
     session_id: String,
     path: String,
@@ -114,8 +98,6 @@ pub async fn sftp_mkdir(
     ssh_manager.sftp_mkdir(&session_id, &path).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn sftp_remove(
     session_id: String,
     path: String,
@@ -124,8 +106,6 @@ pub async fn sftp_remove(
     ssh_manager.sftp_remove(&session_id, &path).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn sftp_rename(
     session_id: String,
     old_path: String,
@@ -139,8 +119,6 @@ pub async fn sftp_rename(
 
 /// Relative paths inside a folder transfer that already exist at the
 /// destination, so the UI can say what an overwrite would clobber.
-#[tauri::command]
-#[specta::specta]
 pub async fn sftp_transfer_conflicts(
     session_id: String,
     direction: TransferDirection,
@@ -160,8 +138,6 @@ pub async fn sftp_transfer_conflicts(
 }
 
 /// `sftp_transfer_conflicts` for a copy between two SFTP sessions.
-#[tauri::command]
-#[specta::specta]
 pub async fn sftp_copy_conflicts(
     source_session_id: String,
     source_path: String,
@@ -179,8 +155,6 @@ pub async fn sftp_copy_conflicts(
         .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn sftp_upload(
     app: AppHandle,
     session_id: String,
@@ -203,8 +177,6 @@ pub async fn sftp_upload(
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn sftp_download(
     app: AppHandle,
     session_id: String,
@@ -229,8 +201,6 @@ pub async fn sftp_download(
 
 /// Stream a file or folder from one SFTP session to another. Both may be on
 /// the same machine.
-#[tauri::command]
-#[specta::specta]
 pub async fn sftp_copy(
     app: AppHandle,
     source_session_id: String,
@@ -253,8 +223,6 @@ pub async fn sftp_copy(
     .await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn sftp_cancel_transfer(
     transfer_id: String,
     transfer_state: State<'_, TransferState>,
@@ -267,32 +235,22 @@ pub async fn sftp_cancel_transfer(
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn local_list_dir(path: String) -> Result<Vec<FileEntry>, String> {
     local_fs::local_list_dir(&path).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn local_stat(path: String) -> Result<FileEntry, String> {
     local_fs::local_stat(&path).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn local_mkdir(path: String) -> Result<(), String> {
     local_fs::local_mkdir(&path).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn local_remove(path: String) -> Result<(), String> {
     local_fs::local_remove(&path).await
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn local_rename(old_path: String, new_path: String) -> Result<(), String> {
     local_fs::local_rename(&old_path, &new_path).await
 }

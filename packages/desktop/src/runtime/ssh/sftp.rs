@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::net::Shutdown;
 use std::sync::Arc;
 
+use crate::app::AppHandle;
 use russh::{client, Disconnect};
 use russh_sftp::client::SftpSession as RusshSftpSession;
-use tauri::AppHandle;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::time::timeout;

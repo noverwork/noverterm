@@ -1,7 +1,7 @@
 use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 
-use tauri::ipc::{Channel, InvokeResponseBody, IpcResponse};
 use tokio::sync::{watch, Semaphore};
 
 pub const OUTPUT_CHUNK_BYTES: usize = 64 * 1024;
@@ -9,19 +9,27 @@ const OUTPUT_WINDOW_BYTES: usize = 256 * 1024;
 /// Recent output each terminal keeps so MCP clients can read the screen.
 const HISTORY_BYTES: usize = 64 * 1024;
 
-/// Raw channel payload. Specta cannot describe JavaScript's ArrayBuffer, so consumers
-/// must narrow the exported unknown before decoding the binary frame.
-pub struct TerminalFrame(Vec<u8>);
+/// One output frame: a kind byte (0 data, 1 closed, 2 failed), the 36-byte
+/// session id, then the data or the error message.
+pub type TerminalFrame = Vec<u8>;
 
-impl specta::Type for TerminalFrame {
-    fn inline(_: &mut specta::TypeMap, _: specta::Generics) -> specta::datatype::DataType {
-        specta::datatype::DataType::Unknown
-    }
+/// Where output frames go. An error from `send` cancels every session.
+pub struct Channel {
+    id: u32,
+    send: Box<dyn Fn(TerminalFrame) -> Result<(), String> + Send + Sync>,
 }
 
-impl IpcResponse for TerminalFrame {
-    fn body(self) -> tauri::Result<InvokeResponseBody> {
-        Ok(InvokeResponseBody::Raw(self.0))
+impl Channel {
+    pub fn new(send: impl Fn(TerminalFrame) -> Result<(), String> + Send + Sync + 'static) -> Self {
+        static NEXT_ID: AtomicU32 = AtomicU32::new(0);
+        Self {
+            id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
+            send: Box::new(send),
+        }
+    }
+
+    pub fn id(&self) -> u32 {
+        self.id
     }
 }
 
@@ -32,7 +40,7 @@ pub struct TerminalOutput {
 
 #[derive(Default)]
 struct Transport {
-    channel: Option<Channel<TerminalFrame>>,
+    channel: Option<Channel>,
     sessions: HashMap<String, Weak<OutputSession>>,
 }
 
@@ -55,7 +63,7 @@ struct OutputState {
 }
 
 impl TerminalOutput {
-    pub fn subscribe(&self, channel: Channel<TerminalFrame>) -> Result<(), String> {
+    pub fn subscribe(&self, channel: Channel) -> Result<(), String> {
         let mut transport = self.inner.lock().map_err(|e| e.to_string())?;
         transport.cancel_sessions("Terminal output subscription replaced");
         transport.channel = Some(channel);
@@ -237,9 +245,8 @@ impl OutputSession {
         let result = transport
             .channel
             .as_ref()
-            .ok_or("Terminal output subscription closed")?
-            .send(TerminalFrame(frame))
-            .map_err(|e| e.to_string());
+            .ok_or("Terminal output subscription closed".to_string())
+            .and_then(|channel| (channel.send)(frame));
         drop(state);
         if let Err(error) = &result {
             transport.cancel_sessions(error);
@@ -262,10 +269,7 @@ mod tests {
         let received = frames.clone();
         let transport = TerminalOutput::default();
         transport
-            .subscribe(Channel::new(move |body| {
-                let InvokeResponseBody::Raw(bytes) = body else {
-                    panic!("expected raw output")
-                };
+            .subscribe(Channel::new(move |bytes| {
                 received.lock().expect("frames").push(bytes);
                 Ok(())
             }))
@@ -337,8 +341,7 @@ mod tests {
         let old = Channel::new(|_| Ok(()));
         let old_id = old.id();
         transport.subscribe(old).expect("subscribe");
-        let replacement =
-            Channel::new(|_| Err(tauri::Error::Io(std::io::ErrorKind::BrokenPipe.into())));
+        let replacement = Channel::new(|_| Err("broken pipe".to_string()));
         transport.subscribe(replacement).expect("replace");
         transport.unsubscribe(old_id).expect("stale unsubscribe");
         let output = transport

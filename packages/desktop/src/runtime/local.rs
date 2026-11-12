@@ -119,7 +119,7 @@ impl LocalSessionManager {
                 match reader.read(&mut buf) {
                     Ok(0) => break None,
                     Ok(n) => {
-                        if let Err(error) = tauri::async_runtime::block_on(output.send(&buf[..n])) {
+                        if let Err(error) = crate::app::runtime().block_on(output.send(&buf[..n])) {
                             break Some(error);
                         }
                     }
@@ -245,16 +245,13 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn local_pty_streams_binary_output_and_closes_after_final_bytes() {
+        use crate::runtime::terminal_output::Channel;
         use std::time::Duration;
-        use tauri::ipc::{Channel, InvokeResponseBody};
 
         let output = TerminalOutput::default();
         let (frames, mut received) = tokio::sync::mpsc::unbounded_channel();
         output
-            .subscribe(Channel::new(move |body| {
-                let InvokeResponseBody::Raw(bytes) = body else {
-                    panic!("expected raw output")
-                };
+            .subscribe(Channel::new(move |bytes| {
                 frames.send(bytes).expect("PTY receiver alive");
                 Ok(())
             }))

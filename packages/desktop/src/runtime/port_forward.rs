@@ -1,12 +1,11 @@
+use crate::app::AppHandle;
 use russh::client::{self, AuthResult, Handle};
 use russh::Disconnect;
 use serde::{Deserialize, Serialize};
-use specta::Type;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, Runtime};
 use tokio::io::copy_bidirectional;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
@@ -19,7 +18,7 @@ use crate::trust::{SshTrustStore, TrustCheck};
 use super::keys::{is_rsa_key, load_key_pair, rsa_hash_candidates};
 use super::ssh::{open_transport, ClientHandler, OpenTransportError, SshHopInput};
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortForwardCreateInput {
     pub name: String,
     pub host: String,
@@ -35,7 +34,7 @@ pub struct PortForwardCreateInput {
     pub target_port: u16,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum PortForwardAuth {
     Password(String),
@@ -50,7 +49,7 @@ pub enum PortForwardAuth {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortForwardStatus {
     pub id: String,
     pub name: String,
@@ -65,7 +64,7 @@ pub struct PortForwardStatus {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PortForwardState {
     Connecting,
@@ -79,11 +78,11 @@ struct PortForwardEntry {
     ssh_task: JoinHandle<()>,
 }
 
-struct ForwardConnectionContext<R: Runtime> {
+struct ForwardConnectionContext {
     handle: Arc<Mutex<Handle<ClientHandler>>>,
     target_host: String,
     target_port: u16,
-    app: AppHandle<R>,
+    app: AppHandle,
     status: PortForwardStatus,
     forwards: Arc<Mutex<HashMap<String, PortForwardEntry>>>,
     input: Arc<PortForwardCreateInput>,
@@ -91,7 +90,7 @@ struct ForwardConnectionContext<R: Runtime> {
 }
 
 // Manual impl: a derive would demand `R: Clone`.
-impl<R: Runtime> Clone for ForwardConnectionContext<R> {
+impl Clone for ForwardConnectionContext {
     fn clone(&self) -> Self {
         Self {
             handle: self.handle.clone(),
@@ -116,9 +115,9 @@ impl PortForwardManager {
         Self::default()
     }
 
-    pub async fn start<R: Runtime>(
+    pub async fn start(
         &self,
-        app: AppHandle<R>,
+        app: AppHandle,
         input: PortForwardCreateInput,
         trust_store: SshTrustStore,
     ) -> Result<PortForwardStatus, String> {
@@ -165,9 +164,9 @@ impl PortForwardManager {
         Ok(status)
     }
 
-    pub async fn stop<R: Runtime>(
+    pub async fn stop(
         &self,
-        app: AppHandle<R>,
+        app: AppHandle,
         forward_id: &str,
     ) -> Result<PortForwardStatus, String> {
         let entry = self
@@ -210,8 +209,8 @@ async fn update_stored_status(
     false
 }
 
-async fn emit_and_store_status<R: Runtime>(
-    app: &AppHandle<R>,
+async fn emit_and_store_status(
+    app: &AppHandle,
     forwards: &Arc<Mutex<HashMap<String, PortForwardEntry>>>,
     status: &PortForwardStatus,
 ) {
@@ -220,8 +219,8 @@ async fn emit_and_store_status<R: Runtime>(
     }
 }
 
-async fn run_port_forward<R: Runtime>(
-    app: AppHandle<R>,
+async fn run_port_forward(
+    app: AppHandle,
     input: PortForwardCreateInput,
     trust_store: SshTrustStore,
     mut status: PortForwardStatus,
@@ -317,10 +316,7 @@ async fn run_port_forward<R: Runtime>(
     forwards.lock().await.remove(&forward_id);
 }
 
-async fn run_listener_loop<R: Runtime>(
-    listener: TcpListener,
-    base_context: ForwardConnectionContext<R>,
-) {
+async fn run_listener_loop(listener: TcpListener, base_context: ForwardConnectionContext) {
     loop {
         match listener.accept().await {
             Ok((local_stream, originator_addr)) => {
@@ -362,10 +358,10 @@ async fn run_listener_loop<R: Runtime>(
     }
 }
 
-async fn handle_forward_connection<R: Runtime>(
+async fn handle_forward_connection(
     mut local_stream: tokio::net::TcpStream,
     originator_addr: SocketAddr,
-    mut context: ForwardConnectionContext<R>,
+    mut context: ForwardConnectionContext,
 ) -> Result<(), String> {
     let target = format!("{}:{}", context.target_host, context.target_port);
     let originator = originator_addr.to_string();
@@ -447,8 +443,8 @@ async fn connect_session(
     Ok(session)
 }
 
-async fn reconnect_session<R: Runtime>(
-    context: &ForwardConnectionContext<R>,
+async fn reconnect_session(
+    context: &ForwardConnectionContext,
 ) -> Result<Handle<ClientHandler>, String> {
     let mut status = context.status.clone();
     info!(forward_id = %status.id, "SSH session closed, reconnecting");
@@ -634,7 +630,7 @@ async fn map_connect_error(
     }
 }
 
-fn emit_status_event<R: Runtime>(app: &AppHandle<R>, status: &PortForwardStatus) {
+fn emit_status_event(app: &AppHandle, status: &PortForwardStatus) {
     if let Err(e) = app.emit("port_forward_status", status.clone()) {
         warn!(
             forward_id = %status.id,

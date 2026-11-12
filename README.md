@@ -2,10 +2,10 @@
 
 # Noverterm
 
-**A native SSH client for macOS and Windows. Built with Tauri 2 and Rust. No Electron.**
+**A native SSH client for macOS, Windows, and Linux. Built with GPUI and Rust. No Electron, no webview.**
 
 [![Release](https://img.shields.io/github/v/release/noverwork/noverterm)](https://github.com/noverwork/noverterm/releases)
-[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue)]()
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)]()
 [![License](https://img.shields.io/badge/License-MIT-5f3dc4)](LICENSE)
 
 [Download](https://github.com/noverwork/noverterm/releases) · [Website](https://noverwork.github.io/noverterm/) · [Report a bug](https://github.com/noverwork/noverterm/issues)
@@ -14,11 +14,11 @@
 
 > _Screenshots coming soon._
 
-Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fast window. A built-in MCP server lets AI agents such as Claude Code and Cursor run commands on your hosts, each one approved by you. It uses about 50MB of memory, compared to 500MB+ for Electron-based SSH clients. All data stays in a local SQLite database. No account, no cloud sync.
+Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fast window. A built-in MCP server lets AI agents such as Claude Code and Cursor run commands on your hosts, each one approved by you. All data stays in a local SQLite database. No account, no cloud sync.
 
 ## Highlights
 
-- **Lightweight** — Tauri 2 + Rust, ~50MB memory footprint
+- **Lightweight** — GPUI + Rust, drawn on the GPU without a webview
 - **Tabs for everything** — many SSH sessions, plus a local terminal, side by side
 - **TUI-ready** — Kitty keyboard protocol, IME input, and paste handling for vim, tmux, and htop
 - **Dual-pane SFTP** — local or any saved host on each side, drag and drop between them
@@ -127,8 +127,6 @@ On Windows, use `Ctrl` in place of `Cmd`.
 | Paste | `Cmd+V`, `Ctrl+Shift+V`, `Shift+Insert` |
 | Close tab (macOS) | `Cmd+W` |
 
-Keyboard encoding uses the layout information from the WebView. On WebKit, shifted punctuation on non-US layouts may lack its unshifted key value the first time it is typed. The browser-reported key and physical alternate stay available.
-
 ## Data and Privacy
 
 - All data is stored in a local SQLite database in the app data folder.
@@ -142,11 +140,10 @@ Keyboard encoding uses the layout information from the WebView. On WebKit, shift
 
 ## Build from Source
 
-Prerequisites: Node.js 22+, Rust stable, [cargo-make](https://github.com/sagiegurari/cargo-make).
+Prerequisites: Rust stable, [cargo-make](https://github.com/sagiegurari/cargo-make).
 
 ```bash
-cargo make frontend:install
-cargo make tauri:build
+cargo make bundle
 ```
 
 The bundled app is in `target/release/bundle/`.
@@ -154,17 +151,17 @@ The bundled app is in `target/release/bundle/`.
 ### Development
 
 ```bash
-cargo make frontend:install   # install UI dependencies
-cargo make tauri:dev          # run the app in dev mode
-cargo make ci                 # clippy, format check, tests, Svelte check
+cargo make dev                # run the app
+cargo make screenshots        # render every page offscreen to target/screenshots
+cargo make ci                 # clippy, format check, tests
 ```
 
 ### Tech stack
 
 | Layer | Technology |
 |-------|------------|
-| UI | Svelte 5, Vite, TailwindCSS |
-| Desktop | Tauri 2 |
+| UI | GPUI with GPUI Kit components |
+| Terminal | alacritty_terminal |
 | SSH | Russh (pure Rust) |
 | Async runtime | Tokio |
 | Database | SQLite + Diesel |
@@ -174,8 +171,8 @@ cargo make ci                 # clippy, format check, tests, Svelte check
 ```
 noverterm/
 ├── packages/
-│   ├── desktop/        # Tauri app (Rust + Svelte UI), owns the SQLite database
-│   ├── shared/         # Types shared between Rust commands and the UI
+│   ├── desktop/        # The app: GPUI front end and SSH backend, owns the SQLite database
+│   ├── shared/         # Record types shared by the backend and the UI
 │   └── orm/            # Diesel models and schema
 ├── Cargo.toml          # Rust workspace
 └── Makefile.toml       # cargo-make tasks
@@ -195,9 +192,9 @@ Noverterm is released under the [MIT License](LICENSE).
 
 ## Acknowledgements
 
-- [Tauri](https://tauri.app/) — desktop framework
+- [GPUI](https://www.gpui.rs/) and [GPUI Kit](https://gpui-kit.com) — UI framework and components
+- [alacritty_terminal](https://github.com/alacritty/alacritty) — terminal emulation
 - [Russh](https://github.com/Eugeny/russh) — pure Rust SSH implementation
-- [Svelte](https://svelte.dev/) — UI framework
 
 ---
 
