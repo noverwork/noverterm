@@ -63,6 +63,7 @@ base64 = "0.22"
 # Decodes iTerm2 inline images. GPUI already builds these formats.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
 axum = { version = "0.8", default-features = false, features = ["tokio", "http1", "json"] }
+minisign-verify = "0.2"
 
 [dev-dependencies]
 # Offscreen rendering for the screenshot test. Enabled on the GPUI crates

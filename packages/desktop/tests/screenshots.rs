@@ -251,9 +251,9 @@ mod shots {
         });
 
         let release = ui::views::updater::Release {
-            tag_name: "v9.9.9".to_string(),
-            html_url: "https://example.com".to_string(),
-            body: Some("- Faster terminal rendering\n- Fixes for jump hosts".to_string()),
+            version: "9.9.9".to_string(),
+            notes: Some("- Faster terminal rendering\n- Fixes for jump hosts".to_string()),
+            platforms: Default::default(),
         };
         stage
             .cx

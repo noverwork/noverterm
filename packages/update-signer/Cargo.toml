@@ -1,0 +1,10 @@
+[package]
+name = "update-signer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Signs release files for the updater, in the format the Tauri updater used.
+[dependencies]
+base64 = "0.22"
+minisign = "0.7"
