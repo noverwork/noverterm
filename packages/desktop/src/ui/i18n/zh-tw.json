@@ -416,6 +416,7 @@
  "Stops a port forward the AI opened.": "停止 AI 開啟的連接埠轉發。",
  "Starts a long-running or interactive command.": "啟動長時間或互動式指令。",
  "Reads a started command's new output.": "讀取已啟動指令的新輸出。",
+ "Waits for a long file transfer to finish.": "等待較久的檔案傳輸完成。",
  "Sends input to a started command.": "傳送輸入給已啟動的指令。",
  "Stops a started command.": "停止已啟動的指令。",
  "Lists open terminal tabs.": "列出開啟的終端機分頁。",

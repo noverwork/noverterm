@@ -657,7 +657,7 @@ const CLIENTS: [(&str, Option<&str>); 4] = [
     ("Claude Desktop", Some("claude_desktop_config.json")),
 ];
 
-const TOOLS: [(&str, &str); 19] = [
+const TOOLS: [(&str, &str); 20] = [
     ("list_hosts", "Lists saved hosts."),
     ("run_command", "Runs a command on a host."),
     (
@@ -666,6 +666,10 @@ const TOOLS: [(&str, &str); 19] = [
     ),
     ("upload_file", "Uploads a file to a host."),
     ("download_file", "Downloads a file from a host."),
+    (
+        "transfer_status",
+        "Waits for a long file transfer to finish.",
+    ),
     ("list_dir", "Lists a directory on a host."),
     ("read_file", "Reads a text file on a host."),
     ("write_file", "Writes a text file on a host."),

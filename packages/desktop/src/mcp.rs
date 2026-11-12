@@ -50,6 +50,9 @@ const DEFAULT_RUN_TIMEOUT_SECS: u64 = 60;
 const MAX_RUN_TIMEOUT_SECS: u64 = 600;
 const DEFAULT_TRANSFER_TIMEOUT_SECS: u64 = 600;
 const MAX_TRANSFER_TIMEOUT_SECS: u64 = 3600;
+/// Clients give up on a tool call after 60 seconds by default, so longer
+/// transfers carry on in the background and report through transfer_status.
+const TRANSFER_WAIT: Duration = Duration::from_secs(45);
 const MAX_JUMP_HOPS: usize = 5;
 const PROTOCOL_VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 const SFTP_TIMEOUT: Duration = Duration::from_secs(60);
@@ -69,6 +72,8 @@ pub struct McpState {
     pending: StdMutex<HashMap<String, oneshot::Sender<McpDecision>>>,
     /// Commands started with `start_command`, by id.
     background: StdMutex<HashMap<String, Arc<Background>>>,
+    /// Transfers still running after their call returned, by id.
+    transfers: StdMutex<HashMap<String, tokio::task::JoinHandle<Result<String, String>>>>,
     /// Port forwards started over MCP; only these can be stopped over MCP.
     forwards: StdMutex<HashSet<String>>,
     /// Tool calls in flight (waiting for approval or running), by id.
@@ -487,6 +492,7 @@ fn tools() -> Value {
         "timeout_secs": { "type": "integer", "description": "Stop the transfer after this many seconds (default 600, max 3600)." },
     });
     let command_id = json!({ "type": "string", "description": "Id that start_command returned." });
+    let transfer_note = " Returns the result, or a transfer id to check with transfer_status if it is still copying after 45 seconds.";
     json!([
         tool("list_hosts", "List the SSH hosts saved in noverterm: name, user@host:port, and any jump hosts it connects through.",
             json!({}), &[], true),
@@ -502,10 +508,16 @@ fn tools() -> Value {
                 "timeout_secs": run_timeout,
             }),
             &["hosts", "command"], false),
-        tool("upload_file", "Copy a local file or directory to a saved host over SFTP. Overwrites the remote path.",
+        tool("upload_file", &format!("Copy a local file or directory to a saved host over SFTP. Overwrites the remote path.{transfer_note}"),
             transfer_properties.clone(), &["host", "local_path", "remote_path"], false),
-        tool("download_file", "Copy a file or directory from a saved host to this machine over SFTP. Overwrites the local path.",
+        tool("download_file", &format!("Copy a file or directory from a saved host to this machine over SFTP. Overwrites the local path.{transfer_note}"),
             transfer_properties, &["host", "local_path", "remote_path"], false),
+        tool("transfer_status", "Wait for a transfer that upload_file or download_file left running, and return its result once it finishes.",
+            json!({
+                "id": { "type": "string", "description": "Transfer id from upload_file or download_file." },
+                "wait_secs": { "type": "integer", "description": "Wait up to this many seconds for it to finish (default 45, max 45)." },
+            }),
+            &["id"], true),
         tool("list_dir", "List a directory on a saved host over SFTP: type, size and name of each entry.",
             json!({ "host": host, "path": { "type": "string", "description": "Directory on the host (default: the user's home)." } }),
             &["host"], true),
@@ -699,6 +711,15 @@ async fn dispatch_tool(app: &AppHandle, params: &Value) -> Result<String, String
             )
             .await
         }
+        "transfer_status" => {
+            let wait = seconds(
+                args,
+                "wait_secs",
+                TRANSFER_WAIT.as_secs(),
+                TRANSFER_WAIT.as_secs(),
+            );
+            transfer_status(app, required(args, "id")?, wait).await
+        }
         "list_dir" => {
             let path = optional(args, "path").unwrap_or(".");
             list_dir(app, required(args, "host")?, path).await
@@ -839,22 +860,53 @@ async fn transfer_file(
         format!("download {remote_path} -> {local_path}")
     };
     let (host, target) = approved_target(app, host_ref, &summary).await?;
-    let host_name = host.name;
     let trust_store = app.state::<SshTrustStore>().inner().clone();
-    let result = transfer(
-        &trust_store,
-        target,
-        upload,
-        local_path,
-        remote_path,
-        run_timeout,
-    )
-    .await;
-    match &result {
-        Ok(_) => emit_activity(app, &host_name, &summary, "finished", None),
-        Err(_) => emit_activity(app, &host_name, &summary, "failed", None),
+    let (task_app, local_path, remote_path) =
+        (app.clone(), local_path.to_string(), remote_path.to_string());
+    let mut task = tokio::spawn(async move {
+        let result = transfer(
+            &trust_store,
+            target,
+            upload,
+            &local_path,
+            &remote_path,
+            run_timeout,
+        )
+        .await;
+        let status = if result.is_ok() { "finished" } else { "failed" };
+        emit_activity(&task_app, &host.name, &summary, status, None);
+        result.map(|bytes| format!("Copied {bytes} bytes ({summary})"))
+    });
+    match timeout(TRANSFER_WAIT, &mut task).await {
+        Ok(result) => result.map_err(|error| error.to_string())?,
+        Err(_) => {
+            let id = Uuid::new_v4().to_string();
+            app.state::<McpState>()
+                .transfers
+                .lock()
+                .unwrap()
+                .insert(id.clone(), task);
+            Ok(format!(
+                "Still copying in the background. Transfer id: {id}; call transfer_status with it for the result."
+            ))
+        }
     }
-    result.map(|bytes| format!("Copied {bytes} bytes ({summary})"))
+}
+
+async fn transfer_status(app: &AppHandle, id: &str, wait: Duration) -> Result<String, String> {
+    let transfers = &app.state::<McpState>().transfers;
+    let mut task = transfers
+        .lock()
+        .unwrap()
+        .remove(id)
+        .ok_or_else(|| format!("No running transfer with id {id}"))?;
+    match timeout(wait, &mut task).await {
+        Ok(result) => result.map_err(|error| error.to_string())?,
+        Err(_) => {
+            transfers.lock().unwrap().insert(id.to_string(), task);
+            Ok(format!("Still copying. Transfer id: {id}"))
+        }
+    }
 }
 
 /// Resolves a saved host into a connect target once the user approves `action` on it.
@@ -1726,6 +1778,26 @@ mod tests {
         _directory: tempfile::TempDir,
     }
 
+    #[tokio::test]
+    async fn transfer_status_waits_for_a_parked_transfer() {
+        let app = AppHandle::default();
+        app.manage(McpState::default());
+        let task = tokio::spawn(async {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            Ok("Copied 3 bytes".to_string())
+        });
+        let transfers = &app.state::<McpState>().transfers;
+        transfers.lock().unwrap().insert("t".to_string(), task);
+
+        let early = transfer_status(&app, "t", Duration::from_millis(10)).await;
+        assert_eq!(early.unwrap(), "Still copying. Transfer id: t");
+        let done = transfer_status(&app, "t", Duration::from_secs(5)).await;
+        assert_eq!(done.unwrap(), "Copied 3 bytes");
+        assert!(transfer_status(&app, "t", Duration::from_millis(10))
+            .await
+            .is_err());
+    }
+
     async fn test_server() -> TestServer {
         let directory = tempfile::tempdir().unwrap();
         let app = AppHandle::default();
@@ -1817,7 +1889,7 @@ mod tests {
         .await;
         assert_eq!(init["result"]["protocolVersion"], "2025-03-26");
         let tools = rpc(&server, "tools/list", json!({})).await;
-        assert_eq!(tools["result"]["tools"].as_array().unwrap().len(), 19);
+        assert_eq!(tools["result"]["tools"].as_array().unwrap().len(), 20);
 
         insert_host(&server, "web", "web.test", 22, "pw");
         let listed = rpc(&server, "tools/call", json!({ "name": "list_hosts" })).await;
