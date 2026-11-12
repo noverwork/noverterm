@@ -346,6 +346,10 @@ fn kitty(key: &Key, event: KeyEvent, mode: TermMode, alt_is_meta: bool) -> Optio
             _ => None,
         };
     }
+    // Kitty only reports their release when every key is an escape code.
+    if legacy_named && event == KeyEvent::Release && !report_all {
+        return None;
+    }
 
     let mut sequence = format!("\x1b[{code}");
     if mode.contains(TermMode::REPORT_ALTERNATE_KEYS) && key.shift {
@@ -705,6 +709,11 @@ mod tests {
         assert_eq!(
             send(alt_enter, KeyEvent::Press, flags(5)).as_deref(),
             Some("\x1b[13;3u")
+        );
+        assert_eq!(send(alt_enter, KeyEvent::Release, flags(3)), None);
+        assert_eq!(
+            send(alt_enter, KeyEvent::Release, flags(11)).as_deref(),
+            Some("\x1b[13;3:3u")
         );
         let ctrl_shift_enter = Key {
             ctrl: true,
