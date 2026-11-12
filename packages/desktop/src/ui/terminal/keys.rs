@@ -30,7 +30,7 @@ pub enum KeyEvent {
 /// `alt_is_meta` is false on macOS, where Option composes characters.
 pub fn encode(key: &Key, event: KeyEvent, mode: TermMode, alt_is_meta: bool) -> Option<Vec<u8>> {
     if mode.intersects(TermMode::KITTY_KEYBOARD_PROTOCOL) {
-        return kitty(key, event, mode);
+        return kitty(key, event, mode, alt_is_meta);
     }
     if event == KeyEvent::Release {
         return None;
@@ -90,6 +90,16 @@ fn legacy(key: &Key, mode: TermMode, alt_is_meta: bool) -> Option<String> {
         }
     };
 
+    // xterm only reports Ctrl on PageUp/PageDown, and leaves Shift/Ctrl+Insert
+    // to the clipboard.
+    let mods = match key.key {
+        "pageup" | "pagedown" if !key.ctrl => 1,
+        _ => mods,
+    };
+    if key.key == "insert" && (key.shift || key.ctrl) {
+        return None;
+    }
+
     if let Some(functional) = functional(key.key) {
         return Some(match functional {
             Functional::Letter(letter) if mods == 1 => {
@@ -118,6 +128,7 @@ fn legacy(key: &Key, mode: TermMode, alt_is_meta: bool) -> Option<String> {
         "backspace" => return Some(esc_if_alt("\x7f")),
         "escape" => return Some(esc_if_alt("\x1b")),
         "space" if key.ctrl => return Some(esc_if_alt("\0")),
+        "space" if key.alt && alt_is_meta => return Some("\x1b ".to_string()),
         _ => {}
     }
 
@@ -161,7 +172,27 @@ fn kitty_functional_code(name: &str) -> Option<u32> {
     })
 }
 
-fn kitty(key: &Key, event: KeyEvent, mode: TermMode) -> Option<Vec<u8>> {
+/// US-layout symbols and the key that types them with Shift. The toolkit
+/// reports Shift+= as an unshifted "+", which the protocol wants as "=" + Shift.
+const SHIFTED_SYMBOLS: &str = "~!@#$%^&*()_+{}|:\"<>?";
+const UNSHIFTED_SYMBOLS: &str = "`1234567890-=[]\\;',./";
+
+fn kitty(key: &Key, event: KeyEvent, mode: TermMode, alt_is_meta: bool) -> Option<Vec<u8>> {
+    let mut key = *key;
+    if !key.shift && key.key.chars().count() == 1 {
+        if let Some(index) = SHIFTED_SYMBOLS.find(key.key) {
+            let base = &UNSHIFTED_SYMBOLS[index..index + 1];
+            key.text = key.text.or(Some(key.key));
+            key.key = base;
+            key.shift = true;
+        }
+    }
+    let key = &key;
+    // Option types characters on macOS; the composed text arrives as input.
+    let printable = key.key.chars().count() == 1;
+    if key.alt && !alt_is_meta && !key.ctrl && !key.platform && printable {
+        return None;
+    }
     let report_events = mode.contains(TermMode::REPORT_EVENT_TYPES);
     let report_all = mode.contains(TermMode::REPORT_ALL_KEYS_AS_ESC);
     if event == KeyEvent::Release && !report_events {
@@ -254,14 +285,47 @@ fn kitty(key: &Key, event: KeyEvent, mode: TermMode) -> Option<Vec<u8>> {
     Some(sequence.into_bytes())
 }
 
-/// Wraps pasted text for the program on the other end.
+/// Text the input method committed (typed, composed or dictated). Once a
+/// program asked for every key as an escape code, text is reported as one too.
+pub fn text(text: &str, mode: TermMode) -> Vec<u8> {
+    if !mode.contains(TermMode::REPORT_ALL_KEYS_AS_ESC) || text.chars().any(char::is_control) {
+        return text.as_bytes().to_vec();
+    }
+    if !mode.contains(TermMode::REPORT_ASSOCIATED_TEXT) {
+        return Vec::new();
+    }
+    let codepoints: Vec<String> = text.chars().map(|c| (c as u32).to_string()).collect();
+    format!("\x1b[0;;{}u", codepoints.join(":")).into_bytes()
+}
+
+/// A modifier key going down or up, which only "report all keys" programs see.
+pub fn modifier(name: &str, pressed: bool, key: &Key, mode: TermMode) -> Option<Vec<u8>> {
+    if !mode.contains(TermMode::REPORT_ALL_KEYS_AS_ESC)
+        || (!pressed && !mode.contains(TermMode::REPORT_EVENT_TYPES))
+    {
+        return None;
+    }
+    let code = match name {
+        "shift" => 57441,
+        "control" => 57442,
+        "alt" => 57443,
+        "platform" => 57444,
+        _ => return None,
+    };
+    let event = if pressed { "" } else { ":3" };
+    Some(format!("\x1b[{code};{}{event}u", modifier_param(key)).into_bytes())
+}
+
+/// Wraps pasted text for the program on the other end. Line breaks become CR,
+/// as a typed Enter would send.
 pub fn paste(text: &str, mode: TermMode) -> Vec<u8> {
+    let text = text.replace("\r\n", "\r").replace('\n', "\r");
     if mode.contains(TermMode::BRACKETED_PASTE) {
         // A pasted "end of paste" marker would let the clipboard run commands.
         let safe = text.replace('\x1b', "");
         format!("\x1b[200~{safe}\x1b[201~").into_bytes()
     } else {
-        text.replace("\r\n", "\r").replace('\n', "\r").into_bytes()
+        text.into_bytes()
     }
 }
 
@@ -431,8 +495,151 @@ mod tests {
     fn paste_brackets_and_strips_escape() {
         assert_eq!(paste("a\nb", TermMode::NONE), b"a\rb");
         assert_eq!(
-            paste("x\x1b[201~y", TermMode::BRACKETED_PASTE),
-            b"\x1b[200~x[201~y\x1b[201~"
+            paste("x\x1b[201~y\r\nz", TermMode::BRACKETED_PASTE),
+            b"\x1b[200~x[201~y\rz\x1b[201~"
         );
+    }
+
+    #[test]
+    fn legacy_matches_xterm_edge_keys() {
+        let none = TermMode::NONE;
+        let alt = |name| Key {
+            alt: true,
+            ..key(name)
+        };
+        assert_eq!(sent(alt("enter"), none).as_deref(), Some("\x1b\r"));
+        assert_eq!(sent(alt("escape"), none).as_deref(), Some("\x1b\x1b"));
+        assert_eq!(sent(alt("backspace"), none).as_deref(), Some("\x1b\x7f"));
+        assert_eq!(sent(alt("space"), none).as_deref(), Some("\x1b "));
+        assert_eq!(sent(alt("pageup"), none).as_deref(), Some("\x1b[5~"));
+        assert_eq!(
+            sent(
+                Key {
+                    ctrl: true,
+                    ..key("pagedown")
+                },
+                none
+            )
+            .as_deref(),
+            Some("\x1b[6;5~")
+        );
+        assert_eq!(
+            sent(
+                Key {
+                    shift: true,
+                    ..key("insert")
+                },
+                none
+            ),
+            None
+        );
+        assert_eq!(
+            sent(
+                Key {
+                    ctrl: true,
+                    ..key("/")
+                },
+                none
+            )
+            .as_deref(),
+            Some("\x1f")
+        );
+    }
+
+    #[test]
+    fn kitty_matches_the_previous_front_end() {
+        let flags = |bits: u8| {
+            let mut mode = TermMode::NONE;
+            for (bit, flag) in [
+                (1, TermMode::DISAMBIGUATE_ESC_CODES),
+                (2, TermMode::REPORT_EVENT_TYPES),
+                (4, TermMode::REPORT_ALTERNATE_KEYS),
+                (8, TermMode::REPORT_ALL_KEYS_AS_ESC),
+                (16, TermMode::REPORT_ASSOCIATED_TEXT),
+            ] {
+                if bits & bit != 0 {
+                    mode |= flag;
+                }
+            }
+            mode
+        };
+        let send = |key: Key, event, mode| {
+            encode(&key, event, mode, false).map(|bytes| String::from_utf8(bytes).unwrap())
+        };
+        // Alt+Enter is what agent CLIs read as "newline".
+        let alt_enter = Key {
+            alt: true,
+            ..key("enter")
+        };
+        assert_eq!(
+            send(alt_enter, KeyEvent::Press, flags(5)).as_deref(),
+            Some("\x1b[13;3u")
+        );
+        let ctrl_shift_enter = Key {
+            ctrl: true,
+            shift: true,
+            ..key("enter")
+        };
+        assert_eq!(
+            send(ctrl_shift_enter, KeyEvent::Press, flags(1)).as_deref(),
+            Some("\x1b[13;6u")
+        );
+        // Option still composes on macOS.
+        let option_b = Key {
+            alt: true,
+            text: Some("∫"),
+            ..key("b")
+        };
+        assert_eq!(send(option_b, KeyEvent::Press, flags(1)), None);
+        // GPUI reports Shift+= as "+" without Shift.
+        let plus = Key {
+            text: Some("+"),
+            ..key("+")
+        };
+        assert_eq!(
+            send(plus, KeyEvent::Press, flags(31)).as_deref(),
+            Some("\x1b[61:43;2;43u")
+        );
+        assert_eq!(
+            send(plus, KeyEvent::Repeat, flags(31)).as_deref(),
+            Some("\x1b[61:43;2:2;43u")
+        );
+        assert_eq!(send(plus, KeyEvent::Press, flags(1)), None);
+        let ctrl_c = Key {
+            ctrl: true,
+            ..key("c")
+        };
+        assert_eq!(
+            send(ctrl_c, KeyEvent::Repeat, flags(3)).as_deref(),
+            Some("\x1b[99;5:2u")
+        );
+        let ctrl_alt_f = Key {
+            ctrl: true,
+            alt: true,
+            ..key("f")
+        };
+        assert_eq!(
+            send(ctrl_alt_f, KeyEvent::Press, flags(31)).as_deref(),
+            Some("\x1b[102;7u")
+        );
+
+        assert_eq!(text("你好", flags(31)), b"\x1b[0;;20320:22909u");
+        assert_eq!(text("你好", flags(8)), b"");
+        assert_eq!(text("你好", flags(1)), "你好".as_bytes());
+        assert_eq!(text("\x1b[1;2R", flags(31)), b"\x1b[1;2R");
+
+        let shift = Key {
+            shift: true,
+            ..Key::default()
+        };
+        assert_eq!(
+            modifier("shift", true, &shift, flags(31)).as_deref(),
+            Some(&b"\x1b[57441;2u"[..])
+        );
+        assert_eq!(
+            modifier("shift", false, &Key::default(), flags(31)).as_deref(),
+            Some(&b"\x1b[57441;1:3u"[..])
+        );
+        assert_eq!(modifier("shift", true, &shift, flags(1)), None);
     }
 }

@@ -1769,6 +1769,7 @@ version = "0.0.0"
 dependencies = [
  "alacritty_terminal",
  "axum",
+ "base64",
  "chrono",
  "diesel",
  "diesel_migrations",
@@ -1776,6 +1777,7 @@ dependencies = [
  "gpui-kit",
  "gpui-pre",
  "gpui-pre-platform",
+ "image",
  "keyring",
  "libsqlite3-sys",
  "orm",

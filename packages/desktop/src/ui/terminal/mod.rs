@@ -1,18 +1,20 @@
 //! A terminal tab: an alacritty grid fed by a backend session and painted
 //! straight onto a GPUI canvas.
 
+mod images;
 pub mod keys;
 mod paint;
 
+use std::collections::HashMap;
 use std::ops::Range;
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc};
 use std::time::Duration;
 
 use alacritty_terminal::event::{Event as TermEvent, EventListener, WindowSize};
 use alacritty_terminal::grid::{Dimensions, Scroll};
-use alacritty_terminal::index::{Column, Direction, Line, Point as GridPoint, Side};
+use alacritty_terminal::index::{Boundary, Column, Direction, Line, Point as GridPoint, Side};
 use alacritty_terminal::selection::{Selection, SelectionType};
-use alacritty_terminal::term::search::{Match, RegexSearch};
+use alacritty_terminal::term::search::{Match, RegexIter, RegexSearch};
 use alacritty_terminal::term::{Config, Term, TermMode};
 use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor};
 use gpui_kit::component::button::{Button, ButtonVariants as _};
@@ -34,15 +36,30 @@ pub const FONT_FAMILY: &str = "Sarasa Term TC SemiBold";
 const BLINK_INTERVAL: Duration = Duration::from_millis(600);
 /// Space between the terminal area's edges and the grid, on every side.
 const PADDING: Pixels = px(14.);
+/// Marks the cells an inline image covers, so the image scrolls with them.
+const IMAGE_URI: &str = "noverterm-image:";
+/// Older images are forgotten past this many.
+// ponytail: a fixed cap; track which ones are still in the scrollback if this bites.
+const MAX_IMAGES: usize = 64;
 
-// The window binds Tab to focus traversal; inside a terminal it belongs to the
-// shell, so the more specific "Terminal" context claims it back.
-actions!(terminal, [SendTab, SendBackTab]);
+/// What the previous front end (xterm.js' link addon) recognised as a URL.
+const URL_PATTERN: &str = r#"(https?|HTTPS?)://[^\s"'!*(){}|\\^<>`]*[^\s"':,.!?{}|\\^~\[\]`()<>]"#;
+
+// The window binds Tab to focus traversal and Copy to the platform copy key;
+// inside a terminal both belong to the terminal, so the more specific
+// "Terminal" context claims them back.
+actions!(terminal, [SendTab, SendBackTab, Copy]);
 
 pub fn bind_keys(cx: &mut App) {
+    let copy = if cfg!(target_os = "macos") {
+        "cmd-c"
+    } else {
+        "ctrl-c"
+    };
     cx.bind_keys([
         KeyBinding::new("tab", SendTab, Some("Terminal")),
         KeyBinding::new("shift-tab", SendBackTab, Some("Terminal")),
+        KeyBinding::new(copy, Copy, Some("Terminal")),
     ]);
 }
 
@@ -109,6 +126,14 @@ pub enum TerminalEvent {
     RequestAssistant,
 }
 
+/// An inline image the program drew, keyed by the id its marker cells carry.
+struct PlacedImage {
+    image: Arc<RenderImage>,
+    /// One image pixel of transparent border on each side.
+    margin: Size<Pixels>,
+    size: Size<Pixels>,
+}
+
 #[derive(Clone)]
 struct EventProxy(mpsc::Sender<TermEvent>);
 
@@ -158,7 +183,22 @@ pub struct TerminalView {
     dragged: bool,
     /// Mouse button currently reported to the program as held.
     reported_button: Option<u8>,
+    /// Cell of the last reported mouse motion, so moves within a cell stay quiet.
+    reported_motion: Option<GridPoint>,
+    /// Where the pointer is over the terminal, to keep the hovered link current.
+    pointer: Option<(Point<Pixels>, Modifiers)>,
+    /// The link under the pointer and the cells it covers.
+    hovered_link: Option<(String, Match)>,
+    /// Whether the program was last told the terminal has focus.
+    focus_reported: bool,
+    /// Ends a synchronized update the program never finished.
+    sync_flush: Option<Task<()>>,
+    scanner: images::Scanner,
+    images: HashMap<u32, PlacedImage>,
+    next_image: u32,
     scroll_remainder: f32,
+    /// Modifiers held at the last change, to tell which one moved.
+    last_modifiers: Modifiers,
     blink_on: bool,
     search_open: bool,
     /// Created the first time search opens; inputs need a window.
@@ -166,8 +206,12 @@ pub struct TerminalView {
     search_term: String,
     search_match: Option<Match>,
     search_missed: bool,
+    /// Built once: the pointer re-checks for links on every output chunk.
+    url_regex: std::cell::RefCell<RegexSearch>,
     _tasks: Vec<Task<()>>,
     _subscriptions: Vec<Subscription>,
+    /// Focus and window activation watchers; they need a window to register.
+    _window_subscriptions: Vec<Subscription>,
 }
 
 impl EventEmitter<TerminalEvent> for TerminalView {}
@@ -245,15 +289,28 @@ impl TerminalView {
             selecting: false,
             dragged: false,
             reported_button: None,
+            reported_motion: None,
+            pointer: None,
+            hovered_link: None,
+            focus_reported: false,
+            sync_flush: None,
+            scanner: images::Scanner::default(),
+            images: HashMap::new(),
+            next_image: 0,
             scroll_remainder: 0.,
+            last_modifiers: Modifiers::default(),
             blink_on: true,
             search_open: false,
             search_input: None,
             search_term: String::new(),
             search_match: None,
             search_missed: false,
+            url_regex: std::cell::RefCell::new(
+                RegexSearch::new(URL_PATTERN).expect("the URL pattern compiles"),
+            ),
             _tasks: vec![writer, blink],
             _subscriptions: Vec::new(),
+            _window_subscriptions: Vec::new(),
         }
     }
 
@@ -263,9 +320,113 @@ impl TerminalView {
 
     /// Feeds session output to the terminal.
     pub fn feed(&mut self, bytes: &[u8], cx: &mut Context<Self>) {
-        self.parser.advance(&mut self.term, bytes);
+        for chunk in self.scanner.scan(bytes) {
+            match chunk {
+                images::Chunk::Text(text) => self.parser.advance(&mut self.term, &text),
+                images::Chunk::Sixel(sequence) => {
+                    if let Some(image) = images::decode_sixel(&sequence) {
+                        let size = (image.width() as f32, image.height() as f32);
+                        self.place_image(image, size);
+                    }
+                }
+                images::Chunk::Iterm(payload) => {
+                    if let Some(decoded) = images::decode_iterm(&payload) {
+                        let cell = (f32::from(self.cell.width), f32::from(self.cell.height));
+                        let whole = (
+                            cell.0 * self.grid.cols as f32,
+                            cell.1 * self.grid.rows as f32,
+                        );
+                        let size = decoded.display_size(cell, whole);
+                        self.place_image(decoded.image, size);
+                    }
+                }
+            }
+        }
+        self.after_parse(cx);
+        self.schedule_sync_flush(cx);
+    }
+
+    /// Puts an image at the cursor and moves the cursor below it. Each row
+    /// it covers gets a marker in its first cell, so the image follows the
+    /// text when it scrolls and goes when that text is erased.
+    // ponytail: decodes on the UI thread; move to the background if big images stall typing.
+    fn place_image(&mut self, image: image::RgbaImage, (width, height): (f32, f32)) {
+        let cell_height = f32::from(self.cell.height);
+        let rows = (height / cell_height).ceil().max(1.) as usize;
+        let (pixels_wide, pixels_high) = image.dimensions();
+        // GPUI keeps images as BGRA.
+        let mut pixels = image.into_raw();
+        for pixel in pixels.as_chunks_mut::<4>().0 {
+            pixel.swap(0, 2);
+        }
+        let Some(bgra) = image::RgbaImage::from_raw(pixels_wide, pixels_high, pixels) else {
+            return;
+        };
+        // A transparent border keeps neighbours in GPUI's texture atlas from
+        // bleeding into the edges when the image is scaled.
+        let mut padded = image::RgbaImage::new(pixels_wide + 2, pixels_high + 2);
+        image::imageops::replace(&mut padded, &bgra, 1, 1);
+        let margin = size(
+            px(width / pixels_wide as f32),
+            px(height / pixels_high as f32),
+        );
+        let id = self.next_image;
+        self.next_image += 1;
+        self.images.insert(
+            id,
+            PlacedImage {
+                image: Arc::new(RenderImage::new(vec![image::Frame::new(padded)])),
+                margin,
+                size: size(
+                    px(width) + margin.width * 2.,
+                    px(height) + margin.height * 2.,
+                ),
+            },
+        );
+        if self.images.len() > MAX_IMAGES {
+            if let Some(oldest) = self.images.keys().min().copied() {
+                self.images.remove(&oldest);
+            }
+        }
+        let mut markers = String::new();
+        for row in 0..rows {
+            markers.push_str(&format!(
+                "\x1b]8;;{IMAGE_URI}{id}:{row}\x1b\\ \x08\x1b]8;;\x1b\\\n"
+            ));
+        }
+        self.parser.advance(&mut self.term, markers.as_bytes());
+    }
+
+    /// A synchronized update holds output back until the program ends it; one
+    /// that never ends is flushed after its timeout, as alacritty does.
+    fn schedule_sync_flush(&mut self, cx: &mut Context<Self>) {
+        let Some(deadline) = self.parser.sync_timeout().sync_timeout() else {
+            self.sync_flush = None;
+            return;
+        };
+        self.sync_flush = Some(cx.spawn(async move |this, cx| {
+            let wait = deadline.saturating_duration_since(std::time::Instant::now());
+            cx.background_executor().timer(wait).await;
+            // Newer output replaces this task, so the update it waited on is
+            // still the one pending.
+            let _ = this.update(cx, |this, cx| {
+                if this.parser.sync_timeout().sync_timeout() == Some(deadline) {
+                    this.parser.stop_sync(&mut this.term);
+                    this.after_parse(cx);
+                }
+            });
+        }));
+    }
+
+    /// Answers what the parser asked for and repaints.
+    fn after_parse(&mut self, cx: &mut Context<Self>) {
         while let Ok(event) = self.events.try_recv() {
             match event {
+                // alacritty answers DA1 as a VT102; inline images make this
+                // a VT220 with sixel (4), which is how programs detect it.
+                TermEvent::PtyWrite(text) if text == "\x1b[?6c" => {
+                    self.send(b"\x1b[?62;4;22c".to_vec())
+                }
                 TermEvent::PtyWrite(text) => self.send(text.into_bytes()),
                 TermEvent::ClipboardStore(_, text) => {
                     cx.write_to_clipboard(ClipboardItem::new_string(text));
@@ -285,6 +446,9 @@ impl TerminalView {
                 }
                 _ => {}
             }
+        }
+        if let Some((position, modifiers)) = self.pointer {
+            self.update_hovered_link(position, modifiers);
         }
         cx.notify();
     }
@@ -430,6 +594,26 @@ impl TerminalView {
                 cx.emit(TerminalEvent::RequestClose);
                 true
             }
+            "a" if command && !modifiers.shift && cfg!(target_os = "macos") => {
+                self.select_all(cx);
+                true
+            }
+            // Shift+PageUp/PageDown page through the scrollback; full-screen
+            // programs have none, so they still get the key.
+            "pageup" | "pagedown"
+                if modifiers.shift
+                    && !(modifiers.control || modifiers.alt || modifiers.platform)
+                    && !self.term.mode().contains(TermMode::ALT_SCREEN) =>
+            {
+                let scroll = if key == "pageup" {
+                    Scroll::PageUp
+                } else {
+                    Scroll::PageDown
+                };
+                self.term.scroll_display(scroll);
+                cx.notify();
+                true
+            }
             // Cmd+K on macOS; Ctrl+Shift+K elsewhere, since Ctrl+K is the shell's kill-line.
             "k" if (command && !modifiers.shift) || (control && modifiers.shift) => {
                 cx.emit(TerminalEvent::RequestAssistant);
@@ -483,6 +667,77 @@ impl TerminalView {
         if let Some(bytes) = keys::encode(&key, keys::KeyEvent::Release, *self.term.mode(), true) {
             self.send(bytes);
             cx.stop_propagation();
+        }
+    }
+
+    /// The platform copy key: copies the selection. Without one, Ctrl+C is
+    /// still the shell's interrupt.
+    fn copy(&mut self, cx: &mut Context<Self>) {
+        if let Some(text) = self.selection_text() {
+            cx.write_to_clipboard(ClipboardItem::new_string(text));
+            return;
+        }
+        if cfg!(target_os = "macos") {
+            return;
+        }
+        let key = keys::Key {
+            key: "c",
+            ctrl: true,
+            ..keys::Key::default()
+        };
+        if let Some(bytes) = keys::encode(&key, keys::KeyEvent::Press, *self.term.mode(), true) {
+            self.typed(bytes, cx);
+        }
+    }
+
+    fn select_all(&mut self, cx: &mut Context<Self>) {
+        let grid = self.term.grid();
+        let start = GridPoint::new(grid.topmost_line(), Column(0));
+        let end = GridPoint::new(grid.bottommost_line(), grid.last_column());
+        let mut selection = Selection::new(SelectionType::Simple, start, Side::Left);
+        selection.update(end, Side::Right);
+        self.term.selection = Some(selection);
+        cx.notify();
+    }
+
+    /// Modifier keys alone, for programs that asked for every key.
+    fn on_modifiers_changed(
+        &mut self,
+        event: &ModifiersChangedEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some((position, _)) = self.pointer {
+            self.pointer = Some((position, event.modifiers));
+            if self.update_hovered_link(position, event.modifiers) {
+                cx.notify();
+            }
+        }
+        let mode = *self.term.mode();
+        if !mode.contains(TermMode::REPORT_ALL_KEYS_AS_ESC) || self.marked_text.is_some() {
+            self.last_modifiers = event.modifiers;
+            return;
+        }
+        let (before, after) = (self.last_modifiers, event.modifiers);
+        self.last_modifiers = after;
+        let key = keys::Key {
+            shift: after.shift,
+            alt: after.alt,
+            ctrl: after.control,
+            platform: after.platform,
+            ..keys::Key::default()
+        };
+        for (name, was, now) in [
+            ("shift", before.shift, after.shift),
+            ("control", before.control, after.control),
+            ("alt", before.alt, after.alt),
+            ("platform", before.platform, after.platform),
+        ] {
+            if was != now {
+                if let Some(bytes) = keys::modifier(name, now, &key, mode) {
+                    self.send(bytes);
+                }
+            }
         }
     }
 
@@ -624,13 +879,39 @@ impl TerminalView {
         };
         if self.reports_mouse(event.modifiers) {
             self.reported_button = Some(button);
+            self.reported_motion = Some(self.cell_at(event.position).0);
             self.report_mouse(button, true, event.position, event.modifiers);
+            return;
+        }
+        let (point, side) = self.cell_at(event.position);
+        if event.button == MouseButton::Right {
+            // Right-click selects the word under it, as xterm.js does on
+            // macOS, unless it lands inside the current selection.
+            let inside = self
+                .term
+                .selection
+                .as_ref()
+                .and_then(|selection| selection.to_range(&self.term))
+                .is_some_and(|range| range.contains(point));
+            if !inside {
+                self.term.selection = Some(Selection::new(SelectionType::Semantic, point, side));
+                cx.notify();
+            }
             return;
         }
         if event.button != MouseButton::Left {
             return;
         }
-        let (point, side) = self.cell_at(event.position);
+        // Shift+click extends the selection to the clicked cell.
+        if event.modifiers.shift && event.click_count <= 1 {
+            if let Some(selection) = self.term.selection.as_mut() {
+                selection.update(point, side);
+                self.selecting = true;
+                self.dragged = true;
+                cx.notify();
+                return;
+            }
+        }
         let kind = match event.click_count {
             0 | 1 => SelectionType::Simple,
             2 => SelectionType::Semantic,
@@ -643,21 +924,51 @@ impl TerminalView {
     }
 
     fn on_mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+        self.pointer = Some((event.position, event.modifiers));
         if let Some(button) = self.reported_button {
             let mode = *self.term.mode();
             if mode.intersects(TermMode::MOUSE_DRAG | TermMode::MOUSE_MOTION) {
-                self.report_mouse(button + 32, true, event.position, event.modifiers);
+                self.report_motion(button + 32, event.position, event.modifiers);
             }
             return;
         }
-        if !self.selecting || event.pressed_button != Some(MouseButton::Left) {
+        if event.pressed_button.is_none()
+            && self.term.mode().contains(TermMode::MOUSE_MOTION)
+            && self.reports_mouse(event.modifiers)
+        {
+            // Any-event tracking: motion with no button held is button 3.
+            self.report_motion(35, event.position, event.modifiers);
+        }
+        if self.selecting && event.pressed_button == Some(MouseButton::Left) {
+            let (point, side) = self.cell_at(event.position);
+            if let Some(selection) = self.term.selection.as_mut() {
+                selection.update(point, side);
+                self.dragged = true;
+                cx.notify();
+            }
             return;
         }
-        let (point, side) = self.cell_at(event.position);
-        if let Some(selection) = self.term.selection.as_mut() {
-            selection.update(point, side);
-            self.dragged = true;
+        if self.update_hovered_link(event.position, event.modifiers) {
             cx.notify();
+        }
+    }
+
+    /// Reports motion once per cell crossed.
+    fn report_motion(&mut self, button: u8, position: Point<Pixels>, modifiers: Modifiers) {
+        let (point, _) = self.cell_at(position);
+        if self.reported_motion == Some(point) {
+            return;
+        }
+        self.reported_motion = Some(point);
+        self.report_mouse(button, true, position, modifiers);
+    }
+
+    fn on_hover(&mut self, hovered: &bool, _: &mut Window, cx: &mut Context<Self>) {
+        if !*hovered {
+            self.pointer = None;
+            if self.hovered_link.take().is_some() {
+                cx.notify();
+            }
         }
     }
 
@@ -671,14 +982,55 @@ impl TerminalView {
         }
         self.selecting = false;
         if !self.dragged {
-            // A plain click: drop the empty selection and follow a link.
+            // A plain click: drop the empty selection, then follow a link or,
+            // with Option/Alt, move the shell's cursor to the click.
             self.term.selection = None;
             let (point, _) = self.cell_at(event.position);
-            if let Some(url) = self.url_at(point) {
+            let mouse_mode = self.term.mode().intersects(TermMode::MOUSE_MODE);
+            if event.modifiers.alt && !mouse_mode {
+                let moves = self.cursor_moves_to(point);
+                self.typed(moves, cx);
+            } else if let Some((url, _)) = self.link_at(point) {
                 cx.open_url(&url);
             }
         }
         cx.notify();
+    }
+
+    /// Arrow keys that walk the cursor to `target`, as xterm.js' Alt+click
+    /// does: along the wrapped line, and between rows only in full-screen
+    /// programs, which own the whole screen.
+    fn cursor_moves_to(&self, target: GridPoint) -> Vec<u8> {
+        let cursor = self.term.grid().cursor.point;
+        let mode = *self.term.mode();
+        let arrow = |letter: char| {
+            let prefix = if mode.contains(TermMode::APP_CURSOR) {
+                "\x1bO"
+            } else {
+                "\x1b["
+            };
+            format!("{prefix}{letter}")
+        };
+        let columns = self.term.grid().columns() as i32;
+        let same_line =
+            self.term.line_search_left(cursor).line == self.term.line_search_left(target).line;
+        let steps = if same_line {
+            (target.line.0 - cursor.line.0) * columns
+                + (target.column.0 as i32 - cursor.column.0 as i32)
+        } else if mode.contains(TermMode::ALT_SCREEN) {
+            let rows = target.line.0 - cursor.line.0;
+            let vertical =
+                arrow(if rows < 0 { 'A' } else { 'B' }).repeat(rows.unsigned_abs() as usize);
+            let columns = target.column.0 as i32 - cursor.column.0 as i32;
+            let horizontal =
+                arrow(if columns < 0 { 'D' } else { 'C' }).repeat(columns.unsigned_abs() as usize);
+            return format!("{vertical}{horizontal}").into_bytes();
+        } else {
+            0
+        };
+        arrow(if steps < 0 { 'D' } else { 'C' })
+            .repeat(steps.unsigned_abs() as usize)
+            .into_bytes()
     }
 
     fn on_scroll(&mut self, event: &ScrollEvent, _: &mut Window, cx: &mut Context<Self>) {
@@ -697,42 +1049,114 @@ impl TerminalView {
             }
         } else if mode.contains(TermMode::ALT_SCREEN | TermMode::ALTERNATE_SCROLL) {
             // Full-screen programs without mouse support scroll with the arrows.
-            let arrow: &[u8] = if lines > 0 { b"\x1bOA" } else { b"\x1bOB" };
+            let arrow: &[u8] = match (lines > 0, mode.contains(TermMode::APP_CURSOR)) {
+                (true, true) => b"\x1bOA",
+                (true, false) => b"\x1b[A",
+                (false, true) => b"\x1bOB",
+                (false, false) => b"\x1b[B",
+            };
             self.send(arrow.repeat(lines.unsigned_abs() as usize));
         } else {
             self.term.scroll_display(Scroll::Delta(lines));
+            if let Some((position, modifiers)) = self.pointer {
+                self.update_hovered_link(position, modifiers);
+            }
             cx.notify();
         }
     }
 
-    /// The link under `point`: an OSC 8 hyperlink, or an http(s) URL in the text.
-    fn url_at(&self, point: GridPoint) -> Option<String> {
+    /// Recomputes the link under the pointer; true when it changed.
+    fn update_hovered_link(&mut self, position: Point<Pixels>, modifiers: Modifiers) -> bool {
+        let inside = self.bounds.contains(&position);
+        let link = (inside && !self.reports_mouse(modifiers))
+            .then(|| self.link_at(self.cell_at(position).0))
+            .flatten();
+        let changed = link.as_ref().map(|(_, range)| range)
+            != self.hovered_link.as_ref().map(|(_, range)| range);
+        self.hovered_link = link;
+        changed
+    }
+
+    /// The link at `point` and the cells it covers: an OSC 8 hyperlink, or a
+    /// URL in the text, followed across wrapped rows.
+    fn link_at(&self, point: GridPoint) -> Option<(String, Match)> {
         let grid = self.term.grid();
-        if let Some(link) = grid[point].hyperlink() {
-            return Some(link.uri().to_string());
-        }
-        let is_boundary = |character: char| {
-            character.is_whitespace() || matches!(character, '"' | '\'' | '<' | '>' | '`' | '\0')
-        };
-        let character_at = |column: usize| grid[GridPoint::new(point.line, Column(column))].c;
-        if is_boundary(character_at(point.column.0)) {
+        if point.line < grid.topmost_line() || point.line > grid.bottommost_line() {
             return None;
         }
-        let mut start = point.column.0;
-        while start > 0 && !is_boundary(character_at(start - 1)) {
-            start -= 1;
+        let line_start = self.term.line_search_left(point);
+        let line_end = self.term.line_search_right(point);
+        if let Some(link) = grid[point]
+            .hyperlink()
+            .filter(|link| !link.uri().starts_with(IMAGE_URI))
+        {
+            let same = |at: GridPoint| grid[at].hyperlink().as_ref() == Some(&link);
+            let (mut start, mut end) = (point, point);
+            while start > line_start {
+                let previous = start.sub(&self.term, Boundary::None, 1);
+                if !same(previous) {
+                    break;
+                }
+                start = previous;
+            }
+            while end < line_end {
+                let next = end.add(&self.term, Boundary::None, 1);
+                if !same(next) {
+                    break;
+                }
+                end = next;
+            }
+            return Some((link.uri().to_string(), start..=end));
         }
-        let mut end = point.column.0;
-        while end + 1 < grid.columns() && !is_boundary(character_at(end + 1)) {
-            end += 1;
+        let mut regex = self.url_regex.borrow_mut();
+        let found = RegexIter::new(
+            line_start,
+            line_end,
+            Direction::Right,
+            &self.term,
+            &mut regex,
+        )
+        .find(|found| found.contains(&point))?;
+        let url = self
+            .term
+            .bounds_to_string(*found.start(), *found.end())
+            .replace('\n', "");
+        Some((url, found))
+    }
+
+    // --- Focus --------------------------------------------------------------
+
+    /// Tells a program that asked (DECSET 1004) when the terminal gains or
+    /// loses keyboard focus, including when the whole window does.
+    fn sync_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let focused = self.focus.is_focused(window) && window.is_window_active();
+        if focused == self.focus_reported {
+            return;
         }
-        let token: String = (start..=end)
-            .map(character_at)
-            .filter(|character| *character != ' ')
-            .collect();
-        let start = token.find("https://").or_else(|| token.find("http://"))?;
-        let url = token[start..].trim_end_matches(['.', ',', ';', ':', '!', '?', ')', ']', '}']);
-        Some(url.to_string())
+        self.focus_reported = focused;
+        if self.term.mode().contains(TermMode::FOCUS_IN_OUT) {
+            self.send(if focused {
+                b"\x1b[I".to_vec()
+            } else {
+                b"\x1b[O".to_vec()
+            });
+        }
+        cx.notify();
+    }
+
+    fn watch_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self._window_subscriptions.is_empty() {
+            return;
+        }
+        let focus = self.focus.clone();
+        self._window_subscriptions = vec![
+            cx.on_focus_in(&focus, window, Self::sync_focus),
+            cx.on_focus_out(&focus, window, |this, _, window, cx| {
+                this.sync_focus(window, cx)
+            }),
+            cx.observe_window_activation(window, Self::sync_focus),
+        ];
+        self.sync_focus(window, cx);
     }
 
     // --- Search -------------------------------------------------------------
@@ -930,7 +1354,8 @@ impl EntityInputHandler for TerminalView {
         cx: &mut Context<Self>,
     ) {
         self.marked_text = None;
-        self.typed(text.as_bytes().to_vec(), cx);
+        let bytes = keys::text(text, *self.term.mode());
+        self.typed(bytes, cx);
     }
 
     fn replace_and_mark_text_in_range(
@@ -967,7 +1392,8 @@ impl EntityInputHandler for TerminalView {
 }
 
 impl Render for TerminalView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.watch_focus(window, cx);
         let entity = cx.entity();
         let painter = entity.clone();
         div()
@@ -979,8 +1405,20 @@ impl Render for TerminalView {
             .key_context("Terminal")
             .on_action(cx.listener(|this, _: &SendTab, _, cx| this.send_tab(false, cx)))
             .on_action(cx.listener(|this, _: &SendBackTab, _, cx| this.send_tab(true, cx)))
+            .on_action(cx.listener(|this, _: &Copy, _, cx| this.copy(cx)))
             .on_key_down(cx.listener(Self::on_key_down))
             .on_key_up(cx.listener(Self::on_key_up))
+            .on_modifiers_changed(cx.listener(Self::on_modifiers_changed))
+            .on_hover(cx.listener(Self::on_hover))
+            .map(|terminal| {
+                if self.term.mode().intersects(TermMode::MOUSE_MODE) {
+                    terminal.cursor_default()
+                } else if self.hovered_link.is_some() {
+                    terminal.cursor_pointer()
+                } else {
+                    terminal.cursor_text()
+                }
+            })
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_down(MouseButton::Middle, cx.listener(Self::on_mouse_down))
             .on_mouse_down(MouseButton::Right, cx.listener(Self::on_mouse_down))
@@ -989,6 +1427,8 @@ impl Render for TerminalView {
             .on_mouse_up(MouseButton::Middle, cx.listener(Self::on_mouse_up))
             .on_mouse_up(MouseButton::Right, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
+            .on_mouse_up_out(MouseButton::Middle, cx.listener(Self::on_mouse_up))
+            .on_mouse_up_out(MouseButton::Right, cx.listener(Self::on_mouse_up))
             .on_scroll(cx.listener(Self::on_scroll))
             .child(
                 canvas(
@@ -1010,5 +1450,212 @@ impl Render for TerminalView {
             .when(self.search_open, |terminal| {
                 terminal.child(self.render_search(cx))
             })
+    }
+}
+
+#[cfg(test)]
+mod view_tests {
+    use super::*;
+    use tokio::sync::mpsc::UnboundedReceiver;
+
+    struct Harness {
+        cx: TestAppContext,
+        window: AnyWindowHandle,
+        view: Entity<TerminalView>,
+        sent: UnboundedReceiver<Vec<u8>>,
+    }
+
+    impl Harness {
+        fn new() -> Self {
+            let mut cx = TestAppContext::single();
+            cx.update(|cx| {
+                gpui_kit::init(cx);
+                crate::ui::shell::bind_keys(cx);
+                bind_keys(cx);
+            });
+            let app = AppHandle::default();
+            app.manage(LocalSessionManager::new());
+            let (window, view) = cx
+                .update(|cx| {
+                    gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| {
+                        cx.new(|cx| {
+                            TerminalView::new(
+                                "t".into(),
+                                SessionKind::Local,
+                                TerminalConfig::default(),
+                                app,
+                                cx,
+                            )
+                        })
+                    })
+                })
+                .unwrap();
+            let (input, sent) = unbounded_channel();
+            cx.update(|cx| view.update(cx, |view, _| view.input = input));
+            cx.update_window(window, |_, window, cx| {
+                window.activate_window();
+                view.read(cx).focus.clone().focus(window, cx)
+            })
+            .unwrap();
+            cx.run_until_parked();
+            let mut harness = Self {
+                cx,
+                window,
+                view,
+                sent,
+            };
+            harness.take();
+            harness
+        }
+
+        fn take(&mut self) -> String {
+            self.cx.run_until_parked();
+            let mut bytes = Vec::new();
+            while let Ok(chunk) = self.sent.try_recv() {
+                bytes.extend(chunk);
+            }
+            String::from_utf8(bytes).unwrap()
+        }
+
+        fn keys(&mut self, keys: &str) -> String {
+            self.cx.simulate_keystrokes(self.window, keys);
+            self.take()
+        }
+
+        fn feed(&mut self, output: &str) {
+            let view = self.view.clone();
+            self.cx
+                .update(|cx| view.update(cx, |view, cx| view.feed(output.as_bytes(), cx)));
+            self.cx.run_until_parked();
+        }
+
+        fn read<R>(&mut self, read: impl FnOnce(&TerminalView) -> R) -> R {
+            let view = self.view.clone();
+            self.cx.update(|cx| read(view.read(cx)))
+        }
+    }
+
+    #[::core::prelude::v1::test]
+    fn keys_reach_the_session_through_the_window() {
+        let mut terminal = Harness::new();
+        assert_eq!(terminal.keys("alt-enter"), "\x1b\r");
+        assert_eq!(terminal.keys("enter"), "\r");
+        assert_eq!(terminal.keys("shift-enter"), "\x1b[13;2u");
+        assert_eq!(terminal.keys("tab"), "\t");
+        assert_eq!(terminal.keys("shift-tab"), "\x1b[Z");
+        assert_eq!(terminal.keys("ctrl-c"), "\x03");
+        assert_eq!(terminal.keys("escape"), "\x1b");
+        assert_eq!(terminal.keys("alt-backspace"), "\x1b\x7f");
+        assert_eq!(terminal.keys("alt-left"), "\x1b[1;3D");
+
+        terminal.feed("\x1b[>5u");
+        assert_eq!(terminal.keys("alt-enter"), "\x1b[13;3u");
+        assert_eq!(terminal.keys("escape"), "\x1b[27u");
+    }
+
+    #[::core::prelude::v1::test]
+    fn focus_changes_are_reported_when_asked() {
+        let mut terminal = Harness::new();
+        terminal.feed("\x1b[?1004h");
+        let window = terminal.window;
+        terminal
+            .cx
+            .update_window(window, |_, window, cx| window.blur(cx))
+            .unwrap();
+        assert_eq!(terminal.take(), "\x1b[O");
+        let view = terminal.view.clone();
+        terminal
+            .cx
+            .update_window(window, |_, window, cx| {
+                view.read(cx).focus.clone().focus(window, cx)
+            })
+            .unwrap();
+        assert_eq!(terminal.take(), "\x1b[I");
+    }
+
+    #[::core::prelude::v1::test]
+    fn links_are_found_across_wrapped_rows_and_osc8() {
+        let mut terminal = Harness::new();
+        let cols = terminal.read(|view| view.grid.cols);
+        let url = format!("https://example.com/{}", "a".repeat(cols));
+        terminal.feed(&format!("see {url}. done\r\n"));
+        let found = terminal.read(|view| view.link_at(GridPoint::new(Line(1), Column(3))));
+        assert_eq!(found.map(|(link, _)| link), Some(url));
+        let none = terminal.read(|view| view.link_at(GridPoint::new(Line(0), Column(1))));
+        assert!(none.is_none());
+
+        terminal.feed("\x1b]8;;https://osc8.example/\x1b\\label\x1b]8;;\x1b\\ tail\r\n");
+        let line = terminal.read(|view| view.term.grid().cursor.point.line - 1);
+        let found = terminal.read(|view| view.link_at(GridPoint::new(line, Column(2))));
+        let (link, range) = found.unwrap();
+        assert_eq!(link, "https://osc8.example/");
+        assert_eq!(
+            (range.start().column, range.end().column),
+            (Column(0), Column(4))
+        );
+    }
+
+    #[::core::prelude::v1::test]
+    fn alt_click_walks_the_cursor_along_the_line() {
+        let mut terminal = Harness::new();
+        terminal.feed("$ echo hello");
+        let moves = terminal.read(|view| view.cursor_moves_to(GridPoint::new(Line(0), Column(2))));
+        assert_eq!(String::from_utf8(moves).unwrap(), "\x1b[D".repeat(10));
+        let moves = terminal.read(|view| view.cursor_moves_to(GridPoint::new(Line(3), Column(0))));
+        assert!(moves.is_empty());
+    }
+
+    #[::core::prelude::v1::test]
+    fn unfinished_synchronized_updates_are_flushed() {
+        let mut terminal = Harness::new();
+        let shown = |view: &TerminalView| view.term.grid()[GridPoint::new(Line(0), Column(0))].c;
+        let view = terminal.view.clone();
+        let held = terminal.cx.update(|cx| {
+            view.update(cx, |view, cx| {
+                view.feed(b"\x1b[?2026hvisible", cx);
+                shown(view)
+            })
+        });
+        assert_eq!(held, ' ');
+        terminal
+            .cx
+            .executor()
+            .advance_clock(Duration::from_millis(500));
+        terminal.cx.run_until_parked();
+        assert_eq!(terminal.read(shown), 'v');
+    }
+
+    #[::core::prelude::v1::test]
+    fn sixel_images_are_placed_and_advertised() {
+        let mut terminal = Harness::new();
+        terminal.feed("\x1b[c");
+        assert_eq!(terminal.take(), "\x1b[?62;4;22c");
+        // 40 pixels tall: three rows at the default 16px cell.
+        let band = "#1;2;100;0;0#1!8~";
+        let sixel = format!("ab\x1bPq{}\x1b\\cd", [band; 7].join("-"));
+        terminal.feed(&sixel);
+        let (count, cursor, marker) = terminal.read(|view| {
+            let grid = view.term.grid();
+            let marker = grid[GridPoint::new(Line(1), Column(2))]
+                .hyperlink()
+                .map(|link| link.uri().to_string());
+            (view.images.len(), grid.cursor.point, marker)
+        });
+        assert_eq!(count, 1);
+        assert_eq!(marker.as_deref(), Some("noverterm-image:0:1"));
+        assert_eq!(cursor, GridPoint::new(Line(3), Column(4)));
+        // Image markers are not links.
+        let link = terminal.read(|view| view.link_at(GridPoint::new(Line(0), Column(2))));
+        assert!(link.is_none());
+    }
+
+    #[::core::prelude::v1::test]
+    fn shift_page_up_scrolls_back_and_symbols_keep_kitty_shift() {
+        let mut terminal = Harness::new();
+        terminal.feed(&"line\r\n".repeat(200));
+        assert_eq!(terminal.keys("shift-pageup"), "");
+        assert!(terminal.read(|view| view.term.grid().display_offset()) > 0);
+        assert_eq!(terminal.keys("shift-pagedown"), "");
+        assert_eq!(terminal.read(|view| view.term.grid().display_offset()), 0);
     }
 }

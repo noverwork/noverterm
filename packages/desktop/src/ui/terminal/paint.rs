@@ -5,7 +5,10 @@ use alacritty_terminal::term::color::Colors;
 use alacritty_terminal::vte::ansi::{Color, CursorShape, NamedColor, Rgb};
 use gpui_kit::*;
 
-use super::{GridSize, TerminalEvent, TerminalView, PADDING};
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use super::{GridSize, TerminalEvent, TerminalView, IMAGE_URI, PADDING};
 
 const ANSI: [u32; 16] = [
     0x1f2937, 0xef4444, 0x22c55e, 0xeab308, 0x3b82f6, 0xa855f7, 0x06b6d4, 0xe5e5e5, 0x404040,
@@ -75,6 +78,16 @@ fn resolve(color: Color, colors: &Colors) -> Rgb {
     }
 }
 
+/// Bold text in one of the eight base colours shows in its bright variant, as
+/// xterm.js (and most terminals) draw it.
+fn brighten(color: Color) -> Color {
+    match color {
+        Color::Named(name) if (name as usize) < 8 => Color::Named(name.to_bright()),
+        Color::Indexed(index) if index < 8 => Color::Indexed(index + 8),
+        color => color,
+    }
+}
+
 fn hsla(color: Rgb) -> Hsla {
     Rgba {
         r: color.r as f32 / 255.,
@@ -90,13 +103,17 @@ struct RunStyle {
     foreground: Hsla,
     bold: bool,
     italic: bool,
-    underline: bool,
+    /// Underline colour, and whether it is curly.
+    underline: Option<(Hsla, bool)>,
     strikethrough: bool,
 }
 
 /// One frame of terminal content, ready to paint.
 pub(super) struct Frame {
     backgrounds: Vec<(Bounds<Pixels>, Hsla)>,
+    /// Inline images, clipped to the grid.
+    images: Vec<(Bounds<Pixels>, Arc<RenderImage>)>,
+    grid_bounds: Bounds<Pixels>,
     runs: Vec<(Point<Pixels>, ShapedLine)>,
     cursor: Option<PaintQuad>,
     line_height: Pixels,
@@ -106,6 +123,16 @@ impl Frame {
     pub(super) fn paint(self, window: &mut Window, cx: &mut App) {
         for (bounds, color) in self.backgrounds {
             window.paint_quad(fill(bounds, color));
+        }
+        for (bounds, image) in self.images {
+            let _ = window.paint_image(
+                self.grid_bounds,
+                bounds,
+                Corners::default(),
+                image,
+                0,
+                false,
+            );
         }
         for (origin, line) in self.runs {
             let _ = line.paint(origin, self.line_height, TextAlign::Left, None, window, cx);
@@ -163,7 +190,7 @@ impl TerminalView {
             });
         }
 
-        let focused = self.focus.is_focused(window);
+        let focused = self.focus.is_focused(window) && window.is_window_active();
         let content = self.term.renderable_content();
         let colors = content.colors;
         let display_offset = content.display_offset as i32;
@@ -187,6 +214,8 @@ impl TerminalView {
         };
 
         let mut backgrounds: Vec<(Bounds<Pixels>, Hsla)> = Vec::new();
+        // Image id -> top row and column, from the markers on screen.
+        let mut image_anchors: HashMap<u32, (i32, usize)> = HashMap::new();
         let mut runs = Vec::new();
         // The run being collected: its row, first column, next column, text.
         let mut pending: Option<(i32, usize, usize, String, RunStyle)> = None;
@@ -211,10 +240,10 @@ impl TerminalView {
                 },
                 color: style.foreground,
                 background_color: None,
-                underline: style.underline.then_some(UnderlineStyle {
+                underline: style.underline.map(|(color, wavy)| UnderlineStyle {
                     thickness: px(1.),
-                    color: Some(style.foreground),
-                    wavy: false,
+                    color: Some(color),
+                    wavy,
                 }),
                 strikethrough: style.strikethrough.then_some(StrikethroughStyle {
                     thickness: px(1.),
@@ -232,13 +261,34 @@ impl TerminalView {
             if flags.intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER) {
                 continue;
             }
+            if let Some(link) = cell.hyperlink() {
+                let marker = link
+                    .uri()
+                    .strip_prefix(IMAGE_URI)
+                    .and_then(|rest| rest.split_once(':'))
+                    .and_then(|(id, image_row)| {
+                        Some((id.parse().ok()?, image_row.parse::<i32>().ok()?))
+                    });
+                if let Some((id, image_row)) = marker {
+                    let top = row - image_row;
+                    image_anchors
+                        .entry(id)
+                        .and_modify(|anchor| anchor.0 = anchor.0.min(top))
+                        .or_insert((top, column));
+                }
+            }
             let width = if flags.contains(Flags::WIDE_CHAR) {
                 2
             } else {
                 1
             };
 
-            let mut foreground = resolve(cell.fg, colors);
+            let fg = if flags.contains(Flags::BOLD) {
+                brighten(cell.fg)
+            } else {
+                cell.fg
+            };
+            let mut foreground = resolve(fg, colors);
             let mut background = resolve(cell.bg, colors);
             if flags.contains(Flags::INVERSE) {
                 std::mem::swap(&mut foreground, &mut background);
@@ -286,7 +336,21 @@ impl TerminalView {
                 }
             }
 
-            let decorated = flags.intersects(Flags::ALL_UNDERLINES | Flags::STRIKEOUT);
+            let linked = self
+                .hovered_link
+                .as_ref()
+                .is_some_and(|(_, range)| range.contains(&cell.point));
+            let underline = if linked {
+                Some((foreground, false))
+            } else if flags.intersects(Flags::ALL_UNDERLINES) {
+                let color = cell
+                    .underline_color()
+                    .map_or(foreground, |color| hsla(resolve(color, colors)));
+                Some((color, flags.contains(Flags::UNDERCURL)))
+            } else {
+                None
+            };
+            let decorated = underline.is_some() || flags.contains(Flags::STRIKEOUT);
             if flags.contains(Flags::HIDDEN) || (cell.c == ' ' && !decorated) {
                 flush(&mut pending);
                 continue;
@@ -295,7 +359,7 @@ impl TerminalView {
                 foreground,
                 bold: flags.contains(Flags::BOLD),
                 italic: flags.contains(Flags::ITALIC),
-                underline: flags.intersects(Flags::ALL_UNDERLINES),
+                underline,
                 strikethrough: flags.contains(Flags::STRIKEOUT),
             };
             let continues = pending
@@ -364,8 +428,35 @@ impl TerminalView {
             runs.push((cursor_cell.origin, line));
         }
 
+        let images = image_anchors
+            .into_iter()
+            .filter_map(|(id, (top, column))| {
+                let placed = self.images.get(&id)?;
+                let origin = cell_origin(top, column);
+                Some((
+                    Bounds::new(
+                        point(
+                            origin.x - placed.margin.width,
+                            origin.y - placed.margin.height,
+                        ),
+                        placed.size,
+                    ),
+                    placed.image.clone(),
+                ))
+            })
+            .collect();
+        let grid_bounds = Bounds::new(
+            origin,
+            size(
+                bounds.size.width - PADDING * 2.,
+                bounds.size.height - PADDING * 2.,
+            ),
+        );
+
         Frame {
             backgrounds,
+            images,
+            grid_bounds,
             runs,
             cursor,
             line_height,
