@@ -261,14 +261,7 @@ impl Store {
                                     .unwrap_or_else(Locale::system),
                             );
                         }
-                        let config = this.terminal_config();
-                        for session in &this.sessions {
-                            if let Some(terminal) = &session.terminal {
-                                terminal.update(cx, |terminal, cx| {
-                                    terminal.set_config(config.clone(), cx)
-                                });
-                            }
-                        }
+                        this.apply_terminal_config(cx);
                     }
                     Err(error) => this.load_error = Some(error),
                 }
@@ -340,9 +333,13 @@ impl Store {
             scrollback: terminal["scrollback"]
                 .as_u64()
                 .map_or(defaults.scrollback, |lines| lines as usize),
+            option_as_meta: terminal["optionAsMeta"]
+                .as_bool()
+                .unwrap_or(defaults.option_as_meta),
         }
     }
 
+    /// Saves the terminal settings and applies them to every open tab.
     pub fn set_terminal_config(&mut self, terminal: TerminalConfig, cx: &mut Context<Self>) {
         let mut config = self.config();
         config["terminal"] = json!({
@@ -350,8 +347,21 @@ impl Store {
             "cursorStyle": terminal.cursor_style,
             "cursorBlink": terminal.cursor_blink,
             "scrollback": terminal.scrollback,
+            "optionAsMeta": terminal.option_as_meta,
         });
         self.set_setting(CONFIG_SETTING, config.to_string(), cx);
+        self.apply_terminal_config(cx);
+    }
+
+    fn apply_terminal_config(&self, cx: &mut Context<Self>) {
+        let config = self.terminal_config();
+        for terminal in self
+            .sessions
+            .iter()
+            .filter_map(|session| session.terminal.as_ref())
+        {
+            terminal.update(cx, |terminal, cx| terminal.set_config(config.clone(), cx));
+        }
     }
 
     /// Recently opened connections that still exist, newest first.

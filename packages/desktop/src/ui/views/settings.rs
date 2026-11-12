@@ -1,10 +1,11 @@
-//! The settings dialog: language, AI assistant, updates, and backup.
+//! The settings dialog: language, terminal, AI assistant, updates, and backup.
 
 use std::time::Duration;
 
 use gpui_kit::component::button::{Button, ButtonVariants as _};
-use gpui_kit::component::input::{Input, InputState};
+use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::select::{Select, SelectEvent};
+use gpui_kit::component::switch::Switch;
 use gpui_kit::component::{
     h_flex, v_flex, Disableable as _, IndexPath, Sizable as _, WindowExt as _,
 };
@@ -16,6 +17,7 @@ use crate::ui::bridge::backend;
 use crate::ui::i18n::{self, t, tf, Locale};
 use crate::ui::icons::lucide;
 use crate::ui::store::{store, Store};
+use crate::ui::terminal::{CursorKind, TerminalConfig};
 use crate::ui::theme;
 use crate::ui::views::assistant::{ai_config, default_model, AiConfig, AI_SETTING};
 use crate::ui::views::common::{self, Choice, ChoiceSelect};
@@ -61,6 +63,9 @@ enum UpdateStatus {
 struct SettingsView {
     store: Entity<Store>,
     language: Entity<ChoiceSelect>,
+    font_size: Entity<InputState>,
+    scrollback: Entity<InputState>,
+    cursor_style: Entity<ChoiceSelect>,
     provider: Entity<ChoiceSelect>,
     model: Entity<InputState>,
     /// Empty value picks the format from the model name.
@@ -102,6 +107,18 @@ impl SettingsView {
             Choice::new(code(AiApiFormat::Gemini), "Gemini · generateContent"),
         ];
         let language = common::new_select(languages, i18n::locale().code(), window, cx);
+        let terminal = store.read(cx).terminal_config();
+        let cursor_styles = vec![
+            Choice::new(code(CursorKind::Block), t("Block")),
+            Choice::new(code(CursorKind::Underline), t("Underline")),
+            Choice::new(code(CursorKind::Bar), t("Bar")),
+        ];
+        let cursor_style =
+            common::new_select(cursor_styles, &code(terminal.cursor_style), window, cx);
+        let font_size =
+            cx.new(|cx| InputState::new(window, cx).default_value(terminal.font_size.to_string()));
+        let scrollback =
+            cx.new(|cx| InputState::new(window, cx).default_value(terminal.scrollback.to_string()));
         let provider = common::new_select(providers, &code(config.provider), window, cx);
         let api_format = common::new_select(
             formats,
@@ -123,6 +140,25 @@ impl SettingsView {
                     }
                 },
             ),
+            cx.subscribe(
+                &cursor_style,
+                |this, select, _: &SelectEvent<Vec<Choice>>, cx| {
+                    if let Some(style) = common::selected(&select, cx).and_then(|code| parse(&code))
+                    {
+                        this.set_terminal(|config| config.cursor_style = style, cx);
+                    }
+                },
+            ),
+            cx.subscribe(&font_size, |this, _, event: &InputEvent, cx| {
+                if matches!(event, InputEvent::Blur | InputEvent::PressEnter { .. }) {
+                    this.save_numbers(cx);
+                }
+            }),
+            cx.subscribe(&scrollback, |this, _, event: &InputEvent, cx| {
+                if matches!(event, InputEvent::Blur | InputEvent::PressEnter { .. }) {
+                    this.save_numbers(cx);
+                }
+            }),
             cx.subscribe_in(
                 &provider,
                 window,
@@ -144,6 +180,9 @@ impl SettingsView {
             api_key: cx.new(|cx| InputState::new(window, cx).masked(true)),
             store,
             language,
+            font_size,
+            scrollback,
+            cursor_style,
             provider,
             api_format,
             has_key: false,
@@ -159,6 +198,39 @@ impl SettingsView {
         };
         view.refresh_key_state(cx);
         view
+    }
+
+    fn set_terminal(&self, change: impl FnOnce(&mut TerminalConfig), cx: &mut Context<Self>) {
+        self.store.update(cx, |store, cx| {
+            let mut config = store.terminal_config();
+            change(&mut config);
+            store.set_terminal_config(config, cx);
+        });
+        cx.notify();
+    }
+
+    /// Saves the typed font size and scrollback, clamped to sane values; an
+    /// unparsable entry keeps the saved value.
+    fn save_numbers(&mut self, cx: &mut Context<Self>) {
+        let font_size = self.font_size.read(cx).value().trim().parse::<f32>().ok();
+        let scrollback = self
+            .scrollback
+            .read(cx)
+            .value()
+            .trim()
+            .parse::<usize>()
+            .ok();
+        self.set_terminal(
+            |config| {
+                if let Some(size) = font_size.filter(|size| size.is_finite()) {
+                    config.font_size = size.clamp(8., 32.);
+                }
+                if let Some(lines) = scrollback {
+                    config.scrollback = lines.min(100_000);
+                }
+            },
+            cx,
+        );
     }
 
     fn provider(&self, cx: &App) -> AiProvider {
@@ -374,6 +446,49 @@ impl Render for SettingsView {
             input.set_placeholder(key_placeholder, window, cx)
         });
 
+        let terminal_config = self.store.read(cx).terminal_config();
+        let terminal = section("terminal", heading(t("Terminal"))).child(
+            v_flex()
+                .gap_2()
+                .child(row(
+                    t("Font size"),
+                    Input::new(&self.font_size).small().into_any_element(),
+                ))
+                .child(row(
+                    t("Scrollback"),
+                    Input::new(&self.scrollback).small().into_any_element(),
+                ))
+                .child(row(
+                    t("Cursor"),
+                    Select::new(&self.cursor_style).small().into_any_element(),
+                ))
+                .child(row(
+                    t("Cursor blink"),
+                    Switch::new("cursor-blink")
+                        .checked(terminal_config.cursor_blink)
+                        .on_click(cx.listener(|this, checked: &bool, _, cx| {
+                            let checked = *checked;
+                            this.set_terminal(|config| config.cursor_blink = checked, cx);
+                        }))
+                        .into_any_element(),
+                ))
+                .when(cfg!(target_os = "macos"), |rows| {
+                    rows.child(row(
+                        t("Option as Meta"),
+                        Switch::new("option-as-meta")
+                            .checked(terminal_config.option_as_meta)
+                            .tooltip(t(
+                                "Option+key sends ESC+key instead of typing special characters",
+                            ))
+                            .on_click(cx.listener(|this, checked: &bool, _, cx| {
+                                let checked = *checked;
+                                this.set_terminal(|config| config.option_as_meta = checked, cx);
+                            }))
+                            .into_any_element(),
+                    ))
+                }),
+        );
+
         let ai = section("sparkles", heading(t("AI assistant")))
             .child(
                 v_flex()
@@ -506,6 +621,7 @@ impl Render for SettingsView {
                 section("languages", heading(t("Language")))
                     .child(Select::new(&self.language).small()),
             )
+            .child(terminal)
             .child(ai)
             .child(about)
             .child(backup)

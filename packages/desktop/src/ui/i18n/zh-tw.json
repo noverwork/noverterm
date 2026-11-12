@@ -455,5 +455,14 @@
  "AI agents cannot use this host.": "AI agent 無法使用這台主機。",
  "Let AI read local terminals without asking": "讓 AI 不經詢問讀取本機終端機",
  "AI reads local terminals without asking": "AI 讀取本機終端機不會詢問",
- "Ask before AI reads a local terminal": "AI 讀取本機終端機前會詢問"
+ "Ask before AI reads a local terminal": "AI 讀取本機終端機前會詢問",
+ "Font size": "字型大小",
+ "Scrollback": "回捲行數",
+ "Cursor": "游標",
+ "Block": "方塊",
+ "Underline": "底線",
+ "Bar": "直線",
+ "Cursor blink": "游標閃爍",
+ "Option as Meta": "Meta 鍵",
+ "Option+key sends ESC+key instead of typing special characters": "Option 當 Meta：Option+按鍵送出 ESC+按鍵，不輸入特殊字元"
 }

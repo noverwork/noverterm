@@ -83,6 +83,8 @@ pub struct TerminalConfig {
     pub cursor_style: CursorKind,
     pub cursor_blink: bool,
     pub scrollback: usize,
+    /// macOS: Option sends ESC+key instead of composing characters.
+    pub option_as_meta: bool,
 }
 
 impl Default for TerminalConfig {
@@ -92,6 +94,7 @@ impl Default for TerminalConfig {
             cursor_style: CursorKind::Block,
             cursor_blink: true,
             scrollback: 5000,
+            option_as_meta: false,
         }
     }
 }
@@ -649,7 +652,7 @@ impl TerminalView {
         } else {
             keys::KeyEvent::Press
         };
-        let alt_is_meta = !cfg!(target_os = "macos");
+        let alt_is_meta = !cfg!(target_os = "macos") || self.config.option_as_meta;
         if let Some(bytes) = keys::encode(&key, kind, *self.term.mode(), alt_is_meta) {
             self.typed(bytes, cx);
             cx.stop_propagation();
