@@ -54,7 +54,7 @@ pub fn bind_keys(cx: &mut App) {
     let copy = if cfg!(target_os = "macos") {
         "cmd-c"
     } else {
-        "ctrl-c"
+        "ctrl-shift-c"
     };
     cx.bind_keys([
         KeyBinding::new("tab", SendTab, Some("Terminal")),
@@ -558,16 +558,23 @@ impl TerminalView {
         let key = keystroke.key.as_str();
         let command = modifiers.platform && !modifiers.control && !modifiers.alt;
         let control = modifiers.control && !modifiers.platform && !modifiers.alt;
+        // Cmd+key on macOS, Ctrl+Shift+key elsewhere: plain Ctrl+key belongs
+        // to the shell (^C, ^F, ^K, ^V).
+        let shortcut = if cfg!(target_os = "macos") {
+            command && !modifiers.shift
+        } else {
+            control && modifiers.shift
+        };
 
         let handled = match key {
-            "c" if !modifiers.shift && (command || control) => match self.selection_text() {
+            "c" if shortcut => match self.selection_text() {
                 Some(text) => {
                     cx.write_to_clipboard(ClipboardItem::new_string(text));
                     true
                 }
                 None => false,
             },
-            "v" if command || (control && modifiers.shift) => {
+            "v" if shortcut => {
                 self.paste_clipboard(cx);
                 true
             }
@@ -578,7 +585,7 @@ impl TerminalView {
                 self.paste_clipboard(cx);
                 true
             }
-            "f" if !modifiers.shift && (command || control) => {
+            "f" if shortcut => {
                 self.open_search(window, cx);
                 true
             }
@@ -614,8 +621,7 @@ impl TerminalView {
                 cx.notify();
                 true
             }
-            // Cmd+K on macOS; Ctrl+Shift+K elsewhere, since Ctrl+K is the shell's kill-line.
-            "k" if (command && !modifiers.shift) || (control && modifiers.shift) => {
+            "k" if shortcut => {
                 cx.emit(TerminalEvent::RequestAssistant);
                 true
             }
@@ -670,23 +676,10 @@ impl TerminalView {
         }
     }
 
-    /// The platform copy key: copies the selection. Without one, Ctrl+C is
-    /// still the shell's interrupt.
+    /// The platform copy key copies the selection.
     fn copy(&mut self, cx: &mut Context<Self>) {
         if let Some(text) = self.selection_text() {
             cx.write_to_clipboard(ClipboardItem::new_string(text));
-            return;
-        }
-        if cfg!(target_os = "macos") {
-            return;
-        }
-        let key = keys::Key {
-            key: "c",
-            ctrl: true,
-            ..keys::Key::default()
-        };
-        if let Some(bytes) = keys::encode(&key, keys::KeyEvent::Press, *self.term.mode(), true) {
-            self.typed(bytes, cx);
         }
     }
 
@@ -1540,7 +1533,7 @@ mod view_tests {
         let mut terminal = Harness::new();
         assert_eq!(terminal.keys("alt-enter"), "\x1b\r");
         assert_eq!(terminal.keys("enter"), "\r");
-        assert_eq!(terminal.keys("shift-enter"), "\x1b[13;2u");
+        assert_eq!(terminal.keys("shift-enter"), "\r");
         assert_eq!(terminal.keys("tab"), "\t");
         assert_eq!(terminal.keys("shift-tab"), "\x1b[Z");
         assert_eq!(terminal.keys("ctrl-c"), "\x03");
@@ -1551,6 +1544,8 @@ mod view_tests {
         terminal.feed("\x1b[>5u");
         assert_eq!(terminal.keys("alt-enter"), "\x1b[13;3u");
         assert_eq!(terminal.keys("escape"), "\x1b[27u");
+        assert_eq!(terminal.keys("shift-enter"), "\x1b[13;2u");
+        assert_eq!(terminal.keys("shift-backspace"), "\x1b[127;2u");
     }
 
     #[::core::prelude::v1::test]

@@ -118,9 +118,6 @@ fn legacy(key: &Key, mode: TermMode, alt_is_meta: bool) -> Option<String> {
     }
 
     match key.key {
-        // Shift+Enter is indistinguishable from Enter in the legacy encoding;
-        // CSI u lets editors and agent CLIs tell them apart.
-        "enter" if key.shift && !key.ctrl && !key.alt => return Some("\x1b[13;2u".to_string()),
         "enter" => return Some(esc_if_alt("\r")),
         "tab" if key.shift => return Some("\x1b[Z".to_string()),
         "tab" => return Some(esc_if_alt("\t")),
@@ -252,6 +249,7 @@ fn kitty(key: &Key, event: KeyEvent, mode: TermMode, alt_is_meta: bool) -> Optio
             "enter" => Some(b"\r".to_vec()),
             "tab" if key.shift => Some(b"\x1b[9;2u".to_vec()),
             "tab" => Some(b"\t".to_vec()),
+            "backspace" if key.shift => Some(b"\x1b[127;2u".to_vec()),
             "backspace" => Some(b"\x7f".to_vec()),
             // Text keys go through the input method.
             _ => None,
@@ -419,7 +417,7 @@ mod tests {
                 none
             )
             .as_deref(),
-            Some("\x1b[13;2u")
+            Some("\r")
         );
         assert_eq!(sent(key("backspace"), none).as_deref(), Some("\x7f"));
         // Option composes on macOS instead of sending ESC.
