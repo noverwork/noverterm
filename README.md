@@ -100,6 +100,7 @@ Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fa
 |----------|---------|
 | macOS (Apple Silicon) | `.dmg` |
 | Windows | `.exe` installer |
+| Linux (x86-64) | `.AppImage` or `.deb` |
 
 Get the latest version from [Releases](https://github.com/noverwork/noverterm/releases). Noverterm checks for updates on its own after install.
 
@@ -129,7 +130,7 @@ Connecting asks you to verify the bastion's fingerprint first, then the target's
 
 ## Keyboard Shortcuts
 
-On Windows, use `Ctrl` in place of `Cmd`.
+On Windows and Linux, use `Ctrl` in place of `Cmd`.
 
 | Action | Shortcut |
 |--------|----------|
@@ -146,10 +147,6 @@ On Windows, use `Ctrl` in place of `Cmd`.
 - All data is stored in a local SQLite database in the app data folder.
 - No account, telemetry, or cloud sync.
 - The only network traffic besides your SSH connections and your own relay (if you use Links) is the update check against GitHub Releases.
-
-## Roadmap
-
-- [ ] Linux support
 
 ## Build from Source
 
