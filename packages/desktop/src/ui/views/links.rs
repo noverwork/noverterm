@@ -23,8 +23,6 @@ use crate::ui::store::{store, Route, Store, StoreEvent};
 use crate::ui::theme;
 use crate::ui::views::common;
 
-const RELAY_README: &str = "https://github.com/noverwork/noverterm/tree/main/packages/relay#deploy";
-
 // --- Runtime state -------------------------------------------------------------
 
 /// The links the backend is running, kept current from its status events.
@@ -274,70 +272,57 @@ impl LinksView {
 
     fn render_relay(&self, cx: &Context<Self>) -> impl IntoElement {
         let key = self.public_key.clone();
-        common::form_section(
-            "server",
-            t("Relay"),
-            Some(t("Links go through a relay you run on your own server. \
-                 Add this app's key to the relay's authorized_keys.")),
-        )
-        .child(
-            h_flex()
-                .items_end()
-                .gap_2()
-                .child(
-                    common::field(t("Relay domain"), Input::new(&self.relay).small(), None)
-                        .flex_1(),
-                )
-                .child(
-                    Button::new("save-relay")
-                        .outline()
-                        .small()
-                        .label(t("Save"))
-                        .on_click(cx.listener(|this, _, _, cx| this.save_relay(cx))),
-                ),
-        )
-        .child(common::field(
-            t("Link key"),
-            h_flex()
-                .gap_2()
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .truncate()
-                        .px_3()
-                        .py_1p5()
-                        .rounded(theme::RADIUS)
-                        .border_1()
-                        .border_color(theme::hairline())
-                        .bg(theme::RAIL)
-                        .text_xs()
-                        .text_color(theme::STENCIL_DIM)
-                        .child(key.clone().unwrap_or_default()),
-                )
-                .child(
-                    Button::new("copy-key")
-                        .ghost()
-                        .small()
-                        .icon(lucide("copy"))
-                        .tooltip(t("Copy key"))
-                        .disabled(key.is_none())
-                        .on_click(move |_, _, cx| {
-                            if let Some(key) = &key {
-                                cx.write_to_clipboard(ClipboardItem::new_string(key.clone()));
-                            }
-                        }),
-                ),
-            None,
-        ))
-        .child(
-            Button::new("relay-readme")
-                .ghost()
-                .xsmall()
-                .icon(lucide("external-link"))
-                .label(t("How to deploy a relay"))
-                .on_click(|_, _, cx| cx.open_url(RELAY_README)),
-        )
+        common::form_section("server", t("Relay"), None)
+            .child(
+                h_flex()
+                    .items_end()
+                    .gap_2()
+                    .child(
+                        common::field(t("Relay domain"), Input::new(&self.relay).small(), None)
+                            .flex_1(),
+                    )
+                    .child(
+                        Button::new("save-relay")
+                            .outline()
+                            .small()
+                            .label(t("Save"))
+                            .on_click(cx.listener(|this, _, _, cx| this.save_relay(cx))),
+                    ),
+            )
+            .child(common::field(
+                t("Link key"),
+                h_flex()
+                    .gap_2()
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .px_3()
+                            .py_1p5()
+                            .rounded(theme::RADIUS)
+                            .border_1()
+                            .border_color(theme::hairline())
+                            .bg(theme::RAIL)
+                            .text_xs()
+                            .text_color(theme::STENCIL_DIM)
+                            .child(key.clone().unwrap_or_default()),
+                    )
+                    .child(
+                        Button::new("copy-key")
+                            .ghost()
+                            .small()
+                            .icon(lucide("copy"))
+                            .tooltip(t("Copy key"))
+                            .disabled(key.is_none())
+                            .on_click(move |_, _, cx| {
+                                if let Some(key) = &key {
+                                    cx.write_to_clipboard(ClipboardItem::new_string(key.clone()));
+                                }
+                            }),
+                    ),
+                None,
+            ))
     }
 
     fn render_card(&self, link: &LinkRecord, cx: &Context<Self>) -> impl IntoElement {
@@ -520,10 +505,7 @@ impl Render for LinksView {
         let mut links: Vec<&LinkRecord> = store.links.iter().collect();
         links.sort_by_key(|link| link.subdomain.clone());
         let body = if store.setting(RELAY_SETTING).is_none() {
-            common::empty_state(t(
-                "Deploy a relay on your server, then enter its domain above to publish local services.",
-            ))
-            .into_any_element()
+            common::empty_state(t("Set the relay domain first")).into_any_element()
         } else if links.is_empty() {
             common::empty_state(t("No links yet")).into_any_element()
         } else {
@@ -666,7 +648,6 @@ impl LinkForm {
 impl Render for LinkForm {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let saving = self.saving;
-        let url = public_url(self.store.read(cx), "<name>");
         common::form_page(
             if self.id.is_some() {
                 t("Edit link")
@@ -677,27 +658,14 @@ impl Render for LinkForm {
             v_flex()
                 .gap_4()
                 .child(
-                    common::form_section(
-                        "globe",
-                        t("Public name"),
-                        Some(url.map_or_else(
-                            || t("Lowercase letters, digits and -"),
-                            |url| tf("Published at {url}", &[("url", &url)]),
-                        )),
-                    )
-                    .child(common::field(
+                    common::form_section("globe", t("Public name"), None).child(common::field(
                         t("Name"),
                         Input::new(&self.subdomain).disabled(saving),
                         None,
                     )),
                 )
                 .child(
-                    common::form_section(
-                        "network",
-                        t("Local service"),
-                        Some(t("Where visitors are sent, as seen from this computer.")),
-                    )
-                    .child(
+                    common::form_section("network", t("Local service"), None).child(
                         h_flex()
                             .items_start()
                             .gap_3()
