@@ -1737,8 +1737,14 @@ mod view_tests {
         };
         let mut window = VisualTestContext::from_window(terminal.window, &terminal.cx);
         window.simulate_click(at, key);
-        // Ctrl on the press, where herdr looks for it.
-        assert_eq!(terminal.take(), "\x1b[<16;1;1M\x1b[<0;1;1m");
+        // Ctrl on the press, where herdr looks for it. On macOS only the press
+        // gets it (Cmd stands in); elsewhere Ctrl is really held for both.
+        let release = if cfg!(target_os = "macos") {
+            "\x1b[<0;1;1m"
+        } else {
+            "\x1b[<16;1;1m"
+        };
+        assert_eq!(terminal.take(), format!("\x1b[<16;1;1M{release}"));
     }
 
     #[::core::prelude::v1::test]
