@@ -783,10 +783,13 @@ impl TerminalView {
             self.paste(&text, cx);
             return;
         }
-        // Remote programs cannot read the local clipboard, so hand them a file path.
+        // A local program reads the image itself on an empty bracketed paste
+        // (Claude Code, herdr), as xterm.js and iTerm2 send for Cmd+V.
         if self.kind != SessionKind::Ssh {
+            self.paste("", cx);
             return;
         }
+        // Remote programs cannot read the local clipboard, so hand them a file path.
         let image = item.into_entries().find_map(|entry| match entry {
             ClipboardEntry::Image(image) => Some(image),
             _ => None,
@@ -1736,6 +1739,22 @@ mod view_tests {
         window.simulate_click(at, key);
         // Ctrl on the press, where herdr looks for it.
         assert_eq!(terminal.take(), "\x1b[<16;1;1M\x1b[<0;1;1m");
+    }
+
+    #[::core::prelude::v1::test]
+    fn pasting_an_image_locally_sends_an_empty_bracketed_paste() {
+        let mut terminal = Harness::new();
+        terminal.feed("\x1b[?2004h");
+        let image = Image::from_bytes(ImageFormat::Png, vec![0x89, b'P', b'N', b'G']);
+        terminal
+            .cx
+            .update(|cx| cx.write_to_clipboard(ClipboardItem::new_image(&image)));
+        let paste = if cfg!(target_os = "macos") {
+            "cmd-v"
+        } else {
+            "ctrl-shift-v"
+        };
+        assert_eq!(terminal.keys(paste), "\x1b[200~\x1b[201~");
     }
 
     #[::core::prelude::v1::test]
