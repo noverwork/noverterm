@@ -30,6 +30,7 @@ pub fn backend() -> Result<AppHandle, String> {
     app.manage(SshSessionManager::new());
     app.manage(LocalSessionManager::new());
     app.manage(PortForwardManager::new());
+    app.manage(crate::runtime::link::LinkManager::new());
     app.manage(TransferState::new());
     app.manage(crate::mcp::McpState::default());
     crate::app::runtime().spawn(crate::mcp::start(app.clone()));

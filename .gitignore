@@ -30,3 +30,6 @@ __pycache__/
 .impeccable/mocks/
 .impeccable/review/
 .taste-skill/
+
+# Relay deploy state
+packages/relay/deploy/data/

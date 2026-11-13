@@ -1,0 +1,15 @@
+{
+	email {$ACME_EMAIL}
+	# Certificates are issued per tunnel on first visit, and only for
+	# subdomains the relay says have a live tunnel.
+	on_demand_tls {
+		ask http://relay:8081/tls-check
+	}
+}
+
+https:// {
+	tls {
+		on_demand
+	}
+	reverse_proxy relay:8080
+}

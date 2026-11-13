@@ -692,7 +692,7 @@ const CLIENTS: [(&str, Option<&str>); 4] = [
     ("Claude Desktop", Some("claude_desktop_config.json")),
 ];
 
-const TOOLS: [(&str, &str); 20] = [
+const TOOLS: [(&str, &str); 23] = [
     ("list_hosts", "Lists saved hosts."),
     ("run_command", "Runs a command on a host."),
     (
@@ -713,6 +713,12 @@ const TOOLS: [(&str, &str); 20] = [
     ("list_port_forwards", "Lists running port forwards."),
     ("start_port_forward", "Opens a port forward through a host."),
     ("stop_port_forward", "Stops a port forward the AI opened."),
+    ("list_links", "Lists saved Links and their public URLs."),
+    (
+        "start_link",
+        "Publishes a local web service at a public URL.",
+    ),
+    ("stop_link", "Takes a Link offline."),
     (
         "start_command",
         "Starts a long-running or interactive command.",

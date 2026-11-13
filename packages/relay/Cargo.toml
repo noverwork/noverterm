@@ -1,0 +1,20 @@
+[package]
+name = "relay"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "Self-hosted relay that gives noverterm Links a public HTTPS URL"
+
+[[bin]]
+name = "noverterm-relay"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+dashmap = "6"
+shared = { path = "../shared" }
+russh = "0.59"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "fs", "signal", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

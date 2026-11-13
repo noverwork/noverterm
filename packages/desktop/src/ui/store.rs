@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use gpui_kit::*;
 use serde_json::{json, Value};
 use shared::{
-    HostGroupRecord, PortForwardRecord, Setting, SnippetRecord, SnippetWriteRequest,
+    HostGroupRecord, LinkRecord, PortForwardRecord, Setting, SnippetRecord, SnippetWriteRequest,
     SshHostAuthMaterial, SshHostRecord, SshKeyRecord,
 };
 use tokio::sync::mpsc::unbounded_channel;
@@ -27,9 +27,10 @@ const MAX_JUMP_HOPS: usize = 5;
 const FRAME_HEADER: usize = 37;
 
 /// Backend events the UI listens for.
-const BACKEND_EVENTS: [&str; 10] = [
+const BACKEND_EVENTS: [&str; 11] = [
     "ssh_port_forward",
     "port_forward_status",
+    "link_status",
     "mcp_changed",
     "mcp_approval_request",
     "mcp_approval_expired",
@@ -48,6 +49,8 @@ pub enum Route {
     KeyForm(Option<String>),
     Forwards,
     ForwardForm(Option<String>),
+    Links,
+    LinkForm(Option<String>),
     KnownHosts,
     Snippets,
     /// Editing a snippet, or a new one; `shortcut` starts it pinned.
@@ -119,6 +122,7 @@ pub struct Store {
     pub groups: Vec<HostGroupRecord>,
     pub keys: Vec<SshKeyRecord>,
     pub forwards: Vec<PortForwardRecord>,
+    pub links: Vec<LinkRecord>,
     pub snippets: Vec<SnippetRecord>,
     pub settings: Vec<Setting>,
     /// Open tabs, in tab order.
@@ -200,6 +204,7 @@ impl Store {
             groups: Vec::new(),
             keys: Vec::new(),
             forwards: Vec::new(),
+            links: Vec::new(),
             snippets: Vec::new(),
             settings: Vec::new(),
             sessions: Vec::new(),
@@ -240,12 +245,13 @@ impl Store {
                     crate::store::keys::key_list(app.state()).await?,
                     crate::store::port_forwards::port_forward_preset_list(app.state()).await?,
                     crate::store::snippets::snippet_list(app.state()).await?,
+                    crate::store::links::link_list(app.state()).await?,
                 ))
             })
             .await;
             let _ = this.update(cx, |this, cx| {
                 match loaded {
-                    Ok((settings, groups, hosts, keys, forwards, snippets)) => {
+                    Ok((settings, groups, hosts, keys, forwards, snippets, links)) => {
                         let first_load = this.loading;
                         this.settings = settings;
                         this.groups = groups;
@@ -253,6 +259,7 @@ impl Store {
                         this.keys = keys;
                         this.forwards = forwards;
                         this.snippets = snippets;
+                        this.links = links;
                         this.load_error = None;
                         if first_load {
                             let saved = this.setting(i18n::LOCALE_SETTING);

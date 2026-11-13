@@ -1,0 +1,4 @@
+target
+.git
+**/node_modules
+packages/relay/deploy/data

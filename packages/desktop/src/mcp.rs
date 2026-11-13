@@ -19,13 +19,16 @@ use diesel::prelude::*;
 use orm::models::{SshHost, SshKey};
 use orm::schema::{settings, ssh_hosts, ssh_keys};
 use serde_json::{json, Value};
-use shared::{AiAccess, SnippetRecord};
+use shared::{AiAccess, LinkWriteRequest, SnippetRecord};
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio::task::JoinSet;
 use tokio::time::timeout;
 use tracing::{info, warn};
 use uuid::Uuid;
 
+use crate::runtime::link::{
+    parse_relay, LinkManager, LinkStartInput, LinkState, LinkStatus, RELAY_SETTING,
+};
 use crate::runtime::local::LOCAL_TERMINAL_LABEL;
 use crate::runtime::port_forward::{
     PortForwardAuth, PortForwardCreateInput, PortForwardManager, PortForwardStatus,
@@ -37,6 +40,7 @@ use crate::runtime::ssh::{
 };
 use crate::runtime::terminal_output::TerminalOutput;
 use crate::store::hosts::set_ai_access;
+use crate::store::settings::get_setting;
 use crate::store::snippets::load_snippets;
 use crate::store::{internal_error, run_db, DbPool};
 use crate::trust::SshTrustStore;
@@ -443,7 +447,7 @@ async fn handle(State(ctx): State<Arc<Context>>, headers: HeaderMap, body: Bytes
                     "capabilities": { "tools": { "listChanged": false } },
                     "serverInfo": { "name": "noverterm", "version": env!("CARGO_PKG_VERSION") },
                     "instructions": "Work on the user's saved SSH hosts: run commands, read and write files, \
-                        run saved snippets, open port forwards, and read open terminal tabs. \
+                        run saved snippets, open port forwards, publish local web services with Links, and read open terminal tabs. \
                         Call list_hosts first. Everything that touches a host or terminal needs the user's approval \
                         in noverterm, so explain why you do it and prefer read-only actions.",
                 }),
@@ -550,6 +554,19 @@ fn tools() -> Value {
             &["host", "target_port"], false),
         tool("stop_port_forward", "Stop a port forward that start_port_forward opened.",
             json!({ "id": { "type": "string", "description": "Forward id from start_port_forward." } }), &["id"], false),
+        tool("list_links", "List the Links saved in noverterm: public URL, the local service each publishes, and whether it is running.",
+            json!({}), &[], true),
+        tool("start_link", "Publish a local HTTP service on this machine at a public HTTPS URL through the user's own relay, \
+                e.g. to share a dev server or receive webhooks. Starts the saved Link with this name, or saves a new one \
+                when target_port is given. Returns the public URL.",
+            json!({
+                "name": { "type": "string", "description": "Link name; becomes the subdomain (a-z, 0-9, -)." },
+                "target_port": { "type": "integer", "description": "Local port to publish; needed for a new Link." },
+                "target_host": { "type": "string", "description": "Local address to publish (default 127.0.0.1)." },
+            }),
+            &["name"], false),
+        tool("stop_link", "Stop a running Link so its URL goes offline.",
+            json!({ "name": { "type": "string", "description": "Link name from list_links." } }), &["name"], false),
         tool("start_command", "Start a long-running or interactive command on a saved host and return its id at once. \
                 Follow with read_command for output, write_command for input, and stop_command when done.",
             json!({
@@ -634,6 +651,7 @@ async fn call_tool(app: &AppHandle, params: &Value) -> Result<String, String> {
     });
     let detail = [
         "command",
+        "name",
         "path",
         "remote_path",
         "snippet",
@@ -751,6 +769,13 @@ async fn dispatch_tool(app: &AppHandle, params: &Value) -> Result<String, String
             start_port_forward(app, host, local_port, target_host, target_port).await
         }
         "stop_port_forward" => stop_port_forward(app, required(args, "id")?).await,
+        "list_links" => list_links(app).await,
+        "start_link" => {
+            let target_host = optional(args, "target_host").unwrap_or("127.0.0.1");
+            let target_port = port_arg(args, "target_port")?;
+            start_link(app, required(args, "name")?, target_host, target_port).await
+        }
+        "stop_link" => stop_link(app, required(args, "name")?).await,
         "start_command" => {
             let (host, command) = (required(args, "host")?, required(args, "command")?);
             start_command(app, host, command, args["tty"].as_bool().unwrap_or(false)).await
@@ -1447,6 +1472,152 @@ async fn stop_port_forward(app: &AppHandle, id: &str) -> Result<String, String> 
     ))
 }
 
+async fn list_links(app: &AppHandle) -> Result<String, String> {
+    let saved = crate::store::links::link_list(app.state()).await?;
+    let running = app.state::<LinkManager>().list().await;
+    let relay = get_setting(RELAY_SETTING.to_string(), app.state()).await?;
+    let host = relay.and_then(|relay| parse_relay(&relay.value).ok().map(|(host, _)| host));
+    let links: Vec<Value> = saved
+        .iter()
+        .map(|link| {
+            let status = running.iter().find(|status| status.id == link.id);
+            json!({
+                "name": link.subdomain,
+                "url": host.as_ref().map(|host| format!("https://{}.{host}", link.subdomain)),
+                "target": format!("{}:{}", link.target_host, link.target_port),
+                "state": status.map_or(json!("stopped"), |status| json!(status.state)),
+                "error": status.and_then(|status| status.error.clone()),
+            })
+        })
+        .collect();
+    serde_json::to_string_pretty(&links).map_err(|error| error.to_string())
+}
+
+/// Publishing a local service to the internet always asks: there is no host
+/// to remember an "always allow" for.
+async fn start_link(
+    app: &AppHandle,
+    name: &str,
+    target_host: &str,
+    target_port: Option<u16>,
+) -> Result<String, String> {
+    let relay = get_setting(RELAY_SETTING.to_string(), app.state())
+        .await?
+        .ok_or("No relay is set up. Ask the user to set one on noverterm's Links page.")?
+        .value;
+    let subdomain = shared::link_subdomain(name).ok_or("name may only use a-z, 0-9 and -")?;
+    let saved = crate::store::links::link_list(app.state()).await?;
+    let existing = saved.into_iter().find(|link| link.subdomain == subdomain);
+    let (target_host, target_port) = match (&existing, target_port) {
+        (Some(link), None) => (link.target_host.clone(), link.target_port),
+        (Some(link), Some(port)) if link.target_host == target_host && i32::from(port) == link.target_port => {
+            (link.target_host.clone(), link.target_port)
+        }
+        (Some(link), Some(_)) => {
+            return Err(format!(
+                "A Link named {subdomain} already publishes {}:{}; omit target_port to start it, or pick another name.",
+                link.target_host, link.target_port
+            ))
+        }
+        (None, Some(port)) => (target_host.to_string(), i32::from(port)),
+        (None, None) => {
+            return Err(format!("No Link named {subdomain}; give target_port to create it."))
+        }
+    };
+    let (relay_host, _) = parse_relay(&relay)?;
+    let url = format!("https://{subdomain}.{relay_host}");
+    let action = format!("publish {target_host}:{target_port} at {url}");
+    approve(
+        app,
+        AiAccess::Ask,
+        Remember::Nothing,
+        "Link",
+        &relay,
+        &action,
+    )
+    .await?;
+
+    let link = match existing {
+        Some(link) => link,
+        None => {
+            let request = LinkWriteRequest {
+                subdomain: subdomain.clone(),
+                target_host: target_host.clone(),
+                target_port,
+            };
+            crate::store::links::link_create(request, app.state()).await?
+        }
+    };
+
+    // The link connects in the background; its status events say how it went.
+    let (events, mut statuses) = mpsc::unbounded_channel::<LinkStatus>();
+    let listener = app.listen("link_status", move |event| {
+        if let Ok(status) = serde_json::from_str(event.payload()) {
+            let _ = events.send(status);
+        }
+    });
+    let trust_store = app.state::<SshTrustStore>().inner().clone();
+    let started = app
+        .state::<LinkManager>()
+        .start(
+            app.clone(),
+            LinkStartInput {
+                id: link.id.clone(),
+                subdomain: link.subdomain.clone(),
+                target_host: link.target_host.clone(),
+                target_port: link.target_port as u16,
+                relay,
+            },
+            trust_store,
+        )
+        .await;
+    let settled = match &started {
+        Ok(_) => timeout(FORWARD_START_TIMEOUT, async {
+            while let Some(status) = statuses.recv().await {
+                if status.id == link.id && status.state != LinkState::Connecting {
+                    return Some(status);
+                }
+            }
+            None
+        })
+        .await
+        .ok()
+        .flatten(),
+        Err(_) => None,
+    };
+    app.unlisten(listener);
+    started.inspect_err(|_| emit_activity(app, "Link", &action, "failed", None))?;
+
+    match settled {
+        Some(status) if status.state == LinkState::Online => {
+            emit_activity(app, "Link", &action, "finished", None);
+            Ok(format!("{target_host}:{target_port} is live at {url}"))
+        }
+        Some(status) => {
+            emit_activity(app, "Link", &action, "failed", None);
+            Err(status
+                .error
+                .unwrap_or_else(|| "The Link failed".to_string()))
+        }
+        None => Ok(format!(
+            "The Link is still connecting; check list_links. URL: {url}"
+        )),
+    }
+}
+
+async fn stop_link(app: &AppHandle, name: &str) -> Result<String, String> {
+    let saved = crate::store::links::link_list(app.state()).await?;
+    let link = saved
+        .iter()
+        .find(|link| Some(&link.subdomain) == shared::link_subdomain(name).as_ref())
+        .ok_or_else(|| format!("No Link named {name}. Call list_links to see them."))?;
+    app.state::<LinkManager>()
+        .stop(app.clone(), &link.id)
+        .await
+        .map_err(|_| format!("{} is not running", link.subdomain))?;
+    Ok(format!("Stopped {}; its URL is offline.", link.subdomain))
+}
+
 async fn start_command(
     app: &AppHandle,
     host_ref: &str,
@@ -1814,6 +1985,7 @@ mod tests {
         app.manage(McpState::default());
         app.manage(TerminalOutput::default());
         app.manage(PortForwardManager::new());
+        app.manage(LinkManager::new());
         let server = start_server(&app, 0, "secret".to_string()).await.unwrap();
         TestServer {
             url: format!("http://127.0.0.1:{}/mcp", server.port),
@@ -1896,7 +2068,7 @@ mod tests {
         .await;
         assert_eq!(init["result"]["protocolVersion"], "2025-03-26");
         let tools = rpc(&server, "tools/list", json!({})).await;
-        assert_eq!(tools["result"]["tools"].as_array().unwrap().len(), 20);
+        assert_eq!(tools["result"]["tools"].as_array().unwrap().len(), 23);
 
         insert_host(&server, "web", "web.test", 22, "pw");
         let listed = rpc(&server, "tools/call", json!({ "name": "list_hosts" })).await;
@@ -1954,6 +2126,55 @@ mod tests {
             1,
             "allowed hosts are not asked again"
         );
+    }
+
+    #[tokio::test]
+    async fn start_link_needs_a_relay_and_always_asks() {
+        let server = test_server().await;
+        let text = |reply: &Value| {
+            reply["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+        let call =
+            json!({ "name": "start_link", "arguments": { "name": "Demo", "target_port": 3000 } });
+
+        let no_relay = rpc(&server, "tools/call", call.clone()).await;
+        assert!(text(&no_relay).contains("No relay"), "{}", text(&no_relay));
+
+        crate::store::settings::set_setting(
+            shared::Setting {
+                key: RELAY_SETTING.to_string(),
+                value: "link.example.com".to_string(),
+            },
+            server.app.state(),
+        )
+        .await
+        .unwrap();
+        let asked = Arc::new(StdMutex::new(Vec::<Value>::new()));
+        let (handle, seen) = (server.app.clone(), asked.clone());
+        server.app.listen("mcp_approval_request", move |event| {
+            let request: Value = serde_json::from_str(event.payload()).unwrap();
+            let sender = handle
+                .state::<McpState>()
+                .pending
+                .lock()
+                .unwrap()
+                .remove(request["id"].as_str().unwrap());
+            seen.lock().unwrap().push(request);
+            let _ = sender.unwrap().send(McpDecision::Deny);
+        });
+        let denied = rpc(&server, "tools/call", call).await;
+        assert_eq!(text(&denied), DENIED);
+        let asked = asked.lock().unwrap().clone();
+        assert_eq!(
+            asked[0]["command"],
+            "publish 127.0.0.1:3000 at https://demo.link.example.com"
+        );
+
+        let listed = rpc(&server, "tools/call", json!({ "name": "list_links" })).await;
+        assert_eq!(text(&listed), "[]", "a denied link is not saved");
     }
 
     /// Needs an sshd; see the env vars below. Run with `--ignored`.

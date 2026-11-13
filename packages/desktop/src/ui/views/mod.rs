@@ -7,6 +7,7 @@ pub mod connections;
 pub mod forwards;
 pub mod keys;
 pub mod known_hosts;
+pub mod links;
 pub mod mcp;
 pub mod settings;
 pub mod sftp;
@@ -42,6 +43,11 @@ pub fn build(route: &Route, window: &mut Window, cx: &mut App) -> AnyView {
             let id = id.clone();
             cx.new(|cx| forwards::ForwardForm::new(id, window, cx))
                 .into()
+        }
+        Route::Links => cx.new(|cx| links::LinksView::new(window, cx)).into(),
+        Route::LinkForm(id) => {
+            let id = id.clone();
+            cx.new(|cx| links::LinkForm::new(id, window, cx)).into()
         }
         Route::Sftp => cx.new(|cx| sftp::SftpView::new(window, cx)).into(),
         Route::Snippets => cx.new(|cx| snippets::SnippetsView::new(window, cx)).into(),

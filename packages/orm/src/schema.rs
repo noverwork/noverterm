@@ -24,6 +24,17 @@ diesel::table! {
 }
 
 diesel::table! {
+    links (id) {
+        id -> Text,
+        subdomain -> Text,
+        target_host -> Text,
+        target_port -> Integer,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     port_forward_mappings (id) {
         id -> Text,
         forward_id -> Text,
@@ -104,6 +115,7 @@ diesel::joinable!(ssh_hosts -> ssh_keys (ssh_key_id));
 diesel::allow_tables_to_appear_in_same_query!(
     host_groups,
     host_snippets,
+    links,
     port_forward_mappings,
     port_forwards,
     settings,

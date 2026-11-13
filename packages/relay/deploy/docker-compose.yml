@@ -1,0 +1,28 @@
+services:
+  relay:
+    build:
+      context: ../../..
+      dockerfile: packages/relay/Dockerfile
+    restart: unless-stopped
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN:?set BASE_DOMAIN in .env}
+    ports:
+      - "2222:2222"
+    volumes:
+      # host_key is created here; put your authorized_keys here.
+      - ./data:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+
+volumes:
+  caddy-data:

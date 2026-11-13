@@ -1,5 +1,5 @@
 [workspace]
-members = ["packages/desktop", "packages/orm", "packages/shared", "packages/update-signer"]
+members = ["packages/desktop", "packages/orm", "packages/relay", "packages/shared", "packages/update-signer"]
 resolver = "2"
 
 [profile.dev]

@@ -1,5 +1,6 @@
 pub mod host_group;
 pub mod host_snippet;
+pub mod link;
 pub mod port_forward;
 pub mod setting;
 pub mod ssh_host;
@@ -8,6 +9,7 @@ pub mod trusted_host;
 
 pub use host_group::{HostGroup, NewHostGroup, UpdateHostGroup};
 pub use host_snippet::{HostSnippet, NewHostSnippet, UpdateHostSnippet};
+pub use link::{Link, NewLink, UpdateLink};
 pub use port_forward::{
     NewPortForward, NewPortForwardMapping, PortForward, PortForwardMapping, UpdatePortForward,
 };

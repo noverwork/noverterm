@@ -145,3 +145,51 @@ pub struct PortForwardWriteRequest {
     pub host_id: String,
     pub mappings: Vec<PortForwardMappingInput>,
 }
+
+// ============================================================================
+// Link Types
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinkRecord {
+    pub id: String,
+    pub subdomain: String,
+    pub target_host: String,
+    pub target_port: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinkWriteRequest {
+    pub subdomain: String,
+    pub target_host: String,
+    pub target_port: i32,
+}
+
+/// A Link name as the relay accepts it: a lowercase DNS label, or None.
+pub fn link_subdomain(requested: &str) -> Option<String> {
+    let name = requested.trim().to_ascii_lowercase();
+    let valid = (1..=63).contains(&name.len())
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        && !name.starts_with('-')
+        && !name.ends_with('-');
+    valid.then_some(name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::link_subdomain;
+
+    #[test]
+    fn link_subdomains_are_dns_labels() {
+        assert_eq!(link_subdomain("MyApp"), Some("myapp".into()));
+        assert_eq!(link_subdomain(" my-app-2 "), Some("my-app-2".into()));
+        assert_eq!(link_subdomain(""), None);
+        assert_eq!(link_subdomain("-app"), None);
+        assert_eq!(link_subdomain("app-"), None);
+        assert_eq!(link_subdomain("a.b"), None);
+        assert_eq!(link_subdomain("a_b"), None);
+        assert_eq!(link_subdomain(&"a".repeat(64)), None);
+    }
+}

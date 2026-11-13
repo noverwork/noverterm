@@ -206,6 +206,7 @@ impl Shell {
             Route::Connections | Route::ConnectionForm(_) => "hosts",
             Route::Keys | Route::KeyForm(_) => "keys",
             Route::Forwards | Route::ForwardForm(_) => "forwards",
+            Route::Links | Route::LinkForm(_) => "links",
             Route::KnownHosts => "known-hosts",
             Route::Snippets | Route::SnippetForm { .. } => "snippets",
             Route::Sftp => "sftp",
@@ -290,6 +291,14 @@ impl Shell {
                         "network",
                         Route::Forwards,
                         active == "forwards",
+                        cx,
+                    ))
+                    .child(self.nav_item(
+                        "nav-links",
+                        t("Links"),
+                        "globe",
+                        Route::Links,
+                        active == "links",
                         cx,
                     ))
                     .child(self.nav_item(
@@ -642,6 +651,7 @@ impl Shell {
             Route::Connections | Route::ConnectionForm(_) => Some((t("Connections"), "server")),
             Route::Keys | Route::KeyForm(_) => Some((t("Keys"), "key-round")),
             Route::Forwards | Route::ForwardForm(_) => Some((t("Forwards"), "network")),
+            Route::Links | Route::LinkForm(_) => Some((t("Links"), "globe")),
             Route::KnownHosts => Some((t("Known Hosts"), "server")),
             Route::Snippets | Route::SnippetForm { .. } => Some((t("Snippets"), "file-text")),
             Route::Sftp => Some(("SFTP".into(), "folder-open")),

@@ -69,6 +69,7 @@ Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fa
   - Files: `list_dir`, `read_file`, and `write_file` for text files; `upload_file` and `download_file` copy files and folders over SFTP
   - Snippets: `list_snippets` and `run_snippet`
   - Port forwarding: `list_port_forwards`, `start_port_forward` (listens on 127.0.0.1), and `stop_port_forward` for tunnels the agent opened
+  - Links: `list_links`, `start_link` to publish a local web service at a public URL through your own relay (always asks), and `stop_link`
   - Terminal tabs: `list_terminals` and `read_terminal` return a tab's recent output as plain text
 - Everything that touches a host or a terminal tab needs your approval, including input sent to a running command: allow once, always allow a host until the app restarts, or deny; unanswered requests are denied after two minutes
 - Listens on 127.0.0.1 only, behind a token kept in the system keychain
