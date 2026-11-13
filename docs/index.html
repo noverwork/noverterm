@@ -6,7 +6,7 @@
     <title>Noverterm – Native SSH Client for macOS and Windows</title>
     <meta
       name="description"
-      content="Noverterm is a native SSH client for macOS and Windows built with Tauri 2 and Rust. SSH tabs, SFTP, port forwarding, jump hosts, SSH keys and snippets in one window, plus a local MCP server so AI agents can run approved commands and copy files on your hosts. Local-first, no account, MIT licensed."
+      content="Noverterm is a native SSH client for macOS and Windows written in Rust. SSH tabs, SFTP, port forwarding, jump hosts, SSH keys and snippets in one window, Links that give a local web service a public HTTPS URL through your own relay, and a local MCP server so AI agents can run approved commands and copy files on your hosts. Local-first, no account, MIT licensed."
     />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://noverwork.github.io/noverterm/" />
@@ -15,12 +15,12 @@
     <meta property="og:title" content="Noverterm – Native SSH Client" />
     <meta
       property="og:description"
-      content="SSH tabs, SFTP, tunnels, keys and snippets in one native window. Tauri 2 and Rust, no Electron."
+      content="SSH tabs, SFTP, tunnels, Links, keys and snippets in one native window. Rust all the way down, no Electron."
     />
     <meta property="og:image" content="https://noverwork.github.io/noverterm/og-image.svg" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Noverterm – Native SSH Client" />
-    <meta name="twitter:description" content="A lightweight Tauri + Rust SSH client for macOS and Windows." />
+    <meta name="twitter:description" content="A lightweight native Rust SSH client for macOS and Windows." />
     <meta name="twitter:image" content="https://noverwork.github.io/noverterm/og-image.svg" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -512,6 +512,15 @@
       }
       .agent-copy {
         grid-column: 1 / 7;
+      }
+      .agent.link {
+        margin-top: 0;
+        background: var(--harbour);
+        color: var(--stencil);
+      }
+      .agent.link code {
+        font-family: var(--code);
+        font-size: 0.9em;
       }
       .agent h2 {
         font-size: var(--step-head);
@@ -1367,14 +1376,16 @@
             </div>
             <h1 id="title">SSH for you and your AI</h1>
             <p class="lede">
-              A native SSH client for macOS and Windows with tabs, SFTP, tunnels and keys. Its built-in MCP server
-              lets AI agents run commands and copy files on your hosts, each one approved by you.
+              A native SSH client for macOS and Windows with tabs, SFTP, tunnels and keys. Links put a local web
+              service on a public URL, and the built-in MCP server lets AI agents work your hosts, each step approved
+              by you.
             </p>
             <a class="btn" href="https://github.com/noverwork/noverterm/releases">Download for macOS or Windows</a>
           </div>
           <nav class="card-links" aria-label="Page">
             <a href="#window">Features</a>
             <a href="#mcp">MCP</a>
+            <a href="#link">Links</a>
             <a href="#route">How it connects</a>
             <a href="#faq">Questions</a>
             <a href="https://github.com/noverwork/noverterm">Source on GitHub</a>
@@ -1386,7 +1397,7 @@
             class="shot"
             src="assets/shots/hero.webp"
             width="1600"
-            height="811"
+            height="900"
             alt="Noverterm with five session tabs: PRD·DB-01 held, PRD·WEB-01 running htop, PRD·WEB-02, STG·API and a local terminal"
           />
         </div>
@@ -1398,14 +1409,15 @@
           <h2 id="mcp-h">Let an AI agent work your hosts</h2>
           <p class="agent-lede">
             Turn on the MCP server and Claude Code, Cursor, VS Code or Claude Desktop can run commands on your saved
-            hosts, read and write files, run your snippets, open port forwards and read your open terminal tabs. Nothing
-            runs until you allow it.
+            hosts, read and write files, run your snippets, open port forwards, publish a dev server through a Link and
+            read your open terminal tabs. Nothing runs until you allow it.
           </p>
           <ul class="agent-facts">
-            <li>Listens on 127.0.0.1 only, behind a token kept in the system keychain.</li>
+            <li>Listens on 127.0.0.1 only, behind a token kept in Noverterm's local database.</li>
             <li>Passwords and keys stay in Noverterm. The agent sees host names, never credentials.</li>
             <li>Hosts must pass their fingerprint check, and jump hosts work as they do in the terminal.</li>
             <li>Allow once, always allow a host, or deny. A request nobody answers is denied after two minutes.</li>
+            <li>Publishing a Link always asks, every time: there is no "always allow" for putting a service online.</li>
           </ul>
         </div>
 
@@ -1430,11 +1442,51 @@
           <img
             src="assets/shots/mcp.webp"
             width="1600"
-            height="492"
-            alt="Noverterm MCP page: server enabled on port 47322, URL and hidden token with copy and regenerate buttons, a ready-made claude mcp add command for Claude Code, Cursor, VS Code or Claude Desktop, and the four tools list_hosts, run_command, upload_file and download_file"
+            height="845"
+            alt="Noverterm MCP page: server on port 47322, URL and hidden token with copy and regenerate buttons, a ready-made claude mcp add command for Claude Code, Cursor, VS Code or Claude Desktop, and the start of the tool list: list_hosts, run_command, run_command_multi, upload_file, download_file, transfer_status, list_dir and read_file"
             loading="lazy"
           />
           <figcaption>One switch, then paste the command for your client. The token stays hidden until you reveal it.</figcaption>
+        </figure>
+      </section>
+
+      <!-- Links: a local service on a public URL -->
+      <section class="agent link" id="link" aria-labelledby="link-h">
+        <div class="agent-copy" data-rise>
+          <h2 id="link-h">Put a local service on a public URL</h2>
+          <p class="agent-lede">
+            A Link gives a dev server, a webhook receiver or a demo on your machine an HTTPS address like
+            <code>shop.link.example.com</code>, for as long as you leave it on.
+          </p>
+          <ul class="agent-facts">
+            <li>It goes through a relay you run on your own server: one Docker image, plus a domain and its wildcard.</li>
+            <li>Only keys you add to the relay can connect. Each Noverterm install shows its own Link key to copy.</li>
+            <li>HTTPS and WebSockets, names first come first served, and it reconnects by itself when the line drops.</li>
+            <li>Plain <code>ssh -R</code> works too, so a server without Noverterm can publish through the same relay.</li>
+          </ul>
+        </div>
+
+        <div class="approve" data-ui role="group" aria-labelledby="lk-h">
+          <div class="approve-head">
+            <span class="approve-mark" aria-hidden="true">↗</span>
+            <h3 id="lk-h">shop is online</h3>
+          </div>
+          <div class="approve-body">
+            <span class="approve-target">127.0.0.1:3000 on this machine</span>
+            <pre class="approve-cmd">https://shop.link.example.com</pre>
+          </div>
+          <pre class="approve-out">Anyone with the URL reaches your dev server. Stop the Link and it is gone.</pre>
+        </div>
+
+        <figure class="agent-shot">
+          <img
+            src="assets/shots/links.webp"
+            width="1440"
+            height="555"
+            alt="Noverterm Links page: relay domain link.example.com with this install's Link key and a copy button, and three Links, shop online at https://shop.link.example.com, docs and webhooks idle"
+            loading="lazy"
+          />
+          <figcaption>Set your relay once, add its key there, then start a Link with one click.</figcaption>
         </figure>
       </section>
 
@@ -1454,15 +1506,15 @@
           <div class="shape" aria-hidden="true"><div class="ribs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
 
           <div class="panel on" id="p-tabs" role="tabpanel" aria-labelledby="t-tabs" data-fact="Hosts sit in groups, and each group paints its tabs: PRD in rust, STG in harbour blue. Cmd+1 to Cmd+9 jumps between open tabs.">
-            <img class="shot" src="assets/shots/connections.webp" width="1200" height="663" alt="Connections view with PRD, STG and UAT groups, each host marked in its group colour" loading="lazy" />
+            <img class="shot" src="assets/shots/connections.webp" width="1200" height="675" alt="Connections view with PRD, STG and UAT groups, each host marked in its group colour" loading="lazy" />
           </div>
 
           <div class="panel" id="p-sftp" role="tabpanel" aria-labelledby="t-sftp" hidden data-fact="Each pane is your machine or any saved host. Drag between them; folders copy recursively, with progress and conflict choices.">
-            <img class="shot" src="assets/shots/sftp.webp" width="1440" height="730" alt="SFTP browser with /tmp/demo on the left, the bastion host on the right, uploading release-2026.11.04.tar.gz at 50%" loading="lazy" />
+            <img class="shot" src="assets/shots/sftp.webp" width="1440" height="810" alt="SFTP browser with this machine's home folder on the left and web-01's home folder on the right" loading="lazy" />
           </div>
 
           <div class="panel" id="p-fwd" role="tabpanel" aria-labelledby="t-fwd" hidden data-fact="Save local tunnels as presets with several ports each, and bring a whole set up or down at once.">
-            <img class="shot" src="assets/shots/forwards.webp" width="716" height="410" alt="Port forward preset Grafana + Postgres with three local ports" loading="lazy" />
+            <img class="shot" src="assets/shots/forwards.webp" width="716" height="375" alt="Port forward preset Grafana + Postgres with three local ports" loading="lazy" />
           </div>
 
           <div class="panel" id="p-jump" role="tabpanel" aria-labelledby="t-jump" hidden data-fact="Like ssh -J, chained up to five hops. The terminal, SFTP and port forwarding all travel through the bastion; your keys stay on your machine.">
@@ -1487,7 +1539,7 @@
           </div>
 
           <div class="panel" id="p-keys" role="tabpanel" aria-labelledby="t-keys" hidden data-fact="Import the keys you already have and see each one's algorithm and fingerprint before you use it.">
-            <img class="shot" src="assets/shots/keys.webp" width="1440" height="224" alt="SSH keys view listing id_ed25519, deploy_rsa and bastion_ed25519 with fingerprints" loading="lazy" />
+            <img class="shot" src="assets/shots/keys.webp" width="1440" height="225" alt="SSH keys view listing id_ed25519, deploy_rsa and bastion_ed25519 with fingerprints" loading="lazy" />
           </div>
         </div>
 
@@ -1503,7 +1555,7 @@
         <div class="sw-band on" style="--c: var(--rust)">
           <div>
             <h3 id="s1">No Electron underneath</h3>
-            <p>Tauri 2 and Rust, running in the system webview instead of a bundled Chromium.</p>
+            <p>Rust from the window to the wire: the interface is drawn on the GPU with GPUI, no browser engine bundled or borrowed.</p>
           </div>
           <button class="toggle" role="switch" aria-checked="true" aria-labelledby="s1"></button>
         </div>
@@ -1517,7 +1569,7 @@
         <div class="sw-band" style="--c: var(--evergreen)">
           <div>
             <h3 id="s3">Nothing phones home</h3>
-            <p>No telemetry. Besides your SSH traffic, the only request is the update check against GitHub Releases.</p>
+            <p>No telemetry. Besides your SSH traffic and your own relay, the only request is the update check against GitHub Releases.</p>
           </div>
           <button class="toggle" role="switch" aria-checked="false" aria-labelledby="s3"></button>
         </div>
@@ -1537,7 +1589,7 @@
             class="strip"
             src="assets/shots/tabs.webp"
             width="1232"
-            height="40"
+            height="32"
             alt="Session tabs: PRD·DB-01 held, PRD·WEB-01 active, PRD·WEB-02, STG·API and a local terminal"
             loading="lazy"
           />
@@ -1585,7 +1637,7 @@
           <p class="clause">Now it opens as a painted tab.</p>
         </div>
         <div class="field">
-          <img class="ticket shot" src="assets/shots/held.webp" width="548" height="276" alt="Held session panel: PRD·DB-01 connection failed, with a Retry session button" loading="lazy" />
+          <img class="ticket shot" src="assets/shots/held.webp" width="548" height="249" alt="Held session panel: PRD·DB-01 connection failed, with Retry session and Close tab buttons" loading="lazy" />
           <p class="clause">If the line drops, it waits for you.</p>
         </div>
       </section>
@@ -1604,7 +1656,7 @@
           </details>
           <details name="faq" style="--i: 2; --c: var(--stencil); --t: var(--port)">
             <summary><span class="topic">Privacy</span><h3>Where do my hosts and keys live?</h3></summary>
-            <div class="a"><p>In a local SQLite database in the app data folder. There is no account, no telemetry and no cloud sync. The only network traffic besides your SSH connections is the update check against GitHub Releases.</p></div>
+            <div class="a"><p>In a local SQLite database in the app data folder. There is no account, no telemetry and no cloud sync. The only network traffic besides your SSH connections and your own relay is the update check against GitHub Releases.</p></div>
           </details>
           <details name="faq" style="--i: 3; --c: var(--graphite)">
             <summary><span class="topic">Bastions</span><h3>Can I reach private servers through a bastion?</h3></summary>
@@ -1612,7 +1664,7 @@
           </details>
           <details name="faq" style="--i: 4; --c: var(--stencil); --t: var(--port)">
             <summary><span class="topic">Weight</span><h3>Why is it so much lighter?</h3></summary>
-            <div class="a"><p>It runs in the system webview through Tauri 2, with SSH, SFTP and tunnels handled by Rust (Russh and Tokio), instead of shipping a whole Chromium per app.</p></div>
+            <div class="a"><p>There is no browser inside. The window is drawn on the GPU with GPUI, and SSH, SFTP and tunnels run in Rust (Russh and Tokio), instead of shipping a whole Chromium per app.</p></div>
           </details>
           <details name="faq" style="--i: 5; --c: var(--graphite)">
             <summary><span class="topic">Updates</span><h3>How do I get new versions?</h3></summary>
