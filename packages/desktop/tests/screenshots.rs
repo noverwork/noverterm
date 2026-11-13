@@ -164,18 +164,13 @@ mod shots {
         });
     }
 
-    pub fn run() {
-        let data = tempfile::tempdir().expect("scratch data dir");
-        std::env::set_var("NOVERTERM_DATA_DIR", data.path());
-        // A predictable prompt instead of the developer's own shell setup.
-        std::env::set_var("SHELL", "/bin/sh");
-        // Screenshots must not depend on what GitHub answers.
-        std::env::set_var("NOVERTERM_SKIP_UPDATE_CHECK", "1");
-        let out = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/screenshots");
-        std::fs::create_dir_all(&out).expect("screenshot dir");
-
-        let app = desktop_lib::bootstrap::backend().expect("backend starts");
-        seed(&app);
+    /// Opens the main window offscreen at `width` x `height` points.
+    fn open_stage(
+        app: &desktop_lib::app::AppHandle,
+        out: PathBuf,
+        width: f32,
+        height: f32,
+    ) -> Stage {
         let mut cx = HeadlessAppContext::with_platform(
             gpui_kit::platform::current_platform(true).text_system(),
             Arc::new(ui::Assets),
@@ -191,7 +186,7 @@ mod shots {
                     WindowOptions {
                         window_bounds: Some(WindowBounds::Windowed(Bounds {
                             origin: Default::default(),
-                            size: size(px(1200.), px(800.)),
+                            size: size(px(width), px(height)),
                         })),
                         focus: false,
                         show: false,
@@ -203,6 +198,25 @@ mod shots {
             .expect("window opens");
         let mut stage = Stage { cx, window, out };
         stage.settle(Duration::from_millis(500));
+        stage
+    }
+
+    pub fn run() {
+        if std::env::var_os("NOVERTERM_SITE_SHOTS").is_some() {
+            return site::run();
+        }
+        let data = tempfile::tempdir().expect("scratch data dir");
+        std::env::set_var("NOVERTERM_DATA_DIR", data.path());
+        // A predictable prompt instead of the developer's own shell setup.
+        std::env::set_var("SHELL", "/bin/sh");
+        // Screenshots must not depend on what GitHub answers.
+        std::env::set_var("NOVERTERM_SKIP_UPDATE_CHECK", "1");
+        let out = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/screenshots");
+        std::fs::create_dir_all(&out).expect("screenshot dir");
+
+        let app = desktop_lib::bootstrap::backend().expect("backend starts");
+        seed(&app);
+        let mut stage = open_stage(&app, out, 1200., 800.);
 
         for (name, route) in [
             ("connections", Route::Connections),
@@ -326,6 +340,283 @@ mod shots {
             stage.store(|_, cx| cx.emit(ui::store::StoreEvent::Assistant(id)));
             stage.settle(Duration::from_millis(300));
             stage.shoot("assistant");
+        }
+    }
+
+    /// The landing page's screenshots (docs/assets/shots), in English with demo
+    /// data. Run by scripts/site-shots.sh, which starts the demo SSH hosts.
+    mod site {
+        use std::path::PathBuf;
+        use std::time::Duration;
+
+        use desktop_lib::ui::store::Route;
+
+        use super::{open_stage, Stage};
+
+        const PASSWORD: &str = "demo";
+
+        struct Seeded {
+            web_01: String,
+            web_02: String,
+            api: String,
+            db_01: String,
+        }
+
+        fn seed(app: &desktop_lib::app::AppHandle) -> Seeded {
+            use desktop_lib::store::{
+                groups, hosts, keys, links, port_forwards, settings, snippets,
+            };
+            use shared::{
+                LinkWriteRequest, PortForwardMappingInput, PortForwardWriteRequest, Setting,
+                SnippetWriteRequest,
+            };
+
+            desktop_lib::app::runtime().block_on(async {
+                let setting = |key: &str, value: &str| Setting {
+                    key: key.to_string(),
+                    value: value.to_string(),
+                };
+                settings::set_setting(setting("noverterm.locale", "en"), app.state())
+                    .await
+                    .expect("locale");
+                settings::set_setting(setting("link_relay", "link.example.com"), app.state())
+                    .await
+                    .expect("relay");
+
+                let group = |name: &'static str| async move {
+                    groups::host_group_create(name.to_string(), app.state())
+                        .await
+                        .expect("group")
+                        .id
+                };
+                let (prd, stg, uat) = (group("PRD").await, group("STG").await, group("UAT").await);
+                let host = |name: &str, user: &str, address: &str, port: i32, group: &str| {
+                    hosts::SaveConnectionInput {
+                        id: None,
+                        name: name.to_string(),
+                        host: address.to_string(),
+                        port,
+                        username: user.to_string(),
+                        group_id: Some(group.to_string()),
+                        jump_host_id: None,
+                        password: Some(PASSWORD.to_string()),
+                        private_key: None,
+                        passphrase: None,
+                        key_name: None,
+                        existing_key_id: None,
+                        ai_access: None,
+                    }
+                };
+                let mut ids = Vec::new();
+                for input in [
+                    // Nothing listens on 2209: that tab is the held one.
+                    host("db-01", "postgres", "127.0.0.1", 2209, &prd),
+                    host("web-01", "deploy", "127.0.0.1", 2201, &prd),
+                    host("web-02", "deploy", "127.0.0.1", 2202, &prd),
+                    host("api", "deploy", "127.0.0.1", 2203, &stg),
+                    host("worker", "deploy", "10.0.2.14", 22, &stg),
+                    host("web", "qa", "10.0.3.7", 22, &uat),
+                ] {
+                    ids.push(hosts::host_save(input, app.state()).await.expect("host").id);
+                }
+
+                // Host keys of the demo containers, from scripts/site-shots.sh.
+                let trust = app.state::<desktop_lib::trust::SshTrustStore>().inner().clone();
+                for entry in std::env::var("SITE_HOST_KEYS").unwrap_or_default().split(',') {
+                    let Some((port, fingerprint)) = entry.split_once('=') else { continue };
+                    trust
+                        .confirm(desktop_lib::trust::HostTrustConfirmation {
+                            host: "127.0.0.1".to_string(),
+                            port: port.parse().expect("port"),
+                            algorithm: "ssh-ed25519".to_string(),
+                            fingerprint: fingerprint.to_string(),
+                        })
+                        .await
+                        .expect("trust");
+                }
+
+                let snippet = |title: &str, body: &str, host: Option<&String>, pin: Option<&str>| {
+                    SnippetWriteRequest {
+                        host_id: host.cloned(),
+                        title: title.to_string(),
+                        body: body.to_string(),
+                        pin_icon: pin.map(str::to_string),
+                        pin_color: None,
+                    }
+                };
+                for request in [
+                    snippet("Disk usage", "df -h", None, Some("hard-drive")),
+                    snippet("Tail nginx errors", "sudo tail -f /var/log/nginx/error.log", Some(&ids[1]), Some("activity")),
+                    snippet("Who is on", "who", None, None),
+                    snippet("Postgres activity", "psql -c 'select pid, state, query from pg_stat_activity'", Some(&ids[0]), Some("database")),
+                    snippet("Restart app", "sudo systemctl restart app", Some(&ids[3]), None),
+                ] {
+                    snippets::snippet_create(request, app.state()).await.expect("snippet");
+                }
+
+                let mapping = |port: i32, target: &str, target_port: i32| PortForwardMappingInput {
+                    bind_host: "127.0.0.1".to_string(),
+                    bind_port: port,
+                    target_host: target.to_string(),
+                    target_port,
+                };
+                port_forwards::port_forward_preset_create(
+                    PortForwardWriteRequest {
+                        name: "Grafana + Postgres".to_string(),
+                        host_id: ids[1].clone(),
+                        mappings: vec![
+                            mapping(3000, "127.0.0.1", 3000),
+                            mapping(9090, "127.0.0.1", 9090),
+                            mapping(5432, "10.0.1.9", 5432),
+                        ],
+                    },
+                    app.state(),
+                )
+                .await
+                .expect("forward");
+
+                for (name, fingerprint) in [
+                    ("id_ed25519", "SHA256:4fN0q8m2Yc1VbXr7tLwZp3HsKjE9uDgA6oQyTnRkQ7v"),
+                    ("deploy_rsa", "SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8"),
+                    ("bastion_ed25519", "SHA256:Xq3mVt9LpZr2Ke8Nw5HbYc7Ud1Sf4Ga6Jo0Ti3Rx5Mv"),
+                ] {
+                    keys::key_create(
+                        keys::KeyInput {
+                            name: name.to_string(),
+                            kind: "inline".to_string(),
+                            fingerprint: Some(fingerprint.to_string()),
+                            private_key: "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXk\n-----END OPENSSH PRIVATE KEY-----".to_string(),
+                            passphrase: None,
+                        },
+                        app.state(),
+                    )
+                    .await
+                    .expect("key");
+                }
+
+                for (subdomain, port) in [("shop", 3000), ("webhooks", 8787), ("docs", 4321)] {
+                    links::link_create(
+                        LinkWriteRequest {
+                            subdomain: subdomain.to_string(),
+                            target_host: "127.0.0.1".to_string(),
+                            target_port: port,
+                        },
+                        app.state(),
+                    )
+                    .await
+                    .expect("link");
+                }
+
+                let mcp = desktop_lib::mcp::McpSettings { port: 47322, allow_local_terminal: false };
+                desktop_lib::mcp::mcp_configure(app.clone(), mcp).await.expect("MCP server");
+
+                Seeded {
+                    db_01: ids[0].clone(),
+                    web_01: ids[1].clone(),
+                    web_02: ids[2].clone(),
+                    api: ids[3].clone(),
+                }
+            })
+        }
+
+        /// A home folder worth showing in the SFTP page's local pane.
+        fn demo_home() -> tempfile::TempDir {
+            let home = tempfile::tempdir().expect("demo home");
+            for dir in ["Projects", "Downloads", "backups"] {
+                std::fs::create_dir(home.path().join(dir)).expect("dir");
+            }
+            for (file, size) in [
+                ("release-2026.11.04.tar.gz", 48 << 20),
+                ("schema.sql", 182 << 10),
+                ("nginx.conf", 3 << 10),
+                ("notes.md", 2 << 10),
+            ] {
+                std::fs::File::create(home.path().join(file))
+                    .and_then(|file| file.set_len(size))
+                    .expect("file");
+            }
+            home
+        }
+
+        pub fn run() {
+            let data = tempfile::tempdir().expect("scratch data dir");
+            let home = demo_home();
+            std::env::set_var("NOVERTERM_DATA_DIR", data.path());
+            std::env::set_var("HOME", home.path());
+            std::env::set_var("SHELL", "/bin/sh");
+            std::env::set_var("PS1", "deploy@laptop ~ $ ");
+            std::env::set_var("NOVERTERM_SKIP_UPDATE_CHECK", "1");
+            let out = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/site-shots");
+            std::fs::create_dir_all(&out).expect("site shot dir");
+
+            let app = desktop_lib::bootstrap::backend().expect("backend starts");
+            let seeded = seed(&app);
+            let mut stage = open_stage(&app, out, 1440., 810.);
+
+            for (name, route) in [
+                ("connections", Route::Connections),
+                ("forwards", Route::Forwards),
+                ("snippets", Route::Snippets),
+                ("keys", Route::Keys),
+                ("mcp", Route::Mcp),
+            ] {
+                stage.store(|store, cx| store.navigate(route, cx));
+                stage.settle(Duration::from_millis(400));
+                stage.shoot(name);
+            }
+
+            // A Link that is live, as the relay would report it. The page has to
+            // be open first: its runtime starts listening there.
+            stage.store(|store, cx| store.navigate(Route::Links, cx));
+            stage.settle(Duration::from_millis(400));
+            let shop = stage.store(|store, _| {
+                store
+                    .links
+                    .iter()
+                    .find(|link| link.subdomain == "shop")
+                    .map(|link| link.id.clone())
+            });
+            if let Some(id) = shop {
+                let status = desktop_lib::runtime::link::LinkStatus {
+                    id,
+                    url: "https://shop.link.example.com".to_string(),
+                    state: desktop_lib::runtime::link::LinkState::Online,
+                    error: None,
+                };
+                app.emit("link_status", status).expect("emit");
+            }
+            stage.settle(Duration::from_millis(400));
+            stage.shoot("links");
+
+            // Tabs in hero order; web-01 runs htop and ends up in front.
+            stage.store(|store, cx| store.connect_host(&seeded.db_01, None, cx));
+            stage.store(|store, cx| {
+                store.connect_host(&seeded.web_01, Some("htop".to_string()), cx)
+            });
+            stage.store(|store, cx| store.connect_host(&seeded.web_02, None, cx));
+            stage.store(|store, cx| store.connect_host(&seeded.api, None, cx));
+            stage.store(|store, cx| store.connect_local(None, None, cx));
+            stage.settle(Duration::from_millis(4000));
+            focus(&mut stage, 0);
+            stage.settle(Duration::from_millis(400));
+            stage.shoot("held");
+            focus(&mut stage, 1);
+            stage.settle(Duration::from_millis(1500));
+            stage.shoot("hero");
+
+            stage.store(|store, cx| store.navigate(Route::Sftp, cx));
+            stage.settle(Duration::from_millis(2500));
+            stage.shoot("sftp");
+        }
+
+        /// Brings the `index`th tab to the front.
+        fn focus(stage: &mut Stage, index: usize) {
+            let id =
+                stage.store(|store, _| store.sessions.get(index).map(|session| session.id.clone()));
+            stage.store(|store, cx| {
+                store.set_active(id, cx);
+                store.navigate(Route::Terminal, cx);
+            });
         }
     }
 }
