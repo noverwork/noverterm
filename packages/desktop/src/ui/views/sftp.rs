@@ -1537,7 +1537,7 @@ impl SftpView {
                     .border_color(theme::hairline())
                     .bg(theme::RIB)
                     .cursor_pointer()
-                    .hover(|style| style.bg(rgb(0x1f252c)))
+                    .hover(|style| style.bg(theme::RIB_HOVER))
                     .tooltip(move |window, cx| {
                         Tooltip::new(identity_hint.clone()).build(window, cx)
                     })
@@ -1854,7 +1854,7 @@ impl SftpView {
                         choice.cursor_pointer().hover(|style| {
                             style
                                 .border_color(theme::STENCIL.opacity(0.2))
-                                .bg(rgb(0x1f252c))
+                                .bg(theme::RIB_HOVER)
                         })
                     }
                 })

@@ -25,6 +25,8 @@ pub const TERMINAL_INK: Rgba = hex(0x000000);
 pub const PORT: Rgba = hex(0x101317);
 pub const RAIL: Rgba = hex(0x0b0e11);
 pub const RIB: Rgba = hex(0x1a1f25);
+/// A raised surface under the pointer.
+pub const RIB_HOVER: Rgba = hex(0x1f252c);
 pub const STENCIL: Rgba = hex(0xe8e4d8);
 pub const STENCIL_DIM: Rgba = hex(0xc1beb5);
 pub const STENCIL_MUTE: Rgba = hex(0x9f9d96);

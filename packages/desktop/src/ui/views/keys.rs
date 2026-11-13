@@ -470,11 +470,8 @@ impl Render for KeyForm {
                         )),
                 )
                 .child(
-                    common::form_section("key-round", t("Private key"), None).child(common::field(
-                        t("Private key"),
-                        Textarea::new(&self.private_key).disabled(disabled),
-                        None,
-                    )),
+                    common::form_section("key-round", t("Private key"), None)
+                        .child(Textarea::new(&self.private_key).disabled(disabled)),
                 ),
             common::form_buttons(
                 submit_label,
