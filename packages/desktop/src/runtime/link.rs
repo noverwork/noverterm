@@ -254,8 +254,10 @@ impl Job {
             .authenticate_publickey(RELAY_USER, key)
             .await
             .map_err(|error| Failure::Retry(format!("Authentication failed: {error}")))?;
+        // Retried: adding the key to the relay takes effect without a restart,
+        // so the Link comes up on its own once the owner has done it.
         if !auth.success() {
-            return Err(Failure::Fatal(
+            return Err(Failure::Retry(
                 "Relay rejected the Link key: add it to the relay's authorized_keys".to_string(),
             ));
         }
