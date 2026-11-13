@@ -57,6 +57,7 @@ pub fn build(route: &Route, window: &mut Window, cx: &mut App) -> AnyView {
                 .into()
         }
         Route::Mcp => cx.new(|cx| mcp::McpView::new(window, cx)).into(),
+        Route::Settings => cx.new(|cx| settings::SettingsView::new(window, cx)).into(),
         _ => cx.new(|_| Placeholder(format!("{route:?}").into())).into(),
     }
 }
@@ -81,7 +82,7 @@ pub fn local_terminal_ai_allowed(cx: &App) -> bool {
 }
 
 /// What lives for the whole window regardless of the page: the MCP status
-/// line, the approval dialog, settings, the update prompt, and the terminal's
+/// line, the approval dialog, the update prompt, and the terminal's
 /// AI assistant.
 pub struct Overlays {
     status: Entity<mcp::StatusLine>,
@@ -92,18 +93,9 @@ pub struct Overlays {
 impl Overlays {
     pub fn new<V: 'static>(window: &mut Window, cx: &mut Context<V>) -> Self {
         let events = mcp::McpEvents::install(window, cx);
-        let store = crate::ui::store::store(cx);
-        let mut settings_open = false;
         let subscriptions = vec![
             // Tabs show whether AI may use local terminals.
             cx.observe(&events, |_, _, cx| cx.notify()),
-            cx.observe_in(&store, window, move |_, store, window, cx| {
-                let show = store.read(cx).show_settings;
-                if show && !settings_open {
-                    settings::open(window, cx);
-                }
-                settings_open = show;
-            }),
         ];
         // Tests and offline setups can skip the request to GitHub. Version
         // 0.0.0 is a local build (releases get theirs from the tag), and every

@@ -40,6 +40,12 @@ Your AI agent works your servers through the built-in MCP server: Claude Code, C
 - Negotiated Kitty keyboard protocol with modifier, repeat, and release events
 - In-terminal search
 
+### AI assistant
+
+1. Open **Settings → AI assistant**. Pick a provider (Anthropic, OpenCode Go, or any OpenAI-compatible API such as OpenAI or Ollama), enter the model and API key, and click **Save**.
+2. In a terminal tab, press `Cmd+K` (`Ctrl+Shift+K` on Windows and Linux) and describe what you want. The assistant turns it into a command.
+3. To explain output, select it first, then press `Cmd+K`.
+
 ### SFTP file transfer
 
 - Dual-pane browser: local or any host in each pane
@@ -135,6 +141,8 @@ On Windows and Linux, use `Ctrl` in place of `Cmd`.
 
 | Action | Shortcut |
 |--------|----------|
+| AI assistant | `Cmd+K` (`Ctrl+Shift+K` on Windows and Linux) |
+| Settings | `Cmd+,` |
 | Jump to tab 1–9 | `Cmd+1` … `Cmd+9` |
 | Next / previous tab | `Cmd+Shift+]` / `Cmd+Shift+[`, `Ctrl+Tab` / `Ctrl+Shift+Tab` |
 | Search in terminal | `Cmd+F` |
@@ -147,7 +155,8 @@ On Windows and Linux, use `Ctrl` in place of `Cmd`.
 
 - All data is stored in a local SQLite database in the app data folder.
 - No account, telemetry, or cloud sync.
-- The only network traffic besides your SSH connections and your own relay (if you use Links) is the update check against GitHub Releases.
+- The only network traffic besides your SSH connections, your own relay (if you use Links) and your AI provider (if you use the assistant) is the update check against GitHub Releases.
+- **Settings → Data** backs the database up to your Downloads folder and restores it from a backup file.
 
 ## Build from Source
 

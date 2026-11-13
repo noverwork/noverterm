@@ -211,6 +211,7 @@ impl Shell {
             Route::Snippets | Route::SnippetForm { .. } => "snippets",
             Route::Sftp => "sftp",
             Route::Mcp => "mcp",
+            Route::Settings => "settings",
             Route::Terminal => "terminal",
         };
         let active = section(&route);
@@ -382,14 +383,11 @@ impl Shell {
                     .border_t_1()
                     .border_color(theme::RIB)
                     .child(
-                        rail_button("settings", false)
-                            .border_color(gpui_kit::transparent_black())
+                        rail_button("settings", active == "settings")
                             .tooltip(|window, cx| Tooltip::new(t("Settings")).build(window, cx))
                             .on_click(move |_, _, cx| {
-                                store_handle.update(cx, |store, cx| {
-                                    store.show_settings = true;
-                                    cx.notify();
-                                });
+                                store_handle
+                                    .update(cx, |store, cx| store.navigate(Route::Settings, cx));
                             })
                             .child(lucide("settings").size_3p5()),
                     ),
@@ -656,6 +654,7 @@ impl Shell {
             Route::Snippets | Route::SnippetForm { .. } => Some((t("Snippets"), "file-text")),
             Route::Sftp => Some(("SFTP".into(), "folder-open")),
             Route::Mcp => Some(("MCP".into(), "plug")),
+            Route::Settings => Some((t("Settings"), "settings")),
             Route::Terminal => None,
         };
         let local_ai = views::local_terminal_ai_allowed(cx);
@@ -1245,10 +1244,8 @@ impl Render for Shell {
             .bg(theme::PORT)
             .text_color(theme::STENCIL)
             .on_action(cx.listener(|this, _: &OpenSettings, _, cx| {
-                this.store.update(cx, |store, cx| {
-                    store.show_settings = true;
-                    cx.notify();
-                });
+                this.store
+                    .update(cx, |store, cx| store.navigate(Route::Settings, cx));
             }))
             .on_action(cx.listener(|this, _: &ShowTerminal, _, cx| {
                 this.store
