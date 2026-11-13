@@ -2,9 +2,9 @@
 
 # Noverterm
 
-**An open-source alternative to Termius, with ngrok-style public URLs built in.**
+**SSH for you and your AI.**
 
-A native SSH client for macOS, Windows, and Linux. Built with GPUI and Rust. No Electron, no webview.
+An open-source alternative to Termius, with ngrok-style public URLs built in. A native SSH client for macOS, Windows, and Linux, built with Rust and GPUI. No Electron, no webview.
 
 [![Release](https://img.shields.io/github/v/release/noverwork/noverterm)](https://github.com/noverwork/noverterm/releases)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)]()
@@ -69,7 +69,7 @@ Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fa
 
 ### Connections and keys
 
-- Organize connections into folders
+- Organize connections into groups; each group paints its tabs in its own colour with a stencilled code, such as `PRD·WEB-01`
 - Reach private servers through jump hosts (like `ssh -J`), chained up to five hops; terminal, SFTP, and port forwarding all tunnel through them
 - Import and manage SSH keys
 
@@ -82,9 +82,10 @@ Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fa
   - Files: `list_dir`, `read_file`, and `write_file` for text files; `upload_file` and `download_file` copy files and folders over SFTP
   - Snippets: `list_snippets` and `run_snippet`
   - Port forwarding: `list_port_forwards`, `start_port_forward` (listens on 127.0.0.1), and `stop_port_forward` for tunnels the agent opened
-  - Links: `list_links`, `start_link` to publish a local web service at a public URL through your own relay (always asks), and `stop_link`
+  - Links: `list_links`, `start_link` to publish a local web service at a public URL through your own relay, and `stop_link`
   - Terminal tabs: `list_terminals` and `read_terminal` return a tab's recent output as plain text
-- Everything that touches a host or a terminal tab needs your approval, including input sent to a running command: allow once, always allow a host until the app restarts, or deny; unanswered requests are denied after two minutes
+- Everything that touches a host or a terminal tab needs your approval, including input sent to a running command: allow once, always allow a host (saved with the host, change it in its settings), or deny; a request nobody answers is denied after one minute
+- Publishing a Link always asks, every time: there is no "always allow" for putting a service online
 - Listens on 127.0.0.1 only, behind a token kept in the local database
 - Passwords and keys stay in Noverterm; the agent sees host names, never credentials
 - Hosts must pass their fingerprint check, and jump hosts work as they do in the terminal
@@ -212,6 +213,6 @@ Noverterm is released under the [MIT License](LICENSE).
 
 <div align="center">
 
-**Noverterm** — Because your SSH client shouldn't need its own memory allocator.
+**Noverterm** — SSH for you and your AI.
 
 </div>
