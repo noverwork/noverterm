@@ -2,9 +2,9 @@
 
 # Noverterm
 
-**An open-source alternative to Termius, with ngrok-style public URLs built in.**
+**SSH for you and your AI.**
 
-A native SSH client for macOS, Windows, and Linux. Built with GPUI and Rust. No Electron, no webview.
+An open-source Termius alternative built for the AI era: SSH, an MCP server and ngrok-style Links in one app, so you and your agent go from server to public URL without leaving it. For macOS, Windows, and Linux.
 
 [![Release](https://img.shields.io/github/v/release/noverwork/noverterm)](https://github.com/noverwork/noverterm/releases)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)]()
@@ -16,16 +16,16 @@ A native SSH client for macOS, Windows, and Linux. Built with GPUI and Rust. No 
 
 ![Noverterm with five session tabs: a held database tab, htop running over SSH, two more hosts and a local terminal](docs/assets/shots/hero.webp)
 
-Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fast window. Links put a local web service on a public HTTPS URL through a relay you run yourself, like a self-hosted ngrok. A built-in MCP server lets AI agents such as Claude Code and Cursor run commands on your hosts, each one approved by you. All data stays in a local SQLite database. No account, no cloud sync.
+Your AI agent works your servers through the built-in MCP server: Claude Code, Cursor and others run commands, edit files and open tunnels on your hosts, each step approved by you. Links put what you build on a public HTTPS URL through a relay you run yourself, like a self-hosted ngrok. Around them sits a full SSH client: tabs, SFTP, port forwarding, jump hosts, keys and snippets. All data stays in a local SQLite database. No account, no cloud sync.
 
 ## Highlights
 
-- **Lightweight** — GPUI + Rust, drawn on the GPU without a webview
+- **MCP server for AI agents** — Claude Code, Cursor, VS Code, and Claude Desktop can run commands, edit files, open tunnels, publish Links, and read terminal tabs on your hosts, with your approval
+- **Links** — share a dev server or receive webhooks at `https://<name>.<your-domain>`, ngrok-style, through your own relay
+- **One workflow** — your agent edits code on a host, starts the dev server, and publishes it with a Link, all in one app
 - **Tabs for everything** — many SSH sessions, plus a local terminal, side by side
 - **TUI-ready** — Kitty keyboard protocol, IME input, and paste handling for vim, tmux, and htop
 - **Dual-pane SFTP** — local or any saved host on each side, drag and drop between them
-- **Links** — share a dev server or receive webhooks at `https://<name>.<your-domain>`, ngrok-style, through your own relay
-- **MCP server for AI agents** — Claude Code, Cursor, VS Code, and Claude Desktop can run commands, edit files, open tunnels, and read terminal tabs on your hosts, with your approval
 - **Local-first** — connections, keys, and snippets never leave your machine
 
 ## Features
@@ -69,7 +69,7 @@ Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fa
 
 ### Connections and keys
 
-- Organize connections into folders
+- Organize connections into groups; each group paints its tabs in its own colour with a stencilled code, such as `PRD·WEB-01`
 - Reach private servers through jump hosts (like `ssh -J`), chained up to five hops; terminal, SFTP, and port forwarding all tunnel through them
 - Import and manage SSH keys
 
@@ -82,9 +82,10 @@ Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fa
   - Files: `list_dir`, `read_file`, and `write_file` for text files; `upload_file` and `download_file` copy files and folders over SFTP
   - Snippets: `list_snippets` and `run_snippet`
   - Port forwarding: `list_port_forwards`, `start_port_forward` (listens on 127.0.0.1), and `stop_port_forward` for tunnels the agent opened
-  - Links: `list_links`, `start_link` to publish a local web service at a public URL through your own relay (always asks), and `stop_link`
+  - Links: `list_links`, `start_link` to publish a local web service at a public URL through your own relay, and `stop_link`
   - Terminal tabs: `list_terminals` and `read_terminal` return a tab's recent output as plain text
-- Everything that touches a host or a terminal tab needs your approval, including input sent to a running command: allow once, always allow a host until the app restarts, or deny; unanswered requests are denied after two minutes
+- Everything that touches a host or a terminal tab needs your approval, including input sent to a running command: allow once, always allow a host (saved with the host, change it in its settings), or deny; a request nobody answers is denied after one minute
+- Publishing a Link always asks, every time: there is no "always allow" for putting a service online
 - Listens on 127.0.0.1 only, behind a token kept in the local database
 - Passwords and keys stay in Noverterm; the agent sees host names, never credentials
 - Hosts must pass their fingerprint check, and jump hosts work as they do in the terminal
@@ -212,6 +213,6 @@ Noverterm is released under the [MIT License](LICENSE).
 
 <div align="center">
 
-**Noverterm** — Because your SSH client shouldn't need its own memory allocator.
+**Noverterm** — SSH for you and your AI.
 
 </div>

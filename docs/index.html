@@ -6,7 +6,7 @@
     <title>Noverterm – Open-Source Termius Alternative with Built-in ngrok-Style Links</title>
     <meta
       name="description"
-      content="A free, open-source Termius alternative for macOS, Windows and Linux: SSH tabs, SFTP, port forwarding, jump hosts, keys and snippets, self-hosted ngrok-style Links that put a local web service on a public HTTPS URL, and an MCP server so AI agents can work your hosts with your approval. Native Rust, local-first, no account, MIT licensed."
+      content="An open-source Termius alternative built for the AI era: SSH, an MCP server and ngrok-style Links in one app, so you and your agent go from server to public URL without leaving it. SSH tabs, SFTP, port forwarding, jump hosts, keys and snippets on macOS, Windows and Linux. Local-first, no account, MIT licensed."
     />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://noverwork.github.io/noverterm/" />
@@ -15,12 +15,12 @@
     <meta property="og:title" content="Noverterm – Open-Source Termius Alternative" />
     <meta
       property="og:description"
-      content="An open-source alternative to Termius, with ngrok-style public URLs built in. SSH tabs, SFTP, tunnels, keys and snippets in one native window."
+      content="An open-source Termius alternative built for the AI era: SSH, an MCP server and ngrok-style Links in one app, so you and your agent go from server to public URL without leaving it."
     />
     <meta property="og:image" content="https://noverwork.github.io/noverterm/og-image.svg" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Noverterm – Open-Source Termius Alternative" />
-    <meta name="twitter:description" content="An open-source alternative to Termius, with ngrok-style public URLs built in." />
+    <meta name="twitter:description" content="An open-source Termius alternative built for the AI era: SSH, an MCP server and ngrok-style Links in one app, so you and your agent go from server to public URL without leaving it." />
     <meta name="twitter:image" content="https://noverwork.github.io/noverterm/og-image.svg" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -1376,8 +1376,8 @@
             </div>
             <h1 id="title">SSH for you and your AI</h1>
             <p class="lede">
-              An open-source alternative to Termius, with ngrok-style public URLs built in. Tabs, SFTP, tunnels and
-              keys on macOS, Windows and Linux; your hosts, your relay, and an AI agent that asks before every step.
+              An open-source Termius alternative built for the AI era: SSH, an MCP server and ngrok-style Links in
+              one app, so you and your agent go from server to public URL without leaving it.
             </p>
             <a class="btn" href="https://github.com/noverwork/noverterm/releases">Download for macOS, Windows or Linux</a>
           </div>
@@ -1415,7 +1415,7 @@
             <li>Listens on 127.0.0.1 only, behind a token kept in Noverterm's local database.</li>
             <li>Passwords and keys stay in Noverterm. The agent sees host names, never credentials.</li>
             <li>Hosts must pass their fingerprint check, and jump hosts work as they do in the terminal.</li>
-            <li>Allow once, always allow a host, or deny. A request nobody answers is denied after two minutes.</li>
+            <li>Allow once, always allow a host, or deny. A request nobody answers is denied after one minute.</li>
             <li>Publishing a Link always asks, every time: there is no "always allow" for putting a service online.</li>
           </ul>
         </div>
@@ -1550,11 +1550,11 @@
 
       <!-- What it leaves out -->
       <section class="light" aria-labelledby="light-h">
-        <h2 id="light-h">Light on purpose</h2>
+        <h2 id="light-h">One app, start to finish</h2>
         <div class="sw-band on" style="--c: var(--rust)">
           <div>
-            <h3 id="s1">No Electron underneath</h3>
-            <p>Rust from the window to the wire: the interface is drawn on the GPU with GPUI, no browser engine bundled or borrowed.</p>
+            <h3 id="s1">From server to public URL</h3>
+            <p>Your agent edits code on a host over MCP, starts the dev server and publishes it with a Link. You approve each step.</p>
           </div>
           <button class="toggle" role="switch" aria-checked="true" aria-labelledby="s1"></button>
         </div>
@@ -1662,8 +1662,8 @@
             <div class="a"><p>Yes, the way <code>ssh -J</code> does, chained up to five hops. Each host signs in with its own saved credentials and verifies its own fingerprint. The bastion needs <code>AllowTcpForwarding yes</code>, which is the OpenSSH default.</p></div>
           </details>
           <details name="faq" style="--i: 4; --c: var(--stencil); --t: var(--port)">
-            <summary><span class="topic">Weight</span><h3>Why is it so much lighter?</h3></summary>
-            <div class="a"><p>There is no browser inside. The window is drawn on the GPU with GPUI, and SSH, SFTP and tunnels run in Rust (Russh and Tokio), instead of shipping a whole Chromium per app.</p></div>
+            <summary><span class="topic">AI</span><h3>What can my AI agent do with it?</h3></summary>
+            <div class="a"><p>Through the MCP server it can run commands, read and write files, run your snippets, open port forwards and publish a Link. You approve each step, and passwords and keys never leave Noverterm.</p></div>
           </details>
           <details name="faq" style="--i: 5; --c: var(--graphite)">
             <summary><span class="topic">Updates</span><h3>How do I get new versions?</h3></summary>
@@ -1737,7 +1737,7 @@
             <li><a href="https://github.com/noverwork/noverterm/blob/main/LICENSE">MIT</a></li>
           </ul>
         </nav>
-        <p class="about">Noverterm is made by noverwork. Because your SSH client shouldn't need its own memory allocator.</p>
+        <p class="about">Noverterm is made by noverwork. SSH for you and your AI.</p>
         <div class="last">
           <span>© 2026 noverwork</span>
           <a class="btn" href="https://github.com/noverwork/noverterm/releases">Download</a>
