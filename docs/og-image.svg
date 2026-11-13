@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
   <title id="title">Noverterm social preview</title>
-  <desc id="desc">An open-source alternative to Termius, with ngrok-style public URLs built in. Native SSH client for macOS, Windows and Linux, built with Rust.</desc>
+  <desc id="desc">An open-source Termius alternative built for the AI era: SSH, an MCP server and ngrok-style Links in one app, so you and your agent go from server to public URL without leaving it.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0f172a" />
@@ -56,7 +56,7 @@
   </svg>
   <text x="118" y="262" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="86" font-weight="800" letter-spacing="-4">Noverterm</text>
   <text x="118" y="344" fill="#bfdbfe" font-family="Inter, Arial, sans-serif" font-size="36" font-weight="700">Open-source Termius alternative</text>
-  <text x="118" y="414" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="30">macOS · Windows · Linux · Rust · No Electron</text>
+  <text x="118" y="414" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="30">SSH · MCP · Links, built for the AI era</text>
   <g transform="translate(780 132)">
     <rect width="282" height="296" rx="26" fill="#020617" stroke="#334155" />
     <rect width="282" height="48" rx="26" fill="#111827" />

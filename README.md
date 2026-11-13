@@ -4,7 +4,7 @@
 
 **SSH for you and your AI.**
 
-An open-source alternative to Termius, with ngrok-style public URLs built in. A native SSH client for macOS, Windows, and Linux, built with Rust and GPUI. No Electron, no webview.
+An open-source Termius alternative built for the AI era: SSH, an MCP server and ngrok-style Links in one app, so you and your agent go from server to public URL without leaving it. For macOS, Windows, and Linux.
 
 [![Release](https://img.shields.io/github/v/release/noverwork/noverterm)](https://github.com/noverwork/noverterm/releases)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)]()
@@ -16,16 +16,16 @@ An open-source alternative to Termius, with ngrok-style public URLs built in. A 
 
 ![Noverterm with five session tabs: a held database tab, htop running over SSH, two more hosts and a local terminal](docs/assets/shots/hero.webp)
 
-Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fast window. Links put a local web service on a public HTTPS URL through a relay you run yourself, like a self-hosted ngrok. A built-in MCP server lets AI agents such as Claude Code and Cursor run commands on your hosts, each one approved by you. All data stays in a local SQLite database. No account, no cloud sync.
+Your AI agent works your servers through the built-in MCP server: Claude Code, Cursor and others run commands, edit files and open tunnels on your hosts, each step approved by you. Links put what you build on a public HTTPS URL through a relay you run yourself, like a self-hosted ngrok. Around them sits a full SSH client: tabs, SFTP, port forwarding, jump hosts, keys and snippets. All data stays in a local SQLite database. No account, no cloud sync.
 
 ## Highlights
 
-- **Lightweight** — GPUI + Rust, drawn on the GPU without a webview
+- **MCP server for AI agents** — Claude Code, Cursor, VS Code, and Claude Desktop can run commands, edit files, open tunnels, publish Links, and read terminal tabs on your hosts, with your approval
+- **Links** — share a dev server or receive webhooks at `https://<name>.<your-domain>`, ngrok-style, through your own relay
+- **One workflow** — your agent edits code on a host, starts the dev server, and publishes it with a Link, all in one app
 - **Tabs for everything** — many SSH sessions, plus a local terminal, side by side
 - **TUI-ready** — Kitty keyboard protocol, IME input, and paste handling for vim, tmux, and htop
 - **Dual-pane SFTP** — local or any saved host on each side, drag and drop between them
-- **Links** — share a dev server or receive webhooks at `https://<name>.<your-domain>`, ngrok-style, through your own relay
-- **MCP server for AI agents** — Claude Code, Cursor, VS Code, and Claude Desktop can run commands, edit files, open tunnels, and read terminal tabs on your hosts, with your approval
 - **Local-first** — connections, keys, and snippets never leave your machine
 
 ## Features
