@@ -2,7 +2,9 @@
 
 # Noverterm
 
-**A native SSH client for macOS, Windows, and Linux. Built with GPUI and Rust. No Electron, no webview.**
+**An open-source alternative to Termius, with ngrok-style public URLs built in.**
+
+A native SSH client for macOS, Windows, and Linux. Built with GPUI and Rust. No Electron, no webview.
 
 [![Release](https://img.shields.io/github/v/release/noverwork/noverterm)](https://github.com/noverwork/noverterm/releases)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)]()
@@ -12,9 +14,9 @@
 
 </div>
 
-> _Screenshots coming soon._
+![Noverterm with five session tabs: a held database tab, htop running over SSH, two more hosts and a local terminal](docs/assets/shots/hero.webp)
 
-Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fast window. A built-in MCP server lets AI agents such as Claude Code and Cursor run commands on your hosts, each one approved by you. All data stays in a local SQLite database. No account, no cloud sync.
+Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fast window. Links put a local web service on a public HTTPS URL through a relay you run yourself, like a self-hosted ngrok. A built-in MCP server lets AI agents such as Claude Code and Cursor run commands on your hosts, each one approved by you. All data stays in a local SQLite database. No account, no cloud sync.
 
 ## Highlights
 
@@ -22,6 +24,7 @@ Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fa
 - **Tabs for everything** — many SSH sessions, plus a local terminal, side by side
 - **TUI-ready** — Kitty keyboard protocol, IME input, and paste handling for vim, tmux, and htop
 - **Dual-pane SFTP** — local or any saved host on each side, drag and drop between them
+- **Links** — share a dev server or receive webhooks at `https://<name>.<your-domain>`, ngrok-style, through your own relay
 - **MCP server for AI agents** — Claude Code, Cursor, VS Code, and Claude Desktop can run commands, edit files, open tunnels, and read terminal tabs on your hosts, with your approval
 - **Local-first** — connections, keys, and snippets never leave your machine
 
@@ -49,6 +52,16 @@ Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fa
 - Local SSH tunnels saved as presets
 - Several ports per preset
 
+### Links
+
+![Links page: relay domain with this install's Link key, and three Links, one online](docs/assets/shots/links.webp)
+
+- Publish a local HTTP service at `https://<name>.<your-domain>`, the way ngrok does, without a third-party service
+- Runs through a relay on your own server: one Docker image plus a domain and its wildcard; see [packages/relay](packages/relay/README.md)
+- Only keys you add to the relay can connect; each install shows its own Link key to copy
+- HTTPS and WebSockets; reconnects by itself when the line drops
+- Plain `ssh -R <name>:80:localhost:3000` works against the same relay
+
 ### Snippets
 
 - Save frequent commands and run them in active sessions
@@ -72,7 +85,7 @@ Noverterm puts SSH sessions, SFTP, port forwarding, keys, and snippets in one fa
   - Links: `list_links`, `start_link` to publish a local web service at a public URL through your own relay (always asks), and `stop_link`
   - Terminal tabs: `list_terminals` and `read_terminal` return a tab's recent output as plain text
 - Everything that touches a host or a terminal tab needs your approval, including input sent to a running command: allow once, always allow a host until the app restarts, or deny; unanswered requests are denied after two minutes
-- Listens on 127.0.0.1 only, behind a token kept in the system keychain
+- Listens on 127.0.0.1 only, behind a token kept in the local database
 - Passwords and keys stay in Noverterm; the agent sees host names, never credentials
 - Hosts must pass their fingerprint check, and jump hosts work as they do in the terminal
 
@@ -132,12 +145,11 @@ On Windows, use `Ctrl` in place of `Cmd`.
 
 - All data is stored in a local SQLite database in the app data folder.
 - No account, telemetry, or cloud sync.
-- The only network traffic besides your SSH connections is the update check against GitHub Releases.
+- The only network traffic besides your SSH connections and your own relay (if you use Links) is the update check against GitHub Releases.
 
 ## Roadmap
 
 - [ ] Linux support
-- [ ] Screenshots
 
 ## Build from Source
 
@@ -155,6 +167,7 @@ The bundled app is in `target/release/bundle/`.
 cargo make dev                # run the app
 cargo make screenshots        # render every page offscreen to target/screenshots
 cargo make ci                 # clippy, format check, tests
+scripts/site-shots.sh         # re-shoot the website screenshots (needs Docker and cwebp)
 ```
 
 ### Tech stack
@@ -173,6 +186,7 @@ cargo make ci                 # clippy, format check, tests
 noverterm/
 ├── packages/
 │   ├── desktop/        # The app: GPUI front end and SSH backend, owns the SQLite database
+│   ├── relay/          # Self-hosted relay for Links (noverterm-relay, Docker image)
 │   ├── shared/         # Record types shared by the backend and the UI
 │   └── orm/            # Diesel models and schema
 ├── Cargo.toml          # Rust workspace
