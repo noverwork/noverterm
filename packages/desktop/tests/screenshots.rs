@@ -109,6 +109,7 @@ mod shots {
                     title: title.to_string(),
                     body: body.to_string(),
                     pin_icon: pin_icon.map(str::to_string),
+                    pin_color: None,
                 }
             };
             for request in [

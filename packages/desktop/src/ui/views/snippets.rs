@@ -13,7 +13,7 @@ use shared::{SnippetRecord, SnippetWriteRequest};
 
 use crate::ui::bridge::backend;
 use crate::ui::i18n::{t, tf};
-use crate::ui::icons::{lucide, pin_icon, PIN_ICON_NAMES};
+use crate::ui::icons::{lucide, pin_color, pin_icon, PIN_COLORS, PIN_ICON_NAMES};
 use crate::ui::store::{store, Route, Store};
 use crate::ui::theme;
 use crate::ui::views::common::{self, Choice, ChoiceSelect};
@@ -359,6 +359,8 @@ pub struct SnippetForm {
     host: Entity<ChoiceSelect>,
     show_on_panel: bool,
     pin_icon: String,
+    /// `None` keeps the default icon color.
+    pin_color: Option<String>,
     error: Option<SharedString>,
     saving: bool,
 }
@@ -415,6 +417,9 @@ impl SnippetForm {
             show_on_panel: snippet
                 .as_ref()
                 .map_or(shortcut, |snippet| snippet.pin_icon.is_some()),
+            pin_color: snippet
+                .as_ref()
+                .and_then(|snippet| snippet.pin_color.clone()),
             pin_icon: snippet
                 .and_then(|snippet| snippet.pin_icon)
                 .unwrap_or_else(|| "terminal".to_string()),
@@ -442,6 +447,7 @@ impl SnippetForm {
             title,
             body: self.body.read(cx).value().to_string(),
             pin_icon: self.show_on_panel.then(|| self.pin_icon.clone()),
+            pin_color: self.show_on_panel.then(|| self.pin_color.clone()).flatten(),
         };
         self.error = None;
         self.saving = true;
@@ -535,6 +541,37 @@ impl Render for SnippetForm {
                 }))
                 .child(pin_icon(name))
         });
+        let color_swatch =
+            |id: &'static str, value: Option<&'static str>, cx: &mut Context<Self>| {
+                let selected = self.pin_color.as_deref() == value;
+                div()
+                    .id(id)
+                    .size_10()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded(theme::RADIUS)
+                    .border_1()
+                    .cursor_pointer()
+                    .border_color(if selected {
+                        theme::STENCIL
+                    } else {
+                        theme::hairline()
+                    })
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.pin_color = value.map(str::to_string);
+                        cx.notify();
+                    }))
+                    .child(
+                        div()
+                            .size_5()
+                            .rounded_full()
+                            .bg(value.and_then(pin_color).unwrap_or(theme::STENCIL_MUTE)),
+                    )
+            };
+        let colors: Vec<_> = std::iter::once(color_swatch("color-default", None, cx))
+            .chain(PIN_COLORS.map(|color| color_swatch(color, Some(color), cx)))
+            .collect();
 
         common::form_page(
             if editing {
@@ -591,11 +628,17 @@ impl Render for SnippetForm {
                                 ),
                         )
                         .when(self.show_on_panel, |section| {
-                            section.child(common::field(
-                                t("Icon"),
-                                h_flex().flex_wrap().gap_2().children(icons),
-                                None,
-                            ))
+                            section
+                                .child(common::field(
+                                    t("Icon"),
+                                    h_flex().flex_wrap().gap_2().children(icons),
+                                    None,
+                                ))
+                                .child(common::field(
+                                    t("Color"),
+                                    h_flex().flex_wrap().gap_2().children(colors),
+                                    None,
+                                ))
                         }),
                 ),
             common::form_buttons(

@@ -66,6 +66,7 @@ pub async fn snippet_create(
                     None => None,
                 },
                 pin_icon: snippet.pin_icon,
+                pin_color: snippet.pin_color,
             })
             .get_result::<HostSnippet>(connection)
             .map_err(internal_error)?;
@@ -107,6 +108,7 @@ pub async fn snippet_update(
                 updated_at: Utc::now().naive_utc(),
                 pin_icon: snippet.pin_icon,
                 pin_order,
+                pin_color: snippet.pin_color,
             })
             .get_result::<HostSnippet>(connection)
             .optional()
@@ -194,5 +196,6 @@ fn to_record((snippet, host_name): (HostSnippet, Option<String>)) -> SnippetReco
         body: snippet.body,
         pin_icon: snippet.pin_icon,
         pin_order: snippet.pin_order,
+        pin_color: snippet.pin_color,
     }
 }

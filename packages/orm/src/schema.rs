@@ -19,6 +19,7 @@ diesel::table! {
         updated_at -> Timestamp,
         pin_icon -> Nullable<Text>,
         pin_order -> Nullable<Integer>,
+        pin_color -> Nullable<Text>,
     }
 }
 

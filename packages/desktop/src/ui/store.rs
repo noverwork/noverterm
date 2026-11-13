@@ -1045,6 +1045,7 @@ impl Store {
                 title: snippet.title.clone(),
                 body: snippet.body.clone(),
                 pin_icon: None,
+                pin_color: None,
             },
         );
         cx.spawn(async move |this, cx| {

@@ -412,6 +412,7 @@ async fn grouped_connections_and_snippets_reload_with_their_host() {
             title: "restart".to_string(),
             body: "systemctl restart app".to_string(),
             pin_icon: None,
+            pin_color: None,
         },
         app.state(),
     )
@@ -444,6 +445,7 @@ async fn local_snippets_have_no_host_and_can_be_moved_back_to_local() {
             title: "ls".to_string(),
             body: "ls -la".to_string(),
             pin_icon: None,
+            pin_color: None,
         },
         app.state(),
     )
@@ -459,6 +461,7 @@ async fn local_snippets_have_no_host_and_can_be_moved_back_to_local() {
             title: "ls".to_string(),
             body: "ls -la".to_string(),
             pin_icon: None,
+            pin_color: None,
         },
         app.state(),
     )
@@ -473,6 +476,7 @@ async fn local_snippets_have_no_host_and_can_be_moved_back_to_local() {
             title: "ls".to_string(),
             body: "ls -la".to_string(),
             pin_icon: Some("terminal".to_string()),
+            pin_color: Some("#f87171".to_string()),
         },
         app.state(),
     )
@@ -486,6 +490,7 @@ async fn local_snippets_have_no_host_and_can_be_moved_back_to_local() {
     assert_eq!(snippets[0].host_id, None);
     assert_eq!(snippets[0].host_name, "Local Terminal");
     assert_eq!(snippets[0].pin_icon.as_deref(), Some("terminal"));
+    assert_eq!(snippets[0].pin_color.as_deref(), Some("#f87171"));
 }
 
 #[tokio::test]
@@ -496,6 +501,7 @@ async fn pinned_snippets_append_keep_their_place_and_reorder() {
         title: title.to_string(),
         body: String::new(),
         pin_icon: pin_icon.map(str::to_string),
+        pin_color: None,
     };
 
     let a = super::snippets::snippet_create(write("a", Some("bot")), app.state())

@@ -106,6 +106,7 @@ pub struct SnippetRecord {
     pub body: String,
     pub pin_icon: Option<String>,
     pub pin_order: Option<i32>,
+    pub pin_color: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -114,6 +115,7 @@ pub struct SnippetWriteRequest {
     pub title: String,
     pub body: String,
     pub pin_icon: Option<String>,
+    pub pin_color: Option<String>,
 }
 
 // ============================================================================

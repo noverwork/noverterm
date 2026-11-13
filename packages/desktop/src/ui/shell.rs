@@ -10,7 +10,7 @@ use gpui_kit::*;
 use shared::SnippetRecord;
 
 use crate::ui::i18n::{t, tf};
-use crate::ui::icons::{lucide, pin_icon};
+use crate::ui::icons::{lucide, pin_color, pin_icon};
 use crate::ui::stencil::{session_stencil, Stencil};
 use crate::ui::store::{store, Route, Session, SessionStatus, Store};
 use crate::ui::terminal::SessionKind;
@@ -432,7 +432,14 @@ impl Shell {
                 store.update(cx, |store, cx| store.reorder_pinned_snippets(ids, cx));
             }
         })
-        .child(pin_icon(snippet.pin_icon.as_deref().unwrap_or_default()))
+        .child(
+            div()
+                .when_some(
+                    snippet.pin_color.as_deref().and_then(pin_color),
+                    |icon, color| icon.text_color(color),
+                )
+                .child(pin_icon(snippet.pin_icon.as_deref().unwrap_or_default())),
+        )
         .context_menu(move |menu, _, _| {
             let (edit_store, unpin_store) = (menu_store.clone(), menu_store.clone());
             let (edit, unpin) = (edit.clone(), unpin.clone());
