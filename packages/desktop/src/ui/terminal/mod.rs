@@ -838,17 +838,15 @@ impl TerminalView {
     }
 
     /// Whether mouse events go to the program instead of selecting text.
-    /// Shift (and Option on macOS) is the escape hatch back to selection;
-    /// Cmd (Ctrl elsewhere) also clicks links, as in iTerm2 and Ghostty.
+    /// Shift (and Option on macOS) is the escape hatch back to selection.
     fn reports_mouse(&self, modifiers: Modifiers) -> bool {
-        self.term.mode().intersects(TermMode::MOUSE_MODE)
-            && !modifiers.shift
-            && !modifiers.alt
-            && !if cfg!(target_os = "macos") {
-                modifiers.platform
-            } else {
-                modifiers.control
-            }
+        self.term.mode().intersects(TermMode::MOUSE_MODE) && !modifiers.shift && !modifiers.alt
+    }
+
+    /// Cmd+click (Ctrl+click elsewhere) opens a link we can see even when
+    /// the program tracks the mouse, as in iTerm2 and Ghostty.
+    fn clicks_link(&self, modifiers: Modifiers, point: GridPoint) -> bool {
+        link_modifier(modifiers) && self.link_at(point).is_some()
     }
 
     fn report_mouse(
@@ -893,19 +891,31 @@ impl TerminalView {
         cx: &mut Context<Self>,
     ) {
         self.focus.focus(window, cx);
-        let button = match event.button {
+        let mut modifiers = event.modifiers;
+        let mut button = match event.button {
             MouseButton::Left => 0,
             MouseButton::Middle => 1,
             MouseButton::Right => 2,
             _ => return,
         };
-        if self.reports_mouse(event.modifiers) {
+        let (point, side) = self.cell_at(event.position);
+        let link_click = button == 0 && self.clicks_link(modifiers, point);
+        if self.reports_mouse(modifiers) && !link_click {
+            if cfg!(target_os = "macos") {
+                // GPUI turns Ctrl+click into a right click; and a link only
+                // the program knows about (herdr keeps its OSC 8 links to
+                // itself) opens on Ctrl+click. Send both as Ctrl+left click.
+                let ctrl_click = button == 2 && window.modifiers().control;
+                if ctrl_click || (button == 0 && modifiers.platform) {
+                    button = 0;
+                    modifiers.control = true;
+                }
+            }
             self.reported_button = Some(button);
-            self.reported_motion = Some(self.cell_at(event.position).0);
-            self.report_mouse(button, true, event.position, event.modifiers);
+            self.reported_motion = Some(point);
+            self.report_mouse(button, true, event.position, modifiers);
             return;
         }
-        let (point, side) = self.cell_at(event.position);
         if event.button == MouseButton::Right {
             // Right-click selects the word under it, as xterm.js does on
             // macOS, unless it lands inside the current selection.
@@ -1090,7 +1100,7 @@ impl TerminalView {
     /// Recomputes the link under the pointer; true when it changed.
     fn update_hovered_link(&mut self, position: Point<Pixels>, modifiers: Modifiers) -> bool {
         let inside = self.bounds.contains(&position);
-        let link = (inside && !self.reports_mouse(modifiers))
+        let link = (inside && (!self.reports_mouse(modifiers) || link_modifier(modifiers)))
             .then(|| self.link_at(self.cell_at(position).0))
             .flatten();
         let changed = link.as_ref().map(|(_, range)| range)
@@ -1475,6 +1485,15 @@ impl Render for TerminalView {
     }
 }
 
+/// Cmd on macOS, Ctrl elsewhere: the key that opens links.
+fn link_modifier(modifiers: Modifiers) -> bool {
+    if cfg!(target_os = "macos") {
+        modifiers.platform
+    } else {
+        modifiers.control
+    }
+}
+
 #[cfg(test)]
 mod view_tests {
     use super::*;
@@ -1682,23 +1701,41 @@ mod view_tests {
     fn cmd_reaches_links_in_programs_that_track_the_mouse() {
         let mut terminal = Harness::new();
         terminal.feed("\x1b[?1000hsee https://example.com now");
-        let (plain, secondary, link) = terminal.read(|view| {
+        let key = Modifiers {
+            platform: cfg!(target_os = "macos"),
+            control: !cfg!(target_os = "macos"),
+            ..Modifiers::default()
+        };
+        let (on_link, off_link, link) = terminal.read(|view| {
             (
-                view.reports_mouse(Modifiers::default()),
-                view.reports_mouse(Modifiers {
-                    platform: cfg!(target_os = "macos"),
-                    control: !cfg!(target_os = "macos"),
-                    ..Modifiers::default()
-                }),
+                view.clicks_link(key, GridPoint::new(Line(0), Column(8))),
+                view.clicks_link(key, GridPoint::new(Line(0), Column(1))),
                 view.link_at(GridPoint::new(Line(0), Column(8))),
             )
         });
-        assert!(plain);
-        assert!(!secondary);
+        assert!(on_link);
+        assert!(!off_link);
         assert_eq!(
             link.map(|(url, _)| url).as_deref(),
             Some("https://example.com")
         );
+    }
+
+    #[::core::prelude::v1::test]
+    fn cmd_click_off_a_link_reaches_the_program_as_ctrl_click() {
+        let mut terminal = Harness::new();
+        terminal.feed("\x1b[?1000h\x1b[?1006h#1");
+        let cell = terminal.read(|view| view.cell);
+        let at = point(PADDING + cell.width * 0.5, PADDING + cell.height * 0.5);
+        let key = Modifiers {
+            platform: cfg!(target_os = "macos"),
+            control: !cfg!(target_os = "macos"),
+            ..Modifiers::default()
+        };
+        let mut window = VisualTestContext::from_window(terminal.window, &terminal.cx);
+        window.simulate_click(at, key);
+        // Ctrl on the press, where herdr looks for it.
+        assert_eq!(terminal.take(), "\x1b[<16;1;1M\x1b[<0;1;1m");
     }
 
     #[::core::prelude::v1::test]
