@@ -177,6 +177,22 @@ pub fn link_subdomain(requested: &str) -> Option<String> {
     valid.then_some(name)
 }
 
+/// The HTML page a Link visitor sees when nothing answers, in the app's palette.
+pub fn error_page(title: &str, message: &str) -> String {
+    format!(
+        "<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width\">\
+         <title>{title}</title>\
+         <body style=\"margin:0;min-height:100vh;display:grid;place-items:center;background:#101317;\
+         color:#e8e4d8;font:14px/1.6 ui-monospace,'Sarasa Term TC',Menlo,monospace\">\
+         <main style=\"max-width:32rem;margin:1rem;padding:1.5rem 1.75rem;background:#0b0e11;\
+         border:1px solid rgba(255,255,255,.1);border-radius:2px\">\
+         <div style=\"font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#c9952e\">\
+         &#9679; noverterm</div>\
+         <h1 style=\"margin:.5rem 0 .25rem;font-size:20px;font-weight:600\">{title}</h1>\
+         <p style=\"margin:0;color:#9f9d96\">{message}</p></main></body>"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::link_subdomain;
