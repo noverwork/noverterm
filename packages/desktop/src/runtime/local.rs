@@ -369,14 +369,21 @@ mod tests {
             }));
         }
         tokio::time::sleep(Duration::from_millis(200)).await;
-        let _ = manager.disconnect(&id).await;
+        // One resize stays queued behind the blocked write; every other one returns.
+        let pending = resizes
+            .iter()
+            .filter(|resize| !resize.is_finished())
+            .count();
+        assert_eq!(pending, 1);
         for resize in resizes {
-            let result = resize.await.expect("resize task");
-            assert_ne!(
-                result,
-                Err("Local terminal input queue is full".to_string())
-            );
+            if resize.is_finished() {
+                assert_eq!(resize.await.expect("resize task"), Ok(()));
+            } else {
+                resize.abort();
+            }
         }
-        let _ = blocked.await;
+        // Linux keeps a blocked PTY write blocked after the child exits, so never await it.
+        blocked.abort();
+        let _ = manager.disconnect(&id).await;
     }
 }
