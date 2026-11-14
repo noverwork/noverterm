@@ -36,7 +36,7 @@ jobs:
               target/release/bundle/*.deb
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # The app compares this version with the latest release to offer updates.
       - name: Inject version from tag
@@ -70,7 +70,7 @@ jobs:
         run: tar -czf target/release/bundle/noverterm.app.tar.gz -C target/release/bundle noverterm.app
 
       - name: Upload release build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.artifact_paths }}
@@ -81,10 +81,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: dist
           merge-multiple: true
