@@ -17,6 +17,7 @@ pub struct LocalSession {
     #[allow(dead_code)]
     child: Box<dyn Child + Send + Sync>,
     writer_tx: mpsc::SyncSender<LocalWriteRequest>,
+    pending_resize: PendingResize,
     killer: Arc<Mutex<Box<dyn portable_pty::ChildKiller + Send + Sync>>>,
 }
 
@@ -27,8 +28,13 @@ struct LocalWriteRequest {
 
 enum LocalOperation {
     Data(Vec<u8>),
-    Resize { cols: u32, rows: u32 },
+    /// Applies the latest size in `PendingResize`.
+    Resize,
 }
+
+/// Latest requested size; at most one queued resize reads it, so resize bursts
+/// cannot fill the input queue while the PTY is not reading.
+type PendingResize = Arc<std::sync::Mutex<Option<(u32, u32)>>>;
 
 #[derive(Default)]
 pub struct LocalSessionManager {
@@ -92,11 +98,13 @@ impl LocalSessionManager {
         let (writer_tx, writer_rx) = mpsc::sync_channel(LOCAL_WRITE_QUEUE_CAPACITY);
         let killer: Arc<Mutex<Box<dyn portable_pty::ChildKiller + Send + Sync>>> =
             Arc::new(Mutex::new(child.clone_killer()));
+        let pending_resize = PendingResize::default();
         self.sessions.lock().await.insert(
             session_id.clone(),
             LocalSession {
                 child,
                 writer_tx,
+                pending_resize: pending_resize.clone(),
                 killer: killer.clone(),
             },
         );
@@ -108,7 +116,13 @@ impl LocalSessionManager {
         });
         let writer_output = output.clone();
         std::thread::spawn(move || {
-            run_local_write_loop(writer, pair.master, writer_rx, writer_output)
+            run_local_write_loop(
+                writer,
+                pair.master,
+                writer_rx,
+                pending_resize,
+                writer_output,
+            )
         });
 
         let sid = session_id.clone();
@@ -145,8 +159,23 @@ impl LocalSessionManager {
     }
 
     pub async fn resize(&self, session_id: &str, cols: u32, rows: u32) -> Result<(), String> {
-        self.request(session_id, LocalOperation::Resize { cols, rows })
+        let pending = self
+            .sessions
+            .lock()
             .await
+            .get(session_id)
+            .ok_or_else(|| format!("Session not found: {session_id}"))?
+            .pending_resize
+            .clone();
+        if pending.lock().unwrap().replace((cols, rows)).is_some() {
+            // The queued resize applies this size.
+            return Ok(());
+        }
+        let result = self.request(session_id, LocalOperation::Resize).await;
+        if result.is_err() {
+            pending.lock().unwrap().take();
+        }
+        result
     }
 
     async fn request(&self, session_id: &str, operation: LocalOperation) -> Result<(), String> {
@@ -192,19 +221,23 @@ fn run_local_write_loop(
     mut writer: Box<dyn Write + Send>,
     master: Box<dyn MasterPty + Send>,
     writer_rx: mpsc::Receiver<LocalWriteRequest>,
+    pending_resize: PendingResize,
     output: Arc<OutputSession>,
 ) {
     while let Ok(request) = writer_rx.recv() {
         let result = match request.operation {
             LocalOperation::Data(data) => write_local_data(writer.as_mut(), &data),
-            LocalOperation::Resize { cols, rows } => master
-                .resize(PtySize {
-                    rows: rows as u16,
-                    cols: cols as u16,
-                    pixel_width: 0,
-                    pixel_height: 0,
-                })
-                .map_err(|e| format!("Failed to resize PTY: {e}")),
+            LocalOperation::Resize => match pending_resize.lock().unwrap().take() {
+                Some((cols, rows)) => master
+                    .resize(PtySize {
+                        rows: rows as u16,
+                        cols: cols as u16,
+                        pixel_width: 0,
+                        pixel_height: 0,
+                    })
+                    .map_err(|e| format!("Failed to resize PTY: {e}")),
+                None => Ok(()),
+            },
         };
         if let Err(error) = &result {
             output.fail(error.clone());
@@ -298,5 +331,59 @@ mod tests {
         .await;
         let _ = manager.disconnect(&id).await;
         result.expect("PTY close before timeout");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn resize_burst_does_not_fill_queue_while_pty_input_is_blocked() {
+        use std::time::Duration;
+
+        let output = TerminalOutput::default();
+        output
+            .subscribe(crate::runtime::terminal_output::Channel::new(|_| Ok(())))
+            .expect("subscribe");
+        let manager = Arc::new(LocalSessionManager::new());
+        let mut command = CommandBuilder::new("/bin/sleep");
+        command.arg("30");
+        let id = manager
+            .spawn_command(&output, 80, 24, command)
+            .await
+            .expect("spawn PTY");
+        // Output is never acknowledged, so the PTY echo fills up and blocks this write.
+        let blocked = tokio::spawn({
+            let (manager, id) = (manager.clone(), id.clone());
+            async move {
+                manager
+                    .write(&id, b"x\n".repeat(LOCAL_WRITE_MAX_BYTES / 2))
+                    .await
+            }
+        });
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(!blocked.is_finished(), "PTY write should block");
+
+        let mut resizes = Vec::new();
+        for cols in 0..(LOCAL_WRITE_QUEUE_CAPACITY as u32 * 4) {
+            let (manager, id) = (manager.clone(), id.clone());
+            resizes.push(tokio::spawn(async move {
+                manager.resize(&id, 80 + cols, 24).await
+            }));
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        // One resize stays queued behind the blocked write; every other one returns.
+        let pending = resizes
+            .iter()
+            .filter(|resize| !resize.is_finished())
+            .count();
+        assert_eq!(pending, 1);
+        for resize in resizes {
+            if resize.is_finished() {
+                assert_eq!(resize.await.expect("resize task"), Ok(()));
+            } else {
+                resize.abort();
+            }
+        }
+        // Linux keeps a blocked PTY write blocked after the child exits, so never await it.
+        blocked.abort();
+        let _ = manager.disconnect(&id).await;
     }
 }
