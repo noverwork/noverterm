@@ -345,7 +345,7 @@ impl LinksView {
                 .tooltip(label)
         };
         let (toggle, edit, delete) = (link.clone(), link.id.clone(), link.clone());
-        let copy_url = url.clone();
+        let (copy_url, open_url) = (url.clone(), url.clone());
 
         common::card(group.clone())
             .group(group.clone())
@@ -481,6 +481,16 @@ impl LinksView {
                             }
                         },
                     ))
+                    .child(
+                        icon_button("open-url", "external-link", t("Open in browser")).on_click(
+                            move |_, _, cx| {
+                                cx.stop_propagation();
+                                if let Some(url) = &open_url {
+                                    cx.open_url(url);
+                                }
+                            },
+                        ),
+                    )
             }))
             .children(error.map(|error| {
                 h_flex()

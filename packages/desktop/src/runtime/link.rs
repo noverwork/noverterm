@@ -16,7 +16,7 @@ use tokio::io::{copy_bidirectional, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::app::AppHandle;
 use crate::store::settings::{get_setting, set_setting};
@@ -336,13 +336,15 @@ impl client::Handler for LinkHandler {
                     let _ = copy_bidirectional(&mut visitor, &mut local).await;
                 }
                 Err(error) => {
-                    let body = format!(
-                        "noverterm could not reach {}:{}: {error}",
-                        target.0, target.1
+                    debug!("link could not reach {}:{}: {error}", target.0, target.1);
+                    // 503, not 502: Cloudflare swaps an origin 502 for its own error page.
+                    let body = shared::error_page(
+                        "No service",
+                        "Nothing is running behind this link right now.",
                     );
                     let response = format!(
-                        "HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain; charset=utf-8\r\n\
-                         Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        "HTTP/1.1 503 Service Unavailable\r\nContent-Type: text/html; charset=utf-8\r\n\
+                         Content-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n{body}",
                         body.len()
                     );
                     let _ = visitor.write_all(response.as_bytes()).await;

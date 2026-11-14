@@ -469,6 +469,7 @@
  "Option as Meta": "Meta 鍵",
  "Option+key sends ESC+key instead of typing special characters": "Option 當 Meta：Option+按鍵送出 ESC+按鍵，不輸入特殊字元",
  "Copy URL": "複製網址",
+ "Open in browser": "在瀏覽器開啟",
  "Copy key": "複製金鑰",
  "Delete link": "刪除 Link",
  "Delete link?": "刪除 Link？",

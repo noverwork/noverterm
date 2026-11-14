@@ -176,11 +176,7 @@ async fn respond(stream: &mut TcpStream, status: &str, message: &str) -> Result<
     let body = if message.is_empty() {
         String::new()
     } else {
-        format!(
-            "<!doctype html><meta charset=utf-8><title>{status}</title>\
-             <body style=\"font-family:system-ui;max-width:32rem;margin:4rem auto;padding:0 1rem\">\
-             <h1>{status}</h1><p>{message}</p></body>"
-        )
+        shared::error_page(status, message)
     };
     let response = format!(
         "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\
