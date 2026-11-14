@@ -768,3 +768,55 @@ fn ssh_config_import_links_jumps_shares_keys_and_skips_duplicates() {
         "saved hosts are not imported twice"
     );
 }
+
+#[tokio::test]
+async fn a_restored_backup_replaces_the_database_on_next_launch() {
+    let directory = tempfile::tempdir().expect("temp dir");
+    let database = directory.path().join("noverterm.db");
+    let backup = directory.path().join("backup.db");
+    let save = |path: &std::path::Path, value: &str| {
+        let pool = init_pool(path).expect("open database");
+        let app = AppHandle::default();
+        app.manage(pool);
+        let setting = shared::Setting {
+            key: "marker".to_string(),
+            value: value.to_string(),
+        };
+        async move { super::settings::set_setting(setting, app.state()).await }
+    };
+    save(&backup, "backup").await.expect("save backup");
+    save(&database, "current").await.expect("save current");
+
+    let junk = directory.path().join("junk.db");
+    std::fs::write(&junk, "not a database").expect("write junk");
+    assert!(super::stage_restore(&junk, &database).is_err());
+    assert!(super::check_backup(&foreign_database(&directory)).is_err());
+
+    super::stage_restore(&backup, &database).expect("stage restore");
+    super::apply_pending_restore(&database).expect("apply restore");
+
+    let read = |path: std::path::PathBuf| async move {
+        let app = AppHandle::default();
+        app.manage(init_pool(&path).expect("open database"));
+        super::settings::get_setting("marker".to_string(), app.state())
+            .await
+            .expect("get setting")
+            .map(|setting| setting.value)
+    };
+    assert_eq!(read(database.clone()).await.as_deref(), Some("backup"));
+    let previous = directory.path().join("noverterm.db.before-restore");
+    assert_eq!(read(previous).await.as_deref(), Some("current"));
+    // Nothing is left staged, so the next launch does not restore again.
+    assert!(!directory.path().join("noverterm.db.restore").exists());
+}
+
+/// An empty SQLite database: valid, but not one of ours.
+fn foreign_database(directory: &TempDir) -> std::path::PathBuf {
+    use diesel::connection::SimpleConnection as _;
+    let path = directory.path().join("other.db");
+    SqliteConnection::establish(&path.to_string_lossy())
+        .expect("create database")
+        .batch_execute("CREATE TABLE t (x)")
+        .expect("create table");
+    path
+}

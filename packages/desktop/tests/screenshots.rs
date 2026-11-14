@@ -253,17 +253,9 @@ mod shots {
             stage.settle(Duration::from_millis(300));
             stage.shoot(name);
         }
-        stage.store(|store, cx| {
-            store.show_settings = true;
-            cx.notify();
-        });
+        stage.store(|store, cx| store.navigate(Route::Settings, cx));
         stage.settle(Duration::from_millis(500));
         stage.shoot("settings");
-        stage.close_dialogs();
-        stage.store(|store, cx| {
-            store.show_settings = false;
-            cx.notify();
-        });
 
         let release = ui::views::updater::Release {
             version: "9.9.9".to_string(),

@@ -60,6 +60,7 @@ pub enum Route {
     },
     Sftp,
     Mcp,
+    Settings,
     Terminal,
 }
 
@@ -130,7 +131,6 @@ pub struct Store {
     pub active_session: Option<String>,
     pub trust_confirming: bool,
     pub trust_error: Option<String>,
-    pub show_settings: bool,
     /// Grid size of the terminal on screen; new sessions start at it.
     grid: (usize, usize),
     /// Output that arrived before its session finished connecting.
@@ -211,7 +211,6 @@ impl Store {
             active_session: None,
             trust_confirming: false,
             trust_error: None,
-            show_settings: false,
             grid: (80, 24),
             early_output: HashMap::new(),
             early_close: HashMap::new(),

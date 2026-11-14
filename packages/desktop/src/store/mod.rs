@@ -7,7 +7,7 @@ pub mod settings;
 pub mod snippets;
 pub mod ssh_config;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use diesel::connection::SimpleConnection;
 use diesel::r2d2::{self, ConnectionManager, CustomizeConnection};
@@ -100,6 +100,88 @@ pub async fn db_backup(pool: crate::app::State<'_, DbPool>) -> Result<String, St
     .await?;
 
     Ok(file_name)
+}
+
+/// The database file in the app's data folder. Debug builds get their own so
+/// `cargo make dev` cannot scribble over the installed app's connections and
+/// host keys.
+pub fn database_path() -> Result<PathBuf, String> {
+    let name = if cfg!(debug_assertions) {
+        "noverterm-dev.db"
+    } else {
+        "noverterm.db"
+    };
+    Ok(crate::app::data_dir()?.join(name))
+}
+
+/// SQLite keeps a database in up to three files.
+const SQLITE_SUFFIXES: [&str; 3] = ["", "-wal", "-shm"];
+
+fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(suffix);
+    name.into()
+}
+
+/// Moves a database with its WAL and shared-memory files, dropping stale ones
+/// at the destination.
+fn move_database(from: &Path, to: &Path) -> std::io::Result<()> {
+    for suffix in SQLITE_SUFFIXES {
+        let (source, target) = (with_suffix(from, suffix), with_suffix(to, suffix));
+        if source.exists() {
+            std::fs::rename(source, target)?;
+        } else if target.exists() {
+            std::fs::remove_file(target)?;
+        }
+    }
+    Ok(())
+}
+
+/// Fails unless `source` is a Noverterm database. Opening it does not change it.
+pub fn check_backup(source: &Path) -> Result<(), String> {
+    use diesel::Connection as _;
+    let mut connection = SqliteConnection::establish(&source.to_string_lossy())
+        .map_err(|error| format!("cannot open backup: {error}"))?;
+    connection
+        .batch_execute("SELECT 1 FROM __diesel_schema_migrations LIMIT 1")
+        .map_err(|_| "not a Noverterm backup".to_string())
+}
+
+/// Copies `source` next to `database`, where the next launch swaps it in; the
+/// open database cannot be replaced while the app uses it. Opening the copy
+/// runs the migrations, which brings an older backup up to date.
+pub fn stage_restore(source: &Path, database: &Path) -> Result<(), String> {
+    check_backup(source)?;
+    let staged = with_suffix(database, ".restore");
+    let staged_ok = std::fs::copy(source, &staged)
+        .map_err(|error| format!("cannot copy backup: {error}"))
+        .and_then(|_| init_pool(&staged).map(drop));
+    if staged_ok.is_err() {
+        for suffix in SQLITE_SUFFIXES {
+            let _ = std::fs::remove_file(with_suffix(&staged, suffix));
+        }
+    }
+    staged_ok
+}
+
+/// [`stage_restore`] for the app's own database.
+pub async fn db_restore(source: PathBuf) -> Result<(), String> {
+    let database = database_path()?;
+    tokio::task::spawn_blocking(move || stage_restore(&source, &database))
+        .await
+        .map_err(|error| format!("restore task join error: {error}"))?
+}
+
+/// Swaps in a backup staged by [`stage_restore`]. Runs before the database is
+/// opened; the replaced database stays beside it as `.before-restore`.
+pub fn apply_pending_restore(database: &Path) -> Result<(), String> {
+    let staged = with_suffix(database, ".restore");
+    if !staged.exists() {
+        return Ok(());
+    }
+    move_database(database, &with_suffix(database, ".before-restore"))
+        .and_then(|()| move_database(&staged, database))
+        .map_err(|error| format!("failed to restore backup: {error}"))
 }
 
 #[cfg(test)]

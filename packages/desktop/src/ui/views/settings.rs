@@ -1,14 +1,14 @@
-//! The settings dialog: language, terminal, AI assistant, updates, and backup.
+//! The settings page: general, terminal, AI assistant, data, and about, one
+//! category at a time.
 
+use std::path::PathBuf;
 use std::time::Duration;
 
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::select::{Select, SelectEvent};
 use gpui_kit::component::switch::Switch;
-use gpui_kit::component::{
-    h_flex, v_flex, Disableable as _, IndexPath, Sizable as _, WindowExt as _,
-};
+use gpui_kit::component::{h_flex, v_flex, Disableable as _, IndexPath, Sizable as _};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
@@ -23,21 +23,43 @@ use crate::ui::views::assistant::{ai_config, default_model, AiConfig, AI_SETTING
 use crate::ui::views::common::{self, Choice, ChoiceSelect};
 use crate::ui::views::updater;
 
-/// Opens the dialog; closing it clears `Store::show_settings`.
-pub fn open(window: &mut Window, cx: &mut App) {
-    let view = cx.new(|cx| SettingsView::new(window, cx));
-    window.open_dialog(cx, move |dialog, _, _| {
-        dialog
-            .w(px(512.))
-            .title(t("Settings"))
-            .child(view.clone())
-            .on_close(|_, _, cx| {
-                store(cx).update(cx, |store, cx| {
-                    store.show_settings = false;
-                    cx.notify();
-                });
-            })
-    });
+#[derive(Clone, Copy, PartialEq)]
+enum Category {
+    General,
+    Terminal,
+    Ai,
+    Data,
+    About,
+}
+
+impl Category {
+    const ALL: [Category; 5] = [
+        Category::General,
+        Category::Terminal,
+        Category::Ai,
+        Category::Data,
+        Category::About,
+    ];
+
+    fn label(self) -> SharedString {
+        match self {
+            Category::General => t("General"),
+            Category::Terminal => t("Terminal"),
+            Category::Ai => t("AI assistant"),
+            Category::Data => t("Data"),
+            Category::About => t("About"),
+        }
+    }
+
+    fn icon(self) -> &'static str {
+        match self {
+            Category::General => "languages",
+            Category::Terminal => "terminal",
+            Category::Ai => "sparkles",
+            Category::Data => "database",
+            Category::About => "info",
+        }
+    }
 }
 
 /// The serde name of a provider or API format, used as its select value.
@@ -60,8 +82,9 @@ enum UpdateStatus {
     Error(String),
 }
 
-struct SettingsView {
+pub struct SettingsView {
     store: Entity<Store>,
+    category: Category,
     language: Entity<ChoiceSelect>,
     font_size: Entity<InputState>,
     scrollback: Entity<InputState>,
@@ -81,11 +104,13 @@ struct SettingsView {
     backing_up: bool,
     backup_notice: Option<SharedString>,
     backup_error: Option<SharedString>,
+    restoring: bool,
+    restore_error: Option<SharedString>,
     _subscriptions: Vec<Subscription>,
 }
 
 impl SettingsView {
-    fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let store = store(cx);
         let config = ai_config(store.read(cx));
         let languages = Locale::ALL
@@ -179,6 +204,7 @@ impl SettingsView {
             }),
             api_key: cx.new(|cx| InputState::new(window, cx).masked(true)),
             store,
+            category: Category::General,
             language,
             font_size,
             scrollback,
@@ -194,6 +220,8 @@ impl SettingsView {
             backing_up: false,
             backup_notice: None,
             backup_error: None,
+            restoring: false,
+            restore_error: None,
             _subscriptions: subscriptions,
         };
         view.refresh_key_state(cx);
@@ -381,52 +409,240 @@ impl SettingsView {
         })
         .detach();
     }
-}
+    /// Picks a backup, checks it, and asks before replacing everything.
+    fn choose_backup(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.restore_error = None;
+        cx.notify();
+        let picked = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: Some(t("Restore")),
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let Ok(Ok(Some(mut paths))) = picked.await else {
+                return;
+            };
+            let Some(path) = paths.pop() else {
+                return;
+            };
+            let checked = {
+                let path = path.clone();
+                backend(async move { crate::store::check_backup(&path) }).await
+            };
+            let _ = this.update_in(cx, |this, window, cx| match checked {
+                Ok(()) => this.confirm_restore(path, window, cx),
+                Err(error) => {
+                    this.restore_error = Some(error.into());
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
+    }
 
-/// A bordered block with an icon and a heading.
-fn section(icon: &'static str, heading: impl IntoElement) -> Div {
-    v_flex()
-        .gap_4()
-        .p_5()
-        .rounded(theme::RADIUS)
-        .border_1()
-        .border_color(theme::hairline())
-        .child(
-            h_flex()
-                .gap_3()
-                .child(common::icon_box(icon))
-                .child(heading),
-        )
-}
+    fn confirm_restore(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
+        let view = cx.entity();
+        let name = path
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_default();
+        common::confirm_delete(
+            t("Restore Backup?"),
+            t("Replaces all current data and restarts Noverterm."),
+            Some(name.into()),
+            t("Restore and restart"),
+            window,
+            cx,
+            move |_, cx| view.update(cx, |this, cx| this.restore(path.clone(), cx)),
+        );
+    }
 
-fn heading(title: SharedString) -> Div {
-    div()
-        .flex_1()
-        .text_sm()
-        .font_weight(FontWeight::SEMIBOLD)
-        .child(title)
+    fn restore(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        self.restoring = true;
+        cx.notify();
+        cx.spawn(async move |this, cx| {
+            let staged = backend(crate::store::db_restore(path)).await;
+            let _ = this.update(cx, |this, cx| match staged {
+                // The next launch swaps the backup in before opening the database.
+                Ok(()) => cx.restart(),
+                Err(error) => {
+                    this.restoring = false;
+                    this.restore_error = Some(error.into());
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
+    }
 }
 
 fn note(text: SharedString, color: Rgba) -> Div {
     div().text_xs().text_color(color).child(text)
 }
 
-impl Render for SettingsView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let provider = self.provider(cx);
-        let row = |label: SharedString, control: AnyElement| {
-            h_flex()
-                .gap_3()
-                .text_sm()
-                .child(
+/// A titled group of setting rows, with an optional line under the title.
+fn group(title: Option<SharedString>, hint: Option<SharedString>, rows: Vec<AnyElement>) -> Div {
+    v_flex()
+        .gap_3()
+        .when(title.is_some() || hint.is_some(), |group| {
+            group.child(
+                v_flex()
+                    .gap_1()
+                    .children(title.map(common::section_title))
+                    .children(hint.map(|hint| note(hint, theme::STENCIL_MUTE))),
+            )
+        })
+        .child(
+            v_flex()
+                .rounded(theme::RADIUS)
+                .border_1()
+                .border_color(theme::hairline())
+                .bg(theme::RIB)
+                .children(rows.into_iter().enumerate().map(|(index, row)| {
                     div()
-                        .w(px(96.))
-                        .flex_shrink_0()
-                        .text_color(theme::STENCIL_MUTE)
-                        .child(label),
-                )
-                .child(div().flex_1().min_w_0().child(control))
-        };
+                        .when(index > 0, |row| {
+                            row.border_t_1().border_color(theme::hairline())
+                        })
+                        .child(row)
+                })),
+        )
+}
+
+/// A label, with an optional explanation, beside its control.
+fn row(label: SharedString, hint: Option<SharedString>, control: impl IntoElement) -> AnyElement {
+    h_flex()
+        .gap_6()
+        .px_4()
+        .py_3()
+        .child(
+            v_flex()
+                .flex_1()
+                .min_w_0()
+                .gap_0p5()
+                .child(div().text_sm().child(label))
+                .children(hint.map(|hint| note(hint, theme::STENCIL_MUTE))),
+        )
+        .child(
+            h_flex()
+                .w(px(280.))
+                .flex_shrink_0()
+                .justify_end()
+                .child(control),
+        )
+        .into_any_element()
+}
+
+/// Inputs and selects fill the control column; switches and buttons do not.
+fn wide(control: impl IntoElement) -> Div {
+    div().w_full().child(control)
+}
+
+impl SettingsView {
+    fn render_nav(&self, cx: &Context<Self>) -> impl IntoElement {
+        v_flex()
+            .w(px(200.))
+            .flex_shrink_0()
+            .gap_1()
+            .children(Category::ALL.map(|category| {
+                let active = category == self.category;
+                h_flex()
+                    .id(category.icon())
+                    .h_9()
+                    .gap_3()
+                    .px_3()
+                    .rounded(theme::RADIUS)
+                    .border_1()
+                    .text_sm()
+                    .cursor_pointer()
+                    .map(|item| {
+                        if active {
+                            item.border_color(theme::hairline())
+                                .bg(theme::RIB)
+                                .text_color(theme::STENCIL)
+                                .font_weight(FontWeight::MEDIUM)
+                        } else {
+                            item.border_color(gpui_kit::transparent_black())
+                                .text_color(theme::STENCIL_MUTE)
+                                .hover(|style| style.bg(theme::wash()).text_color(theme::STENCIL))
+                        }
+                    })
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.category = category;
+                        cx.notify();
+                    }))
+                    .child(lucide(category.icon()).size_4())
+                    .child(category.label())
+            }))
+    }
+
+    fn render_general(&self) -> Div {
+        group(
+            None,
+            None,
+            vec![row(
+                t("Language"),
+                None,
+                wide(Select::new(&self.language).small()),
+            )],
+        )
+    }
+
+    fn render_terminal(&self, cx: &Context<Self>) -> Div {
+        let config = self.store.read(cx).terminal_config();
+        let mut behavior = vec![row(
+            t("Scrollback"),
+            None,
+            wide(Input::new(&self.scrollback).small()),
+        )];
+        if cfg!(target_os = "macos") {
+            behavior.push(row(
+                t("Option as Meta"),
+                None,
+                Switch::new("option-as-meta")
+                    .checked(config.option_as_meta)
+                    .tooltip(t(
+                        "Option+key sends ESC+key instead of typing special characters",
+                    ))
+                    .on_click(cx.listener(|this, checked: &bool, _, cx| {
+                        let checked = *checked;
+                        this.set_terminal(|config| config.option_as_meta = checked, cx);
+                    })),
+            ));
+        }
+        v_flex()
+            .gap_8()
+            .child(group(
+                Some(t("Appearance")),
+                None,
+                vec![
+                    row(
+                        t("Font size"),
+                        None,
+                        wide(Input::new(&self.font_size).small()),
+                    ),
+                    row(
+                        t("Cursor"),
+                        None,
+                        wide(Select::new(&self.cursor_style).small()),
+                    ),
+                    row(
+                        t("Cursor blink"),
+                        None,
+                        Switch::new("cursor-blink")
+                            .checked(config.cursor_blink)
+                            .on_click(cx.listener(|this, checked: &bool, _, cx| {
+                                let checked = *checked;
+                                this.set_terminal(|config| config.cursor_blink = checked, cx);
+                            })),
+                    ),
+                ],
+            ))
+            .child(group(Some(t("Behavior")), None, behavior))
+    }
+
+    fn render_ai(&self, window: &mut Window, cx: &mut Context<Self>) -> Div {
+        let provider = self.provider(cx);
         // The placeholders follow the provider and the language, so they are
         // set here rather than once at creation.
         let model_example = match provider {
@@ -449,116 +665,129 @@ impl Render for SettingsView {
             input.set_placeholder(key_placeholder, window, cx)
         });
 
-        let terminal_config = self.store.read(cx).terminal_config();
-        let terminal = section("terminal", heading(t("Terminal"))).child(
-            v_flex()
+        let mut rows = vec![
+            row(
+                t("Provider"),
+                None,
+                wide(Select::new(&self.provider).small()),
+            ),
+            row(t("Model"), None, wide(Input::new(&self.model).small())),
+        ];
+        if provider == AiProvider::OpencodeGo {
+            rows.push(row(
+                t("API format"),
+                None,
+                wide(Select::new(&self.api_format).small()),
+            ));
+        }
+        if provider == AiProvider::OpenaiCompatible {
+            rows.push(row(
+                t("Base URL"),
+                None,
+                wide(Input::new(&self.base_url).small()),
+            ));
+        }
+        rows.push(row(
+            t("API key"),
+            None,
+            h_flex()
+                .w_full()
                 .gap_2()
-                .child(row(
-                    t("Font size"),
-                    Input::new(&self.font_size).small().into_any_element(),
-                ))
-                .child(row(
-                    t("Scrollback"),
-                    Input::new(&self.scrollback).small().into_any_element(),
-                ))
-                .child(row(
-                    t("Cursor"),
-                    Select::new(&self.cursor_style).small().into_any_element(),
-                ))
-                .child(row(
-                    t("Cursor blink"),
-                    Switch::new("cursor-blink")
-                        .checked(terminal_config.cursor_blink)
-                        .on_click(cx.listener(|this, checked: &bool, _, cx| {
-                            let checked = *checked;
-                            this.set_terminal(|config| config.cursor_blink = checked, cx);
-                        }))
-                        .into_any_element(),
-                ))
-                .when(cfg!(target_os = "macos"), |rows| {
-                    rows.child(row(
-                        t("Option as Meta"),
-                        Switch::new("option-as-meta")
-                            .checked(terminal_config.option_as_meta)
-                            .tooltip(t(
-                                "Option+key sends ESC+key instead of typing special characters",
-                            ))
-                            .on_click(cx.listener(|this, checked: &bool, _, cx| {
-                                let checked = *checked;
-                                this.set_terminal(|config| config.option_as_meta = checked, cx);
-                            }))
-                            .into_any_element(),
-                    ))
-                }),
-        );
-
-        let ai = section("sparkles", heading(t("AI assistant")))
-            .child(
-                v_flex()
-                    .gap_2()
-                    .child(row(
-                        t("Provider"),
-                        Select::new(&self.provider).small().into_any_element(),
-                    ))
-                    .child(row(
-                        t("Model"),
-                        Input::new(&self.model).small().into_any_element(),
-                    ))
-                    .when(provider == AiProvider::OpencodeGo, |rows| {
-                        rows.child(row(
-                            t("API format"),
-                            Select::new(&self.api_format).small().into_any_element(),
-                        ))
-                    })
-                    .when(provider == AiProvider::OpenaiCompatible, |rows| {
-                        rows.child(row(
-                            t("Base URL"),
-                            Input::new(&self.base_url).small().into_any_element(),
-                        ))
-                    })
-                    .child(row(
-                        t("API key"),
-                        h_flex()
-                            .gap_2()
-                            .child(div().flex_1().child(Input::new(&self.api_key).small()))
-                            .when(self.has_key, |key| {
-                                key.child(
-                                    Button::new("remove-key")
-                                        .ghost()
-                                        .small()
-                                        .label(t("Remove"))
-                                        .on_click(
-                                            cx.listener(|this, _, _, cx| this.remove_key(cx)),
-                                        ),
-                                )
-                            })
-                            .into_any_element(),
-                    )),
-            )
-            .child(
-                h_flex()
-                    .gap_3()
-                    .child(
-                        Button::new("save-ai")
-                            .outline()
+                .child(div().flex_1().child(Input::new(&self.api_key).small()))
+                .when(self.has_key, |key| {
+                    key.child(
+                        Button::new("remove-key")
+                            .ghost()
                             .small()
-                            .label(t("Save"))
-                            .disabled(self.saving)
-                            .on_click(cx.listener(|this, _, window, cx| this.save_ai(window, cx))),
+                            .label(t("Remove"))
+                            .on_click(cx.listener(|this, _, _, cx| this.remove_key(cx))),
                     )
-                    .children(
-                        self.ai_notice
-                            .clone()
-                            .map(|notice| note(notice, theme::GREEN_TEXT)),
-                    )
-                    .children(
-                        self.ai_error
-                            .clone()
-                            .map(|error| note(error, theme::RED_TEXT)),
-                    ),
-            );
+                }),
+        ));
 
-        let check = Button::new("check-update").outline().small().w_full();
+        v_flex().gap_4().child(group(None, None, rows)).child(
+            h_flex()
+                .gap_3()
+                .child(
+                    Button::new("save-ai")
+                        .primary()
+                        .small()
+                        .label(t("Save"))
+                        .disabled(self.saving)
+                        .on_click(cx.listener(|this, _, window, cx| this.save_ai(window, cx))),
+                )
+                .children(
+                    self.ai_notice
+                        .clone()
+                        .map(|notice| note(notice, theme::GREEN_TEXT)),
+                )
+                .children(
+                    self.ai_error
+                        .clone()
+                        .map(|error| note(error, theme::RED_TEXT)),
+                ),
+        )
+    }
+
+    fn render_data(&self, cx: &Context<Self>) -> Div {
+        let backup = Button::new("backup")
+            .outline()
+            .small()
+            .map(|button| {
+                if self.backing_up {
+                    button.label(t("Backing up...")).disabled(true)
+                } else {
+                    button
+                        .icon(lucide("database-backup"))
+                        .label(t("Back up to Downloads"))
+                }
+            })
+            .on_click(cx.listener(|this, _, _, cx| this.back_up(cx)));
+        let restore = Button::new("restore")
+            .outline()
+            .small()
+            .map(|button| {
+                if self.restoring {
+                    button.label(t("Restoring...")).disabled(true)
+                } else {
+                    button
+                        .icon(lucide("archive-restore"))
+                        .label(t("Choose backup…"))
+                }
+            })
+            .on_click(cx.listener(|this, _, window, cx| this.choose_backup(window, cx)));
+
+        group(
+            None,
+            None,
+            vec![
+                row(
+                    t("Back up"),
+                    Some(t("Stored in plain text — keep it private.")),
+                    backup,
+                ),
+                row(t("Restore from backup"), None, restore),
+            ],
+        )
+        .children(
+            self.backup_notice
+                .clone()
+                .map(|notice| note(notice, theme::GREEN_TEXT)),
+        )
+        .children(
+            self.backup_error
+                .clone()
+                .map(|error| note(error, theme::RED_TEXT)),
+        )
+        .children(
+            self.restore_error
+                .clone()
+                .map(|error| note(error, theme::RED_TEXT)),
+        )
+    }
+
+    fn render_about(&self, cx: &Context<Self>) -> Div {
+        let check = Button::new("check-update").outline().small();
         let check = match &self.update {
             UpdateStatus::Checking => check.label(t("Checking...")).disabled(true),
             UpdateStatus::UpToDate => check
@@ -567,66 +796,64 @@ impl Render for SettingsView {
                 .text_color(theme::GREEN_TEXT),
             _ => check.icon(lucide("download")).label(t("Check for updates")),
         };
-        let about = section(
-            "settings",
-            v_flex()
-                .flex_1()
-                .child(heading(t("About Noverterm")))
-                .child(note(
-                    tf(
-                        "Version {version}",
-                        &[("version", env!("CARGO_PKG_VERSION"))],
-                    ),
-                    theme::STENCIL_MUTE,
-                )),
+        group(
+            None,
+            None,
+            vec![
+                row(
+                    t("Version"),
+                    None,
+                    div()
+                        .text_sm()
+                        .text_color(theme::STENCIL_DIM)
+                        .child(env!("CARGO_PKG_VERSION")),
+                ),
+                row(
+                    t("Updates"),
+                    None,
+                    check
+                        .on_click(cx.listener(|this, _, window, cx| this.check_update(window, cx))),
+                ),
+            ],
         )
-        .child(check.on_click(cx.listener(|this, _, window, cx| this.check_update(window, cx))))
         .children(match &self.update {
             UpdateStatus::Error(error) => Some(note(
                 format!("{}: {error}", t("Failed to check for updates")).into(),
                 theme::RED_TEXT,
             )),
             _ => None,
-        });
+        })
+    }
+}
 
-        let backup = section(
-            "database-backup",
-            v_flex().flex_1().child(heading(t("Backup"))).child(note(
-                t("Connections, keys and snippets are stored in plain text — keep the file somewhere private."),
-                theme::STENCIL_MUTE,
-            )),
+impl Render for SettingsView {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let content = match self.category {
+            Category::General => self.render_general(),
+            Category::Terminal => self.render_terminal(cx),
+            Category::Ai => self.render_ai(window, cx),
+            Category::Data => self.render_data(cx),
+            Category::About => self.render_about(cx),
+        };
+        common::page(
+            t("Settings"),
+            div(),
+            h_flex()
+                .mt_6()
+                .flex_1()
+                .min_h_0()
+                .items_start()
+                .gap_10()
+                .child(self.render_nav(cx))
+                .child(
+                    div()
+                        .id("settings")
+                        .flex_1()
+                        .min_w_0()
+                        .h_full()
+                        .overflow_y_scroll()
+                        .child(div().max_w(px(720.)).pb_6().child(content)),
+                ),
         )
-        .child(
-            Button::new("backup")
-                .outline()
-                .small()
-                .w_full()
-                .map(|button| {
-                    if self.backing_up {
-                        button.label(t("Backing up...")).disabled(true)
-                    } else {
-                        button.icon(lucide("database-backup")).label(t("Back up to Downloads"))
-                    }
-                })
-                .on_click(cx.listener(|this, _, _, cx| this.back_up(cx))),
-        )
-        .children(self.backup_notice.clone().map(|notice| note(notice, theme::GREEN_TEXT)))
-        .children(self.backup_error.clone().map(|error| note(error, theme::RED_TEXT)));
-
-        v_flex()
-            .id("settings")
-            // The dialog does not scroll its content by itself.
-            .max_h(window.viewport_size().height * 0.7)
-            .overflow_y_scroll()
-            .gap_6()
-            .text_color(theme::STENCIL)
-            .child(
-                section("languages", heading(t("Language")))
-                    .child(Select::new(&self.language).small()),
-            )
-            .child(terminal)
-            .child(ai)
-            .child(about)
-            .child(backup)
     }
 }

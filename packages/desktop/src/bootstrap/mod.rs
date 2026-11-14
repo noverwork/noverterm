@@ -11,17 +11,12 @@ use crate::trust::SshTrustStore;
 /// Opens the database, registers every backend service, and starts the MCP
 /// server.
 pub fn backend() -> Result<AppHandle, String> {
-    let app_data_dir = crate::app::data_dir()?;
-    std::fs::create_dir_all(&app_data_dir).map_err(|error| error.to_string())?;
-
-    // Debug builds get their own database so `cargo make dev` cannot
-    // scribble over the installed app's connections and host keys.
-    let database_name = if cfg!(debug_assertions) {
-        "noverterm-dev.db"
-    } else {
-        "noverterm.db"
-    };
-    let pool = crate::store::init_pool(&app_data_dir.join(database_name))?;
+    std::fs::create_dir_all(crate::app::data_dir()?).map_err(|error| error.to_string())?;
+    let database = crate::store::database_path()?;
+    if let Err(error) = crate::store::apply_pending_restore(&database) {
+        tracing::error!("{error}");
+    }
+    let pool = crate::store::init_pool(&database)?;
 
     let app = AppHandle::default();
     app.manage(SshTrustStore::new(pool.clone()));
