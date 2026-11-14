@@ -7,8 +7,8 @@ Follow Rust API Guidelines (RFC 430 / C-CASE).
 | Type                   | Convention                                  | Example                                         |
 | ---------------------- | ------------------------------------------- | ----------------------------------------------- |
 | Files/dirs             | `snake_case`                                | `message_handler.rs`, `connection_pool/`        |
-| Cargo crates           | `kebab-case`                                | `relay-protocol`                                |
-| Rust module paths      | `snake_case`                                | `use relay_protocol::message::Ping;`            |
+| Cargo crates           | `kebab-case`                                | `update-signer`                                |
+| Rust module paths      | `snake_case`                                | `use update_signer::message::Ping;`            |
 | Types/traits/enums     | `UpperCamelCase`                            | `MessageHandler`, `DeviceId`, `ConnectionState` |
 | Functions/methods/vars | `snake_case`                                | `handle_message()`, `device_count`              |
 | Constants/statics      | `SCREAMING_SNAKE_CASE`                      | `MAX_RETRY_COUNT`, `DEFAULT_PORT`               |
