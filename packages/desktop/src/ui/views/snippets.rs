@@ -596,11 +596,8 @@ impl Render for SnippetForm {
                         )),
                 )
                 .child(
-                    common::form_section("file-text", t("Command"), None).child(common::field(
-                        t("Command"),
-                        Textarea::new(&self.body).disabled(saving),
-                        None,
-                    )),
+                    common::form_section("file-text", t("Command"), None)
+                        .child(Textarea::new(&self.body).disabled(saving)),
                 )
                 .child(
                     common::form_section("pin", t("Shortcut panel"), None)

@@ -232,7 +232,7 @@ pub fn card(id: impl Into<ElementId>) -> Stateful<Div> {
         .hover(|style| {
             style
                 .border_color(theme::STENCIL.opacity(0.2))
-                .bg(rgb(0x1f252c))
+                .bg(theme::RIB_HOVER)
         })
 }
 

@@ -34,7 +34,7 @@ fn memory_pool() -> DbPool {
     pool
 }
 
-/// Wires a real file-backed pool into a mock Tauri app so the tests below drive
+/// Wires a real file-backed pool into a bare app handle so the tests below drive
 /// the actual commands, state injection included.
 fn test_app() -> (AppHandle, TempDir) {
     let directory = tempfile::tempdir().expect("temp dir");

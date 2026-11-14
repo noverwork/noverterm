@@ -1314,7 +1314,7 @@ impl TerminalView {
                     div()
                         .px_1()
                         .text_xs()
-                        .text_color(rgb(0xe6c27a))
+                        .text_color(theme::AMBER_TEXT)
                         .child(t("No match")),
                 )
             })

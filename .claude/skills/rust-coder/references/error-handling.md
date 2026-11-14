@@ -2,8 +2,13 @@
 
 ## Boundary Errors vs Domain Errors
 
-- **Project:** use `anyhow::Result<T>` + `.context()` at application boundaries
-- **Common/Official-friendly:** use typed errors (`thiserror`) for reusable domain/library logic
+- **Project, `packages/desktop`:** functions return `Result<T, String>`. Convert at the call that
+  failed with `.map_err(|error| format!("failed to open database: {error}"))`. The string is shown
+  to the user, so name the operation. Shared converters exist per area (`store::internal_error`).
+- **Project, `packages/relay`:** `anyhow::Result<T>` + `.context()`.
+- **Project, domain errors:** when callers branch on the kind of failure, write a plain enum with
+  hand-written `Display` and `impl std::error::Error` (`SftpError` in `runtime/sftp/types.rs`).
+  `thiserror` is not a dependency; do not add it for one enum.
 
 ```rust
 use anyhow::{Context, Result};
@@ -17,16 +22,22 @@ async fn connect(addr: &str) -> Result<TcpStream> {
 ```
 
 ```rust
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum RelayError {
-    #[error("device {0} is not registered")]
-    DeviceNotRegistered(String),
-
-    #[error("invalid message: {0}")]
-    InvalidMessage(String),
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SftpError {
+    AlreadyExists,
+    NotFound(String),
 }
+
+impl fmt::Display for SftpError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::AlreadyExists => write!(formatter, "SFTP destination already exists"),
+            Self::NotFound(path) => write!(formatter, "{path} not found"),
+        }
+    }
+}
+
+impl std::error::Error for SftpError {}
 ```
 
 ## `unwrap`, `expect`, `todo`, `dbg` (Project)
@@ -44,7 +55,7 @@ let value = map
 tracing::debug!(?value, "loaded config value");
 ```
 
-`expect()` is acceptable in tests, binaries, and startup assertions where a crash indicates a programming/configuration error.
+`expect()` is acceptable in tests and for startup invariants where a crash indicates a programming error. `mutex.lock().unwrap()` is the accepted way to take a `std::sync::Mutex`.
 
 ## Validation (Official)
 

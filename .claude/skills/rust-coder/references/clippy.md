@@ -2,16 +2,18 @@
 
 ## Project Lint Policy
 
-```toml
-[lints.clippy]
-correctness = "deny"
-pedantic = "deny"
+No `[lints]` table and no `clippy.toml`: the default Clippy set, with every warning an error.
 
-missing_errors_doc = "allow"
-missing_panics_doc = "allow"
-module_name_repetitions = "allow"
-must_use_candidate = "allow"
+```bash
+cargo make lint        # cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo make fmt-check   # cargo fmt --check
+cargo make ci          # lint, fmt-check, tests
 ```
+
+CI runs `cargo make lint`, `cargo make fmt-check`, and `cargo test --workspace --lib`. The
+pre-commit hook runs the format check and Clippy on staged Rust changes.
+
+Fix the cause of a lint. `#[allow(...)]` needs a comment saying why the lint is wrong here.
 
 ## Common Clippy Fixes
 
@@ -51,21 +53,4 @@ let items = values.iter().cloned().collect::<Vec<_>>();
 
 ## Formatting (Official)
 
-```bash
-cargo fmt --workspace
-cargo fmt --workspace -- --check
-```
-
-Use default rustfmt settings unless there is a very strong project-wide reason not to.
-
-## Clippy (Project)
-
-```bash
-cargo clippy --workspace -- -D warnings
-```
-
-## cargo-deny (Project)
-
-```bash
-cargo deny check
-```
+Default rustfmt settings; there is no `rustfmt.toml`.
