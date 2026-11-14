@@ -1,8 +1,8 @@
 ---
 version: 1
-slug: "packages-desktop-ui-src-routes-layout-svelte"
-primary_target: "packages/desktop/ui/src/routes/+layout.svelte"
-related_targets: ["packages/desktop/ui/src/lib/components/sidebar.svelte","packages/desktop/ui/src/lib/components/shortcut-panel.svelte"]
+slug: "packages-desktop-src-ui-shell-rs"
+primary_target: "packages/desktop/src/ui/shell.rs"
+related_targets: []
 ---
 
 # App shell

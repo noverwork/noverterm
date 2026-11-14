@@ -1,6 +1,6 @@
 ---
 name: rust-coder
-description: Rust coding guide for this monorepo. Use when writing Rust code for relay, relay-agent, or relay-protocol packages. Combines Rust API Guidelines with clearly marked project rules for anyhow, Tokio, tracing, and Clippy.
+description: Rust coding guide for this monorepo. Use when writing Rust code in any package (desktop, orm, relay, shared, update-signer). Combines Rust API Guidelines with clearly marked project rules for anyhow, Tokio, tracing, and Clippy.
 ---
 
 # Rust Coder - Convention Guide
