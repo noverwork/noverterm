@@ -42,6 +42,7 @@ const SSH_KEEPALIVE_TIMEOUT: Duration = Duration::from_secs(5);
 pub struct SshSession {
     pub(crate) handle: Arc<Mutex<Handle<ClientHandler>>>,
     write_tx: Option<mpsc::Sender<SshWriteRequest>>,
+    pending_resize: PendingResize,
     sftp_sessions: HashMap<String, Arc<SftpSession>>,
     port_forwards: HashMap<String, SshPortForwardTask>,
     keepalive_task: Option<JoinHandle<()>>,
@@ -57,8 +58,13 @@ struct SshWriteRequest {
 
 enum SshWriteOperation {
     Data(Vec<u8>),
-    Resize { cols: u32, rows: u32 },
+    /// Applies the latest size in `PendingResize`.
+    Resize,
 }
+
+/// Latest requested size; at most one queued resize reads it, so resize bursts
+/// cannot fill the input queue while the channel is blocked.
+type PendingResize = Arc<std::sync::Mutex<Option<(u32, u32)>>>;
 
 struct SshPortForwardTask {
     status: SshPortForwardStatus,
@@ -153,9 +159,11 @@ impl SshSessionManager {
         tokio::spawn(async move {
             read_loop(channel_read, sid, read_app, sessions, read_output).await;
         });
+        let pending_resize = PendingResize::default();
         let writer_task = tokio::spawn(run_shell_write_loop(
             channel_write,
             write_rx,
+            pending_resize.clone(),
             output.clone(),
         ));
 
@@ -181,6 +189,7 @@ impl SshSessionManager {
             SshSession {
                 handle: session_handle,
                 write_tx: Some(write_tx),
+                pending_resize,
                 sftp_sessions: HashMap::new(),
                 port_forwards: HashMap::new(),
                 keepalive_task: Some(keepalive_task),

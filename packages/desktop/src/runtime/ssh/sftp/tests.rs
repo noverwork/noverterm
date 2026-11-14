@@ -143,6 +143,7 @@ async fn fixture(direct: bool) -> Fixture {
         SshSession {
             handle: handle.clone(),
             write_tx: None,
+            pending_resize: Default::default(),
             sftp_sessions: HashMap::from([(sftp_id.clone(), Arc::new(sftp))]),
             port_forwards: HashMap::new(),
             keepalive_task: Some(keepalive_task),

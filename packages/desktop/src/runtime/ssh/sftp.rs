@@ -184,6 +184,7 @@ impl SshSessionManager {
             SshSession {
                 handle: session_handle,
                 write_tx: None,
+                pending_resize: Default::default(),
                 sftp_sessions: HashMap::from([(sftp_session_id.clone(), Arc::new(sftp_session))]),
                 port_forwards: HashMap::new(),
                 keepalive_task: Some(keepalive_task),

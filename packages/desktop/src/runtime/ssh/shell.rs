@@ -11,8 +11,8 @@ use tracing::warn;
 use crate::runtime::terminal_output::{OutputSession, OUTPUT_CHUNK_BYTES};
 
 use super::{
-    remove_session_and_stop_port_forwards, SshSession, SshSessionManager, SshWriteOperation,
-    SshWriteRequest,
+    remove_session_and_stop_port_forwards, PendingResize, SshSession, SshSessionManager,
+    SshWriteOperation, SshWriteRequest,
 };
 
 const SSH_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(2);
@@ -56,8 +56,25 @@ impl SshSessionManager {
     }
 
     pub async fn resize(&self, session_id: &str, cols: u32, rows: u32) -> Result<(), String> {
-        self.shell_request(session_id, SshWriteOperation::Resize { cols, rows })
+        let pending = self
+            .sessions
+            .lock()
             .await
+            .get(session_id)
+            .ok_or_else(|| format!("Session not found: {session_id}"))?
+            .pending_resize
+            .clone();
+        if pending.lock().unwrap().replace((cols, rows)).is_some() {
+            // The queued resize applies this size.
+            return Ok(());
+        }
+        let result = self
+            .shell_request(session_id, SshWriteOperation::Resize)
+            .await;
+        if result.is_err() {
+            pending.lock().unwrap().take();
+        }
+        result
     }
 }
 
@@ -148,6 +165,7 @@ pub(super) async fn read_loop(
 pub(super) async fn run_shell_write_loop(
     channel_write: ChannelWriteHalf<Msg>,
     mut write_rx: mpsc::Receiver<SshWriteRequest>,
+    pending_resize: PendingResize,
     output: Arc<OutputSession>,
 ) {
     while let Some(request) = tokio::select! {
@@ -159,7 +177,13 @@ pub(super) async fn run_shell_write_loop(
             result = async {
                 match request.operation {
                     SshWriteOperation::Data(data) => channel_write.data(&data[..]).await,
-                    SshWriteOperation::Resize { cols, rows } => channel_write.window_change(cols, rows, 0, 0).await,
+                    SshWriteOperation::Resize => {
+                        let size = pending_resize.lock().unwrap().take();
+                        match size {
+                            Some((cols, rows)) => channel_write.window_change(cols, rows, 0, 0).await,
+                            None => Ok(()),
+                        }
+                    }
                 }
             } => result.map_err(|e| format!("SSH terminal write failed: {e}")),
         };
