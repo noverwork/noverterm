@@ -77,6 +77,11 @@ pub fn locale() -> Locale {
 
 pub fn set_locale(locale: Locale) {
     ZH_TW.store(locale == Locale::ZhTw, Ordering::Relaxed);
+    // Text built into gpui-kit components (color picker tabs, etc.).
+    gpui_kit::component::set_locale(match locale {
+        Locale::ZhTw => "zh-TW",
+        Locale::En => "en",
+    });
 }
 
 fn zh_tw() -> &'static HashMap<String, &'static str> {
