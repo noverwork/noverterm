@@ -60,6 +60,8 @@ impl AiAccess {
 pub struct HostGroupRecord {
     pub id: String,
     pub name: String,
+    /// Line colour as "#rrggbb"; `None` takes one from the default palette.
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

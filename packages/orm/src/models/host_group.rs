@@ -11,6 +11,7 @@ pub struct HostGroup {
     pub name: String,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, Insertable)]
@@ -20,6 +21,7 @@ pub struct NewHostGroup {
     pub name: String,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, AsChangeset)]
