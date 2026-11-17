@@ -852,6 +852,7 @@ impl Render for SettingsView {
                         .min_w_0()
                         .h_full()
                         .overflow_y_scroll()
+                        .track_scroll(&common::kept_scroll("settings"))
                         .child(div().max_w(px(720.)).pb_6().child(content)),
                 ),
         )
