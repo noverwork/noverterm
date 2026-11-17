@@ -1,9 +1,12 @@
 //! Saved SSH hosts, grouped: connect, edit, move between groups, import.
 
+use std::collections::HashMap;
 use std::future::Future;
+use std::time::Duration;
 
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::checkbox::Checkbox;
+use gpui_kit::component::color_picker::{ColorPickerEvent, ColorPickerState};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::menu::{ContextMenuExt as _, PopupMenuItem};
 use gpui_kit::component::tooltip::Tooltip;
@@ -16,7 +19,7 @@ use crate::store::hosts::SaveConnectionInput;
 use crate::store::ssh_config::SshConfigHost;
 use crate::ui::bridge::backend;
 use crate::ui::i18n::{t, tf};
-use crate::ui::icons::lucide;
+use crate::ui::icons::{color_hex, lucide};
 use crate::ui::stencil::{group_prefix, line_color};
 use crate::ui::store::{store, Route, Store};
 use crate::ui::theme;
@@ -76,6 +79,10 @@ pub struct ConnectionsView {
     creating_group: bool,
     saving_group: bool,
     error: Option<SharedString>,
+    /// Each group's color palette, by group id.
+    palettes: HashMap<String, (Entity<ColorPickerState>, Subscription)>,
+    /// A group's pending color save; a newer pick replaces it.
+    color_saves: HashMap<String, Task<()>>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -85,7 +92,10 @@ impl ConnectionsView {
         let search = cx.new(|cx| InputState::new(window, cx).placeholder(t("Search hosts")));
         let group_name = cx.new(|cx| InputState::new(window, cx).placeholder(t("Group name")));
         let subscriptions = vec![
-            cx.observe(&store, |_, _, cx| cx.notify()),
+            cx.observe_in(&store, window, |this, _, window, cx| {
+                this.sync_palettes(window, cx);
+                cx.notify();
+            }),
             cx.subscribe(&search, |_, _, event: &InputEvent, cx| {
                 if matches!(event, InputEvent::Change) {
                     cx.notify();
@@ -97,15 +107,68 @@ impl ConnectionsView {
                 }
             }),
         ];
-        Self {
+        let mut this = Self {
             store,
             search,
             group_name,
             creating_group: false,
             saving_group: false,
             error: None,
+            palettes: HashMap::new(),
+            color_saves: HashMap::new(),
             _subscriptions: subscriptions,
+        };
+        this.sync_palettes(window, cx);
+        this
+    }
+
+    /// Gives every group a palette showing its current line color.
+    fn sync_palettes(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let groups = self.store.read(cx).groups.clone();
+        self.palettes
+            .retain(|id, _| groups.iter().any(|group| &group.id == id));
+        for group in &groups {
+            let color = Hsla::from(line_color(&group.id, &groups).0);
+            if let Some((palette, _)) = self.palettes.get(&group.id) {
+                // Leave an open palette alone so a refresh never fights a drag.
+                let palette_state = palette.read(cx);
+                let stale = palette_state.value().map(color_hex) != Some(color_hex(color));
+                if stale && !palette_state.is_open() {
+                    palette.update(cx, |palette, cx| palette.set_value(color, window, cx));
+                }
+                continue;
+            }
+            let palette = cx.new(|cx| ColorPickerState::new(window, cx).default_value(color));
+            let id = group.id.clone();
+            let changes = cx.subscribe(&palette, move |this, _, event, cx| {
+                let ColorPickerEvent::Change(color) = event;
+                this.save_group_color(id.clone(), color.map(color_hex), cx);
+            });
+            self.palettes.insert(group.id.clone(), (palette, changes));
         }
+    }
+
+    /// Saves a group's color once the user stops dragging for a moment.
+    fn save_group_color(&mut self, id: String, color: Option<String>, cx: &mut Context<Self>) {
+        let app = self.store.read(cx).app();
+        let task = cx.spawn({
+            let id = id.clone();
+            async move |this, cx| {
+                cx.background_executor()
+                    .timer(Duration::from_millis(300))
+                    .await;
+                let _ = this.update(cx, |this, cx| {
+                    this.change(
+                        async move {
+                            crate::store::groups::host_group_set_color(id, color, app.state()).await
+                        },
+                        cx,
+                        |_, _| {},
+                    );
+                });
+            }
+        });
+        self.color_saves.insert(id, task);
     }
 
     /// Runs a backend change and reloads the saved data; `done` runs only when
@@ -609,7 +672,24 @@ impl ConnectionsView {
                                 .size_3p5()
                                 .text_color(theme::STENCIL_MUTE),
                             )
-                            .child(div().h_2().w_3().flex_shrink_0().bg(fill))
+                            .child(match group.and_then(|group| self.palettes.get(&group.id)) {
+                                // Picking a color must not also fold the section.
+                                Some((palette, _)) => div()
+                                    .id(SharedString::from(format!("color-{key}")))
+                                    .on_click(|_, _, cx| cx.stop_propagation())
+                                    .child(
+                                        common::color_picker(palette)
+                                            .xsmall()
+                                            .accessibility_label(t("Group color")),
+                                    )
+                                    .into_any_element(),
+                                None => div()
+                                    .h_2()
+                                    .w_3()
+                                    .flex_shrink_0()
+                                    .bg(fill)
+                                    .into_any_element(),
+                            })
                             .child(
                                 common::section_title(group.map_or_else(
                                     || t("Ungrouped"),

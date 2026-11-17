@@ -107,6 +107,18 @@ pub const PIN_COLORS: [&str; 8] = [
     "#f87171", "#fb923c", "#facc15", "#4ade80", "#2dd4bf", "#38bdf8", "#a78bfa", "#f472b6",
 ];
 
+/// A color as `#rrggbb`, the form `pin_color` reads; alpha is dropped.
+pub fn color_hex(color: Hsla) -> String {
+    let color = color.to_rgb();
+    let byte = |value: f32| (value * 255.).round() as u8;
+    format!(
+        "#{:02x}{:02x}{:02x}",
+        byte(color.r),
+        byte(color.g),
+        byte(color.b)
+    )
+}
+
 /// Parses a `#rrggbb` pin color; anything else is `None`.
 pub fn pin_color(value: &str) -> Option<Rgba> {
     let hex = value.strip_prefix('#').filter(|hex| hex.len() == 6)?;

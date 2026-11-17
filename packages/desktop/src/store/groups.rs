@@ -39,6 +39,7 @@ pub async fn host_group_create(
                 name,
                 created_at: now,
                 updated_at: now,
+                color: None,
             })
             .get_result::<HostGroup>(connection)
             .map(to_record)
@@ -67,9 +68,29 @@ pub async fn host_group_delete(
     .await
 }
 
+pub async fn host_group_set_color(
+    id: String,
+    color: Option<String>,
+    pool: crate::app::State<'_, DbPool>,
+) -> Result<(), String> {
+    let pool = pool.inner().clone();
+    run_db(pool, move |connection| {
+        diesel::update(host_groups::table.filter(host_groups::id.eq(id)))
+            .set((
+                host_groups::color.eq(color),
+                host_groups::updated_at.eq(Utc::now().naive_utc()),
+            ))
+            .execute(connection)
+            .map(|_| ())
+            .map_err(internal_error)
+    })
+    .await
+}
+
 fn to_record(group: HostGroup) -> HostGroupRecord {
     HostGroupRecord {
         id: group.id,
         name: group.name,
+        color: group.color,
     }
 }

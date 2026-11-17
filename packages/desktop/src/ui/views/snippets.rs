@@ -2,6 +2,7 @@
 
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::checkbox::Checkbox;
+use gpui_kit::component::color_picker::{ColorPickerEvent, ColorPickerState};
 use gpui_kit::component::input::{Input, InputEvent, InputState, Textarea, TextareaState};
 use gpui_kit::component::menu::{ContextMenuExt as _, PopupMenuItem};
 use gpui_kit::component::select::Select;
@@ -13,7 +14,7 @@ use shared::{SnippetRecord, SnippetWriteRequest};
 
 use crate::ui::bridge::backend;
 use crate::ui::i18n::{t, tf};
-use crate::ui::icons::{lucide, pin_color, pin_icon, PIN_COLORS, PIN_ICON_NAMES};
+use crate::ui::icons::{color_hex, lucide, pin_color, pin_icon, PIN_COLORS, PIN_ICON_NAMES};
 use crate::ui::store::{store, Route, Store};
 use crate::ui::theme;
 use crate::ui::views::common::{self, Choice, ChoiceSelect};
@@ -361,8 +362,11 @@ pub struct SnippetForm {
     pin_icon: String,
     /// `None` keeps the default icon color.
     pin_color: Option<String>,
+    /// Palette for a color outside the presets.
+    palette: Entity<ColorPickerState>,
     error: Option<SharedString>,
     saving: bool,
+    _subscriptions: Vec<Subscription>,
 }
 
 impl SnippetForm {
@@ -393,6 +397,17 @@ impl SnippetForm {
             .as_ref()
             .map(|snippet| snippet.body.clone())
             .unwrap_or_default();
+        let pin_color = snippet
+            .as_ref()
+            .and_then(|snippet| snippet.pin_color.clone());
+        let palette = common::color_palette(pin_color.as_deref(), window, cx);
+        let subscriptions =
+            vec![
+                cx.subscribe(&palette, |this, _, ColorPickerEvent::Change(color), cx| {
+                    this.pin_color = color.map(color_hex);
+                    cx.notify();
+                }),
+            ];
         let host_value = snippet
             .as_ref()
             .and_then(|snippet| snippet.host_id.clone())
@@ -417,9 +432,8 @@ impl SnippetForm {
             show_on_panel: snippet
                 .as_ref()
                 .map_or(shortcut, |snippet| snippet.pin_icon.is_some()),
-            pin_color: snippet
-                .as_ref()
-                .and_then(|snippet| snippet.pin_color.clone()),
+            pin_color,
+            palette,
             pin_icon: snippet
                 .and_then(|snippet| snippet.pin_icon)
                 .unwrap_or_else(|| "terminal".to_string()),
@@ -427,6 +441,7 @@ impl SnippetForm {
             id,
             error: None,
             saving: false,
+            _subscriptions: subscriptions,
         }
     }
 
@@ -558,8 +573,13 @@ impl Render for SnippetForm {
                     } else {
                         theme::hairline()
                     })
-                    .on_click(cx.listener(move |this, _, _, cx| {
+                    .on_click(cx.listener(move |this, _, window, cx| {
                         this.pin_color = value.map(str::to_string);
+                        this.palette
+                            .update(cx, |palette, cx| match value.and_then(pin_color) {
+                                Some(color) => palette.set_value(color, window, cx),
+                                None => palette.clear_value(window, cx),
+                            });
                         cx.notify();
                     }))
                     .child(
@@ -571,6 +591,10 @@ impl Render for SnippetForm {
             };
         let colors: Vec<_> = std::iter::once(color_swatch("color-default", None, cx))
             .chain(PIN_COLORS.map(|color| color_swatch(color, Some(color), cx)))
+            .map(IntoElement::into_any_element)
+            .chain([common::color_picker(&self.palette)
+                .large()
+                .into_any_element()])
             .collect();
 
         common::form_page(

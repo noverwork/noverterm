@@ -141,6 +141,7 @@
  "Show on shortcut panel": "顯示在捷徑面板",
  "Drag shortcuts in the sidebar to change their order.": "在側邊欄拖曳捷徑即可調整順序。",
  "Icon": "圖示",
+ "Group color": "群組顏色",
  "Color": "顏色",
  "Failed to create group": "無法建立群組",
  "Failed to move host": "無法移動主機",

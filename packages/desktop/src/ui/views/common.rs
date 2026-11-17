@@ -2,6 +2,7 @@
 //! banners, and the delete confirmation.
 
 use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants as _};
+use gpui_kit::component::color_picker::{ColorPicker, ColorPickerState};
 use gpui_kit::component::select::{SelectItem, SelectState};
 use gpui_kit::component::{h_flex, v_flex, Disableable as _, IndexPath, WindowExt as _};
 use gpui_kit::prelude::FluentBuilder as _;
@@ -9,6 +10,7 @@ use gpui_kit::*;
 
 use crate::ui::i18n::t;
 use crate::ui::icons::lucide;
+use crate::ui::icons::{pin_color, PIN_COLORS};
 use crate::ui::theme;
 
 /// The frame of a list page: a title row with actions, then scrolling content.
@@ -346,4 +348,31 @@ pub fn new_select(
 
 pub fn selected(select: &Entity<ChoiceSelect>, cx: &App) -> Option<String> {
     select.read(cx).selected_value().cloned()
+}
+
+/// State of a color palette, starting at `value` (`#rrggbb`) when it parses.
+pub fn color_palette(
+    value: Option<&str>,
+    window: &mut Window,
+    cx: &mut App,
+) -> Entity<ColorPickerState> {
+    let value = value.and_then(pin_color);
+    cx.new(|cx| {
+        let state = ColorPickerState::new(window, cx);
+        match value {
+            Some(value) => state.default_value(value),
+            None => state,
+        }
+    })
+}
+
+/// A swatch that opens a palette, offering the shortcut colors first.
+pub fn color_picker(state: &Entity<ColorPickerState>) -> ColorPicker {
+    ColorPicker::new(state).featured_colors(
+        PIN_COLORS
+            .iter()
+            .filter_map(|color| pin_color(color))
+            .map(Hsla::from)
+            .collect(),
+    )
 }

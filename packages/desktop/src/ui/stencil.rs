@@ -3,6 +3,8 @@
 use gpui_kit::Rgba;
 use shared::HostGroupRecord;
 
+use crate::ui::icons::pin_color;
+
 use crate::ui::store::{Session, Store};
 use crate::ui::terminal::SessionKind;
 
@@ -33,17 +35,32 @@ const LINE_COLORS: [(Rgba, bool); 4] = [
 ];
 const UNGROUPED_LINE: (Rgba, bool) = line(0x2a2f36, false);
 
-/// Groups take line colours in name order, so neighbours in the Connections
-/// list never share a colour until there are more groups than colours.
-// ponytail: renaming a group can shift colours; store a per-group colour if
-// users want them pinned.
+/// A group's chosen colour, else the line colour for its place in name order,
+/// so neighbours in the Connections list never share a default colour until
+/// there are more groups than colours.
 pub fn line_color(group_id: &str, groups: &[HostGroupRecord]) -> (Rgba, bool) {
     let mut sorted: Vec<&HostGroupRecord> = groups.iter().collect();
     sorted.sort_by(|left, right| left.name.cmp(&right.name));
-    match sorted.iter().position(|group| group.id == group_id) {
-        Some(index) => LINE_COLORS[index % LINE_COLORS.len()],
-        None => UNGROUPED_LINE,
+    let Some(index) = sorted.iter().position(|group| group.id == group_id) else {
+        return UNGROUPED_LINE;
+    };
+    match sorted[index].color.as_deref().and_then(pin_color) {
+        Some(fill) => (fill, needs_dark_text(fill)),
+        None => LINE_COLORS[index % LINE_COLORS.len()],
     }
+}
+
+/// Whether dark text reads better than light text on `fill` (WCAG luminance).
+fn needs_dark_text(fill: Rgba) -> bool {
+    let channel = |value: f32| {
+        if value <= 0.04045 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let luminance = 0.2126 * channel(fill.r) + 0.7152 * channel(fill.g) + 0.0722 * channel(fill.b);
+    luminance > 0.179
 }
 
 pub fn group_prefix(name: &str) -> String {
@@ -86,7 +103,7 @@ pub fn session_stencil(session: &Session, store: &Store) -> Stencil {
 
 #[cfg(test)]
 mod tests {
-    use super::{group_prefix, line_color, LINE_COLORS, UNGROUPED_LINE};
+    use super::{group_prefix, line_color, pin_color, LINE_COLORS, UNGROUPED_LINE};
     use shared::HostGroupRecord;
 
     #[test]
@@ -96,10 +113,18 @@ mod tests {
         let group = |id: &str, name: &str| HostGroupRecord {
             id: id.to_string(),
             name: name.to_string(),
+            color: None,
         };
-        let groups = [group("2", "beta"), group("1", "alpha")];
+        let mut groups = [group("2", "beta"), group("1", "alpha")];
         assert_eq!(line_color("1", &groups), LINE_COLORS[0]);
         assert_eq!(line_color("2", &groups), LINE_COLORS[1]);
         assert_eq!(line_color("missing", &groups), UNGROUPED_LINE);
+
+        groups[0].color = Some("#facc15".to_string());
+        let (fill, dark_text) = line_color("2", &groups);
+        assert_eq!(Some(fill), pin_color("#facc15"));
+        assert!(dark_text);
+        groups[0].color = Some("#1e3a8a".to_string());
+        assert!(!line_color("2", &groups).1);
     }
 }
