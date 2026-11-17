@@ -89,6 +89,9 @@ pub struct Shell {
     store: Entity<Store>,
     /// The page for the current route; rebuilt when the route changes.
     page: Option<(Route, AnyView)>,
+    /// The page shown before the current one, reused when the user goes back
+    /// so a list keeps its scroll position and search.
+    previous: Option<(Route, AnyView)>,
     /// SFTP panes stay connected while the user visits other pages.
     sftp: Option<AnyView>,
     /// Lives for the whole window: status line, approval dialog, update prompt.
@@ -109,6 +112,7 @@ impl Shell {
             overlays: views::Overlays::new(window, cx),
             store,
             page: None,
+            previous: None,
             sftp: None,
             focused_session: None,
             _subscriptions: vec![changes],
@@ -141,7 +145,15 @@ impl Shell {
         match &self.page {
             Some((shown, view)) if shown == route => view.clone(),
             _ => {
-                let view = views::build(route, window, cx);
+                let left = self.page.take();
+                let view = match self.previous.take() {
+                    // Going back drops the page being left, so a form opens fresh next time.
+                    Some((shown, view)) if shown == *route => view,
+                    _ => {
+                        self.previous = left;
+                        views::build(route, window, cx)
+                    }
+                };
                 self.page = Some((route.clone(), view.clone()));
                 view
             }

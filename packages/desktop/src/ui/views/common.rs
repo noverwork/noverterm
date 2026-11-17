@@ -46,7 +46,23 @@ pub fn page(title: SharedString, actions: impl IntoElement, body: impl IntoEleme
 
 /// The scrolling area under a page's title row.
 pub fn page_body(id: &'static str) -> Stateful<Div> {
-    div().id(id).mt_6().flex_1().min_h_0().overflow_y_scroll()
+    div()
+        .id(id)
+        .mt_6()
+        .flex_1()
+        .min_h_0()
+        .overflow_y_scroll()
+        .track_scroll(&kept_scroll(id))
+}
+
+/// A scroll position that outlives the view, so a page opens where the user
+/// left it.
+pub fn kept_scroll(id: &'static str) -> ScrollHandle {
+    thread_local! {
+        static KEPT: std::cell::RefCell<std::collections::HashMap<&'static str, ScrollHandle>> =
+            Default::default();
+    }
+    KEPT.with(|kept| kept.borrow_mut().entry(id).or_default().clone())
 }
 
 /// The frame of a form page: title, scrolling fields, then Cancel and Save.
