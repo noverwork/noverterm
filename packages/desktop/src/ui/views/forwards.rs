@@ -1124,60 +1124,60 @@ impl Render for ForwardForm {
                             .child(auth),
                     )
             });
-        let connection_section = common::form_section(
-            "server",
-            t("Saved connection"),
-            Some(t(
-                "Target host is resolved from this SSH server, not your local machine.",
-            )),
-        );
-        let connection_section = if store.hosts.is_empty() {
-            connection_section.child(
-                v_flex()
-                    .items_center()
-                    .gap_1()
-                    .px_4()
-                    .py_6()
-                    .rounded(theme::RADIUS)
-                    .border_1()
-                    .border_dashed()
-                    .border_color(theme::hairline())
+        let connection_section = common::form_section(None, None);
+        let connection_section =
+            if store.hosts.is_empty() {
+                connection_section.child(
+                    v_flex()
+                        .items_center()
+                        .gap_1()
+                        .px_4()
+                        .py_6()
+                        .rounded(theme::RADIUS)
+                        .border_1()
+                        .border_dashed()
+                        .border_color(theme::hairline())
+                        .child(
+                            lucide("server")
+                                .size_8()
+                                .mb_2()
+                                .text_color(theme::STENCIL_FAINT),
+                        )
+                        .child(
+                            div()
+                                .text_sm()
+                                .text_color(theme::STENCIL_MUTE)
+                                .child(t("No saved connections yet.")),
+                        )
+                        .child(div().text_xs().text_color(theme::STENCIL_MUTE).child(tf(
+                            "Create a Host in {page} first, then return here to save a tunnel.",
+                            &[("page", &t("Connections"))],
+                        ))),
+                )
+            } else {
+                connection_section
                     .child(
-                        lucide("server")
-                            .size_8()
-                            .mb_2()
-                            .text_color(theme::STENCIL_FAINT),
+                        common::field(
+                            t("Connection"),
+                            Select::new(&self.connection).disabled(saving),
+                            None,
+                        )
+                        .child(div().text_xs().text_color(theme::STENCIL_MUTE).child(t(
+                            "Target host is resolved from this SSH server, not your local machine.",
+                        ))),
                     )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(theme::STENCIL_MUTE)
-                            .child(t("No saved connections yet.")),
-                    )
-                    .child(div().text_xs().text_color(theme::STENCIL_MUTE).child(tf(
-                        "Create a Host in {page} first, then return here to save a tunnel.",
-                        &[("page", &t("Connections"))],
-                    ))),
-            )
-        } else {
-            connection_section
-                .child(common::field(
-                    t("Connection"),
-                    Select::new(&self.connection).disabled(saving),
-                    None,
-                ))
-                .children(summary)
-                .child(common::field(
-                    t("Name"),
-                    Input::new(&self.name).disabled(saving),
-                    None,
-                ))
-        };
+                    .children(summary)
+                    .child(common::field(
+                        t("Name"),
+                        Input::new(&self.name).disabled(saving),
+                        None,
+                    ))
+            };
 
         common::form_page(
             self.error.clone(),
             v_flex().gap_4().child(connection_section).child(
-                common::form_section("network", t("Forward route"), None)
+                common::form_section(t("Forward route"), None)
                     .children(
                         self.rows
                             .iter()

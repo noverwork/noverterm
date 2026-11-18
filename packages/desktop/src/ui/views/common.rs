@@ -134,27 +134,24 @@ pub fn form_buttons(
         )
 }
 
-/// A bordered group of fields with an icon and a title.
-pub fn form_section(icon: &'static str, title: SharedString, hint: Option<SharedString>) -> Div {
+/// A rib card holding a group of fields, under a title when the group needs
+/// one. Pass no title for a group the drawer title or its fields already name.
+pub fn form_section(title: impl Into<Option<SharedString>>, hint: Option<SharedString>) -> Div {
     v_flex()
-        .gap_3()
+        .gap_4()
         .p_4()
         .rounded(theme::RADIUS)
         .border_1()
         .border_color(theme::hairline())
         .bg(theme::RIB)
-        .child(
-            h_flex().gap_3().pb_1().child(icon_box(icon)).child(
-                v_flex()
-                    .gap_1()
-                    .child(div().text_sm().font_weight(FontWeight::MEDIUM).child(title))
-                    .children(
-                        hint.map(|hint| {
-                            div().text_xs().text_color(theme::STENCIL_MUTE).child(hint)
-                        }),
-                    ),
-            ),
-        )
+        .children(title.into().map(|title| {
+            v_flex()
+                .gap_1()
+                .child(div().text_sm().child(title))
+                .children(
+                    hint.map(|hint| div().text_xs().text_color(theme::STENCIL_MUTE).child(hint)),
+                )
+        }))
 }
 
 /// The 40px bordered square that holds a row's or section's icon.
@@ -175,8 +172,8 @@ pub fn icon_box(icon: &'static str) -> Div {
 /// A label over a control, with an optional validation message under it.
 pub fn field(label: SharedString, control: impl IntoElement, error: Option<SharedString>) -> Div {
     v_flex()
-        .gap_2()
-        .child(div().text_sm().font_weight(FontWeight::MEDIUM).child(label))
+        .gap_1p5()
+        .child(div().text_xs().text_color(theme::STENCIL_DIM).child(label))
         .child(control)
         .children(error.map(|error| div().text_xs().text_color(theme::RED_TEXT).child(error)))
 }

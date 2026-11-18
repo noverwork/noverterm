@@ -483,39 +483,40 @@ impl Render for KeyForm {
 
         common::form_page(
             self.error.clone(),
-            v_flex()
-                .gap_4()
-                .child(
-                    common::form_section("key-round", t("Key identity"), None)
-                        .children(fingerprint)
-                        .child(common::field(
-                            t("Key name"),
-                            Input::new(&self.name).disabled(disabled),
-                            None,
-                        ))
-                        .child(common::field(
-                            SharedString::from(format!("{} {}", t("Passphrase"), t("(optional)"))),
-                            Input::new(&self.passphrase).disabled(disabled),
-                            None,
-                        )),
-                )
-                .child(
-                    common::form_section("key-round", t("Private key"), None)
-                        .child(
-                            h_flex().child(
-                                Button::new("import-key")
-                                    .outline()
-                                    .small()
-                                    .icon(lucide("file-input"))
-                                    .label(t("Import from file"))
-                                    .disabled(disabled)
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.import_file(window, cx)
-                                    })),
-                            ),
-                        )
-                        .child(Textarea::new(&self.private_key).disabled(disabled)),
-                ),
+            v_flex().gap_4().child(
+                common::form_section(None, None)
+                    .children(fingerprint)
+                    .child(common::field(
+                        t("Name"),
+                        Input::new(&self.name).disabled(disabled),
+                        None,
+                    ))
+                    .child(common::field(
+                        SharedString::from(format!("{} {}", t("Passphrase"), t("(optional)"))),
+                        Input::new(&self.passphrase).disabled(disabled),
+                        None,
+                    ))
+                    .child(common::field(
+                        t("Private key"),
+                        v_flex()
+                            .gap_2()
+                            .child(
+                                h_flex().child(
+                                    Button::new("import-key")
+                                        .outline()
+                                        .small()
+                                        .icon(lucide("file-input"))
+                                        .label(t("Import from file"))
+                                        .disabled(disabled)
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.import_file(window, cx)
+                                        })),
+                                ),
+                            )
+                            .child(Textarea::new(&self.private_key).disabled(disabled)),
+                        None,
+                    )),
+            ),
             common::form_buttons(
                 submit_label,
                 self.saving,

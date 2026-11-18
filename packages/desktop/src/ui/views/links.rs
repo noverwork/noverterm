@@ -272,7 +272,7 @@ impl LinksView {
 
     fn render_relay(&self, cx: &Context<Self>) -> impl IntoElement {
         let key = self.public_key.clone();
-        common::form_section("server", t("Relay"), None)
+        common::form_section(None, None)
             .child(
                 h_flex()
                     .items_end()
@@ -659,17 +659,14 @@ impl Render for LinkForm {
         let saving = self.saving;
         common::form_page(
             self.error.clone(),
-            v_flex()
-                .gap_4()
-                .child(
-                    common::form_section("globe", t("Public name"), None).child(common::field(
-                        t("Name"),
+            v_flex().gap_4().child(
+                common::form_section(None, None)
+                    .child(common::field(
+                        t("Public name"),
                         Input::new(&self.subdomain).disabled(saving),
                         None,
-                    )),
-                )
-                .child(
-                    common::form_section("network", t("Local service"), None).child(
+                    ))
+                    .child(
                         h_flex()
                             .items_start()
                             .gap_3()
@@ -690,7 +687,7 @@ impl Render for LinkForm {
                                 .w(px(112.)),
                             ),
                     ),
-                ),
+            ),
             common::form_buttons(
                 if saving {
                     t("Saving…")
