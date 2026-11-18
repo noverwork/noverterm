@@ -16,6 +16,7 @@ pub mod updater;
 
 use gpui_kit::*;
 
+use crate::ui::i18n::t;
 use crate::ui::store::Route;
 use crate::ui::theme;
 
@@ -60,6 +61,54 @@ pub fn build(route: &Route, window: &mut Window, cx: &mut App) -> AnyView {
         Route::Settings => cx.new(|cx| settings::SettingsView::new(window, cx)).into(),
         _ => cx.new(|_| Placeholder(format!("{route:?}").into())).into(),
     }
+}
+
+/// The drawer title and width for a form route.
+pub fn form_frame(route: &Route) -> (SharedString, Pixels) {
+    let (title, width) = match route {
+        Route::ConnectionForm(id) => (
+            if id.is_some() {
+                "Edit connection"
+            } else {
+                "New connection"
+            },
+            560.,
+        ),
+        Route::KeyForm(id) => (
+            if id.is_some() {
+                "Edit SSH key"
+            } else {
+                "New SSH key"
+            },
+            560.,
+        ),
+        Route::ForwardForm(id) => (
+            if id.is_some() {
+                "Edit port forward"
+            } else {
+                "New port forward"
+            },
+            720.,
+        ),
+        Route::LinkForm(id) => (
+            if id.is_some() {
+                "Edit link"
+            } else {
+                "New link"
+            },
+            560.,
+        ),
+        Route::SnippetForm { id, .. } => (
+            if id.is_some() {
+                "Edit Snippet"
+            } else {
+                "New Snippet"
+            },
+            720.,
+        ),
+        _ => ("", 560.),
+    };
+    (t(title), px(width))
 }
 
 struct Placeholder(SharedString);

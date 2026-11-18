@@ -13,7 +13,7 @@ use crate::store::hosts::SaveConnectionInput;
 use crate::ui::bridge::backend;
 use crate::ui::i18n::{t, tf};
 use crate::ui::icons::lucide;
-use crate::ui::store::{store, Route, Store};
+use crate::ui::store::{store, Store};
 use crate::ui::theme;
 use crate::ui::views::common::{self, Choice, ChoiceSelect};
 use crate::ui::views::connections::{saved_password, AI_ACCESS_OPTIONS};
@@ -202,8 +202,7 @@ impl ConnectionForm {
     }
 
     fn back(&mut self, cx: &mut Context<Self>) {
-        self.store
-            .update(cx, |store, cx| store.navigate(Route::Connections, cx));
+        self.store.update(cx, |store, cx| store.close_form(cx));
     }
 
     /// Switching the key off forgets what was entered for it.
@@ -437,11 +436,6 @@ impl Render for ConnectionForm {
             });
 
         common::form_page(
-            if editing {
-                t("Edit connection")
-            } else {
-                t("New connection")
-            },
             self.error.clone(),
             v_flex()
                 .gap_4()

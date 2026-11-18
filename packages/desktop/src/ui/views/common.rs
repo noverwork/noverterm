@@ -67,60 +67,43 @@ pub fn kept_scroll(id: &'static str) -> ScrollHandle {
     KEPT.with(|kept| kept.borrow_mut().entry(id).or_default().clone())
 }
 
-/// The frame of a form page: title, scrolling fields, then Cancel and Save.
+/// The body of a form drawer: scrolling fields, then Cancel and Save.
 pub fn form_page(
-    title: SharedString,
     error: Option<SharedString>,
     fields: impl IntoElement,
     footer: impl IntoElement,
 ) -> Div {
+    // The drawer body scrolls and so gives its content no height; filling it
+    // absolutely keeps Cancel and Save pinned while only the fields scroll.
     v_flex()
-        .size_full()
-        .px_8()
-        .py_6()
-        .bg(theme::PORT)
+        .absolute()
+        .inset_0()
         .text_color(theme::STENCIL)
         .child(
-            v_flex()
+            div()
+                .id("form-fields")
                 .flex_1()
                 .min_h_0()
-                .p_6()
+                .overflow_y_scroll()
                 .child(
-                    div()
-                        .pb_4()
-                        .border_b_1()
-                        .border_color(theme::hairline())
-                        .text_2xl()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .child(title),
-                )
-                .child(
-                    div()
-                        .id("form-fields")
-                        .flex_1()
-                        .min_h_0()
-                        .overflow_y_scroll()
-                        .child(
-                            v_flex()
-                                .mx_auto()
-                                .w_full()
-                                .max_w(px(768.))
-                                .gap_4()
-                                .py_4()
-                                .children(error.map(error_banner))
-                                .child(fields),
-                        ),
-                )
-                .child(
-                    h_flex()
-                        .flex_shrink_0()
-                        .justify_end()
-                        .gap_2()
-                        .pt_4()
-                        .border_t_1()
-                        .border_color(theme::hairline())
-                        .child(footer),
+                    v_flex()
+                        .gap_4()
+                        .px_6()
+                        .py_4()
+                        .children(error.map(error_banner))
+                        .child(fields),
                 ),
+        )
+        .child(
+            h_flex()
+                .flex_shrink_0()
+                .justify_end()
+                .gap_2()
+                .px_6()
+                .py_4()
+                .border_t_1()
+                .border_color(theme::hairline())
+                .child(footer),
         )
 }
 

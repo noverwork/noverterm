@@ -229,6 +229,7 @@ mod shots {
             ("connection-form", Route::ConnectionForm(None)),
             ("key-form", Route::KeyForm(None)),
             ("forward-form", Route::ForwardForm(None)),
+            ("link-form", Route::LinkForm(None)),
             (
                 "snippet-form",
                 Route::SnippetForm {

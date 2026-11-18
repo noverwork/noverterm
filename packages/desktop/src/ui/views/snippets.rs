@@ -446,8 +446,7 @@ impl SnippetForm {
     }
 
     fn back(&mut self, cx: &mut Context<Self>) {
-        self.store
-            .update(cx, |store, cx| store.navigate(Route::Snippets, cx));
+        self.store.update(cx, |store, cx| store.close_form(cx));
     }
 
     fn save(&mut self, cx: &mut Context<Self>) {
@@ -598,11 +597,6 @@ impl Render for SnippetForm {
             .collect();
 
         common::form_page(
-            if editing {
-                t("Edit Snippet")
-            } else {
-                t("New Snippet")
-            },
             self.error.clone(),
             v_flex()
                 .gap_4()
