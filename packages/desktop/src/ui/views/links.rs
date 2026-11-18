@@ -607,8 +607,7 @@ impl LinkForm {
     }
 
     fn back(&mut self, cx: &mut Context<Self>) {
-        self.store
-            .update(cx, |store, cx| store.navigate(Route::Links, cx));
+        self.store.update(cx, |store, cx| store.close_form(cx));
     }
 
     fn save(&mut self, cx: &mut Context<Self>) {
@@ -659,11 +658,6 @@ impl Render for LinkForm {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let saving = self.saving;
         common::form_page(
-            if self.id.is_some() {
-                t("Edit link")
-            } else {
-                t("New link")
-            },
             self.error.clone(),
             v_flex()
                 .gap_4()

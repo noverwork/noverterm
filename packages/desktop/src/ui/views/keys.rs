@@ -351,8 +351,7 @@ impl KeyForm {
     }
 
     fn back(&mut self, cx: &mut Context<Self>) {
-        self.store
-            .update(cx, |store, cx| store.navigate(Route::Keys, cx));
+        self.store.update(cx, |store, cx| store.close_form(cx));
     }
 
     fn save(&mut self, cx: &mut Context<Self>) {
@@ -483,11 +482,6 @@ impl Render for KeyForm {
         });
 
         common::form_page(
-            if editing {
-                t("Edit SSH key")
-            } else {
-                t("New SSH key")
-            },
             self.error.clone(),
             v_flex()
                 .gap_4()

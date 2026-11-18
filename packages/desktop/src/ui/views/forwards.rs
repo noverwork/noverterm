@@ -872,8 +872,7 @@ impl ForwardForm {
     }
 
     fn back(&mut self, cx: &mut Context<Self>) {
-        self.store
-            .update(cx, |store, cx| store.navigate(Route::Forwards, cx));
+        self.store.update(cx, |store, cx| store.close_form(cx));
     }
 
     /// The preset the fields describe, or what is wrong with them.
@@ -1176,11 +1175,6 @@ impl Render for ForwardForm {
         };
 
         common::form_page(
-            if editing {
-                t("Edit port forward")
-            } else {
-                t("New port forward")
-            },
             self.error.clone(),
             v_flex().gap_4().child(connection_section).child(
                 common::form_section("network", t("Forward route"), None)

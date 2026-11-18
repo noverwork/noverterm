@@ -4,7 +4,7 @@ use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::menu::{ContextMenuExt as _, PopupMenuItem};
 use gpui_kit::component::spinner::Spinner;
 use gpui_kit::component::tooltip::Tooltip;
-use gpui_kit::component::{h_flex, v_flex, Disableable as _, Sizable as _};
+use gpui_kit::component::{h_flex, v_flex, Disableable as _, Sizable as _, WindowExt as _};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 use shared::SnippetRecord;
@@ -109,6 +109,8 @@ pub struct Shell {
     overlays: views::Overlays,
     /// The tab the terminal last had focus for.
     focused_session: Option<String>,
+    /// The form shown in the drawer.
+    form: Option<Route>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -117,6 +119,7 @@ impl Shell {
         let store = store(cx);
         let changes = cx.observe_in(&store, window, |this, _, window, cx| {
             this.focus_active_terminal(window, cx);
+            this.sync_form(window, cx);
             cx.notify();
         });
         Self {
@@ -126,8 +129,39 @@ impl Shell {
             previous: None,
             sftp: None,
             focused_session: None,
+            form: None,
             _subscriptions: vec![changes],
         }
+    }
+
+    /// Opens or closes the form drawer to match the store.
+    fn sync_form(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let wanted = self.store.read(cx).form.clone();
+        if wanted == self.form {
+            return;
+        }
+        self.form = wanted.clone();
+        let Some(route) = wanted else {
+            window.close_sheet(cx);
+            return;
+        };
+        let view = views::build(&route, window, cx);
+        let (title, width) = views::form_frame(&route);
+        let store = self.store.clone();
+        window.open_sheet(cx, move |sheet, _, _| {
+            let store = store.clone();
+            sheet
+                .title(title.clone())
+                .size(width)
+                .resizable(false)
+                .overlay_closable(false)
+                .px_0()
+                .shadow_none()
+                .bg(theme::PORT)
+                .border_color(theme::hairline())
+                .on_close(move |_, _, cx| store.update(cx, |store, cx| store.close_form(cx)))
+                .child(view.clone())
+        });
     }
 
     /// Hands the keyboard to the terminal when its tab comes to the front.
