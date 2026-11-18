@@ -158,6 +158,7 @@ impl SettingsView {
                     let SelectEvent::Confirm(value) = event;
                     if let Some(locale) = value.as_deref().and_then(Locale::from_code) {
                         i18n::set_locale(locale);
+                        crate::ui::set_menus(cx);
                         this.store.update(cx, |store, cx| {
                             store.set_setting(i18n::LOCALE_SETTING, locale.code().to_string(), cx)
                         });
