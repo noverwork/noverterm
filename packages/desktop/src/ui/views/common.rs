@@ -101,6 +101,7 @@ pub fn form_page(
                 .gap_2()
                 .px_6()
                 .py_4()
+                .bg(theme::PORT)
                 .border_t_1()
                 .border_color(theme::hairline())
                 .child(footer),

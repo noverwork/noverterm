@@ -151,13 +151,20 @@ impl Shell {
         window.open_sheet(cx, move |sheet, _, _| {
             let store = store.clone();
             sheet
-                .title(title.clone())
+                .title(
+                    // Lines the title up with the 24px inset of the form.
+                    div()
+                        .pl_2()
+                        .text_xl()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(title.clone()),
+                )
                 .size(width)
                 .resizable(false)
                 .overlay_closable(false)
                 .px_0()
                 .shadow_none()
-                .bg(theme::PORT)
+                .bg(theme::RAIL)
                 .border_color(theme::hairline())
                 .on_close(move |_, _, cx| store.update(cx, |store, cx| store.close_form(cx)))
                 .child(view.clone())

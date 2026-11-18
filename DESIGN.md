@@ -225,6 +225,14 @@ Solid, square, and blunt.
 - **Border:** 1px hairline; seal at 60% for disconnected and error panels, ochre at 60% for trust and warning panels.
 - **Internal Padding:** 24-32px for dialogs and overlays, with a footer band on port separated by a hairline.
 
+### Form Drawer
+Every add and edit form (connection, key, port forward, link, snippet) opens in a drawer that slides in from the right over the current page; the page behind stays as it was.
+- **Size:** 560px wide; 720px for snippets and port forwards, whose command box and port rows need the room. It runs from under the top bar to the window's foot.
+- **Surface:** rail, with a 1px hairline on its left edge and no shadow. Form sections inside it are rib cards.
+- **Header:** the form title in the Title style (20px), aligned with the 24px inset of the fields, and a close button on the right.
+- **Footer:** a band on port above a hairline, with Cancel and the submit action on the right. It stays pinned while the fields scroll.
+- **Closing:** Cancel, a successful save, Esc, or the close button. Clicking outside the drawer does not close it, so a half-filled form is not lost.
+
 ### Inputs / Fields
 - **Style:** 44px tall, rail fill, hairline edge, 2px corner, stencil text, stencil-faint placeholder.
 - **Focus:** the edge turns solid stencil; no glow.
