@@ -440,7 +440,7 @@ impl Render for ConnectionForm {
             v_flex()
                 .gap_4()
                 .child(
-                    common::form_section("server", t("Endpoint"), None)
+                    common::form_section(None, None)
                         .child(common::field(
                             t("Name"),
                             Input::new(&self.name).disabled(saving),
@@ -480,7 +480,7 @@ impl Render for ConnectionForm {
                         )),
                 )
                 .child(
-                    common::form_section("key-round", t("Authentication"), None)
+                    common::form_section(t("Authentication"), None)
                         .child(common::field(
                             t("Password"),
                             Input::new(&self.password).mask_toggle().disabled(saving),
@@ -518,7 +518,7 @@ impl Render for ConnectionForm {
                         ),
                 )
                 .child(
-                    common::form_section("bot", t("MCP access"), Some(ai_hint)).child(
+                    common::form_section(t("MCP"), Some(ai_hint)).child(
                         self.segments(
                             "ai-access",
                             AI_ACCESS_OPTIONS

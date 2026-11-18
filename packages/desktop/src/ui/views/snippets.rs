@@ -601,7 +601,7 @@ impl Render for SnippetForm {
             v_flex()
                 .gap_4()
                 .child(
-                    common::form_section("server", t("Host & title"), None)
+                    common::form_section(None, None)
                         .child(common::field(
                             t("Host"),
                             Select::new(&self.host).disabled(saving),
@@ -611,14 +611,15 @@ impl Render for SnippetForm {
                             t("Title"),
                             Input::new(&self.title).disabled(saving),
                             None,
+                        ))
+                        .child(common::field(
+                            t("Command"),
+                            Textarea::new(&self.body).disabled(saving),
+                            None,
                         )),
                 )
                 .child(
-                    common::form_section("file-text", t("Command"), None)
-                        .child(Textarea::new(&self.body).disabled(saving)),
-                )
-                .child(
-                    common::form_section("pin", t("Shortcut panel"), None)
+                    common::form_section(None, None)
                         .child(
                             v_flex()
                                 .gap_1()

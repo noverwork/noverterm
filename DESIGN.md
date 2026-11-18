@@ -229,6 +229,7 @@ Solid, square, and blunt.
 Every add and edit form (connection, key, port forward, link, snippet) opens in a drawer that slides in from the right over the current page; the page behind stays as it was.
 - **Size:** 560px wide; 720px for snippets and port forwards, whose command box and port rows need the room. It runs from under the top bar to the window's foot.
 - **Surface:** rail, with a 1px hairline on its left edge and no shadow. Form sections inside it are rib cards.
+- **Sections:** a card has a title only when the group needs a name; the first card has none, because the drawer title already names it. Cards carry no icon. A hint appears only when it changes a decision.
 - **Header:** the form title in the Title style (20px), aligned with the 24px inset of the fields, and a close button on the right.
 - **Footer:** a band on port above a hairline, with Cancel and the submit action on the right. It stays pinned while the fields scroll.
 - **Closing:** Cancel, a successful save, Esc, or the close button. Clicking outside the drawer does not close it, so a half-filled form is not lost.
