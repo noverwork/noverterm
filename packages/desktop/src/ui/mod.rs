@@ -81,6 +81,10 @@ pub fn run(app: AppHandle) {
             }
         })
         .detach();
+        cx.on_action(|_: &shell::Quit, cx| cx.quit());
+        cx.set_menus([
+            Menu::new("noverterm").items([MenuItem::action("Quit noverterm", shell::Quit)])
+        ]);
         cx.activate(true);
     });
 }

@@ -19,7 +19,14 @@ use crate::ui::views;
 
 actions!(
     noverterm,
-    [OpenSettings, ShowTerminal, CloseTab, NextTab, PreviousTab]
+    [
+        Quit,
+        OpenSettings,
+        ShowTerminal,
+        CloseTab,
+        NextTab,
+        PreviousTab
+    ]
 );
 
 /// Jumps to the tab at this index.
@@ -49,6 +56,10 @@ pub fn bind_keys(cx: &mut App) {
     for index in 0..9 {
         let digit = (index + 1).to_string();
         bindings.push(KeyBinding::new(key(&digit), SelectTab(index), None));
+    }
+    // Ctrl+Q stays with the shell elsewhere.
+    if cfg!(target_os = "macos") {
+        bindings.push(KeyBinding::new("cmd-q", Quit, None));
     }
     cx.bind_keys(bindings);
 }
