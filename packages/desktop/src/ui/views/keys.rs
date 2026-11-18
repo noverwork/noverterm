@@ -3,7 +3,7 @@
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::input::{Input, InputEvent, InputState, Textarea, TextareaState};
 use gpui_kit::component::menu::{ContextMenuExt as _, PopupMenuItem};
-use gpui_kit::component::{h_flex, v_flex, Sizable as _};
+use gpui_kit::component::{h_flex, v_flex, Disableable as _, Sizable as _};
 use gpui_kit::*;
 use shared::SshKeyRecord;
 
@@ -314,6 +314,42 @@ impl KeyForm {
         .detach();
     }
 
+    /// Fills the private key from a file the user picks.
+    fn import_file(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let picked = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: Some(t("Import")),
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let Ok(Ok(Some(mut paths))) = picked.await else {
+                return;
+            };
+            let Some(path) = paths.pop() else {
+                return;
+            };
+            let text = backend(async move {
+                tokio::fs::read_to_string(&path)
+                    .await
+                    .map_err(|error| format!("cannot read {}: {error}", path.display()))
+            })
+            .await;
+            let _ = this.update_in(cx, |this, window, cx| {
+                match text {
+                    Ok(text) => {
+                        this.error = None;
+                        this.private_key
+                            .update(cx, |input, cx| input.set_value(text, window, cx));
+                    }
+                    Err(error) => this.error = Some(error.into()),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
     fn back(&mut self, cx: &mut Context<Self>) {
         self.store
             .update(cx, |store, cx| store.navigate(Route::Keys, cx));
@@ -471,6 +507,19 @@ impl Render for KeyForm {
                 )
                 .child(
                     common::form_section("key-round", t("Private key"), None)
+                        .child(
+                            h_flex().child(
+                                Button::new("import-key")
+                                    .outline()
+                                    .small()
+                                    .icon(lucide("file-input"))
+                                    .label(t("Import from file"))
+                                    .disabled(disabled)
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.import_file(window, cx)
+                                    })),
+                            ),
+                        )
                         .child(Textarea::new(&self.private_key).disabled(disabled)),
                 ),
             common::form_buttons(
