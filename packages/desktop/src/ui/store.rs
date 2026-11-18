@@ -267,6 +267,7 @@ impl Store {
                                     .and_then(Locale::from_code)
                                     .unwrap_or_else(Locale::system),
                             );
+                            crate::ui::set_menus(cx);
                         }
                         this.apply_terminal_config(cx);
                     }

@@ -59,6 +59,13 @@ pub fn open_main_window(options: WindowOptions, cx: &mut App) -> Result<AnyWindo
     Ok(window)
 }
 
+/// The macOS menu bar. Called again when the locale changes.
+pub fn set_menus(cx: &mut App) {
+    cx.set_menus([
+        Menu::new("noverterm").items([MenuItem::action(i18n::t("Quit noverterm"), shell::Quit)])
+    ]);
+}
+
 pub fn run(app: AppHandle) {
     gpui_kit::application().with_assets(Assets).run(move |cx| {
         init(app, cx);
@@ -82,9 +89,7 @@ pub fn run(app: AppHandle) {
         })
         .detach();
         cx.on_action(|_: &shell::Quit, cx| cx.quit());
-        cx.set_menus([
-            Menu::new("noverterm").items([MenuItem::action("Quit noverterm", shell::Quit)])
-        ]);
+        set_menus(cx);
         cx.activate(true);
     });
 }

@@ -509,5 +509,6 @@
  "Updates": "更新",
  "Replaces all current data and restarts Noverterm.": "會取代目前所有資料並重新啟動 Noverterm。",
  "Stored in plain text — keep it private.": "以純文字儲存，請妥善保管。",
- "Restore": "還原"
+ "Restore": "還原",
+ "Quit noverterm": "結束 noverterm"
 }
