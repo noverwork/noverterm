@@ -45,7 +45,6 @@ pub fn init(app: AppHandle, cx: &mut App) {
         ))])
         .expect("the bundled terminal font loads");
     theme::apply(cx);
-    cx.set_global(bridge::Backend(app.clone()));
     let store = cx.new(|cx| store::Store::new(app, cx));
     cx.set_global(store::Globals { store });
     shell::bind_keys(cx);

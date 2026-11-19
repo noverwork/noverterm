@@ -1,5 +1,4 @@
 use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 
 use tokio::sync::{watch, Semaphore};
@@ -15,21 +14,14 @@ pub type TerminalFrame = Vec<u8>;
 
 /// Where output frames go. An error from `send` cancels every session.
 pub struct Channel {
-    id: u32,
     send: Box<dyn Fn(TerminalFrame) -> Result<(), String> + Send + Sync>,
 }
 
 impl Channel {
     pub fn new(send: impl Fn(TerminalFrame) -> Result<(), String> + Send + Sync + 'static) -> Self {
-        static NEXT_ID: AtomicU32 = AtomicU32::new(0);
         Self {
-            id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             send: Box::new(send),
         }
-    }
-
-    pub fn id(&self) -> u32 {
-        self.id
     }
 }
 
@@ -67,19 +59,6 @@ impl TerminalOutput {
         let mut transport = self.inner.lock().map_err(|e| e.to_string())?;
         transport.cancel_sessions("Terminal output subscription replaced");
         transport.channel = Some(channel);
-        Ok(())
-    }
-
-    pub fn unsubscribe(&self, channel_id: u32) -> Result<(), String> {
-        let mut transport = self.inner.lock().map_err(|e| e.to_string())?;
-        if transport
-            .channel
-            .as_ref()
-            .is_some_and(|channel| channel.id() == channel_id)
-        {
-            transport.cancel_sessions("Terminal output subscription closed");
-            transport.channel = None;
-        }
         Ok(())
     }
 
@@ -333,25 +312,5 @@ mod tests {
             .expect("replace");
         assert!(blocked.await.is_err());
         assert!(output.close(None).is_err());
-    }
-
-    #[tokio::test]
-    async fn stale_unsubscribe_cannot_remove_replacement_and_loss_cancels_sessions() {
-        let transport = TerminalOutput::default();
-        let old = Channel::new(|_| Ok(()));
-        let old_id = old.id();
-        transport.subscribe(old).expect("subscribe");
-        let replacement = Channel::new(|_| Err("broken pipe".to_string()));
-        transport.subscribe(replacement).expect("replace");
-        transport.unsubscribe(old_id).expect("stale unsubscribe");
-        let output = transport
-            .open(uuid::Uuid::new_v4().to_string(), String::new())
-            .expect("replacement survives");
-        assert!(output.send(b"x").await.is_err());
-        output.stopped().await;
-        assert!(transport
-            .open(uuid::Uuid::new_v4().to_string(), String::new())
-            .is_err());
-        assert!(output.send(b"y").await.is_err());
     }
 }

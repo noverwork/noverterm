@@ -7,10 +7,7 @@ use tokio::io::AsyncWriteExt;
 use super::mock::MockEntry;
 use super::transfer::UPLOAD_CHUNK_SIZE;
 use super::types::classify_sftp_error;
-use super::{
-    FileEntry, FileType, SftpError, SftpSession, SftpSessionManager, TransferCancellation,
-    TransferDirection,
-};
+use super::{FileEntry, FileType, SftpError, SftpSession, TransferCancellation, TransferDirection};
 
 mod download;
 mod tree;
@@ -38,78 +35,6 @@ async fn write_temp_file(path: &Path, size: usize) {
             .expect("temp file chunk should be written");
         remaining -= write_size;
     }
-}
-
-#[tokio::test]
-async fn test_open_sftp_session() {
-    let mut manager = SftpSessionManager::new();
-
-    let session_id = manager
-        .insert(SftpSession::mock("sftp-1"))
-        .expect("mock SFTP session should open");
-
-    assert_eq!(session_id, "sftp-1");
-    assert_eq!(manager.len(), 1);
-    assert!(manager.contains("sftp-1"));
-}
-
-#[tokio::test]
-async fn test_close_sftp_session() {
-    let mut manager = SftpSessionManager::new();
-    manager
-        .insert(SftpSession::mock("sftp-1"))
-        .expect("mock SFTP session should open");
-
-    manager
-        .close("sftp-1")
-        .await
-        .expect("mock SFTP session should close");
-
-    assert!(manager.is_empty());
-    assert!(!manager.contains("sftp-1"));
-}
-
-#[tokio::test]
-async fn test_double_open_sftp_prevented() {
-    let mut manager = SftpSessionManager::new();
-    manager
-        .insert(SftpSession::mock("sftp-1"))
-        .expect("first mock SFTP session should open");
-
-    let result = manager.insert(SftpSession::mock("sftp-2"));
-
-    assert_eq!(result, Err(SftpError::AlreadyOpen));
-    assert_eq!(manager.len(), 1);
-    assert!(manager.contains("sftp-1"));
-}
-
-#[tokio::test]
-async fn test_close_nonexistent_sftp() {
-    let mut manager = SftpSessionManager::new();
-
-    let result = manager.close("missing").await;
-
-    assert_eq!(result, Ok(()));
-}
-
-#[tokio::test]
-async fn test_sftp_error_handling() {
-    let mut manager = SftpSessionManager::new();
-    manager
-        .insert(SftpSession::mock_with_close_error(
-            "sftp-1",
-            "transport closed",
-        ))
-        .expect("mock SFTP session should open");
-
-    let result = manager.close("sftp-1").await;
-
-    assert_eq!(
-        result,
-        Err(SftpError::ConnectionLost("transport closed".to_string()))
-    );
-    assert!(!manager.contains("sftp-1"));
-    assert_eq!(manager.close("sftp-1").await, Ok(()));
 }
 
 #[test]

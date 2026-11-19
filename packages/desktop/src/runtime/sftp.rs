@@ -8,6 +8,7 @@ mod transfer;
 mod tree;
 mod types;
 
+#[cfg(test)]
 use std::collections::HashMap;
 use std::fmt;
 
@@ -43,7 +44,6 @@ enum SftpSessionInner {
     Active(RusshSftpSession),
     #[cfg(test)]
     Mock {
-        close_error: Option<String>,
         entries: std::sync::Mutex<HashMap<String, MockEntry>>,
         upload_result: Result<u64, String>,
         download_result: Result<u64, String>,
@@ -121,10 +121,7 @@ impl SftpSession {
                     .map_err(|error| classify_sftp_error("close", self.id(), error))
             }
             #[cfg(test)]
-            SftpSessionInner::Mock { close_error, .. } => match close_error {
-                Some(error) => Err(SftpError::ConnectionLost(error.clone())),
-                None => Ok(()),
-            },
+            SftpSessionInner::Mock { .. } => Ok(()),
         }
     }
 
@@ -393,44 +390,6 @@ impl SftpSession {
     }
 }
 
-#[derive(Default, Debug)]
-pub struct SftpSessionManager {
-    sessions: HashMap<String, SftpSession>,
-}
-
-impl SftpSessionManager {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn contains(&self, session_id: &str) -> bool {
-        self.sessions.contains_key(session_id)
-    }
-
-    pub fn len(&self) -> usize {
-        self.sessions.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.sessions.is_empty()
-    }
-
-    pub async fn close(&mut self, session_id: &str) -> Result<(), SftpError> {
-        close_sftp_session(&mut self.sessions, session_id).await
-    }
-
-    #[cfg(test)]
-    fn insert(&mut self, session: SftpSession) -> Result<String, SftpError> {
-        if !self.sessions.is_empty() {
-            return Err(SftpError::AlreadyOpen);
-        }
-
-        let session_id = session.id().to_string();
-        self.sessions.insert(session_id.clone(), session);
-        Ok(session_id)
-    }
-}
-
 pub(crate) async fn open_sftp_session(
     handle: &mut Handle<ClientHandler>,
 ) -> Result<SftpSession, SftpError> {
@@ -449,15 +408,4 @@ pub(crate) async fn open_sftp_session(
         .map_err(|error| SftpError::SessionInitFailed(error.to_string()))?;
 
     Ok(SftpSession::new(Uuid::new_v4().to_string(), session))
-}
-
-pub async fn close_sftp_session(
-    sessions: &mut HashMap<String, SftpSession>,
-    session_id: &str,
-) -> Result<(), SftpError> {
-    let Some(session) = sessions.remove(session_id) else {
-        return Ok(());
-    };
-
-    session.close().await
 }

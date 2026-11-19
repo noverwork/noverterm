@@ -5610,7 +5610,6 @@ dependencies = [
  "chrono",
  "diesel",
  "serde",
- "tracing",
 ]
 
 [[package]]
@@ -7692,9 +7691,7 @@ dependencies = [
 name = "shared"
 version = "0.1.0"
 dependencies = [
- "chrono",
  "serde",
- "tracing",
 ]
 
 [[package]]

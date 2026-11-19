@@ -41,7 +41,6 @@ pub async fn sftp_close(
 
 #[allow(clippy::too_many_arguments)]
 pub async fn sftp_connect_direct(
-    app: AppHandle,
     host: String,
     port: u16,
     username: String,
@@ -54,7 +53,6 @@ pub async fn sftp_connect_direct(
 ) -> Result<SshConnectResponse, String> {
     ssh_manager
         .connect_direct_sftp(
-            app,
             &host,
             port,
             &username,
@@ -80,14 +78,6 @@ pub async fn sftp_home_dir(
     ssh_manager: State<'_, SshSessionManager>,
 ) -> Result<String, String> {
     ssh_manager.sftp_home_dir(&session_id).await
-}
-
-pub async fn sftp_stat(
-    session_id: String,
-    path: String,
-    ssh_manager: State<'_, SshSessionManager>,
-) -> Result<FileEntry, String> {
-    ssh_manager.sftp_stat(&session_id, &path).await
 }
 
 pub async fn sftp_mkdir(
@@ -237,10 +227,6 @@ pub async fn sftp_cancel_transfer(
 
 pub async fn local_list_dir(path: String) -> Result<Vec<FileEntry>, String> {
     local_fs::local_list_dir(&path).await
-}
-
-pub async fn local_stat(path: String) -> Result<FileEntry, String> {
-    local_fs::local_stat(&path).await
 }
 
 pub async fn local_mkdir(path: String) -> Result<(), String> {

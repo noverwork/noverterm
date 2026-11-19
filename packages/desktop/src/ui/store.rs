@@ -939,11 +939,7 @@ impl Store {
             let _ = backend(async move {
                 match kind {
                     SessionKind::Local => app.state::<LocalSessionManager>().disconnect(&id).await,
-                    SessionKind::Ssh => {
-                        app.state::<SshSessionManager>()
-                            .disconnect(app.clone(), &id)
-                            .await
-                    }
+                    SessionKind::Ssh => app.state::<SshSessionManager>().disconnect(&id).await,
                 }
             })
             .await;

@@ -7,7 +7,7 @@ pub mod ssh_host;
 pub mod ssh_key;
 pub mod trusted_host;
 
-pub use host_group::{HostGroup, NewHostGroup, UpdateHostGroup};
+pub use host_group::{HostGroup, NewHostGroup};
 pub use host_snippet::{HostSnippet, NewHostSnippet, UpdateHostSnippet};
 pub use link::{Link, NewLink, UpdateLink};
 pub use port_forward::{

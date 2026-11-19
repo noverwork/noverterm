@@ -1,38 +1,13 @@
 use crate::app::{AppHandle, State};
 
-use crate::runtime::local::LocalSessionManager;
 use crate::runtime::port_forward::{
     PortForwardAuth, PortForwardCreateInput as InternalPortForwardInput, PortForwardManager,
     PortForwardStatus,
 };
 use crate::runtime::ssh::{
-    auth_method, SshConnectRequest, SshConnectResponse, SshHopInput, SshLocalPortForwardInput,
-    SshPortForwardStatus, SshProbeHostInfoResponse, SshSessionManager,
+    auth_method, SshConnectRequest, SshConnectResponse, SshHopInput, SshSessionManager,
 };
-use crate::runtime::terminal_output::{Channel, TerminalOutput};
 use crate::trust::{HostTrustConfirmation, SshTrustStore};
-
-pub fn terminal_output_subscribe(
-    on_output: Channel,
-    output: State<'_, TerminalOutput>,
-) -> Result<(), String> {
-    output.subscribe(on_output)
-}
-
-pub fn terminal_output_ack(
-    session_id: String,
-    bytes: u32,
-    output: State<'_, TerminalOutput>,
-) -> Result<(), String> {
-    output.ack(&session_id, bytes)
-}
-
-pub fn terminal_output_unsubscribe(
-    channel_id: u32,
-    output: State<'_, TerminalOutput>,
-) -> Result<(), String> {
-    output.unsubscribe(channel_id)
-}
 
 #[derive(Debug, serde::Deserialize)]
 pub struct DirectSshConnectInput {
@@ -77,102 +52,6 @@ pub async fn ssh_confirm_host_trust(
     trust_store: State<'_, SshTrustStore>,
 ) -> Result<(), String> {
     trust_store.confirm(confirmation).await
-}
-
-pub async fn ssh_probe_host_info(
-    input: DirectSshConnectInput,
-    ssh_manager: State<'_, SshSessionManager>,
-    trust_store: State<'_, SshTrustStore>,
-) -> Result<SshProbeHostInfoResponse, String> {
-    let auth_method = auth_method(input.password, input.private_key, input.passphrase)?;
-
-    ssh_manager
-        .probe_host_info(
-            trust_store.inner().clone(),
-            input.host,
-            input.port,
-            input.username,
-            auth_method,
-            input.jumps,
-        )
-        .await
-}
-
-pub async fn ssh_write(
-    session_id: String,
-    data: String,
-    ssh_manager: State<'_, SshSessionManager>,
-) -> Result<(), String> {
-    ssh_manager.write(&session_id, data.into_bytes()).await
-}
-
-pub async fn ssh_resize(
-    session_id: String,
-    cols: u32,
-    rows: u32,
-    ssh_manager: State<'_, SshSessionManager>,
-) -> Result<(), String> {
-    ssh_manager.resize(&session_id, cols, rows).await
-}
-
-pub async fn ssh_disconnect(
-    app: AppHandle,
-    session_id: String,
-    ssh_manager: State<'_, SshSessionManager>,
-) -> Result<(), String> {
-    ssh_manager.disconnect(app, &session_id).await
-}
-
-pub async fn ssh_start_local_port_forward(
-    app: AppHandle,
-    input: SshLocalPortForwardInput,
-    ssh_manager: State<'_, SshSessionManager>,
-) -> Result<SshPortForwardStatus, String> {
-    ssh_manager.start_local_port_forward(app, input).await
-}
-
-pub async fn ssh_stop_port_forward(
-    app: AppHandle,
-    session_id: String,
-    forward_id: String,
-    ssh_manager: State<'_, SshSessionManager>,
-) -> Result<SshPortForwardStatus, String> {
-    ssh_manager
-        .stop_port_forward(app, &session_id, &forward_id)
-        .await
-}
-
-pub async fn local_connect(
-    output: State<'_, TerminalOutput>,
-    cols: u32,
-    rows: u32,
-    local_manager: State<'_, LocalSessionManager>,
-) -> Result<String, String> {
-    local_manager.connect(&output, cols, rows).await
-}
-
-pub async fn local_write(
-    session_id: String,
-    data: String,
-    local_manager: State<'_, LocalSessionManager>,
-) -> Result<(), String> {
-    local_manager.write(&session_id, data.into_bytes()).await
-}
-
-pub async fn local_resize(
-    session_id: String,
-    cols: u32,
-    rows: u32,
-    local_manager: State<'_, LocalSessionManager>,
-) -> Result<(), String> {
-    local_manager.resize(&session_id, cols, rows).await
-}
-
-pub async fn local_disconnect(
-    session_id: String,
-    local_manager: State<'_, LocalSessionManager>,
-) -> Result<(), String> {
-    local_manager.disconnect(&session_id).await
 }
 
 #[derive(Debug, serde::Deserialize)]

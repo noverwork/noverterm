@@ -145,7 +145,6 @@ async fn fixture(direct: bool) -> Fixture {
             write_tx: None,
             pending_resize: Default::default(),
             sftp_sessions: HashMap::from([(sftp_id.clone(), Arc::new(sftp))]),
-            port_forwards: HashMap::new(),
             keepalive_task: Some(keepalive_task),
             writer_task: None,
             output: None,
@@ -178,7 +177,7 @@ async fn close_direct_sftp_releases_ssh_and_keepalive() {
         .close_sftp(&fixture.sftp_id)
         .await
         .expect("close");
-    assert!(!fixture.manager.contains_session("ssh").await);
+    assert!(!fixture.manager.sessions.lock().await.contains_key("ssh"));
     assert!(
         !fixture
             .manager
@@ -211,7 +210,7 @@ async fn close_sftp_preserves_terminal_channel() {
         .close_sftp(&fixture.sftp_id)
         .await
         .expect("close SFTP");
-    assert!(fixture.manager.contains_session("ssh").await);
+    assert!(fixture.manager.sessions.lock().await.contains_key("ssh"));
     assert!(
         !fixture
             .manager
@@ -237,7 +236,7 @@ async fn close_sftp_preserves_terminal_channel() {
         .await
         .remove("ssh")
         .expect("parent");
-    parent.stop_runtime_tasks(None, true, true);
+    parent.stop_runtime_tasks(true, true);
     fixture
         .handle
         .lock()
@@ -260,7 +259,7 @@ async fn blocked_direct_disconnect_retires_ownership_and_forces_socket_closed() 
     let close = tokio::spawn(async move { manager.close_sftp(&sftp_id).await });
 
     timeout(Duration::from_secs(1), async {
-        while fixture.manager.contains_session("ssh").await {
+        while fixture.manager.sessions.lock().await.contains_key("ssh") {
             tokio::task::yield_now().await;
         }
     })

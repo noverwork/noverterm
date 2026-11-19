@@ -2,19 +2,6 @@
 
 use std::future::Future;
 
-use gpui_kit::{App, Global};
-
-use crate::app::AppHandle;
-
-/// The backend handle, reachable from any view.
-pub struct Backend(pub AppHandle);
-
-impl Global for Backend {}
-
-pub fn app(cx: &App) -> AppHandle {
-    cx.global::<Backend>().0.clone()
-}
-
 /// Runs a backend future on Tokio; the returned future can be awaited from a
 /// UI task. Backend commands use Tokio I/O and timers, which the UI executor
 /// cannot drive.

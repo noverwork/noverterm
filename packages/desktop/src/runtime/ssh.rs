@@ -1,8 +1,6 @@
 mod authentication;
 mod exec;
-mod forwarding;
 mod jump;
-mod probe;
 mod sftp;
 mod shell;
 
@@ -13,7 +11,7 @@ use std::time::Duration;
 use crate::app::AppHandle;
 use russh::client::Handle;
 use russh::Disconnect;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
@@ -25,7 +23,6 @@ use crate::trust::{HostTrustMismatch, HostTrustPrompt, SshTrustStore};
 use super::sftp::SftpSession;
 use super::terminal_output::{OutputSession, TerminalOutput};
 use authentication::{authenticate_session, client_config, map_connect_error};
-use forwarding::{emit_port_forward_event, stopped_port_forward_status};
 use shell::{read_loop, run_shell_write_loop, SSH_WRITE_QUEUE_CAPACITY};
 
 pub(crate) use authentication::ClientHandler;
@@ -44,7 +41,6 @@ pub struct SshSession {
     write_tx: Option<mpsc::Sender<SshWriteRequest>>,
     pending_resize: PendingResize,
     sftp_sessions: HashMap<String, Arc<SftpSession>>,
-    port_forwards: HashMap<String, SshPortForwardTask>,
     keepalive_task: Option<JoinHandle<()>>,
     writer_task: Option<JoinHandle<()>>,
     output: Option<Arc<OutputSession>>,
@@ -65,11 +61,6 @@ enum SshWriteOperation {
 /// Latest requested size; at most one queued resize reads it, so resize bursts
 /// cannot fill the input queue while the channel is blocked.
 type PendingResize = Arc<std::sync::Mutex<Option<(u32, u32)>>>;
-
-struct SshPortForwardTask {
-    status: SshPortForwardStatus,
-    task: JoinHandle<()>,
-}
 
 #[derive(Clone, Default)]
 pub struct SshSessionManager {
@@ -154,10 +145,9 @@ impl SshSessionManager {
         let mut sessions_guard = self.sessions.lock().await;
         let sid = session_id.clone();
         let sessions = self.sessions.clone();
-        let read_app = app.clone();
         let read_output = output.clone();
         tokio::spawn(async move {
-            read_loop(channel_read, sid, read_app, sessions, read_output).await;
+            read_loop(channel_read, sid, sessions, read_output).await;
         });
         let pending_resize = PendingResize::default();
         let writer_task = tokio::spawn(run_shell_write_loop(
@@ -170,14 +160,12 @@ impl SshSessionManager {
         let session_handle = Arc::new(Mutex::new(session));
         let keepalive_handle = session_handle.clone();
         let keepalive_sessions = self.sessions.clone();
-        let keepalive_app = app.clone();
         let ka_session_id = session_id.clone();
         let keepalive_output = output.clone();
         let keepalive_task = tokio::spawn(async move {
             keepalive_loop(
                 keepalive_handle,
                 ka_session_id,
-                keepalive_app,
                 keepalive_sessions,
                 Some(keepalive_output),
             )
@@ -191,7 +179,6 @@ impl SshSessionManager {
                 write_tx: Some(write_tx),
                 pending_resize,
                 sftp_sessions: HashMap::new(),
-                port_forwards: HashMap::new(),
                 keepalive_task: Some(keepalive_task),
                 writer_task: Some(writer_task),
                 output: Some(output),
@@ -203,11 +190,11 @@ impl SshSessionManager {
         Ok(SshConnectResponse::Connected { session_id })
     }
 
-    pub async fn disconnect(&self, app: AppHandle, session_id: &str) -> Result<(), String> {
+    pub async fn disconnect(&self, session_id: &str) -> Result<(), String> {
         let session = self.sessions.lock().await.remove(session_id);
         if let Some(mut session) = session {
             info!(session_id, "Disconnecting SSH session");
-            let stopped_forwards = session.stop_runtime_tasks(None, true, true);
+            session.stop_runtime_tasks(true, true);
             let result = timeout(SSH_KEEPALIVE_TIMEOUT, async {
                 session
                     .handle
@@ -225,40 +212,20 @@ impl SshSessionManager {
                 }
                 output.stop();
             }
-            for status in stopped_forwards {
-                emit_port_forward_event(&app, &status);
-            }
             result?;
         }
         Ok(())
     }
-
-    pub async fn contains_session(&self, session_id: &str) -> bool {
-        self.sessions.lock().await.contains_key(session_id)
-    }
 }
 
 impl SshSession {
-    fn stop_runtime_tasks(
-        &mut self,
-        error: Option<String>,
-        abort_keepalive: bool,
-        abort_writer: bool,
-    ) -> Vec<SshPortForwardStatus> {
+    fn stop_runtime_tasks(&mut self, abort_keepalive: bool, abort_writer: bool) {
         if abort_keepalive {
             self.abort_keepalive_task();
         }
         if abort_writer {
             self.abort_writer_task();
         }
-
-        self.port_forwards
-            .drain()
-            .map(|(_, forward)| {
-                forward.task.abort();
-                stopped_port_forward_status(forward.status, error.clone())
-            })
-            .collect()
     }
 
     fn abort_keepalive_task(&mut self) {
@@ -277,7 +244,6 @@ impl SshSession {
 async fn keepalive_loop(
     handle: Arc<Mutex<Handle<ClientHandler>>>,
     session_id: String,
-    app: AppHandle,
     sessions: Arc<Mutex<HashMap<String, SshSession>>>,
     output: Option<Arc<OutputSession>>,
 ) {
@@ -300,21 +266,18 @@ async fn keepalive_loop(
         // Let the reader flush its current batch before emitting the error.
         output.fail(error);
     } else {
-        remove_session_and_stop_port_forwards(sessions, &session_id, &app, Some(error), false)
-            .await;
+        remove_session(sessions, &session_id, false).await;
     }
 }
 
-async fn remove_session_and_stop_port_forwards(
+async fn remove_session(
     sessions: Arc<Mutex<HashMap<String, SshSession>>>,
     session_id: &str,
-    app: &AppHandle,
-    error: Option<String>,
     abort_keepalive: bool,
 ) {
     let session = sessions.lock().await.remove(session_id);
-    let stopped_forwards = if let Some(mut session) = session {
-        let stopped = session.stop_runtime_tasks(error, abort_keepalive, true);
+    if let Some(mut session) = session {
+        session.stop_runtime_tasks(abort_keepalive, true);
         let _ = timeout(SSH_KEEPALIVE_TIMEOUT, async {
             session
                 .handle
@@ -324,12 +287,6 @@ async fn remove_session_and_stop_port_forwards(
                 .await
         })
         .await;
-        stopped
-    } else {
-        Vec::new()
-    };
-    for status in stopped_forwards {
-        emit_port_forward_event(app, &status);
     }
 }
 
@@ -353,55 +310,4 @@ pub enum SshConnectResponse {
     Connected { session_id: String },
     TrustRequired { prompt: HostTrustPrompt },
     TrustMismatch { mismatch: HostTrustMismatch },
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct HostSystemInfo {
-    pub hostname: Option<String>,
-    pub os: Option<String>,
-    pub cpu_usage_percent: Option<f64>,
-    pub memory_total_bytes: Option<f64>,
-    pub memory_used_bytes: Option<f64>,
-    pub memory_usage_percent: Option<f64>,
-    pub disk_read_bytes_per_second: Option<f64>,
-    pub disk_write_bytes_per_second: Option<f64>,
-    pub network_rx_bytes_per_second: Option<f64>,
-    pub network_tx_bytes_per_second: Option<f64>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(tag = "status", rename_all = "snake_case")]
-pub enum SshProbeHostInfoResponse {
-    Success { info: HostSystemInfo },
-    TrustRequired { prompt: HostTrustPrompt },
-    TrustMismatch { mismatch: HostTrustMismatch },
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct SshLocalPortForwardInput {
-    pub session_id: String,
-    pub bind_host: String,
-    pub bind_port: u16,
-    pub target_host: String,
-    pub target_port: u16,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SshPortForwardState {
-    Listening,
-    Stopped,
-    Error,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct SshPortForwardStatus {
-    pub forward_id: String,
-    pub session_id: String,
-    pub bind_host: String,
-    pub bind_port: u16,
-    pub target_host: String,
-    pub target_port: u16,
-    pub status: SshPortForwardState,
-    pub error: Option<String>,
 }
