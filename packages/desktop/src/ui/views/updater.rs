@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use gpui_kit::component::button::{Button, ButtonVariants as _};
+use gpui_kit::component::progress::Progress as ProgressBar;
 use gpui_kit::component::{h_flex, v_flex, Disableable as _, WindowExt as _};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
@@ -135,19 +136,28 @@ fn replace_bundle(bundle: &Path, new: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Downloads and verifies the release, then installs it for `target`.
-async fn install(download: Download, target: Target) -> Result<(), String> {
-    let data = reqwest::Client::new()
+/// Downloads and verifies the release, then installs it for `target`. Sends
+/// `(downloaded, total)` byte counts to `progress` as the download runs.
+async fn install(
+    download: Download,
+    target: Target,
+    progress: tokio::sync::mpsc::UnboundedSender<(u64, Option<u64>)>,
+) -> Result<(), String> {
+    let mut response = reqwest::Client::new()
         .get(&download.url)
         .header(reqwest::header::USER_AGENT, "noverterm")
         .timeout(Duration::from_secs(600))
         .send()
         .await
         .and_then(|response| response.error_for_status())
-        .map_err(|error| error.to_string())?
-        .bytes()
-        .await
         .map_err(|error| error.to_string())?;
+    let total = response.content_length();
+    let mut data = Vec::with_capacity(total.unwrap_or(0) as usize);
+    while let Some(chunk) = response.chunk().await.map_err(|error| error.to_string())? {
+        data.extend_from_slice(&chunk);
+        let _ = progress.send((data.len() as u64, total));
+    }
+    drop(progress);
     verify(PUBLIC_KEY, &data, &download.signature)?;
     match target {
         Target::Bundle(bundle) => install_bundle(&data, &bundle),
@@ -248,6 +258,8 @@ pub fn check(window: &mut Window, cx: &mut App) -> Task<Result<bool, String>> {
 #[derive(Default)]
 struct Progress {
     installing: bool,
+    /// Percent of the download done, when the server reports its size.
+    percent: Option<f32>,
     error: Option<SharedString>,
 }
 
@@ -262,7 +274,7 @@ pub fn show(release: Release, window: &mut Window, cx: &mut App) {
             .filter(|notes| !notes.is_empty())
             .map(str::to_string);
         let state = progress.read(cx);
-        let (installing, error) = (state.installing, state.error.clone());
+        let (installing, percent, error) = (state.installing, state.percent, state.error.clone());
         let release = release.clone();
         let progress = progress.clone();
         dialog
@@ -292,6 +304,23 @@ pub fn show(release: Release, window: &mut Window, cx: &mut App) {
                                 .text_sm()
                                 .text_color(theme::STENCIL_DIM)
                                 .child(notes),
+                        )
+                    })
+                    .when_some(percent.filter(|_| installing), |body, percent| {
+                        body.child(
+                            h_flex()
+                                .gap_3()
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .child(ProgressBar::new("update-progress").value(percent)),
+                                )
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(theme::STENCIL_DIM)
+                                        .child(format!("{percent:.0}%")),
+                                ),
                         )
                     })
                     .when_some(error, |body, error| {
@@ -342,13 +371,30 @@ fn start_install(
     };
     progress.update(cx, |progress, cx| {
         progress.installing = true;
+        progress.percent = None;
         progress.error = None;
         cx.notify();
     });
     let progress = progress.clone();
     window
         .spawn(cx, async move |cx| {
-            let installed = backend(install(download, target.clone())).await;
+            let (sender, mut received) = tokio::sync::mpsc::unbounded_channel();
+            let installing = backend(install(download, target.clone(), sender));
+            // The channel closes once the download finishes or fails.
+            while let Some((downloaded, total)) = received.recv().await {
+                let percent = total
+                    .filter(|&total| total > 0)
+                    .map(|total| (downloaded as f32 * 100. / total as f32).floor().min(100.));
+                let _ = cx.update(|_, cx| {
+                    progress.update(cx, |progress, cx| {
+                        if progress.percent != percent {
+                            progress.percent = percent;
+                            cx.notify();
+                        }
+                    })
+                });
+            }
+            let installed = installing.await;
             let _ = cx.update(|_, cx| match installed {
                 Ok(()) => {
                     relaunch(&target);
@@ -356,6 +402,7 @@ fn start_install(
                 }
                 Err(error) => progress.update(cx, |progress, cx| {
                     progress.installing = false;
+                    progress.percent = None;
                     progress.error = Some(error.into());
                     cx.notify();
                 }),
