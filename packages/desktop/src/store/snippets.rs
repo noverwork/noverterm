@@ -26,25 +26,6 @@ pub(crate) async fn load_snippets(pool: DbPool) -> Result<Vec<SnippetRecord>, St
     .await
 }
 
-pub async fn snippet_get(
-    id: String,
-    pool: crate::app::State<'_, DbPool>,
-) -> Result<SnippetRecord, String> {
-    let pool = pool.inner().clone();
-    run_db(pool, move |connection| {
-        host_snippets::table
-            .left_join(ssh_hosts::table)
-            .filter(host_snippets::id.eq(id))
-            .select((HostSnippet::as_select(), ssh_hosts::name.nullable()))
-            .first::<(HostSnippet, Option<String>)>(connection)
-            .optional()
-            .map_err(internal_error)?
-            .map(to_record)
-            .ok_or_else(|| "snippet not found".to_string())
-    })
-    .await
-}
-
 pub async fn snippet_create(
     snippet: SnippetWriteRequest,
     pool: crate::app::State<'_, DbPool>,

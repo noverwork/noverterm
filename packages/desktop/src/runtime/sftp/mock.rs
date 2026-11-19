@@ -51,7 +51,6 @@ impl SftpSession {
         Self {
             id: id.into(),
             inner: SftpSessionInner::Mock {
-                close_error: None,
                 entries: std::sync::Mutex::new(HashMap::new()),
                 upload_result: Ok(0),
                 download_result: Ok(0),
@@ -68,7 +67,6 @@ impl SftpSession {
         Self {
             id: id.into(),
             inner: SftpSessionInner::Mock {
-                close_error: None,
                 entries: std::sync::Mutex::new(entries),
                 upload_result: Ok(0),
                 download_result: Ok(0),
@@ -85,7 +83,6 @@ impl SftpSession {
         Self {
             id: id.into(),
             inner: SftpSessionInner::Mock {
-                close_error: None,
                 entries: std::sync::Mutex::new(HashMap::new()),
                 upload_result,
                 download_result: Ok(0),
@@ -104,7 +101,6 @@ impl SftpSession {
         Self {
             id: id.into(),
             inner: SftpSessionInner::Mock {
-                close_error: None,
                 entries: std::sync::Mutex::new(HashMap::from([(
                     remote_path.clone(),
                     MockEntry::file(data.len() as u64, None),
@@ -127,7 +123,6 @@ impl SftpSession {
         Self {
             id: id.into(),
             inner: SftpSessionInner::Mock {
-                close_error: None,
                 entries: std::sync::Mutex::new(HashMap::from([(
                     remote_path.clone(),
                     MockEntry::file(data.len() as u64, None),
@@ -135,20 +130,6 @@ impl SftpSession {
                 upload_result: Ok(0),
                 download_result: Err(error.into()),
                 remote_files: std::sync::Mutex::new(HashMap::from([(remote_path, data)])),
-                progress_callbacks: std::sync::Mutex::new(Vec::new()),
-            },
-        }
-    }
-
-    pub(super) fn mock_with_close_error(id: impl Into<String>, error: impl Into<String>) -> Self {
-        Self {
-            id: id.into(),
-            inner: SftpSessionInner::Mock {
-                close_error: Some(error.into()),
-                entries: std::sync::Mutex::new(HashMap::new()),
-                upload_result: Ok(0),
-                download_result: Ok(0),
-                remote_files: std::sync::Mutex::new(HashMap::new()),
                 progress_callbacks: std::sync::Mutex::new(Vec::new()),
             },
         }

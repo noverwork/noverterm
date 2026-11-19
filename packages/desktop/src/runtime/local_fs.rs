@@ -3,7 +3,7 @@
 //! This module mirrors the SFTP operations API to enable seamless switching
 //! between local and remote (SFTP) file browsing.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
 
 use tokio::fs;
@@ -67,32 +67,6 @@ async fn entry_from_dir_entry(entry: &tokio::fs::DirEntry) -> std::io::Result<Fi
     })
 }
 
-fn entry_from_path(path: &Path, name: &str) -> std::io::Result<FileEntry> {
-    let metadata = path.metadata()?;
-    let file_type = file_type_from_metadata(&metadata);
-    let size = if matches!(
-        file_type,
-        FileType::Dir | FileType::Symlink | FileType::Other
-    ) {
-        0
-    } else {
-        metadata.len()
-    };
-
-    let modified = metadata
-        .modified()
-        .ok()
-        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-        .map(|d| d.as_secs());
-
-    Ok(FileEntry {
-        name: name.to_string(),
-        size,
-        modified,
-        file_type,
-    })
-}
-
 /// List directory contents.
 ///
 /// Returns entries sorted: directories first, then files, alphabetically.
@@ -133,24 +107,6 @@ pub async fn local_list_dir(path: &str) -> Result<Vec<FileEntry>, String> {
     });
 
     Ok(entries)
-}
-
-/// Get file/directory metadata.
-pub async fn local_stat(path: &str) -> Result<FileEntry, String> {
-    let expanded_path = expand_tilde(path)?;
-    let p = &expanded_path;
-
-    if !p.exists() {
-        return Err(format!("Path does not exist: {}", expanded_path.display()));
-    }
-
-    let name = p
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| expanded_path.to_string_lossy().to_string());
-
-    entry_from_path(p, &name)
-        .map_err(|e| format!("Failed to stat '{}': {}", expanded_path.display(), e))
 }
 
 /// Create a directory.
@@ -290,29 +246,6 @@ mod tests {
                 PathBuf::from("relative/path")
             );
         }
-    }
-
-    #[tokio::test]
-    async fn test_local_stat_file() {
-        let temp = TempDir::new().expect("Failed to create temp dir");
-        let file_path = temp.path().join("test.txt");
-        tokio::fs::write(&file_path, "hello world")
-            .await
-            .expect("Failed to create file");
-
-        let entry = local_stat(file_path.to_str().unwrap())
-            .await
-            .expect("stat should succeed");
-
-        assert_eq!(entry.name, "test.txt");
-        assert_eq!(entry.file_type, FileType::File);
-        assert_eq!(entry.size, 11);
-    }
-
-    #[tokio::test]
-    async fn test_local_stat_nonexistent() {
-        let result = local_stat("/nonexistent/path/to/file").await;
-        assert!(result.is_err());
     }
 
     #[tokio::test]

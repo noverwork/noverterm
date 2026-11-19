@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::net::Shutdown;
 use std::sync::Arc;
 
-use crate::app::AppHandle;
 use russh::{client, Disconnect};
 use russh_sftp::client::SftpSession as RusshSftpSession;
 use tokio::net::TcpStream;
@@ -89,7 +88,6 @@ impl SshSessionManager {
     #[allow(clippy::too_many_arguments)]
     pub async fn connect_direct_sftp(
         &self,
-        app: AppHandle,
         host: &str,
         port: u16,
         username: &str,
@@ -165,18 +163,10 @@ impl SshSessionManager {
         let session_handle = Arc::new(Mutex::new(session));
         let keepalive_handle = session_handle.clone();
         let keepalive_sessions = self.sessions.clone();
-        let keepalive_app = app.clone();
         let ka_session_id = sftp_session_id.clone();
 
         let keepalive_task = tokio::spawn(async move {
-            keepalive_loop(
-                keepalive_handle,
-                ka_session_id,
-                keepalive_app,
-                keepalive_sessions,
-                None,
-            )
-            .await;
+            keepalive_loop(keepalive_handle, ka_session_id, keepalive_sessions, None).await;
         });
 
         self.sessions.lock().await.insert(
@@ -186,7 +176,6 @@ impl SshSessionManager {
                 write_tx: None,
                 pending_resize: Default::default(),
                 sftp_sessions: HashMap::from([(sftp_session_id.clone(), Arc::new(sftp_session))]),
-                port_forwards: HashMap::new(),
                 keepalive_task: Some(keepalive_task),
                 writer_task: None,
                 output: None,
@@ -214,7 +203,7 @@ impl SshSessionManager {
             .await
             .map_err(|error| error.to_string());
         if let Some(mut session) = direct_session {
-            session.stop_runtime_tasks(None, true, true);
+            session.stop_runtime_tasks(true, true);
             let disconnect_result = timeout(SSH_KEEPALIVE_TIMEOUT, async {
                 let mut handle = session.handle.lock().await;
                 handle
@@ -256,15 +245,6 @@ impl SshSessionManager {
 
         sftp_session
             .home_dir()
-            .await
-            .map_err(|error| error.to_string())
-    }
-
-    pub async fn sftp_stat(&self, sftp_id: &str, path: &str) -> Result<FileEntry, String> {
-        let sftp_session = self.sftp_session(sftp_id).await?;
-
-        sftp_session
-            .stat(path)
             .await
             .map_err(|error| error.to_string())
     }

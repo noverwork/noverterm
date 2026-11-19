@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::app::AppHandle;
 use russh::client::Msg;
 use russh::{ChannelMsg, ChannelReadHalf, ChannelWriteHalf};
 use tokio::sync::{mpsc, oneshot, Mutex};
@@ -11,8 +10,8 @@ use tracing::warn;
 use crate::runtime::terminal_output::{OutputSession, OUTPUT_CHUNK_BYTES};
 
 use super::{
-    remove_session_and_stop_port_forwards, PendingResize, SshSession, SshSessionManager,
-    SshWriteOperation, SshWriteRequest,
+    remove_session, PendingResize, SshSession, SshSessionManager, SshWriteOperation,
+    SshWriteRequest,
 };
 
 const SSH_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(2);
@@ -130,7 +129,6 @@ impl OutputBatch {
 pub(super) async fn read_loop(
     mut channel_read: ChannelReadHalf,
     session_id: String,
-    app: AppHandle,
     sessions: Arc<Mutex<HashMap<String, SshSession>>>,
     output: Arc<OutputSession>,
 ) {
@@ -159,7 +157,7 @@ pub(super) async fn read_loop(
     if let Err(close_error) = output.close(error.clone()) {
         warn!(session_id, %close_error, "Failed to close terminal output");
     }
-    remove_session_and_stop_port_forwards(sessions, &session_id, &app, error, true).await;
+    remove_session(sessions, &session_id, true).await;
 }
 
 pub(super) async fn run_shell_write_loop(

@@ -1218,7 +1218,6 @@ impl SftpView {
         cx.spawn_in(window, async move |this, cx| {
             let connected = backend(async move {
                 let response = commands::sftp_connect_direct(
-                    app.clone(),
                     input.host,
                     input.port,
                     input.username,

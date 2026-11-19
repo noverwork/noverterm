@@ -23,10 +23,3 @@ pub struct NewHostGroup {
     pub updated_at: NaiveDateTime,
     pub color: Option<String>,
 }
-
-#[derive(Debug, Clone, AsChangeset)]
-#[diesel(table_name = host_groups)]
-pub struct UpdateHostGroup {
-    pub name: String,
-    pub updated_at: NaiveDateTime,
-}

@@ -94,21 +94,17 @@ impl Default for TransferCancellation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SftpError {
-    AlreadyOpen,
     AlreadyExists,
     ChannelOpenFailed(String),
     DirectoryNotEmpty,
     IsADirectory,
     NotFound(String),
-    NotConnected,
     PermissionDenied {
         operation: &'static str,
         path: String,
     },
     SubsystemNotSupported(String),
     SessionInitFailed(String),
-    SessionNotFound(String),
-    CloseFailed(String),
     ConnectionLost(String),
     OperationFailed(String),
 }
@@ -116,7 +112,6 @@ pub enum SftpError {
 impl fmt::Display for SftpError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::AlreadyOpen => write!(formatter, "SFTP session already open"),
             Self::AlreadyExists => write!(formatter, "SFTP destination already exists"),
             Self::ChannelOpenFailed(error) => {
                 write!(formatter, "Failed to open SFTP channel: {error}")
@@ -124,7 +119,6 @@ impl fmt::Display for SftpError {
             Self::DirectoryNotEmpty => write!(formatter, "SFTP directory is not empty"),
             Self::IsADirectory => write!(formatter, "SFTP path is a directory"),
             Self::NotFound(path) => write!(formatter, "Path not found: {path}"),
-            Self::NotConnected => write!(formatter, "SFTP session is not connected"),
             Self::PermissionDenied { operation, path } => {
                 write!(formatter, "Permission denied: cannot {operation} {path}")
             }
@@ -134,10 +128,6 @@ impl fmt::Display for SftpError {
             Self::SessionInitFailed(error) => {
                 write!(formatter, "Failed to initialize SFTP session: {error}")
             }
-            Self::SessionNotFound(session_id) => {
-                write!(formatter, "SFTP session not found: {session_id}")
-            }
-            Self::CloseFailed(error) => write!(formatter, "Failed to close SFTP session: {error}"),
             Self::ConnectionLost(error) => write!(formatter, "SFTP connection lost: {error}"),
             Self::OperationFailed(error) => write!(formatter, "SFTP operation failed: {error}"),
         }
