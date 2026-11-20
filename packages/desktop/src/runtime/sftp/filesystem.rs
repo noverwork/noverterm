@@ -2,6 +2,7 @@ use russh_sftp::client::fs::Metadata;
 use russh_sftp::client::SftpSession as RusshSftpSession;
 use russh_sftp::protocol::FileType as RusshFileType;
 
+use super::tree::join_remote;
 use super::types::classify_sftp_error;
 use super::{FileEntry, FileType, SftpError};
 
@@ -154,27 +155,14 @@ fn file_type_sort_rank(file_type: FileType) -> u8 {
 
 pub async fn remove_sftp(session: &RusshSftpSession, path: &str) -> Result<(), SftpError> {
     let resolved_path = resolve_remote_path(session, path).await?;
+    // lstat: a symlink to a directory is removed as a link, never followed.
     let metadata = session
-        .metadata(&resolved_path)
+        .symlink_metadata(&resolved_path)
         .await
         .map_err(|error| classify_sftp_error("read", &resolved_path, error))?;
 
     match metadata.file_type() {
-        RusshFileType::Dir => {
-            let mut entries = session
-                .read_dir(&resolved_path)
-                .await
-                .map_err(|error| classify_sftp_error("read", &resolved_path, error))?;
-
-            if entries.next().is_some() {
-                return Err(SftpError::DirectoryNotEmpty);
-            }
-
-            session
-                .remove_dir(&resolved_path)
-                .await
-                .map_err(|error| classify_sftp_error("write", &resolved_path, error))
-        }
+        RusshFileType::Dir => remove_sftp_dir_all(session, &resolved_path).await,
         _ => session.remove_file(&resolved_path).await.map_err(|error| {
             let message = error.to_string();
             if message.to_lowercase().contains("is a directory") {
@@ -184,6 +172,45 @@ pub async fn remove_sftp(session: &RusshSftpSession, path: &str) -> Result<(), S
             }
         }),
     }
+}
+
+/// Deletes `root` and everything under it. Readdir attributes are lstat-based,
+/// so symlinks inside the tree are unlinked rather than descended into.
+async fn remove_sftp_dir_all(session: &RusshSftpSession, root: &str) -> Result<(), SftpError> {
+    let mut pending = vec![root.to_string()];
+    let mut dirs = Vec::new();
+
+    while let Some(dir) = pending.pop() {
+        let entries = session
+            .read_dir(&dir)
+            .await
+            .map_err(|error| classify_sftp_error("read", &dir, error))?;
+        for entry in entries {
+            let name = entry.file_name();
+            if name == "." || name == ".." {
+                continue;
+            }
+            let child = join_remote(&dir, &name);
+            if entry.file_type() == RusshFileType::Dir {
+                pending.push(child);
+            } else {
+                session
+                    .remove_file(&child)
+                    .await
+                    .map_err(|error| classify_sftp_error("write", &child, error))?;
+            }
+        }
+        dirs.push(dir);
+    }
+
+    // Every directory is visited after its parent, so reverse order empties children first.
+    for dir in dirs.into_iter().rev() {
+        session
+            .remove_dir(&dir)
+            .await
+            .map_err(|error| classify_sftp_error("write", &dir, error))?;
+    }
+    Ok(())
 }
 
 pub async fn rename_sftp(

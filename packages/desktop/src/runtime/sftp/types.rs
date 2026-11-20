@@ -96,7 +96,6 @@ impl Default for TransferCancellation {
 pub enum SftpError {
     AlreadyExists,
     ChannelOpenFailed(String),
-    DirectoryNotEmpty,
     IsADirectory,
     NotFound(String),
     PermissionDenied {
@@ -116,7 +115,6 @@ impl fmt::Display for SftpError {
             Self::ChannelOpenFailed(error) => {
                 write!(formatter, "Failed to open SFTP channel: {error}")
             }
-            Self::DirectoryNotEmpty => write!(formatter, "SFTP directory is not empty"),
             Self::IsADirectory => write!(formatter, "SFTP path is a directory"),
             Self::NotFound(path) => write!(formatter, "Path not found: {path}"),
             Self::PermissionDenied { operation, path } => {

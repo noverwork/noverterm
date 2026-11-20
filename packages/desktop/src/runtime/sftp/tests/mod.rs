@@ -260,14 +260,21 @@ async fn test_remove_nonempty_dir() {
         HashMap::from([
             ("/remote/dir".to_string(), mock_dir()),
             ("/remote/dir/file.txt".to_string(), mock_file()),
+            ("/remote/dir/sub".to_string(), mock_dir()),
+            ("/remote/dir/sub/deep.txt".to_string(), mock_file()),
+            ("/remote/dirx".to_string(), mock_dir()),
         ]),
     );
 
-    let result = session.remove("/remote/dir").await;
+    session
+        .remove("/remote/dir")
+        .await
+        .expect("mock SFTP non-empty directory should be removed");
 
-    assert_eq!(result, Err(SftpError::DirectoryNotEmpty));
-    assert!(session.mock_contains_path("/remote/dir"));
-    assert!(session.mock_contains_path("/remote/dir/file.txt"));
+    assert!(!session.mock_contains_path("/remote/dir"));
+    assert!(!session.mock_contains_path("/remote/dir/file.txt"));
+    assert!(!session.mock_contains_path("/remote/dir/sub/deep.txt"));
+    assert!(session.mock_contains_path("/remote/dirx"));
 }
 
 #[tokio::test]

@@ -145,7 +145,7 @@ async fn list_local_tree(root: &str) -> Result<Vec<String>, SftpError> {
     Ok(files)
 }
 
-fn join_remote(parent: &str, name: &str) -> String {
+pub(super) fn join_remote(parent: &str, name: &str) -> String {
     format!("{}/{}", parent.trim_end_matches('/'), name)
 }
 

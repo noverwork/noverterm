@@ -251,20 +251,12 @@ pub(super) fn remove_mock(
         .copied()
         .ok_or_else(|| SftpError::NotFound(path.to_string()))?;
 
-    match entry.file_type {
-        MockFileType::File | MockFileType::Symlink => {
-            entries.remove(path);
-            Ok(())
-        }
-        MockFileType::Directory => {
-            if mock_dir_has_entries(entries, path) {
-                return Err(SftpError::DirectoryNotEmpty);
-            }
-
-            entries.remove(path);
-            Ok(())
-        }
+    entries.remove(path);
+    if entry.file_type == MockFileType::Directory {
+        let prefix = format!("{}/", path.trim_end_matches('/'));
+        entries.retain(|entry_path, _| !entry_path.starts_with(&prefix));
     }
+    Ok(())
 }
 
 pub(super) fn rename_mock(
@@ -299,11 +291,4 @@ pub(super) fn rename_mock(
     }
 
     Ok(())
-}
-
-fn mock_dir_has_entries(entries: &HashMap<String, MockEntry>, path: &str) -> bool {
-    let prefix = format!("{}/", path.trim_end_matches('/'));
-    entries
-        .keys()
-        .any(|entry_path| entry_path.starts_with(&prefix))
 }

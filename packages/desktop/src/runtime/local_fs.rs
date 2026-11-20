@@ -121,34 +121,20 @@ pub async fn local_mkdir(path: &str) -> Result<(), String> {
     })
 }
 
-/// Remove a file or empty directory.
+/// Remove a file, symlink, or directory tree.
 pub async fn local_remove(path: &str) -> Result<(), String> {
     let expanded_path = expand_tilde(path)?;
     let p = &expanded_path;
 
-    if !p.exists() {
+    // lstat: a symlink to a directory is unlinked, never followed.
+    let Ok(metadata) = fs::symlink_metadata(p).await else {
         return Err(format!("Path does not exist: {}", expanded_path.display()));
-    }
+    };
 
-    if p.is_dir() {
-        match fs::remove_dir(p).await {
-            Ok(()) => return Ok(()),
-            Err(e) => {
-                if e.kind() == std::io::ErrorKind::DirectoryNotEmpty {
-                    return Err(format!("Directory not empty: {}", expanded_path.display()));
-                }
-                if p.is_file() {
-                    return fs::remove_file(p).await.map_err(|e| {
-                        format!("Failed to remove '{}': {}", expanded_path.display(), e)
-                    });
-                }
-                return Err(format!(
-                    "Failed to remove '{}': {}",
-                    expanded_path.display(),
-                    e
-                ));
-            }
-        }
+    if metadata.is_dir() {
+        return fs::remove_dir_all(p)
+            .await
+            .map_err(|e| format!("Failed to remove '{}': {}", expanded_path.display(), e));
     }
 
     fs::remove_file(p)
@@ -313,16 +299,18 @@ mod tests {
         let temp = TempDir::new().expect("Failed to create temp dir");
         let dir_path = temp.path().join("not_empty");
 
-        tokio::fs::create_dir(&dir_path)
+        tokio::fs::create_dir_all(dir_path.join("sub"))
             .await
             .expect("Failed to create dir");
-        tokio::fs::write(dir_path.join("file.txt"), "content")
+        tokio::fs::write(dir_path.join("sub/file.txt"), "content")
             .await
             .expect("Failed to create file in dir");
 
-        let result = local_remove(dir_path.to_str().unwrap()).await;
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Directory not empty"));
+        local_remove(dir_path.to_str().unwrap())
+            .await
+            .expect("remove should succeed");
+
+        assert!(!dir_path.exists());
     }
 
     #[tokio::test]
