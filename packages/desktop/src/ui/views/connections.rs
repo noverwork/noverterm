@@ -30,6 +30,12 @@ const COLLAPSED_SETTING: &str = "noverterm.connections.collapsedGroups";
 const UNGROUPED_KEY: &str = "ungrouped";
 const SSH_CONFIG_PATH: &str = "~/.ssh/config";
 
+/// While a host is dragged this close to the list's top or bottom edge, the
+/// list scrolls by `DRAG_SCROLL_STEP` every `DRAG_SCROLL_TICK`.
+const DRAG_SCROLL_EDGE: Pixels = px(48.);
+const DRAG_SCROLL_STEP: Pixels = px(8.);
+const DRAG_SCROLL_TICK: Duration = Duration::from_millis(16);
+
 pub const AI_ACCESS_OPTIONS: [(AiAccess, &str); 3] = [
     (AiAccess::Allow, "Always allow"),
     (AiAccess::Ask, "Ask every time"),
@@ -83,6 +89,9 @@ pub struct ConnectionsView {
     palettes: HashMap<String, (Entity<ColorPickerState>, Subscription)>,
     /// A group's pending color save; a newer pick replaces it.
     color_saves: HashMap<String, Task<()>>,
+    /// Signed pixels the list scrolls per tick while a drag rests at an edge.
+    drag_scroll: Pixels,
+    drag_scroll_task: Option<Task<()>>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -116,6 +125,8 @@ impl ConnectionsView {
             error: None,
             palettes: HashMap::new(),
             color_saves: HashMap::new(),
+            drag_scroll: px(0.),
+            drag_scroll_task: None,
             _subscriptions: subscriptions,
         };
         this.sync_palettes(window, cx);
@@ -254,6 +265,49 @@ impl ConnectionsView {
             cx,
             |_, _| {},
         );
+    }
+
+    /// Scrolls the list while a dragged host rests near its top or bottom, so
+    /// a group outside the viewport can still be reached.
+    fn drag_scroll(
+        &mut self,
+        position: Point<Pixels>,
+        bounds: Bounds<Pixels>,
+        cx: &mut Context<Self>,
+    ) {
+        self.drag_scroll = if position.y < bounds.top() + DRAG_SCROLL_EDGE {
+            -DRAG_SCROLL_STEP
+        } else if position.y > bounds.bottom() - DRAG_SCROLL_EDGE {
+            DRAG_SCROLL_STEP
+        } else {
+            px(0.)
+        };
+        if self.drag_scroll == px(0.) {
+            self.drag_scroll_task = None;
+            return;
+        }
+        if self.drag_scroll_task.is_some() {
+            return;
+        }
+        self.drag_scroll_task = Some(cx.spawn(async move |this, cx| loop {
+            cx.background_executor().timer(DRAG_SCROLL_TICK).await;
+            let scrolling = this.update(cx, |this, cx| {
+                if !cx.has_active_drag() {
+                    this.drag_scroll_task = None;
+                    return false;
+                }
+                let scroll = common::kept_scroll("connections");
+                let mut offset = scroll.offset();
+                // Offsets grow negative as the list scrolls down.
+                offset.y = (offset.y - this.drag_scroll).clamp(-scroll.max_offset().y, px(0.));
+                scroll.set_offset(offset);
+                cx.notify();
+                true
+            });
+            if !scrolling.unwrap_or(false) {
+                break;
+            }
+        }));
     }
 
     fn set_ai_access(&mut self, host: &SshHostRecord, access: AiAccess, cx: &mut Context<Self>) {
@@ -905,6 +959,11 @@ impl Render for ConnectionsView {
                         })),
                 ),
             common::page_body("connections")
+                .on_drag_move(
+                    cx.listener(|this, event: &DragMoveEvent<DraggedHost>, _, cx| {
+                        this.drag_scroll(event.event.position, event.bounds, cx)
+                    }),
+                )
                 .children(
                     self.error
                         .clone()
